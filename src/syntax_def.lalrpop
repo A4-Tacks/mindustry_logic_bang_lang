@@ -1,0 +1,328 @@
+use crate::syntax::{
+    Errors,
+    Error,
+    Op,
+    Value,
+    Var,
+    DExp,
+    JumpCmp,
+    Goto,
+    Expand,
+    Select,
+    LogicLine,
+    Meta,
+    ARG_RES,
+};
+
+grammar(meta: &mut Meta);
+
+extern {
+    type Error = Error;
+    type Location = Location;
+}
+
+match {
+    r"\s+" => {}, // empty
+    r##"#(?:[\r\n]|[^*][^\r\n])*"## => {}, // inline comments
+    r##"#\*[^*]*\*+(?:[^#*][^*]*\*+)*#"## => {}, // long comments
+} else {
+    _
+}
+
+pub String: Var = r#""[^"]*""# => <>.replace('\n', "\\n");
+pub Ident: Var = r"[_\p{XID_Start}]\p{XID_Continue}*" => <>.into();
+pub OIdent: Var = r"@[_\p{XID_Start}][\p{XID_Continue}\-]*" => <>.into(); // `@abc-def`这种
+pub Number: Var = r"(?:0(?:x-?[\da-fA-F][_\da-fA-F]*|b-?[01][_01]*)|-?\d[_\d]*(?:\.\d[\d_]*)?)"
+    => <>.chars().filter(|&c| c != '_').collect();
+pub OtherValue: Var = r"'[^'\s]+'" => {
+    let mut res: Var = <>.chars().skip(1).collect();
+    res.pop().unwrap();
+    res
+}; // 特殊格式的值, 如`'@abc-def'`
+
+// 逻辑里面一个单元
+// 例如`0x50` `'@alpha'` `add` `'a-b-c'`
+pub Var: Var = {
+    String,
+    Ident,
+    OIdent,
+    Number,
+    OtherValue,
+}
+
+pub Value: Value = {
+    Var => <>.into(),
+    DExp => <>.into(),
+}
+
+pub LiteralUInt: usize = <loc:(@L @R)> <num:Number> =>? {
+    let mut chars = num.chars();
+    let res = if let Some('0') = chars.next() {
+        match chars.next() {
+            Some('x') => usize::from_str_radix(&chars.collect::<String>(), 16),
+            Some('b') => usize::from_str_radix(&chars.collect::<String>(), 2),
+            _ => num.parse::<usize>(),
+        }
+    } else {
+        num.parse::<usize>()
+    };
+    match res {
+        Ok(num) => Ok(num),
+        Err(e) => Err(Error::from((loc, Errors::NotALiteralUInteger(num, e))).into()),
+    }
+};
+
+Value_0: Value = Value => <>.default_result(ARG_RES[0]);
+Value_1: Value = Value => <>.default_result(ARG_RES[1]);
+Value_2: Value = Value => <>.default_result(ARG_RES[2]);
+Value_3: Value = Value => <>.default_result(ARG_RES[3]);
+Value_4: Value = Value => <>.default_result(ARG_RES[4]);
+Value_5: Value = Value => <>.default_result(ARG_RES[5]);
+Value_6: Value = Value => <>.default_result(ARG_RES[6]);
+Value_7: Value = Value => <>.default_result(ARG_RES[7]);
+Value_8: Value = Value => <>.default_result(ARG_RES[8]);
+Value_9: Value = Value => <>.default_result(ARG_RES[9]);
+
+
+Or<A, B> = { A, B }; // A或者B
+Or3<A, B, C> = { A, B, C }; // A或者B或者C
+OrSwap<A, B> = { A B, B A }; // 匹配 `A B`或者`B A`
+OrRev<A, M, B> = { A M B, B, M, A }; // 匹配`A M B`或者`B M A`
+OrShl<A, B, C> = { A B C, B C A }; // 匹配`A B C`或者`B C A`, 后者是值进行左移循环得到
+Wrap<Open, T, Close> = Open <T> Close; // 用于定义包裹
+MTuple<T> = Wrap<"(", T, ")">;
+MList<T> = Wrap<"[", T, "]">;
+MBlock<T> = Wrap<"{", T, "}">;
+OpenArgs<T, S> = (<T> S)*; // 零至多个有分隔后缀值
+CloseArgs<T, S> = (<T> S)* T => { // 一至多个有分隔无后缀值
+    let (mut args, tail) = <>;
+    args.push(tail);
+    args
+};
+
+LEnd: () = ";" => ();
+
+pub JumpCmp: JumpCmp = {
+    <OrSwap<Or<"equal", "==">, <Value_0>>> <Value_1> => JumpCmp::Equal(<>),
+    <OrSwap<Or<"notEqual", "!=">, <Value_0>>> <Value_1> => JumpCmp::NotEqual(<>),
+    <OrSwap<Or<"lessThan", "<">, <Value_0>>> <Value_1> => JumpCmp::LessThan(<>),
+    <OrSwap<Or<"lessThanEq", "<=">, <Value_0>>> <Value_1> => JumpCmp::LessThanEq(<>),
+    <OrSwap<Or<"greaterThan", ">">, <Value_0>>> <Value_1> => JumpCmp::GreaterThan(<>),
+    <OrSwap<Or<"greaterThanEq", ">=">, <Value_0>>> <Value_1> => JumpCmp::GreaterThanEq(<>),
+    <OrSwap<Or<"strictEqual", "===">, <Value_0>>> <Value_1> => JumpCmp::StrictEqual(<>),
+    Or<"always", "_"> => JumpCmp::Always,
+    // 扩展
+    Or<"lnot", "!"> <Value_0> => JumpCmp::bool(<>).reverse(),
+    <Value_0> => JumpCmp::bool(<>),
+}
+
+pub Op: Op = {
+    // 2
+    <a:OrShl<Or<"add", "+">, <Var>, <Value_0>>> <b:Value_1> => Op::Add(a.0, a.1, b),
+    <a:OrShl<Or<"sub", "-">, <Var>, <Value_0>>> <b:Value_1> => Op::Sub(a.0, a.1, b),
+    <a:OrShl<Or<"mul", "*">, <Var>, <Value_0>>> <b:Value_1> => Op::Mul(a.0, a.1, b),
+    <a:OrShl<Or<"div", "/">, <Var>, <Value_0>>> <b:Value_1> => Op::Div(a.0, a.1, b),
+    <a:OrShl<Or<"idiv", "//">, <Var>, <Value_0>>> <b:Value_1> => Op::Idiv(a.0, a.1, b),
+    <a:OrShl<Or<"mod", "%">, <Var>, <Value_0>>> <b:Value_1> => Op::Mod(a.0, a.1, b),
+    <a:OrShl<Or<"pow", "**">, <Var>, <Value_0>>> <b:Value_1> => Op::Pow(a.0, a.1, b),
+    <a:OrShl<Or<"equal", "==">, <Var>, <Value_0>>> <b:Value_1> => Op::Equal(a.0, a.1, b),
+    <a:OrShl<Or<"notEqual", "!=">, <Var>, <Value_0>>> <b:Value_1> => Op::NotEqual(a.0, a.1, b),
+    <a:OrShl<Or<"land", "&&">, <Var>, <Value_0>>> <b:Value_1> => Op::Land(a.0, a.1, b),
+    <a:OrShl<Or<"lessThan", "<">, <Var>, <Value_0>>> <b:Value_1> => Op::LessThan(a.0, a.1, b),
+    <a:OrShl<Or<"lessThanEq", "<=">, <Var>, <Value_0>>> <b:Value_1> => Op::LessThanEq(a.0, a.1, b),
+    <a:OrShl<Or<"greaterThan", ">">, <Var>, <Value_0>>> <b:Value_1> => Op::GreaterThan(a.0, a.1, b),
+    <a:OrShl<Or<"greaterThanEq", ">=">, <Var>, <Value_0>>> <b:Value_1> => Op::GreaterThanEq(a.0, a.1, b),
+    <a:OrShl<Or<"strictEqual", "===">, <Var>, <Value_0>>> <b:Value_1> => Op::StrictEqual(a.0, a.1, b),
+    <a:OrShl<Or<"shl", "<<">, <Var>, <Value_0>>> <b:Value_1> => Op::Shl(a.0, a.1, b),
+    <a:OrShl<Or<"shr", ">>">, <Var>, <Value_0>>> <b:Value_1> => Op::Shr(a.0, a.1, b),
+    <a:OrShl<Or<"or", "|">, <Var>, <Value_0>>> <b:Value_1> => Op::Or(a.0, a.1, b),
+    <a:OrShl<Or<"and", "&">, <Var>, <Value_0>>> <b:Value_1> => Op::And(a.0, a.1, b),
+    <a:OrShl<Or<"xor", "^">, <Var>, <Value_0>>> <b:Value_1> => Op::Xor(a.0, a.1, b),
+
+    <OrSwap<"max", <Var>>> <Value_0> <Value_1> => Op::Max(<>),
+    <OrSwap<"min", <Var>>> <Value_0> <Value_1> => Op::Min(<>),
+    <OrSwap<"angle", <Var>>> <Value_0> <Value_1> => Op::Angle(<>),
+    <OrSwap<"len", <Var>>> <Value_0> <Value_1> => Op::Len(<>),
+    <OrSwap<"noise", <Var>>> <Value_0> <Value_1> => Op::Noise(<>),
+
+    // 1
+    // 此处使用`Var`来接受逻辑导出时的占位符
+    <OrSwap<Or<"not", "~">, <Var>>> <Value_0> Var? => Op::Not(<>),
+    <OrSwap<"abs", <Var>>> <Value_0> Var? => Op::Abs(<>),
+    <OrSwap<"log", <Var>>> <Value_0> Var? => Op::Log(<>),
+    <OrSwap<"log10", <Var>>> <Value_0> Var? => Op::Log10(<>),
+    <OrSwap<"floor", <Var>>> <Value_0> Var? => Op::Floor(<>),
+    <OrSwap<"ceil", <Var>>> <Value_0> Var? => Op::Ceil(<>),
+    <OrSwap<"sqrt", <Var>>> <Value_0> Var? => Op::Sqrt(<>),
+    <OrSwap<"rand", <Var>>> <Value_0> Var? => Op::Rand(<>),
+    <OrSwap<"sin", <Var>>> <Value_0> Var? => Op::Sin(<>),
+    <OrSwap<"cos", <Var>>> <Value_0> Var? => Op::Cos(<>),
+    <OrSwap<"tan", <Var>>> <Value_0> Var? => Op::Tan(<>),
+    <OrSwap<"asin", <Var>>> <Value_0> Var? => Op::Asin(<>),
+    <OrSwap<"acos", <Var>>> <Value_0> Var? => Op::Acos(<>),
+    <OrSwap<"atan", <Var>>> <Value_0> Var? => Op::Atan(<>),
+    // 扩展(1)
+    <OrSwap<Or<"lnot", "!">, <Var>>> <Value_0> Var? => Op::Equal(<>, "false".into()),
+}
+
+Label: String = ":" <Var>;
+
+pub Expand: Expand = LogicLine* => Expand(<>);
+pub LogicLine: LogicLine = {
+    Control,
+    MBlock<Expand> => <>.into(),
+    Label => LogicLine::Label(<>),
+    "op" <Op> LEnd => <>.into(),
+    <Var+> LEnd => LogicLine::Other(<>),
+}
+
+//  if结构定义
+//  ```
+//  if x {
+//      1
+//  } elif y {
+//      2
+//  } elif z {
+//      3
+//  } else {
+//      4
+//  }
+//  ```
+//  
+//  被转换为
+//  ```
+//  goto :a x
+//  goto :b y
+//  goto :c z
+//  4
+//  goto :d _
+//  :b
+//  2
+//  goto :d _
+//  :c
+//  3
+//  goto :d _
+//  :a
+//  1
+//  :d
+//  ```
+//
+//  goto :a x
+//  $($elif_gotos)*
+//  $else_body?
+//  goto :end _
+//  $(
+//      $elif_tag
+//      $elif_body
+//      goto :end _
+//  )*
+//  :a
+//  $if_body
+//  :end
+
+pub Block: LogicLine = MBlock<Expand> => <>.into();
+
+pub DExp: DExp = MTuple<(<(<Var> ":")?> <Expand>)>
+    => DExp::new(<>.0.unwrap_or_else(String::new), <>.1);
+
+pub Control: LogicLine = {
+    "goto" <Label> <JumpCmp> LEnd => Goto(<>).into(),
+
+    "skip" <cmp:JumpCmp> <body:LogicLine> => {
+        let lab = meta.get_tag();
+        Expand(vec![
+            Goto(lab.clone(), cmp).into(),
+            body,
+            LogicLine::Label(lab),
+        ]).into()
+    },
+
+    "while" <cmp:JumpCmp> <body:LogicLine> => {
+        let [end, head] = [meta.get_tag(), meta.get_tag()];
+        let rev_cmp = cmp.clone().reverse();
+        Expand(vec![
+            Goto(end.clone(), rev_cmp).into(),
+            LogicLine::Label(head.clone()),
+            body,
+            Goto(head, cmp).into(),
+            LogicLine::Label(end),
+        ]).into()
+    },
+
+    "do" <body:Block> "while" <cmp:JumpCmp> LEnd => {
+        let head = meta.get_tag();
+        Expand(vec![
+            LogicLine::Label(head.clone()),
+            body,
+            Goto(head, cmp).into(),
+        ]).into()
+    },
+
+    "switch" <value:Value_0>
+    <cases:MBlock<("case" <LiteralUInt+> ":" <Expand>)+>>
+    => {
+        let case_num_max = cases
+            .iter()
+            .map(
+                |(nums, _)| *nums
+                    .iter()
+                    .max()
+                    .unwrap()
+            )
+            .max()
+            .unwrap();
+        let mut cases_res = Vec::with_capacity(case_num_max);
+        for (nums, expand) in cases {
+            for num in nums {
+                for _ in cases_res.len()..=num {
+                    cases_res.push(LogicLine::NoOp)
+                }
+                cases_res[num] = expand.clone().into()
+            }
+        }
+        debug_assert_eq!(cases_res.len(), case_num_max + 1);
+        Select(value, Expand(cases_res)).into()
+    },
+
+    "if" <cmp:JumpCmp> <body:Block>
+        <elifs:("elif" <JumpCmp> <Block>)*>
+        <else_body:("else" <LogicLine>)?> => {
+
+        let end = meta.get_tag();
+        let true_start = meta.get_tag();
+        let mut elif_tags = Vec::with_capacity(elifs.len());
+        elif_tags.extend((0..elifs.len()).map(|_| meta.get_tag())); // build elif tags
+        let (mut elif_cmps, mut elif_bodys) = (
+            Vec::with_capacity(elifs.len()),
+            Vec::with_capacity(elifs.len())
+        );
+        let elif_count = elifs.len();
+        for (cmp, body) in elifs {
+            elif_cmps.push(cmp);
+            elif_bodys.push(body);
+        }
+        debug_assert_eq!(elif_cmps.len(), elif_count);
+
+        let mut res = Vec::new();
+        res.push(Goto(true_start.clone(), cmp).into()); // true jump
+        for (cmp, tag) in elif_cmps.into_iter().zip(&elif_tags) {
+            res.push(Goto(tag.clone(), cmp).into()); // true jump
+        }
+        else_body.map(|body| res.push(body));
+        res.push(Goto(end.clone(), JumpCmp::Always).into()); // jump always to end
+
+        // elif body
+        for (tag, body) in elif_tags.into_iter().zip(elif_bodys) {
+            res.push(LogicLine::Label(tag));
+            res.push(body);
+            res.push(Goto(end.clone(), JumpCmp::Always).into()); // jump always to end
+        }
+
+        // true body
+        res.push(LogicLine::Label(true_start));
+        res.push(body);
+        res.push(LogicLine::Label(end));
+
+        Expand(res).into()
+    },
+}

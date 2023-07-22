@@ -1,0 +1,23 @@
+[package]
+name = "mindustry_logic_bang_lang"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[build-dependencies]
+lalrpop = "0.20.0"
+
+
+[dependencies]
+[dependencies.lalrpop-util]
+version = "0.20.0"
+
+features = [
+    "unicode",
+    "regex",
+    "lexer"
+]
+
+[profile.release]
+strip = true
