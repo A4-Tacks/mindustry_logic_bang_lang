@@ -23,7 +23,7 @@ extern {
 
 match {
     r"\s+" => {}, // empty
-    r##"#(?:[\r\n]|[^*][^\r\n])*"## => {}, // inline comments
+    r##"#(?:[\r\n]|[^\*][^\r\n]*)"## => {}, // inline comments
     r##"#\*[^*]*\*+(?:[^#*][^*]*\*+)*#"## => {}, // long comments
 } else {
     _
@@ -173,6 +173,7 @@ pub LogicLine: LogicLine = {
     MBlock<Expand> => <>.into(),
     Label => LogicLine::Label(<>),
     "op" <Op> LEnd => <>.into(),
+    "noop" LEnd => LogicLine::NoOp,
     <Var+> LEnd => LogicLine::Other(<>),
 }
 

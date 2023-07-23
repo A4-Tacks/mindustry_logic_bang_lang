@@ -611,6 +611,12 @@ mod tests {
     }
 
     #[test]
+    fn line_test() {
+        let parser = LogicLineParser::new();
+        assert_eq!(parse!(parser, "noop;").unwrap(), LogicLine::NoOp);
+    }
+
+    #[test]
     fn literal_uint_test() {
         let parser = LiteralUIntParser::new();
         assert!(parse!(parser, "1.5").is_err());
@@ -649,6 +655,26 @@ mod tests {
                     ]).into(),
                 ])
             ).into()
+        );
+    }
+
+    #[test]
+    fn comments_test() {
+        let parser = LogicLineParser::new();
+        assert_eq!(
+            parse!(parser, r#"
+            # inline comment
+            #comment1
+            #* this is a long comments
+             * ...
+             * gogogo
+             *#
+            #*一行内的长注释*#
+            #*语句前面的长注释*#noop;#语句后注释
+            #注释
+            "#
+            ).unwrap(),
+            LogicLine::NoOp
         );
     }
 }
