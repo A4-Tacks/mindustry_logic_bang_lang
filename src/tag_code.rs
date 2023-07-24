@@ -1,4 +1,9 @@
-use std::{ops::{Deref, DerefMut}, collections::HashMap, mem::swap};
+use std::{
+    collections::{HashMap, HashSet},
+    mem::swap,
+    ops::{Deref, DerefMut},
+    str::FromStr, num::ParseIntError,
+};
 
 pub type Tag = usize;
 pub type TagsTable = Vec<usize>;
@@ -160,6 +165,21 @@ impl TagLine {
         }
     }
 
+    /// 从[`Line`]或者[`Jump`]变体获取其`Tag`, 但是这不包括[`TagDown`]变体
+    /// 因为此方法是为了获取当前行的`Tag`
+    /// 如果是[`TagDown`]变体则会触发`panic`
+    ///
+    /// [`Line`]: `Self::Line`
+    /// [`Jump`]: `Self::Jump`
+    /// [`TagDown`]: `Self::TagDown`
+    pub fn tag(&self) -> Option<usize> {
+        match self {
+            Self::Jump(jump) => jump.tag(),
+            Self::Line(line) => line.tag(),
+            other => panic!("take_tag failed: {:?}", other),
+        }
+    }
+
     pub fn as_line_mut(&mut self) -> Option<&mut TagBox<String>> {
         if let Self::Line(v) = self {
             Some(v)
@@ -221,8 +241,70 @@ impl Compile for TagLine {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+pub enum ParseTagCodesError {
+    ParseIntError(ParseIntError),
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct TagCodes {
     lines: Vec<TagLine>,
+}
+impl FromStr for TagCodes {
+    type Err = (usize, ParseTagCodesError);
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // K: jump所在行, jump所用tag为第n个jump
+        let mut jumps: HashSet<usize> = HashSet::new();
+        // K: 被跳转行, V: tag
+        let mut tags: HashMap<usize, Vec<Tag>> = HashMap::new();
+        let lines =
+            || s.lines().filter(|s| !s.trim().is_empty());
+
+        for (i, line) in lines().enumerate() {
+            if line.starts_with("jump") {
+                let target = take_jump_target(line);
+                if target == "-1" {
+                    // no target jump
+                    continue;
+                }
+                let tag = jumps.len();
+                jumps.insert(i);
+                let target_idx = target
+                    .parse::<usize>()
+                    .map_err(|e| (
+                            i,
+                            ParseTagCodesError::ParseIntError(e)
+                    ))?;
+                tags.entry(target_idx).or_default().push(tag);
+            }
+        }
+
+        let mut res_lines: Vec<TagLine> = Vec::new();
+        let mut jump_count = 0;
+        for (i, line) in lines().enumerate() {
+            if let Some(self_tags) = tags.get(&i) {
+                for &tag in self_tags {
+                    res_lines.push(TagLine::TagDown(tag))
+                }
+            }
+            if jumps.get(&i).is_some() {
+                // 该行为一个jump
+                let jump_body = take_jump_body(line);
+                res_lines.push(TagLine::Jump(
+                        Jump(jump_count, jump_body).into()
+                ));
+                jump_count += 1;
+            } else {
+                res_lines.push(TagLine::Line(line.to_string().into()))
+            }
+        }
+        // 需要先给jump建立索引
+        // 记录每个被跳转点, 记录每个jump及其跳转目标标记
+        //
+        // 遍历每行, 如果是一个被记录的jump行则构建jump
+        // 同时, 如果该行为一个被跳转点, 那么构建时在其上增加一个`TagDown`
+        Ok(res_lines.into())
+    }
 }
 impl From<Vec<TagLine>> for TagCodes {
     fn from(lines: Vec<TagLine>) -> Self {
@@ -366,8 +448,7 @@ impl TagCodes {
 
         for (num, code) in self.lines.iter().enumerate() {
             // 构建索引
-            if let Some(line) = code.as_line() {
-                let Some(tag) = line.tag else { continue };
+            if let Some(tag) = code.tag() {
                 for _ in tags_table.len()..=tag {
                     // 使用`Tag::MAX`来代表初始化无效值
                     tags_table.push(UNINIT_TAG_TARGET)
@@ -384,6 +465,23 @@ impl TagCodes {
         }
         Ok(logic_lines)
     }
+}
+
+fn take_jump_target(line: &str) -> String {
+    line.chars()
+        .skip(4)
+        .skip_while(|c| c.is_whitespace()) // ` `
+        .take_while(|c| !c.is_whitespace())
+        .collect()
+}
+fn take_jump_body(line: &str) -> String {
+    line
+        .chars()
+        .skip(4) // `jump`
+        .skip_while(|c| c.is_whitespace()) // ` `
+        .skip_while(|c| !c.is_whitespace()) // `123`
+        .skip_while(|c| c.is_whitespace()) // ` `
+        .collect()
 }
 
 #[cfg(test)]
@@ -410,6 +508,28 @@ mod tests {
             lines
         }};
     }
+
+    const MY_INSERT_SORT_LOGIC_LINES: [&str; 19] = {[
+        "sensor enabled switch1 @enabled",
+        "wait 0.1",
+        "jump 0 equal enabled true",
+        "read length cell1 0",
+        "set i 1",
+        "jump 17 always 0 0",
+        "read num bank1 i",
+        "set j i",
+        "jump 12 always 0 0",
+        "read num_1 bank1 j",
+        "jump 15 lessThanEq num_1 num",
+        "write num_1 bank1 c",
+        "set c j",
+        "op sub j j 1",
+        "jump 9 greaterThanEq j 0",
+        "write num bank1 c",
+        "op add i i 1",
+        "jump 6 lessThan i length",
+        "control enabled switch1 true 0 0 0",
+    ]};
 
     #[test]
     fn build_tagdown_test() {
@@ -441,27 +561,7 @@ mod tests {
 
     #[test]
     fn jump_tag_test() {
-        let src = [
-            "sensor enabled switch1 @enabled",
-            "wait 0.1",
-            "jump 0 equal enabled true",
-            "read length cell1 0",
-            "set i 1",
-            "jump 17 always 0 0",
-            "read num bank1 i",
-            "set j i",
-            "jump 12 always 0 0",
-            "read num_1 bank1 j",
-            "jump 15 lessThanEq num_1 num",
-            "write num_1 bank1 c",
-            "set c j",
-            "op sub j j 1",
-            "jump 9 greaterThanEq j 0",
-            "write num bank1 c",
-            "op add i i 1",
-            "jump 6 lessThan i length",
-            "control enabled switch1 true 0 0 0",
-        ]; // 我写的插排
+        let src = MY_INSERT_SORT_LOGIC_LINES; // 我写的插排
         let mut lines = tag_lines! {
             [:0];
             ["sensor enabled switch1 @enabled"];
@@ -487,5 +587,27 @@ mod tests {
             ["control enabled switch1 true 0 0 0"];
         };
         assert_eq!(lines.compile().unwrap(), src);
+    }
+
+    #[test]
+    fn take_jump_test() {
+        assert_eq!(take_jump_body("jump -1 abc"), "abc");
+        assert_eq!(take_jump_body("jump   -1     abc"), "abc");
+        assert_eq!(take_jump_body("jump   1234     abc  def"), "abc  def");
+
+        assert_eq!(take_jump_target("jump -1 always 0 0"), "-1");
+        assert_eq!(take_jump_target("jump   -1      always 0 0"), "-1");
+        assert_eq!(take_jump_target("jump   1      always 0 0"), "1");
+        assert_eq!(take_jump_target("jump   176      always 0 0"), "176");
+    }
+
+    #[test]
+    fn from_str_test() {
+        let mut tag_lines: TagCodes = MY_INSERT_SORT_LOGIC_LINES
+            .join("\n")
+            .parse()
+            .unwrap();
+        let lines = tag_lines.compile().unwrap();
+        assert_eq!(lines, &MY_INSERT_SORT_LOGIC_LINES);
     }
 }
