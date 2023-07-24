@@ -44,9 +44,9 @@ macro_rules! impl_derefs {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Error {
-    start: Location,
-    end: Location,
-    err: Errors,
+    pub start: Location,
+    pub end: Location,
+    pub err: Errors,
 }
 impl From<(Location, Errors, Location)> for Error {
     fn from((start, err, end): (Location, Errors, Location)) -> Self {

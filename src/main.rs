@@ -5,7 +5,7 @@ use std::{
         Read
     },
     process::exit,
-    str::FromStr,
+    str::FromStr, collections::HashMap,
 };
 
 use lalrpop_util::{
@@ -16,6 +16,7 @@ use mindustry_logic_bang_lang::{
     syntax::{
         CompileMeta,
         Error,
+        Errors,
         Expand,
         Meta
     },
@@ -32,6 +33,7 @@ macro_rules! concat_lines {
 pub const HELP_MSG: &str = concat_lines! {
     "<MODE>";
     "Author: A4-Tacks A4的钉子";
+    "Version: ", env!("CARGO_PKG_VERSION");
     "https://github.com/A4-Tacks/mindustry_logic_bang_lang";
     "MODE:";
     "\t", "c: compile MdtBangLang to MdtLogicCode";
@@ -149,7 +151,7 @@ fn from_stdin_build_ast() -> Expand {
     let parser = ExpandParser::new();
     let mut meta = Meta::new();
     let buf = read_stdin();
-    unwrap_parse_err(parser.parse(&mut meta, &buf))
+    unwrap_parse_err(parser.parse(&mut meta, &buf), &buf)
 }
 
 fn read_stdin() -> String {
@@ -162,11 +164,95 @@ fn read_stdin() -> String {
     buf
 }
 
-fn unwrap_parse_err<'a>(result: ParseResult<'a>) -> Expand {
+/// 给定位置与源码, 返回行列号, 行列都从1开始<br/>
+/// 如果没有找到, 则返回`[0, 0]`
+fn get_locations<const N: usize>(src: &str, indexs: [usize; N]) -> [[usize; 2]; N] {
+    const CR: char = '\n';
+
+    let mut index_maps: HashMap<usize, Vec<usize>> = HashMap::with_capacity(indexs.len());
+    for (i, loc) in indexs.into_iter().enumerate() {
+        index_maps.entry(loc).or_default().push(i)
+    }
+    let mut res = [[0, 0]; N];
+    let [mut line, mut column] = [1, 1];
+    for (i, ch) in src.char_indices() {
+        if let Some(idxs) = index_maps.get(&i) {
+            for &idx in idxs {
+                res[idx] = [line, column]
+            }
+        }
+        if ch == CR {
+            line += 1;
+            column = 1;
+        } else {
+            column += 1;
+        }
+    }
+    res
+}
+
+fn unwrap_parse_err<'a>(result: ParseResult<'a>, src: &str) -> Expand {
     match result {
         Ok(ast) => ast,
         Err(e) => {
-            dbg!(&e);
+            match e {
+                ParseError::UnrecognizedToken {
+                    token: (start, token, end),
+                    expected
+                } => {
+                    let [start, end] = get_locations(src, [start, end]);
+                    err!(
+                        "在位置: {:?} 至 {:?} 处找到未知的令牌: {:?}, 预期: [{}]",
+                        start, end,
+                        token.1,
+                        expected.join(", "),
+                    );
+                },
+                ParseError::ExtraToken { token: (start, token, end) } => {
+                    let [start, end] = get_locations(src, [start, end]);
+                    err!(
+                        "在位置: {:?} 至 {:?} 处找到多余的令牌: {:?}",
+                        start, end,
+                        token.1,
+                    );
+                },
+                ParseError::InvalidToken { location } => {
+                    let [start] = get_locations(src, [location]);
+                    err!(
+                        "在位置: {:?} 处找到无效的令牌",
+                        start,
+                    );
+                },
+                ParseError::UnrecognizedEof {
+                    location,
+                    expected
+                } => {
+                    let [start] = get_locations(src, [location]);
+                    err!(
+                        "在位置: {:?} 处找到未结束的令牌, 预期: [{}]",
+                        start,
+                        expected.join(", "),
+                    );
+                },
+                ParseError::User {
+                    error: Error {
+                        start,
+                        end,
+                        err: Errors::NotALiteralUInteger(str, err)
+                    }
+                } => {
+                    let [start, end] = get_locations(src, [start, end]);
+                    err!(
+                        "在 {:?} 至 {:?} 处的错误: {:?} 不是一个有效的无符号整数, 错误: {}",
+                        start, end,
+                        str, err,
+                    );
+                },
+                #[allow(unreachable_patterns)]
+                e => {
+                    err!("未被枚举的错误: {:?}", e);
+                },
+            }
             exit(4)
         }
     }
