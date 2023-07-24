@@ -1,8 +1,16 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet
+    },
     mem::swap,
-    ops::{Deref, DerefMut},
-    str::FromStr, num::ParseIntError,
+    ops::{
+        Deref,
+        DerefMut
+    },
+    str::FromStr,
+    num::ParseIntError,
+    fmt::Display,
 };
 
 pub type Tag = usize;
@@ -102,12 +110,7 @@ pub enum TagLine {
     Line(TagBox<String>),
     TagDown(Tag),
 }
-impl Default for TagLine {
-    fn default() -> Self {
-        Self::Line("noop".to_string().into())
-    }
-}
-impl std::fmt::Debug for TagLine {
+impl Display for TagLine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fn push_tag(s: &mut String, tag: Option<usize>, tail: bool) {
             if let Some(tag) = tag {
@@ -130,7 +133,17 @@ impl std::fmt::Debug for TagLine {
             },
             &Self::TagDown(tag) => push_tag(&mut res, Some(tag), false),
         }
-        write!(f, "TagLine({})", res)
+        write!(f, "{}", res)
+    }
+}
+impl Default for TagLine {
+    fn default() -> Self {
+        Self::Line("noop".to_string().into())
+    }
+}
+impl std::fmt::Debug for TagLine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "TagLine({:?})", self.to_string())
     }
 }
 impl TagLine {

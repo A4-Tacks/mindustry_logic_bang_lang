@@ -1,3 +1,8 @@
+// this is a lalrpop file
+#![allow(clippy::just_underscores_and_digits)]
+#![allow(clippy::needless_lifetimes)]
+#![allow(clippy::deprecated_cfg_attr)]
+
 use crate::syntax::{
     Errors,
     Error,
@@ -242,7 +247,7 @@ pub LogicLine: LogicLine = {
 pub Block: LogicLine = MBlock<Expand> => <>.into();
 
 pub DExp: DExp = MTuple<(<(<Var> ":")?> <Expand>)>
-    => DExp::new(<>.0.unwrap_or_else(String::new), <>.1);
+    => DExp::new(<>.0.unwrap_or_default(), <>.1);
 
 pub Control: LogicLine = {
     "goto" <Label> <JumpCmp> LEnd => Goto(<>).into(),
