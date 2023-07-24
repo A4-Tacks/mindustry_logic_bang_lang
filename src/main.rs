@@ -15,6 +15,7 @@ use lalrpop_util::{
     ParseError
 };
 use mindustry_logic_bang_lang::{
+    err,
     syntax::{
         CompileMeta,
         Error,
@@ -53,12 +54,6 @@ pub const HELP_MSG: &str = concat_lines! {
 
 fn help() {
     eprint!("{} {}", args().next().unwrap(), HELP_MSG);
-}
-
-macro_rules! err {
-    ( $fmtter:expr $(, $args:expr)* $(,)? ) => {
-        eprintln!(concat!("\x1b[1;31m", "Error: ", $fmtter, "\x1b[0m"), $($args),*);
-    };
 }
 
 fn main() {

@@ -11,11 +11,22 @@ use std::{
     str::FromStr,
     num::ParseIntError,
     fmt::Display,
+    panic::catch_unwind,
+    process::exit,
 };
 
 pub type Tag = usize;
 pub type TagsTable = Vec<usize>;
 pub const UNINIT_TAG_TARGET: usize = usize::MAX;
+
+/// 带有Error前缀, 并且文本为红色的eprintln
+#[macro_export]
+macro_rules! err {
+    ( $fmtter:expr $(, $args:expr)* $(,)? ) => {
+        eprintln!(concat!("\x1b[1;31m", "Error: ", $fmtter, "\x1b[0m"), $($args),*);
+    };
+}
+
 
 /// 传入`TagsTable`, 生成逻辑代码
 pub trait Compile {
@@ -92,6 +103,30 @@ impl From<(Tag, String)> for Jump {
 }
 impl Compile for Jump {
     fn compile(&self, tags_table: &TagsTable) -> String {
+        if self.0 >= tags_table.len() || tags_table[self.0] == UNINIT_TAG_TARGET {
+            err!(
+                concat!(
+                    "进行了越界的跳转标签构建, ",
+                    "你可以查看是否在尾部编写了空的被跳转标签\n",
+                    "标签id: {}, 目标行表:\n",
+                    "id \t-> target\n",
+                    "{}",
+                ),
+                self.0,
+                tags_table.iter()
+                    .enumerate()
+                    .map(|(id, &target)| {
+                        format!("\t{} \t-> {},", id, if target == UNINIT_TAG_TARGET {
+                            "{unknown}".to_string()
+                        } else {
+                            target.to_string()
+                        })
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            );
+            panic!("显式恐慌");
+        }
         assert!(self.0 < tags_table.len()); // 越界检查
         assert_ne!(tags_table[self.0], UNINIT_TAG_TARGET); // 确保要跳转的目标有效
         format!("jump {} {}", tags_table[self.0], self.1)
@@ -301,7 +336,6 @@ impl TagLine {
         }
     }
 }
-
 impl From<TagBox<String>> for TagLine {
     fn from(value: TagBox<String>) -> Self {
         Self::Line(value)
@@ -581,7 +615,29 @@ impl TagCodes {
 
         let mut logic_lines = Vec::with_capacity(self.lines.len());
         for line in &self.lines {
-            logic_lines.push(line.compile(&tags_table))
+            match catch_unwind(|| line.compile(&tags_table)) {
+                Ok(line) => logic_lines.push(line),
+                Err(_e) => {
+                    err!(
+                        concat!(
+                            "构建行时出现了恐慌, 全部须构建的行:\n{}\n",
+                            "已经构建完毕的行:\n{}\n",
+                            "恐慌的行:\n\t{}\n",
+                        ),
+                        self.lines()
+                            .iter()
+                            .map(|x| format!("\t{}", x))
+                            .collect::<Vec<_>>()
+                            .join("\n"),
+                        logic_lines.iter()
+                            .map(|x| format!("\t{}", x))
+                            .collect::<Vec<_>>()
+                            .join("\n"),
+                        line,
+                    );
+                    exit(8);
+                },
+            };
         }
         Ok(logic_lines)
     }
