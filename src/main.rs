@@ -112,6 +112,7 @@ fn main() {
             match TagCodes::from_str(&read_stdin()) {
                 Ok(mut lines) => {
                     lines.build_tagdown().unwrap();
+                    lines.tag_up();
                     for line in lines.lines() {
                         println!("{}", line)
                     }

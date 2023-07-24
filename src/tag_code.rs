@@ -3,7 +3,7 @@ use std::{
         HashMap,
         HashSet
     },
-    mem::swap,
+    mem::{swap, replace},
     ops::{
         Deref,
         DerefMut
@@ -245,6 +245,21 @@ impl TagLine {
     #[must_use]
     pub fn is_tag_down(&self) -> bool {
         matches!(self, Self::TagDown(..))
+    }
+
+    /// 如果是一个有被跳转标记的[`Line`]或者[`Jump`], 将其跳转标记分离出来
+    /// 如果是一个[`TagDown`], 则返回[`None`]
+    ///
+    /// [`Line`]: `Self::Line`
+    /// [`Jump`]: `Self::Jump`
+    /// [`TagDown`]: `Self::TagDown`
+    pub fn pop_tag(&mut self) -> Option<Tag> {
+        match self {
+            Self::Jump(TagBox { tag, .. })
+                | Self::Line(TagBox { tag, .. })
+                => replace(tag, None),
+            Self::TagDown(..) => None
+        }
     }
 }
 impl From<TagBox<String>> for TagLine {
@@ -564,6 +579,21 @@ impl TagCodes {
     pub fn iter(&self) -> std::slice::Iter<TagLine> {
         self.lines.iter()
     }
+
+    /// 将所有被跳转的行内`Tag`进行上提为[`TagDown`]
+    /// 原有的[`TagDown`]保持不变
+    ///
+    /// [`TagDown`]: `TagLine::TagDown`
+    pub fn tag_up(&mut self) {
+        let len = self.len();
+        let lines = replace(&mut self.lines, Vec::with_capacity(len));
+        for mut line in lines {
+            if let Some(tag_down) = line.pop_tag() {
+                self.lines.push(TagLine::TagDown(tag_down))
+            }
+            self.lines.push(line)
+        }
+    }
 }
 
 fn take_jump_target(line: &str) -> String {
@@ -726,5 +756,27 @@ mod tests {
         assert_eq!(tag_codes.no_tag_index_to_abs_index(1), Some(4));
         assert_eq!(tag_codes.no_tag_index_to_abs_index(2), Some(5));
         assert_eq!(tag_codes.no_tag_index_to_abs_index(3), None);
+    }
+
+    #[test]
+    fn tag_up_test() {
+        let mut tag_codes = tag_lines! {
+            [:0 "a"];
+            [:1 "b"];
+            ["c"];
+            [:2];
+            [:3 "d"];
+        };
+        tag_codes.tag_up();
+        assert_eq!(tag_codes, tag_lines! {
+            [:0];
+            ["a"];
+            [:1];
+            ["b"];
+            ["c"];
+            [:2];
+            [:3];
+            ["d"];
+        });
     }
 }
