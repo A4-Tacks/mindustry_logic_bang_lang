@@ -33,6 +33,10 @@ impl<T> DerefMut for TagBox<T> {
     }
 }
 impl<T> TagBox<T> {
+    pub fn new(tag: Option<Tag>, data: T) -> Self {
+        Self { tag, data }
+    }
+
     pub fn tag(&self) -> Option<Tag> {
         self.tag
     }
@@ -341,6 +345,10 @@ impl TagCodes {
         self.lines.push(line)
     }
 
+    pub fn clear(&mut self) {
+        self.lines.clear()
+    }
+
     /// 构建, 将[`TagDown`]消除, 如果是最后一行裸`Tag`则被丢弃
     /// 如果目标`Tag`重复则将其返回
     /// > jump :a
@@ -565,6 +573,7 @@ mod tests {
         let mut lines = tag_lines! {
             [:0];
             ["sensor enabled switch1 @enabled"];
+            ["wait 0.1"];
             [jump 0 "equal enabled true"];
             ["read length cell1 0"];
             ["set i 1"];
