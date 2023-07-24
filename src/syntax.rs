@@ -1,7 +1,9 @@
 use std::{
     ops::Deref,
-    num::ParseIntError,
+    num::ParseIntError, collections::HashMap,
 };
+
+use crate::tag_code::{TagCodes, TagLine, Jump};
 
 macro_rules! impl_enum_froms {
     (impl From for $ty:ty { $(
@@ -72,11 +74,28 @@ pub enum Value {
     Var(Var),
     DExp(DExp),
 }
+impl Default for Value {
+    fn default() -> Self {
+        Self::Var("0".into())
+    }
+}
 impl Value {
+    /// 如果是一个[`DExp`]且未指定返回句柄则负责将其设为传入默认值
     pub fn default_result(mut self, str: &str) -> Self {
         self.as_dexp_mut()
             .map(|expr| expr.default_result(str));
         self
+    }
+
+    /// 编译依赖并返回句柄
+    pub fn take(self, meta: &mut CompileMeta) -> Var {
+        match self {
+            Self::Var(var) => var,
+            Self::DExp(DExp { result, lines }) => {
+                lines.compile(meta);
+                result
+            },
+        }
     }
 
     /// Returns `true` if the value is [`DExp`].
@@ -136,10 +155,16 @@ impl_enum_froms!(impl From for Value {
 });
 
 /// 带返回值的表达式
+/// 其依赖被计算完毕后, 句柄有效
 #[derive(Debug, PartialEq, Clone)]
 pub struct DExp {
     result: Var,
     lines: Expand,
+}
+impl Compile for DExp {
+    fn compile(self, meta: &mut CompileMeta) {
+        self.lines.compile(meta)
+    }
 }
 impl DExp {
     pub fn new(result: Var, lines: Expand) -> Self {
@@ -203,10 +228,12 @@ impl JumpCmp {
     pub fn false_val() -> Self {
         Self::NotEqual("0".into(), "0".into())
     }
+
     /// 将值转为`bool`来对待
     pub fn bool(val: Value) -> Self {
         Self::NotEqual(val, "false".into())
     }
+
     /// 获取反转后的条件
     pub fn reverse(self) -> Self {
         use JumpCmp::*;
@@ -229,6 +256,50 @@ impl JumpCmp {
             },
             Always => Self::false_val(),
         }
+    }
+
+    /// 获取两个运算成员, 如果是[`Always`]则返回[`Default`]
+    pub fn get_values(self) -> (Value, Value) {
+        match self {
+            Self::Equal(a, b)
+                | Self::NotEqual(a, b)
+                | Self::LessThan(a, b)
+                | Self::LessThanEq(a, b)
+                | Self::GreaterThan(a, b)
+                | Self::StrictEqual(a, b)
+                | Self::GreaterThanEq(a, b)
+                => (a, b),
+            Self::Always => Default::default(),
+        }
+    }
+
+    pub fn cmp_str(&self) -> &'static str {
+        macro_rules! build_match {
+            ( $( $name:ident $str:literal ),* $(,)? ) => {
+                match self {
+                    $(
+                        Self::$name(..) => $str,
+                    )*
+                    Self::Always => "always",
+                }
+            };
+        }
+
+        build_match! {
+            Equal "equal",
+            NotEqual "notEqual",
+            LessThan "lessThan",
+            LessThanEq "lessThanEq",
+            GreaterThan "greaterThan",
+            GreaterThanEq "greaterThanEq",
+            StrictEqual "strictEqual",
+        }
+    }
+
+    /// 构建两个值后将句柄送出
+    pub fn build_value(self, meta: &mut CompileMeta) -> (Var, Var) {
+        let (a, b) = self.get_values();
+        (a.take(meta), b.take(meta))
     }
 }
 
@@ -254,12 +325,13 @@ pub enum Op {
     Or(Var, Value, Value),
     And(Var, Value, Value),
     Xor(Var, Value, Value),
-    Not(Var, Value),
     Max(Var, Value, Value),
     Min(Var, Value, Value),
     Angle(Var, Value, Value),
     Len(Var, Value, Value),
     Noise(Var, Value, Value),
+
+    Not(Var, Value),
     Abs(Var, Value),
     Log(Var, Value),
     Log10(Var, Value),
@@ -274,12 +346,141 @@ pub enum Op {
     Acos(Var, Value),
     Atan(Var, Value),
 }
+impl Op {
+    pub fn oper_str(&self) -> &'static str {
+        macro_rules! build_match {
+            {
+                $(
+                    $variant:ident $str:literal
+                ),* $(,)?
+            } => {
+                match self {
+                    $( Self::$variant(..) => $str ),*
+                }
+            };
+        }
+        build_match! {
+            Add "add",
+            Sub "sub",
+            Mul "mul",
+            Div "div",
+            Idiv "idiv",
+            Mod "mod",
+            Pow "pow",
+            Equal "equal",
+            NotEqual "notEqual",
+            Land "land",
+            LessThan "lessThan",
+            LessThanEq "lessThanEq",
+            GreaterThan "greaterThan",
+            GreaterThanEq "greaterThanEq",
+            StrictEqual "strictEqual",
+            Shl "shl",
+            Shr "shr",
+            Or "or",
+            And "and",
+            Xor "xor",
+            Not "not",
+            Max "max",
+            Min "min",
+            Angle "angle",
+            Len "len",
+            Noise "noise",
+            Abs "abs",
+            Log "log",
+            Log10 "log10",
+            Floor "floor",
+            Ceil "ceil",
+            Sqrt "sqrt",
+            Rand "rand",
+            Sin "sin",
+            Cos "cos",
+            Tan "tan",
+            Asin "asin",
+            Acos "acos",
+            Atan "atan",
+        }
+    }
+
+    pub fn generate_args(self, meta: &mut CompileMeta) -> Vec<String> {
+        let mut args: Vec<Var> = Vec::with_capacity(5);
+        args.push("op".into());
+        args.push(self.oper_str().into());
+        macro_rules! build_match {
+            {
+                op1: [ $( $oper1:ident ),* $(,)?  ]
+                op2: [ $( $oper2:ident ),* $(,)?  ]
+            } => {
+                match self {
+                    $(
+                        Self::$oper1(res, a) => {
+                            args.push(res.into());
+                            args.push(a.take(meta).into());
+                            args.push("0".into());
+                        },
+                    )*
+                    $(
+                        Self::$oper2(res, a, b) => {
+                            args.push(res.into());
+                            args.push(a.take(meta).into());
+                            args.push(b.take(meta).into());
+                        },
+                    )*
+                }
+            };
+        }
+        build_match!(
+            op1: [
+                Not, Abs, Log, Log10, Floor, Ceil, Sqrt,
+                Rand, Sin, Cos, Tan, Asin, Acos, Atan,
+            ]
+            op2: [
+                Add, Sub, Mul, Div, Idiv,
+                Mod, Pow, Equal, NotEqual, Land,
+                LessThan, LessThanEq, GreaterThan, GreaterThanEq, StrictEqual,
+                Shl, Shr, Or, And, Xor,
+                Max, Min, Angle, Len, Noise,
+            ]
+        );
+        debug_assert!(args.len() == 5);
+        args
+    }
+}
+impl Compile for Op {
+    fn compile(self, meta: &mut CompileMeta) {
+        let args = self.generate_args(meta);
+        meta.tag_codes.push(args.join(" ").into())
+    }
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Goto(pub Var, pub JumpCmp);
+impl Compile for Goto {
+    fn compile(self, meta: &mut CompileMeta) {
+        let cmp_str = self.1.cmp_str();
+        let (a, b) = self.1.build_value(meta);
+        let jump = Jump(
+            meta.get_tag(self.0).into(),
+            format!("{} {} {}", cmp_str, a, b)
+        );
+        meta.push(TagLine::Jump(jump.into()))
+    }
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Expand(pub Vec<LogicLine>);
+impl Default for Expand {
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}
+impl Compile for Expand {
+    fn compile(self, meta: &mut CompileMeta) {
+        for line in self.0 {
+            line.compile(meta)
+        }
+    }
+}
 impl From<Vec<LogicLine>> for Expand {
     fn from(value: Vec<LogicLine>) -> Self {
         Self(value)
@@ -298,11 +499,43 @@ pub enum LogicLine {
     Op(Op),
     Label(Var),
     Goto(Goto),
-    Other(Vec<Var>),
+    Other(Vec<Value>),
     Expand(Expand),
     Select(Select),
     End,
     NoOp,
+}
+impl Compile for LogicLine {
+    fn compile(self, meta: &mut CompileMeta) {
+        match self {
+            Self::End => meta.push("end".into()),
+            Self::NoOp => meta.push("noop".into()),
+            Self::Label(lab) => {
+                let data = TagLine::TagDown(meta.get_tag(lab));
+                meta.push(data)
+            },
+            Self::Other(args) => {
+                let handles: Vec<String> = args
+                    .into_iter()
+                    .map(|val| val.take(meta))
+                    .collect();
+                meta.push(TagLine::Line(handles.join(" ").into()))
+            },
+            Self::Select(_select) => {
+                // TODO 难难难! select 实现
+                // 因为还有`TagDown`展开, 所以使填充更加困难, 暂时 TODO
+                todo!()
+            },
+            Self::Expand(expand) => expand.compile(meta),
+            Self::Goto(goto) => goto.compile(meta),
+            Self::Op(op) => op.compile(meta),
+        }
+    }
+}
+impl Default for LogicLine {
+    fn default() -> Self {
+        Self::NoOp
+    }
 }
 impl LogicLine {
     /// Returns `true` if the logic line is [`Op`].
@@ -361,7 +594,7 @@ impl LogicLine {
         matches!(self, Self::Other(..))
     }
 
-    pub fn as_other(&self) -> Option<&Vec<Var>> {
+    pub fn as_other(&self) -> Option<&Vec<Value>> {
         if let Self::Other(v) = self {
             Some(v)
         } else {
@@ -392,6 +625,65 @@ impl_enum_froms!(impl From for LogicLine {
     Select => Select;
 });
 
+/// 编译到`TagCodes`
+pub trait Compile {
+    fn compile(self, meta: &mut CompileMeta);
+}
+
+#[derive(Debug)]
+pub struct CompileMeta {
+    /// 标记与`id`的映射关系表
+    tags_map: HashMap<String, usize>,
+    tag_count: usize,
+    tag_codes: TagCodes,
+}
+impl Default for CompileMeta {
+    fn default() -> Self {
+        Self {
+            tags_map: HashMap::new(),
+            tag_count: 0,
+            tag_codes: TagCodes::new()
+        }
+    }
+}
+impl CompileMeta {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// 获取一个标记的编号, 如果不存在则将其插入并返回新分配的编号.
+    /// 注: `Tag`与`Label`是混用的, 表示同一个意思
+    pub fn get_tag(&mut self, label: String) -> usize {
+        *self.tags_map.entry(label).or_insert_with(|| {
+            let id = self.tag_count;
+            self.tag_count += 1;
+            id
+        })
+    }
+
+    /// 向已生成代码`push`
+    pub fn push(&mut self, data: TagLine) {
+        self.tag_codes.push(data)
+    }
+
+    /// 获取已生成的代码条数
+    pub fn tag_code_count(&self) -> usize {
+        self.tag_codes.len()
+    }
+
+    /// 获取已生成的非`TagDown`代码条数
+    pub fn tag_code_count_no_tag(&self) -> usize {
+        self.tag_codes.count_no_tag()
+    }
+
+    pub fn compile(mut self, lines: Expand) -> TagCodes {
+        self.tag_codes.clear();
+
+        lines.compile(&mut self);
+        self.tag_codes
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[allow(unused_imports)]
@@ -416,7 +708,7 @@ mod tests {
         assert_eq!(parse!(parser, "0b-00_10").unwrap(), "0b-0010");
         assert_eq!(parse!(parser, "@abc-def").unwrap(), "@abc-def");
         assert_eq!(parse!(parser, "@abc-def_30").unwrap(), "@abc-def_30");
-        
+
         assert!(parse!(parser, "'ab cd'").is_err());
         assert!(parse!(parser, "ab-cd").is_err());
         assert!(parse!(parser, "0o25").is_err()); // 不支持8进制, 懒得弄转换
@@ -680,5 +972,52 @@ mod tests {
             ).unwrap(),
             LogicLine::NoOp
         );
+    }
+
+    #[test]
+    fn op_generate_test() {
+        assert_eq!(
+            Op::Add("x".into(), "y".into(), "z".into()).generate_args(&mut Default::default()),
+            vec!["op", "add", "x", "y", "z"],
+        );
+    }
+
+    #[test]
+    fn compile_test() {
+        let parser = ExpandParser::new();
+        let src = r#"
+        op x 1 + 2;
+        op y (op _0 x + 3;) * (op _1 x * 2;);
+        if (op tmp y & 1; op _0 tmp + 1;) == 1 {
+            print "a ";
+        } else {
+            print "b ";
+        }
+        print (op _0 y + 3;);
+        "#;
+        //dbg!(&src);
+        let ast = parse!(parser, src).unwrap();
+        //dbg!(&ast);
+        let meta = CompileMeta::new();
+        //dbg!(&meta);
+        let mut tag_codes = meta.compile(ast);
+        //dbg!(&tag_codes);
+        let logic_lines = tag_codes.compile().unwrap();
+        //dbg!(&logic_lines);
+        //println!("{}", logic_lines.join("\n"));
+        assert_eq!(logic_lines, [
+            r#"op add x 1 2"#,
+            r#"op add _0 x 3"#,
+            r#"op mul _1 x 2"#,
+            r#"op mul y _0 _1"#,
+            r#"op and tmp y 1"#,
+            r#"op add _0 tmp 1"#,
+            r#"jump 9 equal _0 1"#,
+            r#"print "b ""#,
+            r#"jump 10 always 0 0"#,
+            r#"print "a ""#,
+            r#"op add _0 y 3"#,
+            r#"print _0"#,
+        ])
     }
 }

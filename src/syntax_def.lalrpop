@@ -82,6 +82,7 @@ Value_6: Value = Value => <>.default_result(ARG_RES[6]);
 Value_7: Value = Value => <>.default_result(ARG_RES[7]);
 Value_8: Value = Value => <>.default_result(ARG_RES[8]);
 Value_9: Value = Value => <>.default_result(ARG_RES[9]);
+Value_x: Value = Value => <>.default_result("_");
 
 
 Or<A, B> = { A, B }; // A或者B
@@ -174,7 +175,24 @@ pub LogicLine: LogicLine = {
     Label => LogicLine::Label(<>),
     "op" <Op> LEnd => <>.into(),
     "noop" LEnd => LogicLine::NoOp,
-    <Var+> LEnd => LogicLine::Other(<>),
+    <Other> LEnd => LogicLine::Other(<>),
+}
+
+#[inline] Other: Vec<Value> = {
+    Value_x => vec![<>],
+    Value_x Value_0 => vec![<>],
+    Value_x Value_0 Value_1 => vec![<>],
+    Value_x Value_0 Value_1 Value_2 => vec![<>],
+    Value_x Value_0 Value_1 Value_2 Value_3 => vec![<>],
+    Value_x Value_0 Value_1 Value_2 Value_3 Value_4 => vec![<>],
+    Value_x Value_0 Value_1 Value_2 Value_3 Value_4 Value_5 => vec![<>],
+    Value_x Value_0 Value_1 Value_2 Value_3 Value_4 Value_5 Value_6 => vec![<>],
+    Value_x Value_0 Value_1 Value_2 Value_3 Value_4 Value_5 Value_6 Value_7 => vec![<>],
+    Value_x Value_0 Value_1 Value_2 Value_3 Value_4 Value_5 Value_6 Value_7 Value_8 => vec![<>],
+    Value_x Value_0 Value_1 Value_2 Value_3 Value_4 Value_5 Value_6 Value_7 Value_8 Value_9 => vec![<>],
+    Value_x Value_0 Value_1 Value_2 Value_3 Value_4 Value_5 Value_6 Value_7 Value_8 Value_9 Value_x => vec![<>],
+    Value_x Value_0 Value_1 Value_2 Value_3 Value_4 Value_5 Value_6 Value_7 Value_8 Value_9 Value_x Value_x => vec![<>],
+    Value_x Value_0 Value_1 Value_2 Value_3 Value_4 Value_5 Value_6 Value_7 Value_8 Value_9 Value_x Value_x Value_x => vec![<>],
 }
 
 //  if结构定义
