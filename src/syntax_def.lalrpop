@@ -180,6 +180,11 @@ pub LogicLine: LogicLine = {
     Label => LogicLine::Label(<>),
     "op" <Op> LEnd => <>.into(),
     "noop" LEnd => LogicLine::NoOp,
+    "set" <var:Var> <value:Value_0> LEnd => LogicLine::Other(vec!["set".into(), var.into(), value]),
+    <var:Var> "=" <value:Value_0> LEnd => LogicLine::Other(vec!["set".into(), var.into(), value]),
+    "read" <var:Var> <from:Value_0> <index:Value_1> LEnd
+        => LogicLine::Other(vec!["read".into(), var.into(), from, index]),
+    "cmd" <Other> LEnd => LogicLine::Other(<>), // 原始逻辑语句
     <Other> LEnd => LogicLine::Other(<>),
 }
 

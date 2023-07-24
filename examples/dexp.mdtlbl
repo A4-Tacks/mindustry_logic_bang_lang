@@ -19,3 +19,9 @@
  * 寻找如Value_0 Value_1 Value_x等结构的使用来查看句柄定义
  *#
 
+set x (op a 1 + 2; op _0 a + 2;);
+#* 会被编译为:
+op add a 1 2
+op add _0 a 2
+set x _0
+*#
