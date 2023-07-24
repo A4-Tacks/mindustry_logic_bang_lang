@@ -102,6 +102,11 @@ pub enum TagLine {
     Line(TagBox<String>),
     TagDown(Tag),
 }
+impl Default for TagLine {
+    fn default() -> Self {
+        Self::Line("noop".to_string().into())
+    }
+}
 impl std::fmt::Debug for TagLine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fn push_tag(s: &mut String, tag: Option<usize>, tail: bool) {
@@ -345,6 +350,23 @@ impl TagCodes {
         self.lines.push(line)
     }
 
+    pub fn pop(&mut self) -> Option<TagLine> {
+        self.lines.pop()
+    }
+
+    /// 直接在指定位置插入语句, 慎用!
+    pub fn insert(&mut self, index: usize, line: TagLine) {
+        self.lines.insert(index, line)
+    }
+
+    pub fn lines(&self) -> &Vec<TagLine> {
+        &self.lines
+    }
+
+    pub fn lines_mut(&mut self) -> &mut Vec<TagLine> {
+        &mut self.lines
+    }
+
     pub fn clear(&mut self) {
         self.lines.clear()
     }
@@ -483,11 +505,26 @@ impl TagCodes {
     ///
     /// [`TagDown`]: `TagLine::TagDown`
     pub fn count_no_tag(&self) -> usize {
-        // 这可以通过内部维护值来实现, 但是目前是使用遍历的低效实现
+        // 这可以通过封装并内部维护值来实现, 但是目前是使用遍历的低效实现
+        // 因为这个语言实在是太快了, 处理的数据量也太少了
         self.lines
             .iter()
             .filter(|line| !line.is_tag_down())
             .count()
+    }
+
+    /// 给定一个在没有考虑[`TagDown`]也就是忽略时的索引
+    /// 返回不忽略[`TagDown`]时的真正索引
+    /// 当给定索引超出时会返回[`None`]
+    ///
+    /// [`TagDown`]: `TagLine::TagDown`
+    pub fn no_tag_index_to_abs_index(&self, index: usize) -> Option<usize> {
+        self
+            .iter()
+            .enumerate()
+            .filter(|(_i, line)| !line.is_tag_down())
+            .nth(index)
+            .map(|(i, _line)| i)
     }
 
     pub fn iter(&self) -> std::slice::Iter<TagLine> {
@@ -638,5 +675,22 @@ mod tests {
             .unwrap();
         let lines = tag_lines.compile().unwrap();
         assert_eq!(lines, &MY_INSERT_SORT_LOGIC_LINES);
+    }
+
+    #[test]
+    fn no_tag_index_to_abs_index_test() {
+        let tag_codes = tag_lines! {
+            [:0];
+            [:1];
+            ["noop"];
+            [:1];
+            ["noop"];
+            ["noop"];
+            [:1];
+        };
+        assert_eq!(tag_codes.no_tag_index_to_abs_index(0), Some(2));
+        assert_eq!(tag_codes.no_tag_index_to_abs_index(1), Some(4));
+        assert_eq!(tag_codes.no_tag_index_to_abs_index(2), Some(5));
+        assert_eq!(tag_codes.no_tag_index_to_abs_index(3), None);
     }
 }

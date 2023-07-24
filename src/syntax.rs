@@ -1,9 +1,18 @@
 use std::{
     ops::Deref,
-    num::ParseIntError, collections::HashMap,
+    num::ParseIntError,
+    collections::HashMap,
+    iter::{
+        zip,
+        repeat_with,
+    },
 };
 
-use crate::tag_code::{TagCodes, TagLine, Jump};
+use crate::tag_code::{
+    TagCodes,
+    TagLine,
+    Jump
+};
 
 macro_rules! impl_enum_froms {
     (impl From for $ty:ty { $(
@@ -68,6 +77,7 @@ pub const ARG_RES: [&str; 10] = [
     "_0", "_1", "_2", "_3", "_4",
     "_5", "_6", "_7", "_8", "_9",
 ];
+pub const COUNTER: &str = "@counter";
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Value {
@@ -493,6 +503,50 @@ impl_derefs!(impl for Expand => (self: self.0): Vec<LogicLine>);
 /// 然后将`self.0`乘以每个语句的长并让`@counter += _`来跳转到目标
 #[derive(Debug, PartialEq, Clone)]
 pub struct Select(pub Value, pub Expand);
+impl Compile for Select {
+    fn compile(self, meta: &mut CompileMeta) {
+        let mut cases: Vec<Vec<TagLine>> = self.1.0
+            .into_iter()
+            .map(
+                |line| line.compile_take(meta)
+            ).collect();
+        let lens: Vec<usize> = cases.iter()
+            .map(|lines| {
+                lines.iter()
+                    .filter(
+                        |line| !line.is_tag_down()
+                    )
+                    .count()
+            }).collect();
+        let max_len = lens.iter().copied().max().unwrap();
+
+        // build head
+        let tmp_var = meta.get_tmp_var();
+        let mut head = Op::Mul(
+            tmp_var.clone(),
+            self.0,
+            max_len.to_string().into()
+        ).compile_take(meta);
+        let head_1 = Op::Add(
+            COUNTER.into(),
+            COUNTER.into(),
+            tmp_var.into()
+        ).compile_take(meta);
+        head.extend(head_1);
+
+        // 填补不够长的`case`
+        for (len, case) in zip(lens, &mut cases) {
+            case.extend(
+                repeat_with(Default::default)
+                .take(max_len - len)
+            )
+        }
+
+        let lines = meta.tag_codes.lines_mut();
+        lines.extend(head);
+        lines.extend(cases.into_iter().flatten());
+    }
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum LogicLine {
@@ -521,11 +575,7 @@ impl Compile for LogicLine {
                     .collect();
                 meta.push(TagLine::Line(handles.join(" ").into()))
             },
-            Self::Select(_select) => {
-                // TODO 难难难! select 实现
-                // 因为还有`TagDown`展开, 所以使填充更加困难, 暂时 TODO
-                todo!()
-            },
+            Self::Select(select) => select.compile(meta),
             Self::Expand(expand) => expand.compile(meta),
             Self::Goto(goto) => goto.compile(meta),
             Self::Op(op) => op.compile(meta),
@@ -628,6 +678,18 @@ impl_enum_froms!(impl From for LogicLine {
 /// 编译到`TagCodes`
 pub trait Compile {
     fn compile(self, meta: &mut CompileMeta);
+
+    /// 使用`compile`生成到尾部后再将其弹出并返回
+    ///
+    /// 使用时需要考虑其副作用, 例如`compile`并不止做了`push`至尾部,
+    /// 它还可能做了其他事
+    fn compile_take(self, meta: &mut CompileMeta) -> Vec<TagLine>
+    where Self: Sized
+    {
+        let start = meta.tag_codes.len();
+        self.compile(meta);
+        meta.tag_codes.lines_mut().split_off(start)
+    }
 }
 
 #[derive(Debug)]
@@ -636,13 +698,15 @@ pub struct CompileMeta {
     tags_map: HashMap<String, usize>,
     tag_count: usize,
     tag_codes: TagCodes,
+    tmp_var_count: usize,
 }
 impl Default for CompileMeta {
     fn default() -> Self {
         Self {
             tags_map: HashMap::new(),
             tag_count: 0,
-            tag_codes: TagCodes::new()
+            tag_codes: TagCodes::new(),
+            tmp_var_count: 0,
         }
     }
 }
@@ -661,9 +725,20 @@ impl CompileMeta {
         })
     }
 
+    pub fn get_tmp_var(&mut self) -> Var {
+        let id = self.tmp_var_count;
+        self.tmp_var_count += 1;
+        format!("__{}", id)
+    }
+
     /// 向已生成代码`push`
     pub fn push(&mut self, data: TagLine) {
         self.tag_codes.push(data)
+    }
+
+    /// 向已生成代码`pop`
+    pub fn pop(&mut self) -> Option<TagLine> {
+        self.tag_codes.pop()
     }
 
     /// 获取已生成的代码条数
@@ -921,16 +996,21 @@ mod tests {
     #[test]
     fn switch_test() {
         let parser = LogicLineParser::new();
-        assert_eq!(
-            parse!(parser, r#"
+        let ast = parse!(parser, r#"
             switch 2 {
             case 1:
                 print 1;
             case 2 4:
                 print 2;
                 print 4;
+            case 5:
+                :a
+                :b
+                print 5;
             }
-            "#).unwrap(),
+        "#).unwrap();
+        assert_eq!(
+            ast,
             Select(
                 "2".into(),
                 Expand(vec![
@@ -945,9 +1025,36 @@ mod tests {
                         LogicLine::Other(vec!["print".into(), "2".into()]),
                         LogicLine::Other(vec!["print".into(), "4".into()]),
                     ]).into(),
+                    Expand(vec![
+                        LogicLine::Label("a".into()),
+                        LogicLine::Label("b".into()),
+                        LogicLine::Other(vec!["print".into(), "5".into()]),
+                    ]).into(),
                 ])
             ).into()
         );
+        let mut tag_codes = CompileMeta::new()
+            .compile(Expand(vec![ast]).into());
+        let lines = tag_codes
+            .compile()
+            .unwrap();
+        assert_eq!(lines, [
+            "op mul __0 2 2",
+            "op add @counter @counter __0",
+            "noop",
+            "noop",
+            "print 1",
+            "noop",
+            "print 2",
+            "print 4",
+            "noop",
+            "noop",
+            "print 2",
+            "print 4",
+            "print 5",
+            "noop",
+        ]);
+        //println!("{}", lines.join("\n"));
     }
 
     #[test]
@@ -1019,5 +1126,22 @@ mod tests {
             r#"op add _0 y 3"#,
             r#"print _0"#,
         ])
+    }
+
+    #[test]
+    fn compile_take_test() {
+        let parser = LogicLineParser::new();
+        let ast = parse!(parser, "op x (op _0 1 + 2;) + 3;").unwrap();
+        let mut meta = CompileMeta::new();
+        meta.push(TagLine::Line("noop".to_string().into()));
+        assert_eq!(
+            ast.compile_take(&mut meta),
+            vec![
+                TagLine::Line("op add _0 1 2".to_string().into()),
+                TagLine::Line("op add x _0 3".to_string().into()),
+            ]
+        );
+        assert_eq!(meta.tag_codes.len(), 1);
+        assert_eq!(meta.tag_codes.lines(), &vec![TagLine::Line("noop".to_string().into())]);
     }
 }
