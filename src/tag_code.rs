@@ -261,7 +261,47 @@ impl TagLine {
             Self::TagDown(..) => None
         }
     }
+
+    /// 传入一行tag码
+    /// 如果是以`:`开头则构建为[`TagDown`]
+    /// 如果是以jump开头则拿第二个参数建表构建为[`Jump`]
+    /// 否则构建为[`Line`]
+    ///
+    /// [`Line`]: `Self::Line`
+    /// [`Jump`]: `Self::Jump`
+    /// [`TagDown`]: `Self::TagDown`
+    pub fn from_tag_str(s: &str, tag_map: &mut HashMap<String, usize>) -> Self {
+        fn get_tag_body(s: &str) -> String {
+            s.chars()
+                .skip(1)
+                .take_while(|c| !c.is_whitespace())
+                .collect::<String>()
+        }
+
+        let len = tag_map.len(); // 插入前的表长, 做插入用id
+
+        macro_rules! get_or_insert_tag {
+            ($tag:expr) => {
+                *tag_map.entry($tag)
+                    .or_insert_with(
+                        move || len
+                    )
+            };
+        }
+
+        if s.starts_with(":") {
+            let tag = get_tag_body(s);
+            Self::TagDown(get_or_insert_tag!(tag))
+        } else if s.starts_with("jump") {
+            let tag = get_tag_body(&take_jump_target(s));
+            let body = take_jump_body(s);
+            Jump(get_or_insert_tag!(tag), body).into()
+        } else {
+            Self::Line(s.to_string().into())
+        }
+    }
 }
+
 impl From<TagBox<String>> for TagLine {
     fn from(value: TagBox<String>) -> Self {
         Self::Line(value)
@@ -310,6 +350,7 @@ pub struct TagCodes {
 impl FromStr for TagCodes {
     type Err = (usize, ParseTagCodesError);
 
+    /// 从逻辑语言中构建
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // K: jump所在行, jump所用tag为第n个jump
         let mut jumps: HashSet<usize> = HashSet::new();
@@ -594,6 +635,18 @@ impl TagCodes {
             self.lines.push(line)
         }
     }
+
+    /// 对字符串中每行调用[`TagLine::from_tag_str`]来构建
+    pub fn from_tag_lines(s: &str) -> Self {
+        let mut lines = Vec::new();
+        let mut tag_map = HashMap::new();
+
+        for line in s.lines() {
+            lines.push(TagLine::from_tag_str(line, &mut tag_map))
+        }
+
+        lines.into()
+    }
 }
 
 fn take_jump_target(line: &str) -> String {
@@ -778,5 +831,19 @@ mod tests {
             [:3];
             ["d"];
         });
+    }
+
+    #[test]
+    fn from_tag_str_test() {
+        let mut tag_map = Default::default();
+        assert_eq!(TagLine::from_tag_str(":a", &mut tag_map), tag_line!(:0));
+        // 标记后方所有值无效, 只有`:a`被识别了
+        assert_eq!(TagLine::from_tag_str(":a abc def", &mut tag_map), tag_line!(:0));
+        assert_eq!(TagLine::from_tag_str(":b", &mut tag_map), tag_line!(:1));
+        assert_eq!(TagLine::from_tag_str("jump :a foo", &mut tag_map), tag_line!(jump 0 "foo"));
+        assert_eq!(TagLine::from_tag_str("jump :b bar", &mut tag_map), tag_line!(jump 1 "bar"));
+        assert_eq!(TagLine::from_tag_str("jump :c foo", &mut tag_map), tag_line!(jump 2 "foo"));
+        assert_eq!(TagLine::from_tag_str(":c", &mut tag_map), tag_line!(:2));
+        assert_eq!(TagLine::from_tag_str("op add a a 1", &mut tag_map), tag_line!("op add a a 1"));
     }
 }

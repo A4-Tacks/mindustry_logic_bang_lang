@@ -5,7 +5,9 @@ use std::{
         Read
     },
     process::exit,
-    str::FromStr, collections::HashMap,
+    str::FromStr,
+    collections::HashMap,
+    mem::replace,
 };
 
 use lalrpop_util::{
@@ -42,6 +44,7 @@ pub const HELP_MSG: &str = concat_lines! {
     "\t", "T: compile MdtBangLang to MdtTagCode (Builded TagDown)";
     "\t", "f: compile MdtLogicCode to MdtTagCode";
     "\t", "F: compile MdtLogicCode to MdtTagCode (Builded TagDown)";
+    "\t", "C: compile MdtTagCode to MdtLogicCode";
     ;
     "input from stdin";
     "output to stdout";
@@ -121,6 +124,18 @@ fn main() {
                     err!("line: {}, {:?}", line, e);
                     exit(4);
                 },
+            }
+        },
+        "C" => {
+            let src = read_stdin();
+            let tag_codes = TagCodes::from_tag_lines(&src);
+            let mut meta = CompileMeta::new();
+            // 将我构建好的TagCodes换入并drop掉老的
+            drop(replace(meta.tag_codes_mut(), tag_codes));
+            build_tag_down(&mut meta);
+            let logic_lines = meta.tag_codes_mut().compile().unwrap();
+            for line in logic_lines {
+                println!("{}", line);
             }
         },
         mode => {
