@@ -751,11 +751,27 @@ impl CompileMeta {
         self.tag_codes.count_no_tag()
     }
 
-    pub fn compile(mut self, lines: Expand) -> TagCodes {
+    pub fn compile(self, lines: Expand) -> TagCodes {
+        self.compile_res_self(lines).tag_codes
+    }
+
+    pub fn compile_res_self(mut self, lines: Expand) -> Self {
         self.tag_codes.clear();
 
         lines.compile(&mut self);
-        self.tag_codes
+        self
+    }
+
+    pub fn tag_codes(&self) -> &TagCodes {
+        &self.tag_codes
+    }
+
+    pub fn tag_codes_mut(&mut self) -> &mut TagCodes {
+        &mut self.tag_codes
+    }
+
+    pub fn tags_map(&self) -> &HashMap<String, usize> {
+        &self.tags_map
     }
 }
 

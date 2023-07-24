@@ -3,6 +3,11 @@ name = "mindustry_logic_bang_lang"
 version = "0.1.0"
 edition = "2021"
 
+authors = ["A4-Tacks <wdsjxhno1001@163.com>"]
+description = "一个偏向底层的用于Mindustry游戏中逻辑处理器的语言"
+categories = ["command-line-utilities"]
+keywords = ["compiler", "lang", "mindustry"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [build-dependencies]
@@ -21,3 +26,4 @@ features = [
 
 [profile.release]
 strip = true
+lto = true

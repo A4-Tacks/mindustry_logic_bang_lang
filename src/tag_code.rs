@@ -125,11 +125,11 @@ impl Display for TagLine {
         match self {
             Self::Jump(jump) => {
                 push_tag(&mut res, jump.tag, true);
-                res.push_str(&format!("jump :{} {:?}", jump.data().0, jump.data().1));
+                res.push_str(&format!("jump :{} {}", jump.data().0, jump.data().1));
             },
             Self::Line(line) => {
                 push_tag(&mut res, line.tag, true);
-                res.push_str(&format!("{:?}", line.data()));
+                res.push_str(&format!("{}", line.data()));
             },
             &Self::TagDown(tag) => push_tag(&mut res, Some(tag), false),
         }
@@ -143,7 +143,28 @@ impl Default for TagLine {
 }
 impl std::fmt::Debug for TagLine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "TagLine({:?})", self.to_string())
+        fn push_tag(s: &mut String, tag: Option<usize>, tail: bool) {
+            if let Some(tag) = tag {
+                s.push(':');
+                s.push_str(&tag.to_string());
+                if tail {
+                    s.push(' ');
+                }
+            }
+        }
+        let mut res = String::new();
+        match self {
+            Self::Jump(jump) => {
+                push_tag(&mut res, jump.tag, true);
+                res.push_str(&format!("jump :{} {:?}", jump.data().0, jump.data().1));
+            },
+            Self::Line(line) => {
+                push_tag(&mut res, line.tag, true);
+                res.push_str(&format!("{:?}", line.data()));
+            },
+            &Self::TagDown(tag) => push_tag(&mut res, Some(tag), false),
+        }
+        write!(f, "TagLine({})", res)
     }
 }
 impl TagLine {
