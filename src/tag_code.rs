@@ -473,6 +473,26 @@ impl TagCodes {
         }
         Ok(logic_lines)
     }
+
+    /// 获取内部代码条数
+    pub fn len(&self) -> usize {
+        self.lines.len()
+    }
+
+    /// 获取不是[`TagDown`]的代码条数
+    ///
+    /// [`TagDown`]: `TagLine::TagDown`
+    pub fn count_no_tag(&self) -> usize {
+        // 这可以通过内部维护值来实现, 但是目前是使用遍历的低效实现
+        self.lines
+            .iter()
+            .filter(|line| !line.is_tag_down())
+            .count()
+    }
+
+    pub fn iter(&self) -> std::slice::Iter<TagLine> {
+        self.lines.iter()
+    }
 }
 
 fn take_jump_target(line: &str) -> String {
