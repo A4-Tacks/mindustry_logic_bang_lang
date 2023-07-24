@@ -1,0 +1,78 @@
+# 控制语句
+# 如while do_while skip if elif goto的条件都是用的Cmp
+# Cmp的格式为 Value_0 cmp Value_1.
+# 当然, 有几个特例. 如`_`是always, Value_0是会展开为 _0 != false
+# 对于这些比较符, 都进行了映射. 我们不用去输入equal notEqual lessThanEq这样的
+# 只需要输入 == != <= 即可
+n = 2;
+if n < 0 {
+    print "n < 0";
+} elif n == 1 {
+    print "n == 1";
+} elif n > 0 {
+    print "n > 0";
+} else
+    print "n == 0";
+end;
+
+#* 以上代码会被展开为
+set n 2
+jump 10 lessThan n 0
+jump 6 equal n 1
+jump 8 greaterThan n 0
+print "n == 0"
+jump 11 always 0 0
+print "n == 1"
+jump 11 always 0 0
+print "n > 0"
+jump 11 always 0 0
+print "n < 0"
+end
+*#
+
+skip n > 5 {
+    print "! (n > 5)";
+}
+end;
+
+#* 以上代码会被展开为
+jump 2 greaterThan n 5
+print "! (n > 5)"
+end
+*#
+# 由此可以看到, skip相当于构建了一个跨越这个块的goto
+
+
+while n < 2 {
+    op n n + 1;
+}
+end;
+
+#* 以上代码会被展开为
+jump 3 greaterThanEq n 2
+op add n n 1
+jump 1 lessThan n 2
+end
+*#
+# 由上述代码可以看出, while是由一个相反条件跳过循环体, 并在循环体末尾跳到循环体首部
+# 不采用第一句始终goto到条件起始位置而是对其取反是为了取得最高的效率, 完成零开销
+
+do {
+    op n n + 1;
+} while n < 6;
+
+#* 以上代码会被展开为
+op add n n 1
+jump 0 lessThan n 6
+*#
+# 由上述代码可以看出, do_while就是单纯往回跳完成循环
+
+:x
+op n n + 1;
+goto :x n < 9;
+
+#* 以上代码会被展开为
+op add n n 1
+jump 0 lessThan n 9
+*#
+# 就如同do_while一样, 我们手动完成了它
