@@ -1,0 +1,14 @@
+#* 枚举了print, 来避免打印写很多行
+ * 语法为`print Args`
+ *#
+
+print "num: " (op $ 1 + 2;) "\n";
+
+#* 以上代码会被编译为
+print "num: "
+op add _1 1 2
+print _1
+print "\n"
+*#
+
+# 可以看到, print被展开成了多个print, 这可以减轻打印多个值时的负担
