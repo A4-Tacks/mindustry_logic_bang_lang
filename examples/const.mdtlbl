@@ -26,3 +26,28 @@ print _0
 
 # 由这里可以看出, 常量N的数字2被内联了, 常量F的DExp也被内联了
 # 而$被替换为了这个DExp的返回句柄, 这经常用于常量、宏这种不知道返回句柄时
+
+
+print X;
+const X = 2;
+print X;
+const X = 3;
+print X;
+{
+    const X = 4;
+    print X;
+}
+print X;
+
+#* 以上代码会被编译为
+print X
+print 2
+print 3
+print 4
+print 3
+*#
+
+# 可以看到, 常量声明前使用并不会生效
+# 常量声明后使用才会生效
+# 并且这个常量是在块作用域的
+# 且在同一个块中可以再次声明覆盖之前声明的常量
