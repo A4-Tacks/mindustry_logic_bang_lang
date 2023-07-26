@@ -53,8 +53,46 @@ hi link mdtlblNumber Number
 
 
 " Label {{{1
-syn match mdtlblIdentLabel /:\I\i*/
+syn match mdtlblIdentLabel /:\s*\I\i*/
 hi link mdtlblIdentLabel Label
+
+setlocal foldmethod=syntax
+syn region mdtlblBlock start=/{/ end=/}/ transparent fold
+syn region mdtlblDExp start=/(/ end=/)/ transparent fold
+
+function! <SID>lineFilter(line)
+    " 过滤掉注释与字符串与原始标识符
+    let regex = '\('
+                \. '#\*.\{-0,}\*#'
+                \. '\|#.*$'
+                \. '\|' . "'[^'\\S]*'"
+                \. '\)'
+    return substitute(a:line, regex, '_', 'g')
+endfunction
+
+function! GetMdtlblIndent()
+    if v:lnum <= 1 | return 0 | endif
+    let lnum = v:lnum
+    let pnum = prevnonblank(lnum - 1)
+
+    let preline = <SID>lineFilter(getline(pnum))
+    let line = <SID>lineFilter(getline(lnum))
+
+    if line =~# 'case' && preline =~# '\<switch\>'
+        " 拦截, 无需缩进
+        let diff = 0
+    elseif line =~# '\(^\s*[)}]\|\<case\>\)'
+        let diff = -1
+    elseif preline =~# '[({:]\s*$' && line !~# '\<case\>'
+        let diff = 1
+    else
+        let diff = 0
+    endif
+
+    return indent(pnum) + diff * &shiftwidth
+endfunction
+
+setlocal indentexpr=GetMdtlblIndent()
 
 " END {{{1
 " }}}1
