@@ -1,0 +1,80 @@
+// mindustry logic bang lang 的语法高亮规则
+// https://github.com/A4-Tacks/mindustry_logic_bang_lang
+{
+	name: ["MindustryLogicBangLang", ".mdtlbl"],
+	// no hidden
+	hide: false,
+	comment: { startsWith: "#", addToContains: false },
+	colors: [
+		"cRed", #ff0000, #ff0000,
+		"cBlue", #7900ff, #5463ff,
+		"cYellow", #b85c38, #ffc300,
+		"cBule2", #9adcff, #9adcff,
+		"cGreen", #00ff00, #00ff00,
+		"cDefault", #000000, #eeeeee,
+		"cL1", #a08b8a, #a08b8a,
+		"cL2", #d3816b, #d3816b,
+		"cL3", #877bad, #877bad,
+		"cL4", #6bb3b2, #6bb3b2,
+		"cL5", #c7b59d, #c7b59d,
+		"cOutPut", #a2d5ab, #a2d5ab
+	],
+	contains: [
+		{
+			// long comments
+			start: { match: /#\*/ },
+			end: { match: /\*#/ },
+			color: "comment"
+		},
+		{
+			// inline comments
+			start: { match: /#/ },
+			end: { match: /\n|$/ },
+			color: "comment"
+
+		},
+		{
+			// number
+			match: /\b(?:0(?:x-?[\da-fA-F][_\da-fA-F]*|b-?[01][_01]*)/
+				+ /|-?\d[_\d]*(?:\.\d[\d_]*)?)\b/,
+			0: "number"
+		},
+		{
+			// string
+			match: /"(?:(\\n)|[^"])*"/,
+			0: "string",
+			1: "strEscape"
+		},
+		{
+			// 元标识符，由于MT管理器的正则并没有\i \I \p [[:idnet:]]等匹配标识符的手段
+			// 只能手动枚举ASCII字符
+			match: /@[a-zA-Z_][a-zA-Z0-9_\-]*/,
+			0: "meta"
+		},
+		{
+			// 原始标识符
+			match: /'[^\s']*'/,
+			0: "constant"
+		},
+		{
+			// control
+			match: keywordsToRegex(
+				"while do skip goto if elif else switch case"
+			),
+			0: "keyword"
+		},
+		{ // 返回句柄替换符
+			match: /\$/,
+			0: "keyword2"
+		},
+		{
+			// other
+			match: keywordsToRegex(
+				"const take"
+			),
+			0: "keyword2"
+		}
+
+		// 接下来是 MindustryLogic 原生匹配
+	]
+}
