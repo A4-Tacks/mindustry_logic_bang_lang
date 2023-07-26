@@ -51,3 +51,27 @@ print 3
 # 常量声明后使用才会生效
 # 并且这个常量是在块作用域的
 # 且在同一个块中可以再次声明覆盖之前声明的常量
+
+
+const FOO = (
+    print "传入值为: " ARG0 "\n";
+    op $ ARG0 + 1;
+);
+
+{
+    const ARG0 = 2;
+    take RES = FOO;
+    print "返回值为: " RES;
+}
+
+#* 以上代码会被编译为:
+print "传入值为: "
+print 2
+print "\n"
+op add __0 2 1
+print "返回值为: "
+print __0
+*#
+
+# 可以看到, 我们使用const与DExp可以完成内联函数这样的操作,
+# 这会使代码复用性与组织性上升
