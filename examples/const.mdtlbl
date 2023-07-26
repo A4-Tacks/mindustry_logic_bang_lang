@@ -1,0 +1,28 @@
+#* 内联常量
+ * 这是通过 const Var = Value 来定义
+ * 当使用Value时将会进行一个内联常量查找
+ * 而内联常量是块定义的, 也就是仅在当前块内有效
+ * 内联常量的值是一个Value, 也就是说你可以往里面塞一个DExp, 这可以有效的提高代码复用
+ * Value有一个特殊的值 `$`, 这个值为包裹这个Value的DExp的返回句柄
+ *  例如 `(x: read $ cell1 0;)`, 其中的`$`代表了这个DExp的返回句柄`x`
+ *#
+
+const N = 2;
+const F = (read $ cell1 0;);
+
+print "N: ";
+print N;
+
+print "F: ";
+print F;
+
+#* 以上代码会被编译为:
+print "N: "
+print 2
+print "F: "
+read _0 cell1 0
+print _0
+*#
+
+# 由这里可以看出, 常量N的数字2被内联了, 常量F的DExp也被内联了
+# 而$被替换为了这个DExp的返回句柄, 这经常用于常量、宏这种不知道返回句柄时

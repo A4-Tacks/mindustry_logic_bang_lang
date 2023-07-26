@@ -1,0 +1,30 @@
+#* take是一个用于计算值的语句,
+ * 经常用于一个常量中为一个DExp多次使用但只需计算一次的场景
+ * 语法为 `take Var = Value_L`, 会在此处将`Value_L`进行计算,
+ * 并且将Var编译为常量, 其值为`Value`的返回句柄
+ * `Value_L`接受`Value`,
+ *  但是未指定返回句柄的情况下会不同于`Value_0`这种将其设为`_0`
+ *  而是每次申请一个只会出现一次的量, 如`__0`, `__1`以此类推
+ *#
+
+const F = (read $ cell1 0;);
+
+take NUM = F;
+print NUM;
+print NUM;
+
+take NUM_1 = F;
+print NUM_1;
+print NUM_1;
+
+#* 以上代码会被编译为
+read __0 cell1 0
+print __0
+print __0
+read __1 cell1 0
+print __1
+print __1
+*#
+
+# 可以看到, 我们可以对常量的值计算一次但是多次使用结果
+# 如果直接`print F;`, 将会每次都进行计算

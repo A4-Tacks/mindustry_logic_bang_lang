@@ -6,12 +6,16 @@ use std::{
         zip,
         repeat_with,
     },
+    process::exit,
 };
 
-use crate::tag_code::{
-    TagCodes,
-    TagLine,
-    Jump
+use crate::{
+    err,
+    tag_code::{
+        Jump,
+        TagCodes,
+        TagLine
+    },
 };
 
 macro_rules! impl_enum_froms {
@@ -79,10 +83,60 @@ pub const ARG_RES: [&str; 10] = [
 ];
 pub const COUNTER: &str = "@counter";
 
+
+/// 带有一个未使用的返回句柄信息的Var封装
+/// 在宏替换Var为Value时很有用
+#[derive(Debug, Clone)]
+pub struct VarStruct {
+    result: Var,
+    value: Var,
+}
+impl PartialEq for VarStruct {
+    fn eq(&self, other: &Self) -> bool {
+        // 没必要进行result的比较,
+        // 因为在Var状态下, result的值是未使用的, 是无意义的
+        self.value == other.value
+    }
+}
+impl Deref for VarStruct {
+    type Target = Var;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+impl VarStruct {
+    pub fn default_result(&mut self, str: impl FnOnce() -> Var) {
+        if self.result.is_empty() {
+            self.result = str()
+        }
+    }
+}
+impl From<VarStruct> for Var {
+    fn from(value: VarStruct) -> Self {
+        value.value
+    }
+}
+impl From<&str> for VarStruct {
+    fn from(value: &str) -> Self {
+        Var::from(value).into()
+    }
+}
+impl From<String> for VarStruct {
+    fn from(value: String) -> Self {
+        Self {
+            result: "".into(),
+            value
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Value {
-    Var(Var),
+    Var(VarStruct),
     DExp(DExp),
+    /// 编译时被替换为当前DExp返回句柄
+    ResultHandle,
 }
 impl Default for Value {
     fn default() -> Self {
@@ -91,20 +145,40 @@ impl Default for Value {
 }
 impl Value {
     /// 如果是一个[`DExp`]且未指定返回句柄则负责将其设为传入默认值
-    pub fn default_result(mut self, str: &str) -> Self {
-        self.as_dexp_mut()
-            .map(|expr| expr.default_result(str));
+    pub fn default_result(mut self, str: impl FnOnce() -> Var) -> Self {
+        match &mut self {
+            Self::Var(ref mut var) => var.default_result(str),
+            Self::DExp(ref mut dexp) => dexp.default_result(str),
+            Self::ResultHandle => (), // ignore
+        }
         self
     }
 
     /// 编译依赖并返回句柄
     pub fn take(self, meta: &mut CompileMeta) -> Var {
+        // TODO
+        // 先检查元数据中是否应该将self替换, 例如在编译宏时
         match self {
-            Self::Var(var) => var,
+            Self::Var(var) => {
+                if let Some(value) = meta.get_const_value(&var) {
+                    value.clone()
+                        .default_result(|| var.result)
+                        .take(meta)
+                } else {
+                    var.into()
+                }
+            },
             Self::DExp(DExp { result, lines }) => {
+                #[cfg(debug_assertions)]
+                let old_handle = result.clone();
+                meta.push_dexp_handle(result);
                 lines.compile(meta);
+                let result = meta.pop_dexp_handle();
+                #[cfg(debug_assertions)]
+                assert_eq!(result, old_handle);
                 result
             },
+            Self::ResultHandle => meta.dexp_handle().clone(),
         }
     }
 
@@ -155,6 +229,7 @@ impl Deref for Value {
         match self {
             Self::Var(ref s) => &s,
             Self::DExp(DExp { result, .. }) => &result,
+            Self::ResultHandle => panic!("未进行AST编译, 而DExp的返回句柄是进行AST编译时已知"),
         }
     }
 }
@@ -171,18 +246,13 @@ pub struct DExp {
     result: Var,
     lines: Expand,
 }
-impl Compile for DExp {
-    fn compile(self, meta: &mut CompileMeta) {
-        self.lines.compile(meta)
-    }
-}
 impl DExp {
     pub fn new(result: Var, lines: Expand) -> Self {
         Self { result, lines }
     }
-    pub fn default_result(&mut self, str: &str) {
+    pub fn default_result(&mut self, str: impl FnOnce() -> Var) {
         if self.result.is_empty() {
-            self.result = str.into()
+            self.result = str()
         }
     }
 }
@@ -191,6 +261,7 @@ impl DExp {
 pub struct Meta {
     tag_number: usize,
     id: usize,
+    tmp_var: usize,
 }
 impl Meta {
     /// use [`Self::default()`]
@@ -205,6 +276,13 @@ impl Meta {
         format!("__{}", tag)
     }
 
+    /// 获取一个临时变量, 不会重复获取
+    pub fn get_tmp_var(&mut self) -> Var {
+        let id = self.tmp_var;
+        self.tmp_var += 1;
+        format!("__{}", id)
+    }
+
     /// 获取一个始终不会重复获取的id
     pub fn get_id(&mut self) -> usize {
         let id = self.id;
@@ -217,6 +295,7 @@ impl Default for Meta {
         Self {
             tag_number: 0,
             id: 0,
+            tmp_var: 0,
         }
     }
 }
@@ -315,46 +394,46 @@ impl JumpCmp {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Op {
-    Add(Var, Value, Value),
-    Sub(Var, Value, Value),
-    Mul(Var, Value, Value),
-    Div(Var, Value, Value),
-    Idiv(Var, Value, Value),
-    Mod(Var, Value, Value),
-    Pow(Var, Value, Value),
-    Equal(Var, Value, Value),
-    NotEqual(Var, Value, Value),
-    Land(Var, Value, Value),
-    LessThan(Var, Value, Value),
-    LessThanEq(Var, Value, Value),
-    GreaterThan(Var, Value, Value),
-    GreaterThanEq(Var, Value, Value),
-    StrictEqual(Var, Value, Value),
-    Shl(Var, Value, Value),
-    Shr(Var, Value, Value),
-    Or(Var, Value, Value),
-    And(Var, Value, Value),
-    Xor(Var, Value, Value),
-    Max(Var, Value, Value),
-    Min(Var, Value, Value),
-    Angle(Var, Value, Value),
-    Len(Var, Value, Value),
-    Noise(Var, Value, Value),
+    Add(Value, Value, Value),
+    Sub(Value, Value, Value),
+    Mul(Value, Value, Value),
+    Div(Value, Value, Value),
+    Idiv(Value, Value, Value),
+    Mod(Value, Value, Value),
+    Pow(Value, Value, Value),
+    Equal(Value, Value, Value),
+    NotEqual(Value, Value, Value),
+    Land(Value, Value, Value),
+    LessThan(Value, Value, Value),
+    LessThanEq(Value, Value, Value),
+    GreaterThan(Value, Value, Value),
+    GreaterThanEq(Value, Value, Value),
+    StrictEqual(Value, Value, Value),
+    Shl(Value, Value, Value),
+    Shr(Value, Value, Value),
+    Or(Value, Value, Value),
+    And(Value, Value, Value),
+    Xor(Value, Value, Value),
+    Max(Value, Value, Value),
+    Min(Value, Value, Value),
+    Angle(Value, Value, Value),
+    Len(Value, Value, Value),
+    Noise(Value, Value, Value),
 
-    Not(Var, Value),
-    Abs(Var, Value),
-    Log(Var, Value),
-    Log10(Var, Value),
-    Floor(Var, Value),
-    Ceil(Var, Value),
-    Sqrt(Var, Value),
-    Rand(Var, Value),
-    Sin(Var, Value),
-    Cos(Var, Value),
-    Tan(Var, Value),
-    Asin(Var, Value),
-    Acos(Var, Value),
-    Atan(Var, Value),
+    Not(Value, Value),
+    Abs(Value, Value),
+    Log(Value, Value),
+    Log10(Value, Value),
+    Floor(Value, Value),
+    Ceil(Value, Value),
+    Sqrt(Value, Value),
+    Rand(Value, Value),
+    Sin(Value, Value),
+    Cos(Value, Value),
+    Tan(Value, Value),
+    Asin(Value, Value),
+    Acos(Value, Value),
+    Atan(Value, Value),
 }
 impl Op {
     pub fn oper_str(&self) -> &'static str {
@@ -424,14 +503,14 @@ impl Op {
                 match self {
                     $(
                         Self::$oper1(res, a) => {
-                            args.push(res.into());
+                            args.push(res.take(meta).into());
                             args.push(a.take(meta).into());
                             args.push("0".into());
                         },
                     )*
                     $(
                         Self::$oper2(res, a, b) => {
-                            args.push(res.into());
+                            args.push(res.take(meta).into());
                             args.push(a.take(meta).into());
                             args.push(b.take(meta).into());
                         },
@@ -486,9 +565,11 @@ impl Default for Expand {
 }
 impl Compile for Expand {
     fn compile(self, meta: &mut CompileMeta) {
+        meta.block_enter();
         for line in self.0 {
             line.compile(meta)
         }
+        meta.block_exit(); // 如果要获取丢弃块中的常量映射从此处
     }
 }
 impl From<Vec<LogicLine>> for Expand {
@@ -523,7 +604,7 @@ impl Compile for Select {
         // build head
         let tmp_var = meta.get_tmp_var();
         let mut head = Op::Mul(
-            tmp_var.clone(),
+            tmp_var.clone().into(),
             self.0,
             max_len.to_string().into()
         ).compile_take(meta);
@@ -548,6 +629,27 @@ impl Compile for Select {
     }
 }
 
+/// 在块作用域将Var常量为后方值, 之后使用Var时都会被替换为后方值
+#[derive(Debug, PartialEq, Clone)]
+pub struct Const(pub Var, pub Value);
+impl Compile for Const {
+    fn compile(self, meta: &mut CompileMeta) {
+        // 对同作用域定义过的常量形成覆盖
+        // 如果要进行警告或者将信息传出则在此处理
+        meta.add_const_value(self.0, self.1);
+    }
+}
+
+/// 在此处计算后方的值, 并将句柄赋给前方值
+/// 如果后方不是一个DExp, 而是Var, 那么自然等价于一个常量定义
+#[derive(Debug, PartialEq, Clone)]
+pub struct Take(pub Var, pub Value);
+impl Compile for Take {
+    fn compile(self, meta: &mut CompileMeta) {
+        Const(self.0, self.1.take(meta).into()).compile(meta)
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum LogicLine {
     Op(Op),
@@ -558,6 +660,10 @@ pub enum LogicLine {
     Select(Select),
     End,
     NoOp,
+    /// 空语句, 什么也不生成
+    Ignore,
+    Const(Const),
+    Take(Take),
 }
 impl Compile for LogicLine {
     fn compile(self, meta: &mut CompileMeta) {
@@ -579,6 +685,9 @@ impl Compile for LogicLine {
             Self::Expand(expand) => expand.compile(meta),
             Self::Goto(goto) => goto.compile(meta),
             Self::Op(op) => op.compile(meta),
+            Self::Ignore => (),
+            Self::Const(r#const) => r#const.compile(meta),
+            Self::Take(take) => take.compile(meta),
         }
     }
 }
@@ -673,6 +782,8 @@ impl_enum_froms!(impl From for LogicLine {
     Goto => Goto;
     Expand => Expand;
     Select => Select;
+    Const => Const;
+    Take => Take;
 });
 
 /// 编译到`TagCodes`
@@ -699,6 +810,9 @@ pub struct CompileMeta {
     tag_count: usize,
     tag_codes: TagCodes,
     tmp_var_count: usize,
+    const_var_namespace: Vec<HashMap<Var, Value>>,
+    /// 每层DExp所使用的句柄, 末尾为当前层
+    dexp_result_handles: Vec<Var>,
 }
 impl Default for CompileMeta {
     fn default() -> Self {
@@ -707,6 +821,8 @@ impl Default for CompileMeta {
             tag_count: 0,
             tag_codes: TagCodes::new(),
             tmp_var_count: 0,
+            const_var_namespace: Vec::new(),
+            dexp_result_handles: Vec::new(),
         }
     }
 }
@@ -773,11 +889,89 @@ impl CompileMeta {
     pub fn tags_map(&self) -> &HashMap<String, usize> {
         &self.tags_map
     }
+
+    /// 进入一个子块, 创建一个新的子命名空间
+    pub fn block_enter(&mut self) {
+        self.const_var_namespace.push(HashMap::new())
+    }
+
+    /// 退出一个子块, 弹出最顶层命名空间
+    /// 如果无物可弹说明逻辑出现了问题, 所以内部处理为unwrap
+    /// 一个enter对应一个exit
+    pub fn block_exit(&mut self) -> HashMap<Var, Value> {
+        self.const_var_namespace.pop().unwrap()
+    }
+
+    /// 获取一个常量到值的映射, 从当前作用域往顶层作用域一层层找, 都没找到就返回空
+    pub fn get_const_value(&self, name: &Var) -> Option<&Value> {
+        for namespace in self.const_var_namespace.iter().rev() {
+            if let Some(value) = namespace.get(name) {
+                return value.into();
+            }
+        }
+        None
+    }
+
+    /// 新增一个常量到值的映射, 如果当前作用域已有此映射则返回旧的值并插入新值
+    pub fn add_const_value(&mut self, var: Var, value: Value) -> Option<Value> {
+        self.const_var_namespace
+            .last_mut()
+            .unwrap()
+            .insert(var, value)
+    }
+
+    /// 新增一层DExp, 并且传入它使用的返回句柄
+    pub fn push_dexp_handle(&mut self, handle: Var) {
+        self.dexp_result_handles.push(handle)
+    }
+
+    /// 如果弹无可弹, 说明逻辑出现了问题
+    pub fn pop_dexp_handle(&mut self) -> Var {
+        self.dexp_result_handles.pop().unwrap()
+    }
+
+    pub fn debug_tag_codes(&self) -> Vec<String> {
+        self.tag_codes().lines().iter()
+            .map(ToString::to_string)
+            .collect()
+    }
+
+    pub fn debug_tags_map(&self) -> Vec<String> {
+        self.tags_map()
+            .iter()
+            .map(|(tag, id)| format!("{} \t-> {}", tag, id))
+            .collect()
+    }
+
+    pub fn dexp_handle(&self) -> &Var {
+        self.dexp_result_handles.last().unwrap_or_else(|| {
+            let mut tags_map = self.debug_tags_map();
+            let mut tag_lines = self.debug_tag_codes();
+            line_first_add(&mut tags_map, "\t");
+            line_first_add(&mut tag_lines, "\t");
+            err!(
+                concat!(
+                    "尝试在`DExp`的外部使用`DExpHandle` (`$`)\n",
+                    "tag映射id:\n{}\n",
+                    "已经生成的代码:\n{}\n",
+                ),
+                tags_map.join("\n"),
+                tag_lines.join("\n"),
+            );
+            exit(6)
+        })
+    }
+}
+
+pub fn line_first_add(lines: &mut Vec<String>, insert: &str) {
+    for line in lines {
+        let s = format!("{}{}", insert, line);
+        *line = s;
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    #[allow(unused_imports)]
     use super::*;
     use crate::syntax_def::*;
 
@@ -799,6 +993,7 @@ mod tests {
         assert_eq!(parse!(parser, "0b-00_10").unwrap(), "0b-0010");
         assert_eq!(parse!(parser, "@abc-def").unwrap(), "@abc-def");
         assert_eq!(parse!(parser, "@abc-def_30").unwrap(), "@abc-def_30");
+        assert_eq!(parse!(parser, "@abc-def-34").unwrap(), "@abc-def-34");
 
         assert!(parse!(parser, "'ab cd'").is_err());
         assert!(parse!(parser, "ab-cd").is_err());
@@ -1159,5 +1354,183 @@ mod tests {
         );
         assert_eq!(meta.tag_codes.len(), 1);
         assert_eq!(meta.tag_codes.lines(), &vec![TagLine::Line("noop".to_string().into())]);
+    }
+
+    #[test]
+    fn const_value_test() {
+        let parser = ExpandParser::new();
+
+        let src = r#"
+        x = C;
+        const C = (read $ cell1 0;);
+        y = C;
+        "#;
+        let ast = parse!(parser, src).unwrap();
+        let meta = CompileMeta::new();
+        let mut tag_codes = meta.compile(ast);
+        let logic_lines = tag_codes.compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "set x C",
+                   "read _0 cell1 0",
+                   "set y _0",
+        ]);
+
+        let src = r#"
+        x = C;
+        const C = (k: read k cell1 0;);
+        y = C;
+        "#;
+        let ast = parse!(parser, src).unwrap();
+        let meta = CompileMeta::new();
+        let mut tag_codes = meta.compile(ast);
+        let logic_lines = tag_codes.compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "set x C",
+                   "read k cell1 0",
+                   "set y k",
+        ]);
+
+        let src = r#"
+        x = C;
+        const C = (read $ cell1 0;);
+        foo a b C d C;
+        "#;
+        let ast = parse!(parser, src).unwrap();
+        let meta = CompileMeta::new();
+        let mut tag_codes = meta.compile(ast);
+        let logic_lines = tag_codes.compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "set x C",
+                   "read _2 cell1 0",
+                   "read _4 cell1 0",
+                   "foo a b _2 d _4",
+        ]);
+
+        let src = r#"
+        const C = (m: read $ cell1 0;);
+        x = C;
+        "#;
+        let ast = parse!(parser, src).unwrap();
+        let meta = CompileMeta::new();
+        let mut tag_codes = meta.compile(ast);
+        let logic_lines = tag_codes.compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "read m cell1 0",
+                   "set x m",
+        ]);
+
+        let src = r#"
+        const C = (read $ cell1 (i: read $ cell2 0;););
+        print C;
+        "#;
+        let ast = parse!(parser, src).unwrap();
+        let meta = CompileMeta::new();
+        let mut tag_codes = meta.compile(ast);
+        let logic_lines = tag_codes.compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "read i cell2 0",
+                   "read _0 cell1 i",
+                   "print _0",
+        ]);
+    }
+
+    #[test]
+    fn const_value_block_range_test() {
+        let parser = ExpandParser::new();
+
+        let src = r#"
+        {
+            x = C;
+            const C = (read $ cell1 0;);
+            const C = (read $ cell2 0;); # 常量覆盖
+            {
+                const C = (read $ cell3 0;); # 子块常量
+                m = C;
+            }
+            y = C;
+            foo C C;
+        }
+        z = C;
+        "#;
+        let ast = parse!(parser, src).unwrap();
+        let meta = CompileMeta::new();
+        let mut tag_codes = meta.compile(ast);
+        let logic_lines = tag_codes.compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "set x C",
+                   "read _0 cell3 0",
+                   "set m _0",
+                   "read _0 cell2 0",
+                   "set y _0",
+                   "read _0 cell2 0",
+                   "read _1 cell2 0",
+                   "foo _0 _1",
+                   "set z C",
+        ]);
+    }
+
+    #[test]
+    fn take_test() {
+        let parser = ExpandParser::new();
+
+        let src = r#"
+        print start;
+        const F = (read $ cell1 0;);
+        take V = F; # 求值并映射
+        print V;
+        print V; # 再来一次
+        foo V V;
+        take V1 = F; # 再求值并映射
+        print V1;
+        "#;
+        let ast = parse!(parser, src).unwrap();
+        let meta = CompileMeta::new();
+        let mut tag_codes = meta.compile(ast);
+        let logic_lines = tag_codes.compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "print start",
+                   "read __0 cell1 0",
+                   "print __0",
+                   "print __0",
+                   "foo __0 __0",
+                   "read __1 cell1 0",
+                   "print __1",
+        ]);
+
+        let src = r#"
+        const F = (m: read $ cell1 0;);
+        take V = F; # 求值并映射
+        print V;
+        "#;
+        let ast = parse!(parser, src).unwrap();
+        let meta = CompileMeta::new();
+        let mut tag_codes = meta.compile(ast);
+        let logic_lines = tag_codes.compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "read m cell1 0",
+                   "print m",
+        ]);
+    }
+
+    #[test]
+    fn print_test() {
+        let parser = ExpandParser::new();
+
+        let src = r#"
+        print "abc" "def" "ghi" j 123 @counter;
+        "#;
+        let ast = parse!(parser, src).unwrap();
+        let meta = CompileMeta::new();
+        let mut tag_codes = meta.compile(ast);
+        let logic_lines = tag_codes.compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   r#"print "abc""#,
+                   r#"print "def""#,
+                   r#"print "ghi""#,
+                   r#"print j"#,
+                   r#"print 123"#,
+                   r#"print @counter"#,
+        ]);
+
     }
 }
