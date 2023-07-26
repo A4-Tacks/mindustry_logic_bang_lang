@@ -56,6 +56,9 @@ hi link mdtlblResultHandle Identifier
 
 
 " Label {{{1
+syn match mdtlblDefineResultHandle /\I\i*\s*:/
+hi link mdtlblDefineResultHandle Identifier
+
 syn match mdtlblIdentLabel /:\s*\I\i*/
 hi link mdtlblIdentLabel Label
 
