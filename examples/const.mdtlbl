@@ -20,8 +20,8 @@ print F;
 print "N: "
 print 2
 print "F: "
-read _0 cell1 0
-print _0
+read __0 cell1 0
+print __0
 *#
 
 # 由这里可以看出, 常量N的数字2被内联了, 常量F的DExp也被内联了

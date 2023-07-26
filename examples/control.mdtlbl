@@ -1,7 +1,7 @@
 # 控制语句
 # 如while do_while skip if elif goto的条件都是用的Cmp
-# Cmp的格式为 Value_0 cmp Value_1.
-# 当然, 有几个特例. 如`_`是always, Value_0是会展开为 _0 != false
+# Cmp的格式为 Value cmp Value.
+# 当然, 有几个特例. 如`_`是always, Value是会展开为 ... != false
 # 对于这些比较符, 都进行了映射. 我们不用去输入equal notEqual lessThanEq这样的
 # 只需要输入 == != <= 即可
 n = 2;

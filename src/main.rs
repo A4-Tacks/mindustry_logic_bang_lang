@@ -64,6 +64,10 @@ fn main() {
         help();
         exit(1)
     };
+    if let Some(arg) = args.next() {
+        err!("多余的参数: {:?}", arg);
+        exit(2);
+    }
     match &*mode {
         "c" => {
             let ast = from_stdin_build_ast();

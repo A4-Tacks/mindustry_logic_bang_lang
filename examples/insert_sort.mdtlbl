@@ -5,7 +5,7 @@
 
 do { # 按钮弹起时等待按钮被按下
     wait 0.1;
-} while (sensor _0 switch1 @enabled;);
+} while (sensor $ switch1 @enabled;);
 
 read length cell1 0; # 被排序的数组长
 set i 1;
@@ -24,8 +24,8 @@ control enabled switch1 true 0 0 0;
 
 #* 以上程序会生成的代码
 wait 0.1
-sensor _0 switch1 @enabled
-jump 0 notEqual _0 false
+sensor __0 switch1 @enabled
+jump 0 notEqual __0 false
 read length cell1 0
 set i 1
 jump 20 greaterThanEq i length

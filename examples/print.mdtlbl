@@ -6,8 +6,8 @@ print "num: " (op $ 1 + 2;) "\n";
 
 #* 以上代码会被编译为
 print "num: "
-op add _1 1 2
-print _1
+op add __0 1 2
+print __0
 print "\n"
 *#
 

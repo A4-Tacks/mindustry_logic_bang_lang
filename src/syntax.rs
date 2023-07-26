@@ -77,63 +77,12 @@ pub type Var = String;
 pub type Location = usize;
 pub type Float = f64;
 
-pub const ARG_RES: [&str; 10] = [
-    "_0", "_1", "_2", "_3", "_4",
-    "_5", "_6", "_7", "_8", "_9",
-];
 pub const COUNTER: &str = "@counter";
 
 
-/// 带有一个未使用的返回句柄信息的Var封装
-/// 在宏替换Var为Value时很有用
-#[derive(Debug, Clone)]
-pub struct VarStruct {
-    result: Var,
-    value: Var,
-}
-impl PartialEq for VarStruct {
-    fn eq(&self, other: &Self) -> bool {
-        // 没必要进行result的比较,
-        // 因为在Var状态下, result的值是未使用的, 是无意义的
-        self.value == other.value
-    }
-}
-impl Deref for VarStruct {
-    type Target = Var;
-
-    fn deref(&self) -> &Self::Target {
-        &self.value
-    }
-}
-impl VarStruct {
-    pub fn default_result(&mut self, str: impl FnOnce() -> Var) {
-        if self.result.is_empty() {
-            self.result = str()
-        }
-    }
-}
-impl From<VarStruct> for Var {
-    fn from(value: VarStruct) -> Self {
-        value.value
-    }
-}
-impl From<&str> for VarStruct {
-    fn from(value: &str) -> Self {
-        Var::from(value).into()
-    }
-}
-impl From<String> for VarStruct {
-    fn from(value: String) -> Self {
-        Self {
-            result: "".into(),
-            value
-        }
-    }
-}
-
 #[derive(Debug, PartialEq, Clone)]
 pub enum Value {
-    Var(VarStruct),
+    Var(Var),
     DExp(DExp),
     /// 编译时被替换为当前DExp返回句柄
     ResultHandle,
@@ -144,31 +93,23 @@ impl Default for Value {
     }
 }
 impl Value {
-    /// 如果是一个[`DExp`]且未指定返回句柄则负责将其设为传入默认值
-    pub fn default_result(mut self, str: impl FnOnce() -> Var) -> Self {
-        match &mut self {
-            Self::Var(ref mut var) => var.default_result(str),
-            Self::DExp(ref mut dexp) => dexp.default_result(str),
-            Self::ResultHandle => (), // ignore
-        }
-        self
-    }
-
     /// 编译依赖并返回句柄
     pub fn take(self, meta: &mut CompileMeta) -> Var {
-        // TODO
-        // 先检查元数据中是否应该将self替换, 例如在编译宏时
+        // 改为使用空字符串代表空返回字符串
+        // 如果空的返回字符串被编译将会被编译为tmp_var
         match self {
             Self::Var(var) => {
                 if let Some(value) = meta.get_const_value(&var) {
-                    value.clone()
-                        .default_result(|| var.result)
-                        .take(meta)
+                    value.clone().take(meta)
                 } else {
-                    var.into()
+                    var
                 }
             },
-            Self::DExp(DExp { result, lines }) => {
+            Self::DExp(DExp { mut result, lines }) => {
+                if result.is_empty() {
+                    result = meta.get_tmp_var(); /* init tmp_var */
+                }
+                assert!(! result.is_empty());
                 #[cfg(debug_assertions)]
                 let old_handle = result.clone();
                 meta.push_dexp_handle(result);
@@ -249,11 +190,6 @@ pub struct DExp {
 impl DExp {
     pub fn new(result: Var, lines: Expand) -> Self {
         Self { result, lines }
-    }
-    pub fn default_result(&mut self, str: impl FnOnce() -> Var) {
-        if self.result.is_empty() {
-            self.result = str()
-        }
     }
 }
 
@@ -336,10 +272,9 @@ impl JumpCmp {
             GreaterThanEq(a, b) => LessThan(a, b),
             StrictEqual(a, b) => {
                 // 其中一参数转换为`DExp`计算严格相等, 然后取反
-                const RES: &str = ARG_RES[0]; // `DExp`返回的目标
                 let val = DExp::new(
-                    RES.into(),
-                    vec![Op::StrictEqual(RES.into(), a, b).into()].into()
+                    Default::default(),
+                    vec![Op::StrictEqual(Value::ResultHandle, a, b).into()].into()
                 );
                 Self::bool(val.into()).reverse()
             },
@@ -1022,28 +957,28 @@ mod tests {
         assert_eq!(
             parse!(
                 parser,
-                "op res (op _0 1 + 2; op _0 _0 * 2;) / (x: op x 2 * 3;);"
+                "op res (op $ 1 + 2; op $ $ * 2;) / (x: op $ 2 * 3;);"
             ).unwrap()[0],
             Op::Div(
                 "res".into(),
                 DExp::new(
-                    "_0".into(),
+                    "".into(),
                     vec![
                         Op::Add(
-                            "_0".into(),
+                            Value::ResultHandle,
                             "1".into(),
                             "2".into()
                         ).into(),
                         Op::Mul(
-                            "_0".into(),
-                            "_0".into(),
+                            Value::ResultHandle,
+                            Value::ResultHandle,
                             "2".into()
                         ).into()
                     ].into()).into(),
                 DExp::new(
                     "x".into(),
                     vec![
-                        Op::Mul("x".into(), "2".into(), "3".into()).into()
+                        Op::Mul(Value::ResultHandle, "2".into(), "3".into()).into()
                     ].into(),
                 ).into()
             ).into()
@@ -1051,28 +986,28 @@ mod tests {
         assert_eq!(
             parse!(
                 parser,
-                "op res (op _0 1 + 2; op _0 _0 * 2;) / (op _1 2 * 3;);"
+                "op res (op $ 1 + 2; op $ $ * 2;) / (op $ 2 * 3;);"
             ).unwrap()[0],
             Op::Div(
                 "res".into(),
                 DExp::new(
-                    "_0".into(),
+                    "".into(),
                     vec![
                         Op::Add(
-                            "_0".into(),
+                            Value::ResultHandle,
                             "1".into(),
                             "2".into()
                         ).into(),
                         Op::Mul(
-                            "_0".into(),
-                            "_0".into(),
+                            Value::ResultHandle,
+                            Value::ResultHandle,
                             "2".into()
                         ).into()
                     ].into()).into(),
                 DExp::new(
-                    "_1".into(),
+                    "".into(),
                     vec![
-                        Op::Mul("_1".into(), "2".into(), "3".into()).into()
+                        Op::Mul(Value::ResultHandle, "2".into(), "3".into()).into()
                     ].into(),
                 ).into()
             ).into()
@@ -1170,7 +1105,7 @@ mod tests {
     fn reverse_test() {
         let parser = LogicLineParser::new();
         let datas = vec![
-            [r#"goto :a x === y;"#, r#"goto :a (op _0 x === y;) == false;"#],
+            [r#"goto :a x === y;"#, r#"goto :a (op $ x === y;) == false;"#],
             [r#"goto :a x == y;"#, r#"goto :a x != y;"#],
             [r#"goto :a x != y;"#, r#"goto :a x == y;"#],
             [r#"goto :a x < y;"#, r#"goto :a x >= y;"#],
@@ -1305,13 +1240,13 @@ mod tests {
         let parser = ExpandParser::new();
         let src = r#"
         op x 1 + 2;
-        op y (op _0 x + 3;) * (op _1 x * 2;);
-        if (op tmp y & 1; op _0 tmp + 1;) == 1 {
+        op y (op $ x + 3;) * (op $ x * 2;);
+        if (op tmp y & 1; op $ tmp + 1;) == 1 {
             print "a ";
         } else {
             print "b ";
         }
-        print (op _0 y + 3;);
+        print (op $ y + 3;);
         "#;
         //dbg!(&src);
         let ast = parse!(parser, src).unwrap();
@@ -1325,31 +1260,31 @@ mod tests {
         //println!("{}", logic_lines.join("\n"));
         assert_eq!(logic_lines, [
             r#"op add x 1 2"#,
-            r#"op add _0 x 3"#,
-            r#"op mul _1 x 2"#,
-            r#"op mul y _0 _1"#,
+            r#"op add __0 x 3"#,
+            r#"op mul __1 x 2"#,
+            r#"op mul y __0 __1"#,
             r#"op and tmp y 1"#,
-            r#"op add _0 tmp 1"#,
-            r#"jump 9 equal _0 1"#,
+            r#"op add __2 tmp 1"#,
+            r#"jump 9 equal __2 1"#,
             r#"print "b ""#,
             r#"jump 10 always 0 0"#,
             r#"print "a ""#,
-            r#"op add _0 y 3"#,
-            r#"print _0"#,
+            r#"op add __3 y 3"#,
+            r#"print __3"#,
         ])
     }
 
     #[test]
     fn compile_take_test() {
         let parser = LogicLineParser::new();
-        let ast = parse!(parser, "op x (op _0 1 + 2;) + 3;").unwrap();
+        let ast = parse!(parser, "op x (op $ 1 + 2;) + 3;").unwrap();
         let mut meta = CompileMeta::new();
         meta.push(TagLine::Line("noop".to_string().into()));
         assert_eq!(
             ast.compile_take(&mut meta),
             vec![
-                TagLine::Line("op add _0 1 2".to_string().into()),
-                TagLine::Line("op add x _0 3".to_string().into()),
+                TagLine::Line("op add __0 1 2".to_string().into()),
+                TagLine::Line("op add x __0 3".to_string().into()),
             ]
         );
         assert_eq!(meta.tag_codes.len(), 1);
@@ -1371,8 +1306,8 @@ mod tests {
         let logic_lines = tag_codes.compile().unwrap();
         assert_eq!(logic_lines, vec![
                    "set x C",
-                   "read _0 cell1 0",
-                   "set y _0",
+                   "read __0 cell1 0",
+                   "set y __0",
         ]);
 
         let src = r#"
@@ -1401,9 +1336,9 @@ mod tests {
         let logic_lines = tag_codes.compile().unwrap();
         assert_eq!(logic_lines, vec![
                    "set x C",
-                   "read _2 cell1 0",
-                   "read _4 cell1 0",
-                   "foo a b _2 d _4",
+                   "read __0 cell1 0",
+                   "read __1 cell1 0",
+                   "foo a b __0 d __1",
         ]);
 
         let src = r#"
@@ -1429,8 +1364,8 @@ mod tests {
         let logic_lines = tag_codes.compile().unwrap();
         assert_eq!(logic_lines, vec![
                    "read i cell2 0",
-                   "read _0 cell1 i",
-                   "print _0",
+                   "read __0 cell1 i",
+                   "print __0",
         ]);
     }
 
@@ -1458,13 +1393,13 @@ mod tests {
         let logic_lines = tag_codes.compile().unwrap();
         assert_eq!(logic_lines, vec![
                    "set x C",
-                   "read _0 cell3 0",
-                   "set m _0",
-                   "read _0 cell2 0",
-                   "set y _0",
-                   "read _0 cell2 0",
-                   "read _1 cell2 0",
-                   "foo _0 _1",
+                   "read __0 cell3 0",
+                   "set m __0",
+                   "read __1 cell2 0",
+                   "set y __1",
+                   "read __2 cell2 0",
+                   "read __3 cell2 0",
+                   "foo __2 __3",
                    "set z C",
         ]);
     }

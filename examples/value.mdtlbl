@@ -1,6 +1,7 @@
 #*
- * Value是Bang语言中的重要结构, 它是一个枚举, 可用值为一个Var或者一个DExp
- * DExp的介绍请移步至dexp.mdtlbl
+ * Value是Bang语言中的重要结构, 它是一个枚举,
+ *  可用值为一个Var或者一个DExp又或者一个ResultHandle
+ * DExp和ResultHandle的介绍请移步至dexp.mdtlbl
  * Var是一个基本值单元, 它可以是一个变量, 一个字符串, 一个数字, 一个由@紧贴开头的变量
  * 它有几个匹配分支:
  *  普通标识符: 由一个下划线或者XID_Start开头, 0个及以上XID_Continue紧随其后

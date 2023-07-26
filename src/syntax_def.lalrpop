@@ -18,7 +18,6 @@ use crate::syntax::{
     Take,
     LogicLine,
     Meta,
-    ARG_RES,
 };
 
 grammar(meta: &mut Meta);
@@ -80,19 +79,6 @@ pub LiteralUInt: usize = <l:@L> <num:Number> <r:@R> =>? {
     }
 };
 
-Value_0: Value = Value => <>.default_result(|| ARG_RES[0].into());
-Value_1: Value = Value => <>.default_result(|| ARG_RES[1].into());
-Value_2: Value = Value => <>.default_result(|| ARG_RES[2].into());
-Value_3: Value = Value => <>.default_result(|| ARG_RES[3].into());
-Value_4: Value = Value => <>.default_result(|| ARG_RES[4].into());
-Value_5: Value = Value => <>.default_result(|| ARG_RES[5].into());
-Value_6: Value = Value => <>.default_result(|| ARG_RES[6].into());
-Value_7: Value = Value => <>.default_result(|| ARG_RES[7].into());
-Value_8: Value = Value => <>.default_result(|| ARG_RES[8].into());
-Value_9: Value = Value => <>.default_result(|| ARG_RES[9].into());
-Value_x: Value = Value => <>.default_result(|| "_".into());
-Value_L: Value = Value => <>.default_result(|| meta.get_tmp_var()); // 使用一个不透明句柄, 独占一个变量
-
 
 Or<A, B> = { A, B }; // A或者B
 Or3<A, B, C> = { A, B, C }; // A或者B或者C
@@ -114,66 +100,66 @@ Span<T> = @L T @R;
 LEnd: () = ";" => ();
 
 pub JumpCmp: JumpCmp = {
-    <OrSwap<Or<"equal", "==">, <Value_0>>> <Value_1> => JumpCmp::Equal(<>),
-    <OrSwap<Or<"notEqual", "!=">, <Value_0>>> <Value_1> => JumpCmp::NotEqual(<>),
-    <OrSwap<Or<"lessThan", "<">, <Value_0>>> <Value_1> => JumpCmp::LessThan(<>),
-    <OrSwap<Or<"lessThanEq", "<=">, <Value_0>>> <Value_1> => JumpCmp::LessThanEq(<>),
-    <OrSwap<Or<"greaterThan", ">">, <Value_0>>> <Value_1> => JumpCmp::GreaterThan(<>),
-    <OrSwap<Or<"greaterThanEq", ">=">, <Value_0>>> <Value_1> => JumpCmp::GreaterThanEq(<>),
-    <OrSwap<Or<"strictEqual", "===">, <Value_0>>> <Value_1> => JumpCmp::StrictEqual(<>),
+    <OrSwap<Or<"equal", "==">, <Value>>> <Value> => JumpCmp::Equal(<>),
+    <OrSwap<Or<"notEqual", "!=">, <Value>>> <Value> => JumpCmp::NotEqual(<>),
+    <OrSwap<Or<"lessThan", "<">, <Value>>> <Value> => JumpCmp::LessThan(<>),
+    <OrSwap<Or<"lessThanEq", "<=">, <Value>>> <Value> => JumpCmp::LessThanEq(<>),
+    <OrSwap<Or<"greaterThan", ">">, <Value>>> <Value> => JumpCmp::GreaterThan(<>),
+    <OrSwap<Or<"greaterThanEq", ">=">, <Value>>> <Value> => JumpCmp::GreaterThanEq(<>),
+    <OrSwap<Or<"strictEqual", "===">, <Value>>> <Value> => JumpCmp::StrictEqual(<>),
     Or<"always", "_"> => JumpCmp::Always,
     // 扩展
-    Or<"lnot", "!"> <Value_0> => JumpCmp::bool(<>).reverse(),
-    <Value_0> => JumpCmp::bool(<>),
+    Or<"lnot", "!"> <Value> => JumpCmp::bool(<>).reverse(),
+    <Value> => JumpCmp::bool(<>),
 }
 
 pub Op: Op = {
     // 2
-    <a:OrShl<Or<"add", "+">, <Value_x>, <Value_0>>> <b:Value_1> => Op::Add(a.0, a.1, b),
-    <a:OrShl<Or<"sub", "-">, <Value_x>, <Value_0>>> <b:Value_1> => Op::Sub(a.0, a.1, b),
-    <a:OrShl<Or<"mul", "*">, <Value_x>, <Value_0>>> <b:Value_1> => Op::Mul(a.0, a.1, b),
-    <a:OrShl<Or<"div", "/">, <Value_x>, <Value_0>>> <b:Value_1> => Op::Div(a.0, a.1, b),
-    <a:OrShl<Or<"idiv", "//">, <Value_x>, <Value_0>>> <b:Value_1> => Op::Idiv(a.0, a.1, b),
-    <a:OrShl<Or<"mod", "%">, <Value_x>, <Value_0>>> <b:Value_1> => Op::Mod(a.0, a.1, b),
-    <a:OrShl<Or<"pow", "**">, <Value_x>, <Value_0>>> <b:Value_1> => Op::Pow(a.0, a.1, b),
-    <a:OrShl<Or<"equal", "==">, <Value_x>, <Value_0>>> <b:Value_1> => Op::Equal(a.0, a.1, b),
-    <a:OrShl<Or<"notEqual", "!=">, <Value_x>, <Value_0>>> <b:Value_1> => Op::NotEqual(a.0, a.1, b),
-    <a:OrShl<Or<"land", "&&">, <Value_x>, <Value_0>>> <b:Value_1> => Op::Land(a.0, a.1, b),
-    <a:OrShl<Or<"lessThan", "<">, <Value_x>, <Value_0>>> <b:Value_1> => Op::LessThan(a.0, a.1, b),
-    <a:OrShl<Or<"lessThanEq", "<=">, <Value_x>, <Value_0>>> <b:Value_1> => Op::LessThanEq(a.0, a.1, b),
-    <a:OrShl<Or<"greaterThan", ">">, <Value_x>, <Value_0>>> <b:Value_1> => Op::GreaterThan(a.0, a.1, b),
-    <a:OrShl<Or<"greaterThanEq", ">=">, <Value_x>, <Value_0>>> <b:Value_1> => Op::GreaterThanEq(a.0, a.1, b),
-    <a:OrShl<Or<"strictEqual", "===">, <Value_x>, <Value_0>>> <b:Value_1> => Op::StrictEqual(a.0, a.1, b),
-    <a:OrShl<Or<"shl", "<<">, <Value_x>, <Value_0>>> <b:Value_1> => Op::Shl(a.0, a.1, b),
-    <a:OrShl<Or<"shr", ">>">, <Value_x>, <Value_0>>> <b:Value_1> => Op::Shr(a.0, a.1, b),
-    <a:OrShl<Or<"or", "|">, <Value_x>, <Value_0>>> <b:Value_1> => Op::Or(a.0, a.1, b),
-    <a:OrShl<Or<"and", "&">, <Value_x>, <Value_0>>> <b:Value_1> => Op::And(a.0, a.1, b),
-    <a:OrShl<Or<"xor", "^">, <Value_x>, <Value_0>>> <b:Value_1> => Op::Xor(a.0, a.1, b),
+    <a:OrShl<Or<"add", "+">, <Value>, <Value>>> <b:Value> => Op::Add(a.0, a.1, b),
+    <a:OrShl<Or<"sub", "-">, <Value>, <Value>>> <b:Value> => Op::Sub(a.0, a.1, b),
+    <a:OrShl<Or<"mul", "*">, <Value>, <Value>>> <b:Value> => Op::Mul(a.0, a.1, b),
+    <a:OrShl<Or<"div", "/">, <Value>, <Value>>> <b:Value> => Op::Div(a.0, a.1, b),
+    <a:OrShl<Or<"idiv", "//">, <Value>, <Value>>> <b:Value> => Op::Idiv(a.0, a.1, b),
+    <a:OrShl<Or<"mod", "%">, <Value>, <Value>>> <b:Value> => Op::Mod(a.0, a.1, b),
+    <a:OrShl<Or<"pow", "**">, <Value>, <Value>>> <b:Value> => Op::Pow(a.0, a.1, b),
+    <a:OrShl<Or<"equal", "==">, <Value>, <Value>>> <b:Value> => Op::Equal(a.0, a.1, b),
+    <a:OrShl<Or<"notEqual", "!=">, <Value>, <Value>>> <b:Value> => Op::NotEqual(a.0, a.1, b),
+    <a:OrShl<Or<"land", "&&">, <Value>, <Value>>> <b:Value> => Op::Land(a.0, a.1, b),
+    <a:OrShl<Or<"lessThan", "<">, <Value>, <Value>>> <b:Value> => Op::LessThan(a.0, a.1, b),
+    <a:OrShl<Or<"lessThanEq", "<=">, <Value>, <Value>>> <b:Value> => Op::LessThanEq(a.0, a.1, b),
+    <a:OrShl<Or<"greaterThan", ">">, <Value>, <Value>>> <b:Value> => Op::GreaterThan(a.0, a.1, b),
+    <a:OrShl<Or<"greaterThanEq", ">=">, <Value>, <Value>>> <b:Value> => Op::GreaterThanEq(a.0, a.1, b),
+    <a:OrShl<Or<"strictEqual", "===">, <Value>, <Value>>> <b:Value> => Op::StrictEqual(a.0, a.1, b),
+    <a:OrShl<Or<"shl", "<<">, <Value>, <Value>>> <b:Value> => Op::Shl(a.0, a.1, b),
+    <a:OrShl<Or<"shr", ">>">, <Value>, <Value>>> <b:Value> => Op::Shr(a.0, a.1, b),
+    <a:OrShl<Or<"or", "|">, <Value>, <Value>>> <b:Value> => Op::Or(a.0, a.1, b),
+    <a:OrShl<Or<"and", "&">, <Value>, <Value>>> <b:Value> => Op::And(a.0, a.1, b),
+    <a:OrShl<Or<"xor", "^">, <Value>, <Value>>> <b:Value> => Op::Xor(a.0, a.1, b),
 
-    <OrSwap<"max", <Value_x>>> <Value_0> <Value_1> => Op::Max(<>),
-    <OrSwap<"min", <Value_x>>> <Value_0> <Value_1> => Op::Min(<>),
-    <OrSwap<"angle", <Value_x>>> <Value_0> <Value_1> => Op::Angle(<>),
-    <OrSwap<"len", <Value_x>>> <Value_0> <Value_1> => Op::Len(<>),
-    <OrSwap<"noise", <Value_x>>> <Value_0> <Value_1> => Op::Noise(<>),
+    <OrSwap<"max", <Value>>> <Value> <Value> => Op::Max(<>),
+    <OrSwap<"min", <Value>>> <Value> <Value> => Op::Min(<>),
+    <OrSwap<"angle", <Value>>> <Value> <Value> => Op::Angle(<>),
+    <OrSwap<"len", <Value>>> <Value> <Value> => Op::Len(<>),
+    <OrSwap<"noise", <Value>>> <Value> <Value> => Op::Noise(<>),
 
     // 1
-    // 此处使用`Value_x`来接受逻辑导出时的占位符
-    <OrSwap<Or<"not", "~">, <Value_x>>> <Value_0> Value_x? => Op::Not(<>),
-    <OrSwap<"abs", <Value_x>>> <Value_0> Value_x? => Op::Abs(<>),
-    <OrSwap<"log", <Value_x>>> <Value_0> Value_x? => Op::Log(<>),
-    <OrSwap<"log10", <Value_x>>> <Value_0> Value_x? => Op::Log10(<>),
-    <OrSwap<"floor", <Value_x>>> <Value_0> Value_x? => Op::Floor(<>),
-    <OrSwap<"ceil", <Value_x>>> <Value_0> Value_x? => Op::Ceil(<>),
-    <OrSwap<"sqrt", <Value_x>>> <Value_0> Value_x? => Op::Sqrt(<>),
-    <OrSwap<"rand", <Value_x>>> <Value_0> Value_x? => Op::Rand(<>),
-    <OrSwap<"sin", <Value_x>>> <Value_0> Value_x? => Op::Sin(<>),
-    <OrSwap<"cos", <Value_x>>> <Value_0> Value_x? => Op::Cos(<>),
-    <OrSwap<"tan", <Value_x>>> <Value_0> Value_x? => Op::Tan(<>),
-    <OrSwap<"asin", <Value_x>>> <Value_0> Value_x? => Op::Asin(<>),
-    <OrSwap<"acos", <Value_x>>> <Value_0> Value_x? => Op::Acos(<>),
-    <OrSwap<"atan", <Value_x>>> <Value_0> Value_x? => Op::Atan(<>),
+    // 此处使用`Value`来接受逻辑导出时的占位符
+    <OrSwap<Or<"not", "~">, <Value>>> <Value> Value? => Op::Not(<>),
+    <OrSwap<"abs", <Value>>> <Value> Value? => Op::Abs(<>),
+    <OrSwap<"log", <Value>>> <Value> Value? => Op::Log(<>),
+    <OrSwap<"log10", <Value>>> <Value> Value? => Op::Log10(<>),
+    <OrSwap<"floor", <Value>>> <Value> Value? => Op::Floor(<>),
+    <OrSwap<"ceil", <Value>>> <Value> Value? => Op::Ceil(<>),
+    <OrSwap<"sqrt", <Value>>> <Value> Value? => Op::Sqrt(<>),
+    <OrSwap<"rand", <Value>>> <Value> Value? => Op::Rand(<>),
+    <OrSwap<"sin", <Value>>> <Value> Value? => Op::Sin(<>),
+    <OrSwap<"cos", <Value>>> <Value> Value? => Op::Cos(<>),
+    <OrSwap<"tan", <Value>>> <Value> Value? => Op::Tan(<>),
+    <OrSwap<"asin", <Value>>> <Value> Value? => Op::Asin(<>),
+    <OrSwap<"acos", <Value>>> <Value> Value? => Op::Acos(<>),
+    <OrSwap<"atan", <Value>>> <Value> Value? => Op::Atan(<>),
     // 扩展(1)
-    <OrSwap<Or<"lnot", "!">, <Value_x>>> <Value_0> Value_x? => Op::Equal(<>, "false".into()),
+    <OrSwap<Or<"lnot", "!">, <Value>>> <Value> Value? => Op::Equal(<>, "false".into()),
 }
 
 Label: String = ":" <Var>;
@@ -187,9 +173,9 @@ pub LogicLine: LogicLine = {
     "op" <Op> LEnd => <>.into(),
     "noop" LEnd => LogicLine::NoOp,
     "end" LEnd => LogicLine::End,
-    "set" <var:Value_x> <value:Value_0> LEnd => LogicLine::Other(vec!["set".into(), var.into(), value]),
-    <var:Value_x> "=" <value:Value_0> LEnd => LogicLine::Other(vec!["set".into(), var.into(), value]),
-    "read" <var:Value_x> <from:Value_0> <index:Value_1> LEnd
+    "set" <var:Value> <value:Value> LEnd => LogicLine::Other(vec!["set".into(), var.into(), value]),
+    <var:Value> "=" <value:Value> LEnd => LogicLine::Other(vec!["set".into(), var.into(), value]),
+    "read" <var:Value> <from:Value> <index:Value> LEnd
         => LogicLine::Other(vec!["read".into(), var.into(), from, index]),
     "print" <Args> LEnd => {
         if <>.is_empty() {
@@ -206,7 +192,7 @@ pub LogicLine: LogicLine = {
                 .collect()
         ).into()
     },
-    <cmd:Value_x> <mut args:Args> LEnd => {
+    <cmd:Value> <mut args:Args> LEnd => {
         args.insert(0, cmd);
         LogicLine::Other(args)
     },
@@ -214,19 +200,19 @@ pub LogicLine: LogicLine = {
 
 #[inline] Args: Vec<Value> = {
     () => vec![],
-    Value_0 => vec![<>],
-    Value_0 Value_1 => vec![<>],
-    Value_0 Value_1 Value_2 => vec![<>],
-    Value_0 Value_1 Value_2 Value_3 => vec![<>],
-    Value_0 Value_1 Value_2 Value_3 Value_4 => vec![<>],
-    Value_0 Value_1 Value_2 Value_3 Value_4 Value_5 => vec![<>],
-    Value_0 Value_1 Value_2 Value_3 Value_4 Value_5 Value_6 => vec![<>],
-    Value_0 Value_1 Value_2 Value_3 Value_4 Value_5 Value_6 Value_7 => vec![<>],
-    Value_0 Value_1 Value_2 Value_3 Value_4 Value_5 Value_6 Value_7 Value_8 => vec![<>],
-    Value_0 Value_1 Value_2 Value_3 Value_4 Value_5 Value_6 Value_7 Value_8 Value_9 => vec![<>],
-    Value_0 Value_1 Value_2 Value_3 Value_4 Value_5 Value_6 Value_7 Value_8 Value_9 Value_x => vec![<>],
-    Value_0 Value_1 Value_2 Value_3 Value_4 Value_5 Value_6 Value_7 Value_8 Value_9 Value_x Value_x => vec![<>],
-    Value_0 Value_1 Value_2 Value_3 Value_4 Value_5 Value_6 Value_7 Value_8 Value_9 Value_x Value_x Value_x => vec![<>],
+    Value => vec![<>],
+    Value Value => vec![<>],
+    Value Value Value => vec![<>],
+    Value Value Value Value => vec![<>],
+    Value Value Value Value Value => vec![<>],
+    Value Value Value Value Value Value => vec![<>],
+    Value Value Value Value Value Value Value => vec![<>],
+    Value Value Value Value Value Value Value Value => vec![<>],
+    Value Value Value Value Value Value Value Value Value => vec![<>],
+    Value Value Value Value Value Value Value Value Value Value => vec![<>],
+    Value Value Value Value Value Value Value Value Value Value Value => vec![<>],
+    Value Value Value Value Value Value Value Value Value Value Value Value => vec![<>],
+    Value Value Value Value Value Value Value Value Value Value Value Value Value => vec![<>],
 }
 
 pub BuiltinCommand: LogicLine = {
@@ -234,8 +220,8 @@ pub BuiltinCommand: LogicLine = {
 
     // 如果后方是一个Var则直接将常量映射到后方的值
     // 如果后方是一个DExp则将其计算然后将常量映射到计算出的句柄
-    // 此处默认句柄使用Value_L
-    "take" <Var> "=" <Value_L> LEnd => Take(<>).into(),
+    // 此处默认句柄使用Value
+    "take" <Var> "=" <Value> LEnd => Take(<>).into(),
 }
 
 //  if结构定义
@@ -250,7 +236,7 @@ pub BuiltinCommand: LogicLine = {
 //      4
 //  }
 //  ```
-//  
+//
 //  被转换为
 //  ```
 //  goto :a x
@@ -320,7 +306,7 @@ pub Control: LogicLine = {
         ]).into()
     },
 
-    "switch" <value:Value_0>
+    "switch" <value:Value>
     <cases:MBlock<("case" <LiteralUInt+> ":" <Expand>)+>>
     => {
         let case_num_max = cases
