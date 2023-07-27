@@ -76,29 +76,40 @@ function! <SID>lineFilter(line)
     return substitute(a:line, regex, '_', 'g')
 endfunction
 
+" Indent (缩进控制) {{{1
+
 function! GetMdtlblIndent()
     if v:lnum <= 1 | return 0 | endif
     let lnum = v:lnum
     let pnum = prevnonblank(lnum - 1)
+    let p2num = prevnonblank(pnum - 1)
 
-    let preline = <SID>lineFilter(getline(pnum))
     let line = <SID>lineFilter(getline(lnum))
+    let preline = <SID>lineFilter(getline(pnum))
+    let pre2line = <SID>lineFilter(getline(p2num))
 
-    if line =~# 'case' && preline =~# '\<switch\>'
-        " 拦截, 无需缩进
-        let diff = 0
-    elseif line =~# '\(^\s*[)}]\|\<case\>\)'
-        let diff = -1
-    elseif preline =~# '[({:]\s*$' && line !~# '\<case\>'
-        let diff = 1
-    else
-        let diff = 0
+    let diff = 0
+
+    if preline =~# '\([({:]\|\<\(else\)\>\)\s*$'
+        let diff += 1
+    endif
+
+    if line =~# '\(^\s*[)}]\|\<\(case\)\>\)'
+        let diff -= 1
+    endif
+
+    if pre2line =~# 'else\s*$'
+        let diff -= 1
     endif
 
     return indent(pnum) + diff * &shiftwidth
 endfunction
 
 setlocal indentexpr=GetMdtlblIndent()
+setlocal indentkeys+==case
+setlocal indentkeys+==}
+setlocal indentkeys+==)
+setlocal indentkeys+==:
 
 " END {{{1
 " }}}1
