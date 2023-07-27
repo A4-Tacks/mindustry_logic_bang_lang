@@ -66,17 +66,18 @@ setlocal foldmethod=syntax
 syn region mdtlblBlock start=/{/ end=/}/ transparent fold
 syn region mdtlblDExp start=/(/ end=/)/ transparent fold
 
+" Indent (缩进控制) {{{1
+
 function! <SID>lineFilter(line)
     " 过滤掉注释与字符串与原始标识符
     let regex = '\('
                 \. '#\*.\{-0,}\*#'
                 \. '\|#.*$'
+                \. '\|@\I\i*\(-\i*\)*'
                 \. '\|' . "'[^'\\S]*'"
                 \. '\)'
     return substitute(a:line, regex, '_', 'g')
 endfunction
-
-" Indent (缩进控制) {{{1
 
 function! GetMdtlblIndent()
     if v:lnum <= 1 | return 0 | endif
