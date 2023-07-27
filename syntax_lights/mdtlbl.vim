@@ -45,7 +45,7 @@ hi link mdtlblSpecialChar SpecialChar
 syn match mdtlblOIdent /@\I\i*\(-\i*\)*/
 hi link mdtlblOIdent Identifier
 
-syn match mdtlblOtherValue /'[^'\s]\+'/
+syn match mdtlblOtherValue /'[^' \t]\+'/
 hi link mdtlblOtherValue Identifier
 
 syn match mdtlblNumber /\v<(0(x\-?[0-9a-fA-F][0-9a-fA-F_]*|b\-?[01][_01]*)|\-?[0-9][0-9_]*(\.[0-9][0-9_]*)?)>/
@@ -70,13 +70,14 @@ syn region mdtlblDExp start=/(/ end=/)/ transparent fold
 
 function! <SID>lineFilter(line)
     " 过滤掉注释与字符串与原始标识符
-    let regex = '\('
+    let regex_a = ''
                 \. '#\*.\{-0,}\*#'
                 \. '\|#.*$'
-                \. '\|@\I\i*\(-\i*\)*'
-                \. '\|' . "'[^'\\S]*'"
-                \. '\)'
-    return substitute(a:line, regex, '_', 'g')
+    let regex_b = '@\I\i*\(-\i*\)*'
+                \. '\|' . "'[^' \\t]*'"
+                \. '\|"[^"]*"'
+    let line = substitute(a:line, regex_a, '', 'g')
+    return trim(substitute(line, regex_b, '_', 'g'))
 endfunction
 
 function! GetMdtlblIndent()
@@ -89,17 +90,19 @@ function! GetMdtlblIndent()
     let preline = <SID>lineFilter(getline(pnum))
     let pre2line = <SID>lineFilter(getline(p2num))
 
+    echomsg [line, preline, pre2line]
+
     let diff = 0
 
-    if preline =~# '\([({:]\|\<\(else\)\>\)\s*$'
+    if preline =~# '\([({:]\|\<\(else\)\>\)$'
         let diff += 1
     endif
 
-    if line =~# '\(^\s*[)}]\|\<\(case\)\>\)'
+    if line =~# '\(^[)}]\|\<case\>\)' && !(preline =~# '\<case\>' && preline !~# ':$')
         let diff -= 1
     endif
 
-    if pre2line =~# 'else\s*$'
+    if pre2line =~# 'else$'
         let diff -= 1
     endif
 
