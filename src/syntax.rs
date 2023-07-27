@@ -8,7 +8,6 @@ use std::{
     },
     process::exit,
 };
-
 use crate::{
     err,
     tag_code::{
@@ -17,6 +16,7 @@ use crate::{
         TagLine
     },
 };
+
 
 macro_rules! impl_enum_froms {
     (impl From for $ty:ty { $(
@@ -99,8 +99,11 @@ impl Value {
         // 如果空的返回字符串被编译将会被编译为tmp_var
         match self {
             Self::Var(var) => {
-                if let Some(value) = meta.get_const_value(&var) {
-                    value.clone().take(meta)
+                if let Some(value) = meta.const_expand_enter(&var) {
+                    // 是一个常量
+                    let res = value.take(meta);
+                    meta.const_expand_exit();
+                    res
                 } else {
                     var
                 }
@@ -194,10 +197,23 @@ impl DExp {
 }
 
 /// 进行`词法&语法`分析时所依赖的元数据
+#[derive(Debug)]
 pub struct Meta {
     tag_number: usize,
     id: usize,
     tmp_var: usize,
+    /// 被跳转的label
+    defined_labels: Vec<Vec<Var>>,
+}
+impl Default for Meta {
+    fn default() -> Self {
+        Self {
+            tag_number: 0,
+            id: 0,
+            tmp_var: 0,
+            defined_labels: vec![Vec::new()],
+        }
+    }
 }
 impl Meta {
     /// use [`Self::default()`]
@@ -225,14 +241,25 @@ impl Meta {
         self.id += 1;
         id
     }
-}
-impl Default for Meta {
-    fn default() -> Self {
-        Self {
-            tag_number: 0,
-            id: 0,
-            tmp_var: 0,
-        }
+
+    /// 添加一个被跳转的label到当前作用域
+    /// 使用克隆的形式
+    pub fn add_defined_label(&mut self, label: Var) -> Var {
+        // 至少有一个基层定义域
+        self.defined_labels.last_mut().unwrap().push(label.clone());
+        label
+    }
+
+    /// 添加一个标签作用域,
+    /// 用于const定义起始
+    pub fn add_label_scope(&mut self) {
+        self.defined_labels.push(Vec::new())
+    }
+
+    /// 弹出一个标签作用域,
+    /// 用于const定义完成收集信息
+    pub fn pop_label_scope(&mut self) -> Vec<Var> {
+        self.defined_labels.pop().unwrap()
     }
 }
 
@@ -480,7 +507,9 @@ impl Compile for Op {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Goto(pub Var, pub JumpCmp);
 impl Compile for Goto {
-    fn compile(self, meta: &mut CompileMeta) {
+    fn compile(mut self, meta: &mut CompileMeta) {
+        // 如果在常量替换内, 这将被重命名
+        self.0 = meta.get_in_const_label(self.0);
         let cmp_str = self.1.cmp_str();
         let (a, b) = self.1.build_value(meta);
         let jump = Jump(
@@ -566,12 +595,17 @@ impl Compile for Select {
 
 /// 在块作用域将Var常量为后方值, 之后使用Var时都会被替换为后方值
 #[derive(Debug, PartialEq, Clone)]
-pub struct Const(pub Var, pub Value);
+pub struct Const(pub Var, pub Value, pub Vec<Var>);
+impl Const {
+    pub fn new(var: Var, value: Value) -> Self {
+        Self(var, value, Default::default())
+    }
+}
 impl Compile for Const {
     fn compile(self, meta: &mut CompileMeta) {
         // 对同作用域定义过的常量形成覆盖
         // 如果要进行警告或者将信息传出则在此处理
-        meta.add_const_value(self.0, self.1);
+        meta.add_const_value(self);
     }
 }
 
@@ -581,13 +615,15 @@ impl Compile for Const {
 pub struct Take(pub Var, pub Value);
 impl Compile for Take {
     fn compile(self, meta: &mut CompileMeta) {
-        Const(self.0, self.1.take(meta).into()).compile(meta)
+        Const::new(self.0, self.1.take(meta).into()).compile(meta)
     }
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum LogicLine {
     Op(Op),
+    /// 不要去直接创建它, 而是使用`new_label`去创建
+    /// 否则无法将它注册到可能的`const`
     Label(Var),
     Goto(Goto),
     Other(Vec<Value>),
@@ -605,7 +641,9 @@ impl Compile for LogicLine {
         match self {
             Self::End => meta.push("end".into()),
             Self::NoOp => meta.push("noop".into()),
-            Self::Label(lab) => {
+            Self::Label(mut lab) => {
+                // 如果在常量展开中, 尝试将这个标记替换
+                lab = meta.get_in_const_label(lab);
                 let data = TagLine::TagDown(meta.get_tag(lab));
                 meta.push(data)
             },
@@ -632,6 +670,12 @@ impl Default for LogicLine {
     }
 }
 impl LogicLine {
+    /// 添加一个被跳转标签, 顺便向meta声明
+    /// 拒绝裸创建Label, 因为会干扰常量被注册Label
+    pub fn new_label(lab: Var, meta: &mut Meta) -> Self {
+        Self::Label(meta.add_defined_label(lab))
+    }
+
     /// Returns `true` if the logic line is [`Op`].
     ///
     /// [`Op`]: LogicLine::Op
@@ -738,6 +782,7 @@ pub trait Compile {
     }
 }
 
+
 #[derive(Debug)]
 pub struct CompileMeta {
     /// 标记与`id`的映射关系表
@@ -745,9 +790,16 @@ pub struct CompileMeta {
     tag_count: usize,
     tag_codes: TagCodes,
     tmp_var_count: usize,
-    const_var_namespace: Vec<HashMap<Var, Value>>,
+    /// # 块中宏, 且带有展开次数与内部标记
+    /// `Vec<HashMap<name, (count, Vec<Label>, Value)>>`
+    const_var_namespace: Vec<HashMap<Var, (usize, Vec<Var>, Value)>>,
     /// 每层DExp所使用的句柄, 末尾为当前层
     dexp_result_handles: Vec<Var>,
+    tmp_tag_count: usize,
+    /// 每层const展开的标签
+    /// 一个标签从尾部上寻, 寻到就返回找到的, 没找到就返回原本的
+    /// 所以它支持在宏A内部展开的宏B跳转到宏A内部的标记
+    const_expand_tag_name_map: Vec<HashMap<Var, Var>>,
 }
 impl Default for CompileMeta {
     fn default() -> Self {
@@ -758,6 +810,8 @@ impl Default for CompileMeta {
             tmp_var_count: 0,
             const_var_namespace: Vec::new(),
             dexp_result_handles: Vec::new(),
+            tmp_tag_count: 0,
+            const_expand_tag_name_map: Vec::new(),
         }
     }
 }
@@ -774,6 +828,13 @@ impl CompileMeta {
             self.tag_count += 1;
             id
         })
+    }
+
+    /// 获取一个临时的`tag`
+    pub fn get_tmp_tag(&mut self) -> Var {
+        let id = self.tmp_tag_count;
+        self.tmp_tag_count += 1;
+        format!("__{}", id)
     }
 
     pub fn get_tmp_var(&mut self) -> Var {
@@ -833,26 +894,34 @@ impl CompileMeta {
     /// 退出一个子块, 弹出最顶层命名空间
     /// 如果无物可弹说明逻辑出现了问题, 所以内部处理为unwrap
     /// 一个enter对应一个exit
-    pub fn block_exit(&mut self) -> HashMap<Var, Value> {
+    pub fn block_exit(&mut self) -> HashMap<Var, (usize, Vec<Var>, Value)> {
         self.const_var_namespace.pop().unwrap()
     }
 
-    /// 获取一个常量到值的映射, 从当前作用域往顶层作用域一层层找, 都没找到就返回空
-    pub fn get_const_value(&self, name: &Var) -> Option<&Value> {
-        for namespace in self.const_var_namespace.iter().rev() {
-            if let Some(value) = namespace.get(name) {
-                return value.into();
-            }
-        }
-        None
+    /// 获取一个常量到值的使用次数与映射与其内部标记,
+    /// 从当前作用域往顶层作用域一层层找, 都没找到就返回空
+    pub fn get_const_value(&mut self, name: &Var) -> Option<(usize, &Vec<Var>, &Value)> {
+        self.const_var_namespace
+            .iter_mut()
+            .rev()
+            .find_map(|namespace| {
+                namespace
+                    .get_mut(name)
+                    .map(|(count, labels, value)| {
+                        let this_count = *count;
+                        *count += 1;
+                        (this_count, &*labels, &*value)
+                    })
+            })
     }
 
     /// 新增一个常量到值的映射, 如果当前作用域已有此映射则返回旧的值并插入新值
-    pub fn add_const_value(&mut self, var: Var, value: Value) -> Option<Value> {
+    pub fn add_const_value(&mut self, Const(var, value, labels): Const)
+    -> Option<(usize, Vec<Var>, Value)> {
         self.const_var_namespace
             .last_mut()
             .unwrap()
-            .insert(var, value)
+            .insert(var, (0, labels, value))
     }
 
     /// 新增一层DExp, 并且传入它使用的返回句柄
@@ -895,6 +964,33 @@ impl CompileMeta {
             );
             exit(6)
         })
+    }
+
+    /// 对于一个标记(Label), 进行寻找, 如果是在展开宏中, 则进行替换
+    /// 一层层往上找, 如果没找到返回本身
+    pub fn get_in_const_label(&self, name: Var) -> Var {
+        self.const_expand_tag_name_map.iter().rev()
+            .find_map(|map| map.get(&name).cloned())
+            .unwrap_or(name)
+    }
+
+    /// 进入一层宏展开环境, 并且返回其值
+    /// 这个函数会直接调用获取函数将标记映射完毕, 然后返回其值
+    /// 如果不是一个宏则直接返回None, 也不会进入无需清理
+    pub fn const_expand_enter(&mut self, name: &Var) -> Option<Value> {
+        let (count, labels, value) = self.get_const_value(name)?;
+        let mut labels_map = HashMap::with_capacity(labels.len());
+        for label in labels.iter().cloned() {
+            let maped_label = format!("__const_{}_{}_{}", &name, count, &label);
+            labels_map.insert(label, maped_label);
+        }
+        let res = value.clone();
+        self.const_expand_tag_name_map.push(labels_map);
+        res.into()
+    }
+
+    pub fn const_expand_exit(&mut self) -> HashMap<Var, Var> {
+        self.const_expand_tag_name_map.pop().unwrap()
     }
 }
 
@@ -1467,5 +1563,107 @@ mod tests {
                    r#"print @counter"#,
         ]);
 
+    }
+
+    #[test]
+    fn in_const_label_test() {
+        let parser = ExpandParser::new();
+        let mut meta = Meta::new();
+        let ast = parser.parse(&mut meta, r#"
+        :start
+        const X = (
+            :in_const
+            print "hi";
+        );
+        "#).unwrap();
+        let mut iter = ast.0.into_iter();
+        assert_eq!(iter.next().unwrap(), LogicLine::Label("start".into()));
+        assert_eq!(
+            iter.next().unwrap(),
+            Const(
+                "X".into(),
+                DExp::new(
+                    "".into(),
+                    vec![
+                        LogicLine::Label("in_const".into()),
+                        LogicLine::Other(vec!["print".into(), "\"hi\"".into()])
+                    ].into()
+                ).into(),
+                vec!["in_const".into()]
+            ).into()
+        );
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn const_expand_label_rename_test() {
+        let parser = ExpandParser::new();
+
+        let mut meta = Meta::new();
+        let ast = parser.parse(&mut meta, r#"
+            :start
+            const X = (
+                if num < 2 {
+                    print "num < 2";
+                } else
+                    print "num >= 2";
+                goto :start _;
+            );
+            take __ = X;
+            take __ = X;
+        "#).unwrap();
+        let compile_meta = CompileMeta::new();
+        let mut tag_codes = compile_meta.compile(ast);
+        let logic_lines = tag_codes.compile().unwrap();
+        assert_eq!(
+            logic_lines,
+            vec![
+                r#"jump 3 lessThan num 2"#,
+                r#"print "num >= 2""#,
+                r#"jump 4 always 0 0"#,
+                r#"print "num < 2""#,
+                r#"jump 0 always 0 0"#,
+                r#"jump 8 lessThan num 2"#,
+                r#"print "num >= 2""#,
+                r#"jump 9 always 0 0"#,
+                r#"print "num < 2""#,
+                r#"jump 0 always 0 0"#,
+            ]
+        );
+
+        let mut meta = Meta::new();
+        let ast = parser.parse(&mut meta, r#"
+            # 这里是__0以此类推, 所以接下来的使用C的句柄为__2, 测试数据解释
+            const A = (
+                const B = (
+                    i = C;
+                    goto :next _; # 测试往外跳
+                );
+                const C = (op $ 1 + 1;);
+                take __ = B;
+                print "skiped";
+                :next
+                do {
+                    print "in a";
+                    op i i + 1;
+                } while i < 5;
+            );
+            take __ = A;
+        "#).unwrap();
+        let compile_meta = CompileMeta::new();
+        let mut tag_codes = compile_meta.compile(ast);
+        let logic_lines = tag_codes.compile().unwrap();
+        assert_eq!(
+            logic_lines,
+            vec![
+                r#"op add __2 1 1"#,
+                r#"set i __2"#,
+                r#"jump 4 always 0 0"#,
+                r#"print "skiped""#,
+                r#"print "in a""#,
+                r#"op add i i 1"#,
+                r#"jump 4 lessThan i 5"#,
+            ]
+        );
     }
 }

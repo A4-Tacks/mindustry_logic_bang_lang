@@ -169,7 +169,7 @@ pub LogicLine: LogicLine = {
     Control,
     BuiltinCommand,
     MBlock<Expand> => <>.into(),
-    Label => LogicLine::Label(<>),
+    Label => LogicLine::new_label(<>, meta),
     "op" <Op> LEnd => <>.into(),
     "noop" LEnd => LogicLine::NoOp,
     "end" LEnd => LogicLine::End,
@@ -215,8 +215,16 @@ pub LogicLine: LogicLine = {
     Value Value Value Value Value Value Value Value Value Value Value Value Value => vec![<>],
 }
 
+ConstStart<T>: T = T => {
+    // 开始一个const, 开启了必须负责清理
+    // T是一个非空匹配, 因为如果用如`()`的空匹配会造成不执行, 因为没必要求值
+    meta.add_label_scope();
+    <>
+};
+
 pub BuiltinCommand: LogicLine = {
-    "const" <Var> "=" <Value> LEnd => Const(<>).into(),
+    "const" <var:Var> <_unused:ConstStart<"=">> <value:Value> LEnd
+        => Const(var, value, meta.pop_label_scope()).into(),
 
     // 如果后方是一个Var则直接将常量映射到后方的值
     // 如果后方是一个DExp则将其计算然后将常量映射到计算出的句柄
@@ -281,7 +289,7 @@ pub Control: LogicLine = {
         Expand(vec![
             Goto(lab.clone(), cmp).into(),
             body,
-            LogicLine::Label(lab),
+            LogicLine::new_label(lab, meta),
         ]).into()
     },
 
@@ -290,17 +298,17 @@ pub Control: LogicLine = {
         let rev_cmp = cmp.clone().reverse();
         Expand(vec![
             Goto(end.clone(), rev_cmp).into(),
-            LogicLine::Label(head.clone()),
+            LogicLine::new_label(head.clone(), meta),
             body,
             Goto(head, cmp).into(),
-            LogicLine::Label(end),
+            LogicLine::new_label(end, meta),
         ]).into()
     },
 
     "do" <body:Block> "while" <cmp:JumpCmp> LEnd => {
         let head = meta.get_tag();
         Expand(vec![
-            LogicLine::Label(head.clone()),
+            LogicLine::new_label(head.clone(), meta),
             body,
             Goto(head, cmp).into(),
         ]).into()
@@ -361,15 +369,15 @@ pub Control: LogicLine = {
 
         // elif body
         for (tag, body) in elif_tags.into_iter().zip(elif_bodys) {
-            res.push(LogicLine::Label(tag));
+            res.push(LogicLine::new_label(tag, meta));
             res.push(body);
             res.push(Goto(end.clone(), JumpCmp::Always).into()); // jump always to end
         }
 
         // true body
-        res.push(LogicLine::Label(true_start));
+        res.push(LogicLine::new_label(true_start, meta));
         res.push(body);
-        res.push(LogicLine::Label(end));
+        res.push(LogicLine::new_label(end, meta));
 
         Expand(res).into()
     },
