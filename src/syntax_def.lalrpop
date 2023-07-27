@@ -172,7 +172,6 @@ pub LogicLine: LogicLine = {
     Label => LogicLine::new_label(<>, meta),
     "op" <Op> LEnd => <>.into(),
     "noop" LEnd => LogicLine::NoOp,
-    "end" LEnd => LogicLine::End,
     "set" <var:Value> <value:Value> LEnd => LogicLine::Other(vec!["set".into(), var.into(), value]),
     <var:Value> "=" <value:Value> LEnd => LogicLine::Other(vec!["set".into(), var.into(), value]),
     "read" <var:Value> <from:Value> <index:Value> LEnd
@@ -315,8 +314,13 @@ pub Control: LogicLine = {
     },
 
     "switch" <value:Value>
-    <cases:MBlock<("case" <LiteralUInt+> ":" <Expand>)+>>
+    <cases:MBlock<(
+        <LogicLine?> // append line
+        <("case" <LiteralUInt+> ":" <Expand>)+>
+    )>>
     => {
+        let (append, cases) = cases;
+
         let case_num_max = cases
             .iter()
             .map(
@@ -328,7 +332,10 @@ pub Control: LogicLine = {
             .max()
             .unwrap();
         let mut cases_res = Vec::with_capacity(case_num_max);
-        for (nums, expand) in cases {
+        for (nums, mut expand) in cases {
+            if let Some(append) = &append {
+                expand.push(append.clone())
+            }
             for num in nums {
                 for _ in cases_res.len()..=num {
                     cases_res.push(LogicLine::NoOp)

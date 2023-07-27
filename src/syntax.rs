@@ -1238,6 +1238,7 @@ mod tests {
     #[test]
     fn switch_test() {
         let parser = LogicLineParser::new();
+
         let ast = parse!(parser, r#"
             switch 2 {
             case 1:
@@ -1296,7 +1297,30 @@ mod tests {
             "print 5",
             "noop",
         ]);
-        //println!("{}", lines.join("\n"));
+
+        let ast = parse!(parser, r#"
+            switch 1 {
+            print end;
+            case 0: print 0;
+            case 1: print 1;
+            }
+        "#).unwrap();
+        assert_eq!(
+            ast,
+            Select(
+                "1".into(),
+                Expand(vec![
+                    Expand(vec![
+                            LogicLine::Other(vec!["print".into(), "0".into()]),
+                            LogicLine::Other(vec!["print".into(), "end".into()]),
+                    ]).into(),
+                    Expand(vec![
+                            LogicLine::Other(vec!["print".into(), "1".into()]),
+                            LogicLine::Other(vec!["print".into(), "end".into()]),
+                    ]).into(),
+                ])
+            ).into()
+        );
     }
 
     #[test]
@@ -1344,16 +1368,10 @@ mod tests {
         }
         print (op $ y + 3;);
         "#;
-        //dbg!(&src);
         let ast = parse!(parser, src).unwrap();
-        //dbg!(&ast);
         let meta = CompileMeta::new();
-        //dbg!(&meta);
         let mut tag_codes = meta.compile(ast);
-        //dbg!(&tag_codes);
         let logic_lines = tag_codes.compile().unwrap();
-        //dbg!(&logic_lines);
-        //println!("{}", logic_lines.join("\n"));
         assert_eq!(logic_lines, [
             r#"op add x 1 2"#,
             r#"op add __0 x 3"#,

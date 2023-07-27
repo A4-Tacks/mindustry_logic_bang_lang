@@ -1,0 +1,31 @@
+#* 这是v0.4.1添加的新语法, 是switch语法扩展
+ * 被写在switch所有case前
+ * 作用是写在这里的一条语句会被追加到每个case后方
+ * 你可以写一个块来写多条语句
+ * 当然, 这是简单复制, 并没有进行标签的处理,
+ *  所以你往里面写跳转目标会有重复的标记
+ *  解决也很简单, 你可以写到一个const-DExp, 那条语句去take这个const
+*#
+
+switch 1 {
+    goto :end _;
+case 0: print 0;
+case 1: print 1;
+case 2: print 2;
+} :end
+end;
+
+#* 以上代码会被编译为
+op mul __0 1 2
+op add @counter @counter __0
+print 0
+jump 8 always 0 0
+print 1
+jump 8 always 0 0
+print 2
+jump 8 always 0 0
+end
+*#
+
+# 从以上代码可以看到, goto到end呗加入到了每一行的后面
+# 这是一个实用的功能
