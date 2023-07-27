@@ -111,6 +111,23 @@ impl Value {
             Self::DExp(DExp { mut result, lines }) => {
                 if result.is_empty() {
                     result = meta.get_tmp_var(); /* init tmp_var */
+                } else if let Some((_, _, value)) = meta.get_const_value(&result) {
+                    // 对返回句柄使用常量值的处理
+                    if let Some(dexp) = value.as_dexp() {
+                        err!(
+                            concat!(
+                                "尝试在`DExp`的返回句柄处使用值为`DExp`的const, ",
+                                "此处仅允许使用`Var`\n",
+                                "DExp: {:?}\n",
+                                "名称: {:?}",
+                            ),
+                            dexp,
+                            result
+                        );
+                        exit(5);
+                    }
+                    assert!(value.is_var());
+                    result = value.as_var().unwrap().clone()
                 }
                 assert!(! result.is_empty());
                 #[cfg(debug_assertions)]
@@ -1683,5 +1700,30 @@ mod tests {
                 r#"jump 4 lessThan i 5"#,
             ]
         );
+    }
+
+    #[test]
+    fn dexp_result_handle_use_const_test() {
+        let parser = ExpandParser::new();
+
+        let ast = parse!(parser, r#"
+        {
+            print (R: $ = 2;);
+            const R = x;
+            print (R: $ = 2;);
+        }
+        print (R: $ = 2;);
+        "#).unwrap();
+        let meta = CompileMeta::new();
+        let mut tag_codes = meta.compile(ast);
+        let logic_lines = tag_codes.compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "set R 2",
+                   "print R",
+                   "set x 2",
+                   "print x",
+                   "set R 2",
+                   "print R",
+        ]);
     }
 }
