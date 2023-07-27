@@ -1,0 +1,151 @@
+# 这是一个使用`Sedgewick`增量的希尔排序(`ShellSort`)
+# 并且将增量提前计算为常量来内联, 避免需要一个额外的内存元来存储增量表
+# 或者需要每次增量变更进行较为复杂的公式计算
+
+const BACK = back;
+const SWITCH = switch1; # 按钮
+const GAP_IDX = gi;
+const GAP = gap; # result
+
+do { # 按钮弹起时等待按钮被按下
+    wait 0.1;
+} while (sensor $ SWITCH @enabled;);
+
+const CELL = bank1;
+const START = 0;
+const STOP = (read $ cell1 0;);
+
+take astart = START;
+take astop = STOP;
+op length astop - astart;
+
+const GET_GAP = (GAP:
+    op BACK @counter + 1;
+    goto :table _;
+);
+
+GAP_IDX = 0;
+while GET_GAP < length {
+    op GAP_IDX GAP_IDX + 1;
+}
+op GAP_IDX GAP_IDX - 1;
+
+while GAP_IDX >= 0 {
+    take __ = GET_GAP;
+    op gstart astart + GAP;
+
+    # 组插入方案1
+    i = gstart;
+    while i < astop {
+        #*
+        这是一种优化分组插入方案, 比方案2更为高效一些
+        因为它避免了主动分组切换, 直接用后续的连续遍历完成了
+        *#
+        read num CELL i;
+        j = i;
+        while (num_1:
+            goto :break1 j < gstart;
+            read $ CELL (k: op $ j - GAP;);
+        ) > num {
+            write num_1 CELL j;
+            j = k;
+        } :break1
+        write num CELL j;
+
+        op i i + 1;
+    }
+
+    # 组插入方案2
+    #start = astart;
+    #while start < gstart {
+    #    i = start;
+    #    while i < astop {
+    #        j = i;
+    #        read num CELL j;
+    #        while (num_1:
+    #            goto :break1 j < gstart;
+    #            read $ CELL (k: op $ j - GAP;);
+    #        ) > num {
+    #            write num_1 CELL j;
+    #            j = k;
+    #        } :break1
+    #        write num CELL j;
+    #        op i i + GAP;
+    #    }
+    #    op start start + 1;
+    #}
+    op GAP_IDX GAP_IDX - 1;
+}
+
+skip _ {
+    :table
+    switch GAP_IDX {
+        @counter = BACK;
+    case 0: GAP = 1;
+    case 1: GAP = 5;
+    case 2: GAP = 19;
+    case 3: GAP = 41;
+    case 4: GAP = 109;
+    case 5: GAP = 209;
+    case 6: GAP = 505;
+    case 7: GAP = 929;
+    case 8: GAP = 2161;
+    case 9: GAP = 3905;
+    case 10: GAP = 8929;
+    case 11: GAP = 16001;
+    case 12: GAP = 36289;
+    case 13: GAP = 64769;
+    case 14: GAP = 146305;
+    case 15: GAP = 260609;
+    case 16: GAP = 587521;
+    case 17: GAP = 1045505;
+    case 18: GAP = 2354689;
+    case 19: GAP = 4188161;
+    case 20: GAP = 9427969;
+    case 21: GAP = 16764929;
+    case 22: GAP = 37730305;
+    case 23: GAP = 67084289;
+    case 24: GAP = 150958081;
+    case 25: GAP = 268386305;
+    case 26: GAP = 603906049;
+    case 27: GAP = 1073643521;
+    case 28: GAP = 2415771649;
+    case 29: GAP = 4294770689;
+    case 30: GAP = 9663381505;
+    case 31: GAP = 17179475969;
+    case 32: GAP = 38654115841;
+    case 33: GAP = 68718690305;
+    case 34: GAP = 154617643009;
+    case 35: GAP = 274876334081;
+    case 36: GAP = 618472931329;
+    case 37: GAP = 1099508482049;
+    case 38: GAP = 2473896443905;
+    case 39: GAP = 4398040219649;
+    case 40: GAP = 9895595212801;
+    case 41: GAP = 17592173461505;
+    case 42: GAP = 39582399725569;
+    case 43: GAP = 70368719011841;
+    case 44: GAP = 158329636651009;
+    case 45: GAP = 281474926379009;
+    case 46: GAP = 633318622101505;
+    case 47: GAP = 1125899806179329;
+    case 48: GAP = 2533274639400961;
+    case 49: GAP = 4503599426043905;
+    case 50: GAP = 10133098859593728;
+    case 51: GAP = 18014398106828800;
+    case 52: GAP = 40532396042354690;
+    case 53: GAP = 72057593232621570;
+    case 54: GAP = 162129585377378300;
+    case 55: GAP = 288230374541099000;
+    case 56: GAP = 648518343925432300;
+    case 57: GAP = 1152921501385621500;
+    case 58: GAP = 2594073380533567500;
+    case 59: GAP = 4611686011984937000;
+    case 60: GAP = 10376293531797946000;
+    case 61: GAP = 18446744060824650000;
+    case 62: GAP = 41505174146519140000;
+    case 63: GAP = 73786976269068400000;
+    }
+}
+
+control enabled switch1 true 0 0 0;
