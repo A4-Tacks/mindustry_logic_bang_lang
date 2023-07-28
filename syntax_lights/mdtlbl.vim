@@ -90,8 +90,6 @@ function! GetMdtlblIndent()
     let preline = <SID>lineFilter(getline(pnum))
     let pre2line = <SID>lineFilter(getline(p2num))
 
-    echomsg [line, preline, pre2line]
-
     let diff = 0
 
     if preline =~# '\([({\[:]\|\<\(else\)\>\)$'
