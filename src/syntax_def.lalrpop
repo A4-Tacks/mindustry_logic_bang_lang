@@ -231,50 +231,6 @@ pub BuiltinCommand: LogicLine = {
     "take" <Var> "=" <Value> LEnd => Take(<>).into(),
 }
 
-//  if结构定义
-//  ```
-//  if x {
-//      1
-//  } elif y {
-//      2
-//  } elif z {
-//      3
-//  } else {
-//      4
-//  }
-//  ```
-//
-//  被转换为
-//  ```
-//  goto :a x
-//  goto :b y
-//  goto :c z
-//  4
-//  goto :d _
-//  :b
-//  2
-//  goto :d _
-//  :c
-//  3
-//  goto :d _
-//  :a
-//  1
-//  :d
-//  ```
-//
-//  goto :a x
-//  $($elif_gotos)*
-//  $else_body?
-//  goto :end _
-//  $(
-//      $elif_tag
-//      $elif_body
-//      goto :end _
-//  )*
-//  :a
-//  $if_body
-//  :end
-
 pub Block: LogicLine = MBlock<Expand> => <>.into();
 
 pub DExp: DExp = MTuple<(<(<Var> ":")?> <Expand>)>
