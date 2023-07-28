@@ -111,7 +111,9 @@ impl Value {
             Self::DExp(DExp { mut result, lines }) => {
                 if result.is_empty() {
                     result = meta.get_tmp_var(); /* init tmp_var */
-                } else if let Some((_, _, value)) = meta.get_const_value(&result) {
+                } else if let
+                    Some((_, _, value))
+                        = meta.get_const_value_and_add(&result) {
                     // 对返回句柄使用常量值的处理
                     if let Some(dexp) = value.as_dexp() {
                         err!(
@@ -646,7 +648,6 @@ pub enum LogicLine {
     Other(Vec<Value>),
     Expand(Expand),
     Select(Select),
-    End,
     NoOp,
     /// 空语句, 什么也不生成
     Ignore,
@@ -656,7 +657,6 @@ pub enum LogicLine {
 impl Compile for LogicLine {
     fn compile(self, meta: &mut CompileMeta) {
         match self {
-            Self::End => meta.push("end".into()),
             Self::NoOp => meta.push("noop".into()),
             Self::Label(mut lab) => {
                 // 如果在常量展开中, 尝试将这个标记替换
@@ -915,21 +915,44 @@ impl CompileMeta {
         self.const_var_namespace.pop().unwrap()
     }
 
-    /// 获取一个常量到值的使用次数与映射与其内部标记,
+    /// 获取一个常量到值的使用次数与映射与其内部标记的引用,
     /// 从当前作用域往顶层作用域一层层找, 都没找到就返回空
-    pub fn get_const_value(&mut self, name: &Var) -> Option<(usize, &Vec<Var>, &Value)> {
+    pub fn get_const_value(&self, name: &Var) -> Option<&(usize, Vec<Var>, Value)> {
+        self.const_var_namespace
+            .iter()
+            .rev()
+            .find_map(|namespace| {
+                namespace.get(name)
+            })
+    }
+
+    /// 获取一个常量到值的使用次数与映射与其内部标记的可变引用,
+    /// 从当前作用域往顶层作用域一层层找, 都没找到就返回空
+    pub fn get_const_value_mut(&mut self, name: &Var)
+    -> Option<&mut (usize, Vec<Var>, Value)> {
         self.const_var_namespace
             .iter_mut()
             .rev()
             .find_map(|namespace| {
-                namespace
-                    .get_mut(name)
-                    .map(|(count, labels, value)| {
-                        let this_count = *count;
-                        *count += 1;
-                        (this_count, &*labels, &*value)
-                    })
+                namespace.get_mut(name)
             })
+    }
+
+    /// 调用[`Self::get_const_value_mut_and_add`]
+    /// 并将返回结果转换为不可变引用
+    pub fn get_const_value_and_add(&mut self, name: &Var)
+    -> Option<&(usize, Vec<Var>, Value)> {
+        self.get_const_value_mut_and_add(name)
+            .map(|x| &*x)
+    }
+
+    /// 调用[`Self::get_const_value_mut`], 但是非空情况会给使用计数加一
+    pub fn get_const_value_mut_and_add(&mut self, name: &Var)
+    -> Option<&mut (usize, Vec<Var>, Value)> {
+        self.get_const_value_mut(name).map(|x| {
+            x.0 += 1;
+            x
+        })
     }
 
     /// 新增一个常量到值的映射, 如果当前作用域已有此映射则返回旧的值并插入新值
@@ -995,10 +1018,22 @@ impl CompileMeta {
     /// 这个函数会直接调用获取函数将标记映射完毕, 然后返回其值
     /// 如果不是一个宏则直接返回None, 也不会进入无需清理
     pub fn const_expand_enter(&mut self, name: &Var) -> Option<Value> {
-        let (count, labels, value) = self.get_const_value(name)?;
+        let label_count = self.get_const_value(name)?.1.len();
+        let mut tmp_tags = Vec::with_capacity(label_count);
+        tmp_tags.extend(repeat_with(|| self.get_tmp_tag())
+                        .take(label_count));
+
+        let (count, labels, value)
+            = self.get_const_value_and_add(name).unwrap();
         let mut labels_map = HashMap::with_capacity(labels.len());
-        for label in labels.iter().cloned() {
-            let maped_label = format!("__const_{}_{}_{}", &name, count, &label);
+        for (tmp_tag, label) in zip(tmp_tags, labels.iter().cloned()) {
+            let maped_label = format!(
+                "{}_const_{}_{}_{}",
+                tmp_tag,
+                &name,
+                count,
+                &label
+            );
             labels_map.insert(label, maped_label);
         }
         let res = value.clone();
@@ -1725,5 +1760,28 @@ mod tests {
                    "set R 2",
                    "print R",
         ]);
+    }
+
+    #[test]
+    fn in_const_const_label_rename_test() {
+        let parser = ExpandParser::new();
+
+        let ast = parse!(parser, r#"
+        const X = (
+            const X = (
+                i = 0;
+                do {
+                    op i i + 1;
+                } while i < 10;
+            );
+            take __ = X;
+            take __ = X;
+        );
+        take __ = X;
+        take __ = X;
+        "#).unwrap();
+        let meta = CompileMeta::new();
+        let mut tag_codes = meta.compile(ast);
+        let _logic_lines = tag_codes.compile().unwrap();
     }
 }
