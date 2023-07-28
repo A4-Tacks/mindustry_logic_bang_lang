@@ -1290,6 +1290,7 @@ mod tests {
     #[test]
     fn reverse_test() {
         let parser = LogicLineParser::new();
+
         let datas = vec![
             [r#"goto :a x === y;"#, r#"goto :a (op $ x === y;) == false;"#],
             [r#"goto :a x == y;"#, r#"goto :a x != y;"#],
@@ -1304,6 +1305,26 @@ mod tests {
         for [src, dst] in datas {
             assert_eq!(
                 parse!(parser, src).unwrap().as_goto().unwrap().1.clone().reverse(),
+                parse!(parser, dst).unwrap().as_goto().unwrap().1,
+            );
+        }
+
+        // 手动转换
+        let datas = vec![
+            [r#"goto :a ! x === y;"#, r#"goto :a (op $ x === y;) == false;"#],
+            [r#"goto :a ! x == y;"#, r#"goto :a x != y;"#],
+            [r#"goto :a ! x != y;"#, r#"goto :a x == y;"#],
+            [r#"goto :a ! x < y;"#, r#"goto :a x >= y;"#],
+            [r#"goto :a ! x > y;"#, r#"goto :a x <= y;"#],
+            [r#"goto :a ! x <= y;"#, r#"goto :a x > y;"#],
+            [r#"goto :a ! x >= y;"#, r#"goto :a x < y;"#],
+            [r#"goto :a ! x;"#, r#"goto :a x == false;"#],
+            [r#"goto :a ! _;"#, r#"goto :a 0 != 0;"#],
+            [r#"goto :a lnot _;"#, r#"goto :a 0 != 0;"#],
+        ];
+        for [src, dst] in datas {
+            assert_eq!(
+                parse!(parser, src).unwrap().as_goto().unwrap().1,
                 parse!(parser, dst).unwrap().as_goto().unwrap().1,
             );
         }
