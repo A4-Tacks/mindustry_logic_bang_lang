@@ -94,11 +94,11 @@ function! GetMdtlblIndent()
 
     let diff = 0
 
-    if preline =~# '\([({:]\|\<\(else\)\>\)$'
+    if preline =~# '\([({\[:]\|\<\(else\)\>\)$'
         let diff += 1
     endif
 
-    if line =~# '\(^[)}]\|\<case\>\)' && !(preline =~# '\<case\>' && preline !~# ':$')
+    if line =~# '\(^[)}\]]\|\<case\>\)' && !(preline =~# '\<case\>' && preline !~# ':$')
         let diff -= 1
     endif
 
