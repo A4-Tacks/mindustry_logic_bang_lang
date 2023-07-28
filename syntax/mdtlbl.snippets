@@ -1,0 +1,49 @@
+snippet while "while"
+while ${1:_} {
+	$0
+}
+endsnippet
+snippet do_while "do_while"
+do {
+	$0
+} while ${1:_};
+endsnippet
+snippet goto "goto"
+goto :${1:tag} ${2:_};$0
+endsnippet
+snippet skip "skip"
+skip ${1:_} {
+	$0
+}
+endsnippet
+snippet if "if"
+if ${1:_} {
+	$0
+}
+endsnippet
+snippet elif "elif"
+elif ${1:_} {
+	$0
+}
+endsnippet
+snippet else "else"
+else {
+	$0
+}
+endsnippet
+snippet elsel "else line"
+else
+	$0
+endsnippet
+snippet const "const value"
+const ${1:NAME} = ${2:value};$0
+endsnippet
+snippet const_dexp "const DExp"
+const ${1:NAME} = (${2});$0
+endsnippet
+snippet take "take"
+take${1:[${2}]} ${3:${4:RES} = }${5:VALUE};
+endsnippet
+snippet iop "op self"
+op ${1:i} $1 ${2:+} ${3:1};$0
+endsnippet
