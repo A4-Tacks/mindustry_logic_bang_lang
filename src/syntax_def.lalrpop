@@ -228,7 +228,27 @@ pub BuiltinCommand: LogicLine = {
     // 如果后方是一个Var则直接将常量映射到后方的值
     // 如果后方是一个DExp则将其计算然后将常量映射到计算出的句柄
     // 此处默认句柄使用Value
-    "take" <Var> "=" <Value> LEnd => Take(<>).into(),
+    "take" <args:MList<Value*>?> <var:(<Var> "=")?> <value:Value> LEnd => {
+        let default_var = || String::from("__");
+        let args = args.unwrap_or_default();
+
+        if args.is_empty() {
+            Take(var.unwrap_or_else(default_var), value).into()
+        } else {
+            let mut len = args.len() + 1;
+            if var.is_some() { len += 1 }
+            let mut expand = Vec::with_capacity(len);
+            meta.build_arg_consts(args, |r#const| expand.push(r#const.into()));
+            if let Some(var) = var {
+                expand.push(Take(var.clone(), value).into());
+                expand.push(LogicLine::ConstLeak(var));
+            } else {
+                expand.push(Take(default_var(), value).into())
+            }
+            debug_assert_eq!(expand.len(), len);
+            Expand(expand).into()
+        }
+    },
 }
 
 pub Block: LogicLine = MBlock<Expand> => <>.into();

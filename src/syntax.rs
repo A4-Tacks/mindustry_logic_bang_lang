@@ -280,6 +280,14 @@ impl Meta {
     pub fn pop_label_scope(&mut self) -> Vec<Var> {
         self.defined_labels.pop().unwrap()
     }
+
+    /// 根据一系列构建一系列常量传参
+    pub fn build_arg_consts(&self, values: Vec<Value>, mut f: impl FnMut(Const)) {
+        for (i, value) in values.into_iter().enumerate() {
+            let name = format!("_{}", i);
+            f(Const(name, value, Vec::with_capacity(0)))
+        }
+    }
 }
 
 /// `jump`可用判断条件枚举
@@ -653,6 +661,7 @@ pub enum LogicLine {
     Ignore,
     Const(Const),
     Take(Take),
+    ConstLeak(Var),
 }
 impl Compile for LogicLine {
     fn compile(self, meta: &mut CompileMeta) {
@@ -678,6 +687,7 @@ impl Compile for LogicLine {
             Self::Ignore => (),
             Self::Const(r#const) => r#const.compile(meta),
             Self::Take(take) => take.compile(meta),
+            Self::ConstLeak(r#const) => meta.add_const_value_leak(r#const),
         }
     }
 }
@@ -807,9 +817,11 @@ pub struct CompileMeta {
     tag_count: usize,
     tag_codes: TagCodes,
     tmp_var_count: usize,
-    /// # 块中宏, 且带有展开次数与内部标记
-    /// `Vec<HashMap<name, (count, Vec<Label>, Value)>>`
-    const_var_namespace: Vec<HashMap<Var, (usize, Vec<Var>, Value)>>,
+    /// 块中常量, 且带有展开次数与内部标记
+    /// 并且存储了需要泄露的常量
+    ///
+    /// `Vec<(leaks, HashMap<name, (count, Vec<Label>, Value)>)>`
+    const_var_namespace: Vec<(Vec<Var>, HashMap<Var, (usize, Vec<Var>, Value)>)>,
     /// 每层DExp所使用的句柄, 末尾为当前层
     dexp_result_handles: Vec<Var>,
     tmp_tag_count: usize,
@@ -905,14 +917,39 @@ impl CompileMeta {
 
     /// 进入一个子块, 创建一个新的子命名空间
     pub fn block_enter(&mut self) {
-        self.const_var_namespace.push(HashMap::new())
+        self.const_var_namespace.push((Vec::new(), HashMap::new()))
     }
 
     /// 退出一个子块, 弹出最顶层命名空间
     /// 如果无物可弹说明逻辑出现了问题, 所以内部处理为unwrap
     /// 一个enter对应一个exit
     pub fn block_exit(&mut self) -> HashMap<Var, (usize, Vec<Var>, Value)> {
-        self.const_var_namespace.pop().unwrap()
+        // this is poped block
+        let (leaks, mut res)
+            = self.const_var_namespace.pop().unwrap();
+
+        // do leak
+        for leak_const_name in leaks {
+            let value
+                = res.remove(&leak_const_name).unwrap();
+
+            // insert to prev block
+            self.const_var_namespace
+                .last_mut()
+                .unwrap()
+                .1
+                .insert(leak_const_name, value);
+        }
+        res
+    }
+
+    /// 添加一个需泄露的const
+    pub fn add_const_value_leak(&mut self, name: Var) {
+        self.const_var_namespace
+            .last_mut()
+            .unwrap()
+            .0
+            .push(name)
     }
 
     /// 获取一个常量到值的使用次数与映射与其内部标记的引用,
@@ -921,7 +958,7 @@ impl CompileMeta {
         self.const_var_namespace
             .iter()
             .rev()
-            .find_map(|namespace| {
+            .find_map(|(_, namespace)| {
                 namespace.get(name)
             })
     }
@@ -933,7 +970,7 @@ impl CompileMeta {
         self.const_var_namespace
             .iter_mut()
             .rev()
-            .find_map(|namespace| {
+            .find_map(|(_, namespace)| {
                 namespace.get_mut(name)
             })
     }
@@ -961,6 +998,7 @@ impl CompileMeta {
         self.const_var_namespace
             .last_mut()
             .unwrap()
+            .1
             .insert(var, (0, labels, value))
     }
 
@@ -1783,5 +1821,152 @@ mod tests {
         let meta = CompileMeta::new();
         let mut tag_codes = meta.compile(ast);
         let _logic_lines = tag_codes.compile().unwrap();
+    }
+
+    #[test]
+    fn take_default_result_test() {
+        let parser = LogicLineParser::new();
+
+        let ast = parse!(parser, "take 2;").unwrap();
+        assert_eq!(ast, Take("__".into(), "2".into()).into());
+    }
+
+    #[test]
+    fn const_value_leak_test() {
+        let ast: Expand = vec![
+            Expand(vec![
+                LogicLine::Other(vec!["print".into(), "N".into()]),
+                Const("N".into(), "2".into(), Vec::new()).into(),
+                LogicLine::Other(vec!["print".into(), "N".into()]),
+            ]).into(),
+            LogicLine::Other(vec!["print".into(), "N".into()]),
+        ].into();
+        let meta = CompileMeta::new();
+        let mut tag_codes = meta.compile(ast);
+        let logic_lines = tag_codes.compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "print N",
+                   "print 2",
+                   "print N",
+        ]);
+
+        let ast: Expand = vec![
+            Expand(vec![
+                LogicLine::Other(vec!["print".into(), "N".into()]),
+                Const("N".into(), "2".into(), Vec::new()).into(),
+                LogicLine::Other(vec!["print".into(), "N".into()]),
+                LogicLine::ConstLeak("N".into()),
+            ]).into(),
+            LogicLine::Other(vec!["print".into(), "N".into()]),
+        ].into();
+        let meta = CompileMeta::new();
+        let mut tag_codes = meta.compile(ast);
+        let logic_lines = tag_codes.compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "print N",
+                   "print 2",
+                   "print 2",
+        ]);
+    }
+
+    #[test]
+    fn take_test2() {
+        let parser = LogicLineParser::new();
+
+        let ast = parse!(parser, "take X;").unwrap();
+        assert_eq!(ast, Take("__".into(), "X".into()).into());
+
+        let ast = parse!(parser, "take R = X;").unwrap();
+        assert_eq!(ast, Take("R".into(), "X".into()).into());
+
+        let ast = parse!(parser, "take[] X;").unwrap();
+        assert_eq!(ast, Take("__".into(), "X".into()).into());
+
+        let ast = parse!(parser, "take[] R = X;").unwrap();
+        assert_eq!(ast, Take("R".into(), "X".into()).into());
+
+        let ast = parse!(parser, "take[1 2] R = X;").unwrap();
+        assert_eq!(ast, Expand(vec![
+                Const::new("_0".into(), "1".into()).into(),
+                Const::new("_1".into(), "2".into()).into(),
+                Take("R".into(), "X".into()).into(),
+                LogicLine::ConstLeak("R".into()),
+        ]).into());
+
+        let ast = parse!(parser, "take[1 2] X;").unwrap();
+        assert_eq!(ast, Expand(vec![
+                Const::new("_0".into(), "1".into()).into(),
+                Const::new("_1".into(), "2".into()).into(),
+                Take("__".into(), "X".into()).into(),
+        ]).into());
+    }
+
+    #[test]
+    fn take_args_test() {
+        let parser = ExpandParser::new();
+
+        let ast = parse!(parser, r#"
+        const M = (
+            print _0 _1 _2;
+            set $ 3;
+        );
+        take[1 2 3] M;
+        take[4 5 6] R = M;
+        print R;
+        "#).unwrap();
+        let meta = CompileMeta::new();
+        let mut tag_codes = meta.compile(ast);
+        let logic_lines = tag_codes.compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "print 1",
+                   "print 2",
+                   "print 3",
+                   "set __0 3",
+                   "print 4",
+                   "print 5",
+                   "print 6",
+                   "set __1 3",
+                   "print __1",
+        ]);
+
+        let ast = parse!(parser, r#"
+        const DO = (
+            print _0 "start";
+            take _1;
+            print _0 "start*2";
+            take _1;
+            printflush message1;
+        );
+        # 这里赋给一个常量再使用, 因为直接使用不会记录label, 无法重复被使用
+        # 而DO中, 会使用两次传入的参数1
+        const F = (
+            i = 0;
+            while i < 10 {
+                print i;
+                op i i + 1;
+            }
+        );
+        take["loop" F] DO;
+        "#).unwrap();
+        let meta = CompileMeta::new();
+        let mut tag_codes = meta.compile(ast);
+        let logic_lines = tag_codes.compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   r#"print "loop""#,
+                   r#"print "start""#,
+                   r#"set i 0"#,
+                   r#"jump 7 greaterThanEq i 10"#,
+                   r#"print i"#,
+                   r#"op add i i 1"#,
+                   r#"jump 4 lessThan i 10"#,
+                   r#"print "loop""#,
+                   r#"print "start*2""#,
+                   r#"set i 0"#,
+                   r#"jump 14 greaterThanEq i 10"#,
+                   r#"print i"#,
+                   r#"op add i i 1"#,
+                   r#"jump 11 lessThan i 10"#,
+                   r#"printflush message1"#,
+        ]);
     }
 }
