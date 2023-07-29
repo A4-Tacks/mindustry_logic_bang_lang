@@ -35,6 +35,23 @@ match {
     _
 }
 
+Or<A, B> = { A, B }; // A或者B
+Or3<A, B, C> = { A, B, C }; // A或者B或者C
+OrSwap<A, B> = { A B, B A }; // 匹配 `A B`或者`B A`
+OrRev<A, M, B> = { A M B, B, M, A }; // 匹配`A M B`或者`B M A`
+OrShl<A, B, C> = { A B C, B C A }; // 匹配`A B C`或者`B C A`, 后者是值进行左移循环得到
+Wrap<Open, T, Close> = Open <T> Close; // 用于定义包裹
+MTuple<T> = Wrap<"(", T, ")">;
+MList<T> = Wrap<"[", T, "]">;
+MBlock<T> = Wrap<"{", T, "}">;
+OpenArgs<T, S> = (<T> S)*; // 零至多个有分隔后缀值
+CloseArgs<T, S> = (<T> S)* T => { // 一至多个有分隔无后缀值
+    let (mut args, tail) = <>;
+    args.push(tail);
+    args
+};
+Span<T> = @L T @R;
+
 pub String: Var = r#""[^"]*""# => <>.replace('\n', "\\n");
 pub Ident: Var = r"[_\p{XID_Start}]\p{XID_Continue}*" => <>.into();
 pub OIdent: Var = r"@[_\p{XID_Start}][\p{XID_Continue}\-]*" => <>.into(); // `@abc-def`这种
@@ -79,23 +96,6 @@ pub LiteralUInt: usize = <l:@L> <num:Number> <r:@R> =>? {
     }
 };
 
-
-Or<A, B> = { A, B }; // A或者B
-Or3<A, B, C> = { A, B, C }; // A或者B或者C
-OrSwap<A, B> = { A B, B A }; // 匹配 `A B`或者`B A`
-OrRev<A, M, B> = { A M B, B, M, A }; // 匹配`A M B`或者`B M A`
-OrShl<A, B, C> = { A B C, B C A }; // 匹配`A B C`或者`B C A`, 后者是值进行左移循环得到
-Wrap<Open, T, Close> = Open <T> Close; // 用于定义包裹
-MTuple<T> = Wrap<"(", T, ")">;
-MList<T> = Wrap<"[", T, "]">;
-MBlock<T> = Wrap<"{", T, "}">;
-OpenArgs<T, S> = (<T> S)*; // 零至多个有分隔后缀值
-CloseArgs<T, S> = (<T> S)* T => { // 一至多个有分隔无后缀值
-    let (mut args, tail) = <>;
-    args.push(tail);
-    args
-};
-Span<T> = @L T @R;
 
 LEnd: () = ";" => ();
 
@@ -177,7 +177,9 @@ pub LogicLine: LogicLine = {
     "op" <Op> LEnd => <>.into(),
     "noop" LEnd => LogicLine::NoOp,
     "set" <var:Value> <value:Value> LEnd => LogicLine::Other(vec!["set".into(), var.into(), value]),
-    <var:Value> "=" <value:Value> LEnd => LogicLine::Other(vec!["set".into(), var.into(), value]),
+    <l:@L> <vars:PArgs> "=" <values:PArgs> LEnd <r:@R>
+        =>? meta.build_sets([l, r], vars, values)
+            .map_err(|e| e.into()),
     "read" <var:Value> <from:Value> <index:Value> LEnd
         => LogicLine::Other(vec!["read".into(), var.into(), from, index]),
     "print" <Args> LEnd => {
@@ -201,8 +203,11 @@ pub LogicLine: LogicLine = {
     },
 }
 
-#[inline] Args: Vec<Value> = {
+Args: Vec<Value> = {
     () => vec![],
+    PArgs,
+}
+PArgs: Vec<Value> = {
     Value => vec![<>],
     Value Value => vec![<>],
     Value Value Value => vec![<>],

@@ -71,6 +71,7 @@ impl From<((Location, Location), Errors)> for Error {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Errors {
     NotALiteralUInteger(String, ParseIntError),
+    SetVarNoPatternValue(usize, usize),
 }
 
 pub type Var = String;
@@ -288,7 +289,46 @@ impl Meta {
             f(Const(name, value, Vec::with_capacity(0)))
         }
     }
+
+    /// 构建一个`sets`, 例如`a b c = 1 2 3;`
+    /// 如果只有一个值与被赋值则与之前行为一致
+    /// 如果值与被赋值数量不匹配则返回错误
+    /// 如果值与被赋值数量匹配且大于一对就返回Expand中多个set
+    pub fn build_sets(&self, loc: [Location; 2], mut vars: Vec<Value>, mut values: Vec<Value>)
+    -> Result<LogicLine, Error> {
+        fn build_set(var: Value, value: Value) -> LogicLine {
+            LogicLine::Other(vec![
+                    "set".into(),
+                    var,
+                    value,
+            ])
+        }
+        if vars.len() != values.len() {
+            // 接受与值数量不匹配
+            return Err((
+                loc,
+                Errors::SetVarNoPatternValue(vars.len(), values.len())
+            ).into());
+        }
+
+        assert_ne!(vars.len(), 0);
+        let len = vars.len();
+
+        if len == 1 {
+            // normal
+            Ok(build_set(vars.pop().unwrap(), values.pop().unwrap()))
+        } else {
+            // sets
+            let mut expand = Vec::with_capacity(len);
+            expand.extend(zip(vars, values)
+                .map(|(var, value)| build_set(var, value))
+            );
+            debug_assert_eq!(expand.len(), len);
+            Ok(Expand(expand).into())
+        }
+    }
 }
+
 
 /// `jump`可用判断条件枚举
 #[derive(Debug, PartialEq, Clone)]
@@ -1989,5 +2029,35 @@ mod tests {
                    r#"jump 11 lessThan i 10"#,
                    r#"printflush message1"#,
         ]);
+    }
+
+    #[test]
+    fn sets_test() {
+        let parser = ExpandParser::new();
+
+        let ast = parse!(parser, r#"
+        a b c = 1 2 (op $ 2 + 1;);
+        "#).unwrap();
+        let meta = CompileMeta::new();
+        let mut tag_codes = meta.compile(ast);
+        let logic_lines = tag_codes.compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "set a 1",
+                   "set b 2",
+                   "op add __0 2 1",
+                   "set c __0",
+        ]);
+
+        assert!(parse!(parser, r#"
+        a b c = 1 2;
+        "#).is_err());
+
+        assert!(parse!(parser, r#"
+        a = 1 2;
+        "#).is_err());
+
+        assert!(parse!(parser, r#"
+         = 1 2;
+        "#).is_err());
     }
 }

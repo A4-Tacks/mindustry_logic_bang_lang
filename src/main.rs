@@ -253,19 +253,38 @@ fn unwrap_parse_err<'a>(result: ParseResult<'a>, src: &str) -> Expand {
                     error: Error {
                         start,
                         end,
-                        err: Errors::NotALiteralUInteger(str, err)
+                        err
                     }
                 } => {
-                    let [start, end] = get_locations(src, [start, end]);
-                    err!(
-                        "在 {:?} 至 {:?} 处的错误: {:?} 不是一个有效的无符号整数, 错误: {}",
-                        start, end,
-                        str, err,
+                    let [start, end]
+                        = get_locations(src, [start, end]);
+                    let head = format!(
+                        "在 {:?} 至 {:?} 处的错误: ",
+                        start,
+                        end
                     );
-                },
-                #[allow(unreachable_patterns)]
-                e => {
-                    err!("未被枚举的错误: {:?}", e);
+                    match err {
+                        Errors::NotALiteralUInteger(str, err) => {
+                            err!(
+                                "{}{:?} 不是一个有效的无符号整数, 错误: {}",
+                                head,
+                                str,
+                                err,
+                            );
+                        },
+                        Errors::SetVarNoPatternValue(var_count, val_count) => {
+                            err!(
+                                "{}sets两侧值数量不匹配, {} != {}",
+                                head,
+                                var_count,
+                                val_count,
+                            );
+                        },
+                        #[allow(unreachable_patterns)]
+                        e => {
+                            err!("未被枚举的错误: {:?}", e);
+                        },
+                    }
                 },
             }
             exit(4)
