@@ -1900,13 +1900,13 @@ mod tests {
         let ast = parse!(parser, "take R = X;").unwrap();
         assert_eq!(ast, Take("R".into(), "X".into()).into());
 
-        let ast = parse!(parser, "take[] X;").unwrap();
+        let ast = parse!(parser, "take X[];").unwrap();
         assert_eq!(ast, Take("__".into(), "X".into()).into());
 
-        let ast = parse!(parser, "take[] R = X;").unwrap();
+        let ast = parse!(parser, "take R = X[];").unwrap();
         assert_eq!(ast, Take("R".into(), "X".into()).into());
 
-        let ast = parse!(parser, "take[1 2] R = X;").unwrap();
+        let ast = parse!(parser, "take R = X[1 2];").unwrap();
         assert_eq!(ast, Expand(vec![
                 Const::new("_0".into(), "1".into()).into(),
                 Const::new("_1".into(), "2".into()).into(),
@@ -1914,7 +1914,7 @@ mod tests {
                 LogicLine::ConstLeak("R".into()),
         ]).into());
 
-        let ast = parse!(parser, "take[1 2] X;").unwrap();
+        let ast = parse!(parser, "take X[1 2];").unwrap();
         assert_eq!(ast, Expand(vec![
                 Const::new("_0".into(), "1".into()).into(),
                 Const::new("_1".into(), "2".into()).into(),
@@ -1931,8 +1931,8 @@ mod tests {
             print _0 _1 _2;
             set $ 3;
         );
-        take[1 2 3] M;
-        take[4 5 6] R = M;
+        take M[1 2 3];
+        take R = M[4 5 6];
         print R;
         "#).unwrap();
         let meta = CompileMeta::new();
@@ -1967,7 +1967,7 @@ mod tests {
                 op i i + 1;
             }
         );
-        take["loop" F] DO;
+        take DO["loop" F];
         "#).unwrap();
         let meta = CompileMeta::new();
         let mut tag_codes = meta.compile(ast);

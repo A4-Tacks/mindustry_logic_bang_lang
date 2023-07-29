@@ -33,7 +33,7 @@ const InsertBinarySearch = (
     j = stop;
 
     while i < j {
-        take[i j] mid = Mid;
+        take mid = Mid[i j];
         read tmp cell mid;
         if tmp > num {
             j = mid;
@@ -81,8 +81,8 @@ const BinaryInsertSort = (
     op i start + 1;
     while i < stop {
         read num cell i;
-        take[num start i cell] insert_point = InsertBinarySearch;
-        take[insert_point i num cell] RWhile;
+        take insert_point = InsertBinarySearch[num start i cell];
+        take RWhile[insert_point i num cell];
         op i i + 1;
     }
 );
@@ -94,8 +94,8 @@ do { # 按钮弹起时等待按钮被按下
 } while (sensor $ 'switch' @enabled;);
 
 # 可以测试多次调用的行为
-#take[0 88 bank1] BinaryInsertSort;
-#take[88 176 bank1] BinaryInsertSort;
-take[0 176 bank1] BinaryInsertSort;
+#take BinaryInsertSort[0 88 bank1];
+#take BinaryInsertSort[88 176 bank1];
+take BinaryInsertSort[0 176 bank1];
 
 control enabled 'switch' true 0 0 0;

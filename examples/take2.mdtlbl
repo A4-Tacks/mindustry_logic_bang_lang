@@ -4,7 +4,7 @@
 首先, 允许`take F;`这种写法了, 这将等价于以前的`take __ = F;`
     我们不再需要填写一个用不上的常量来符合语法了
 
-然后是一个重要的语法, `take[Value*]`, 你可以在左边take的右侧插入一个方括号
+然后是一个重要的语法: `take Var = Value[Value*]` 或 `take Value[Value*]`, 你可以在value的右侧插入一个方括号
     当你没有在里面写值时, 这等同于你不加这个方括号
     如果你在里面写了1至若干个值,
     那么take将不会被构建为一个Take, 而是一个Expand.
@@ -31,9 +31,7 @@ const DO = (
     print "exit";
 );
 
-take[(
-    print "hello";
-)] DO;
+take DO[(print "hello";)];
 
 #* 以上代码会被编译为
 print "enter"
@@ -53,7 +51,7 @@ const ADD = (
     op $ $ * N;
 );
 
-take[(op $ 3 + 4;)] RES = ADD;
+take RES = ADD[(op $ 3 + 4;)];
 print RES;
 #* 以上代码会被编译为
 op add __1 3 4
@@ -72,7 +70,7 @@ const ADD = (
     op $ $ * _0;
 );
 
-take[(op $ 3 + 4;)] RES = ADD;
+take RES = ADD[(op $ 3 + 4;)];
 print RES;
 #* 以上代码会被编译为
 op add __1 3 4
@@ -89,7 +87,7 @@ print __0
 const PRINT2 = (
     print _0 _1;
 );
-take[123 456] PRINT2;
+take PRINT2[123 456];
 #* 以上代码会被编译为
 print 123
 print 456
