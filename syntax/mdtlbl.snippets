@@ -1,57 +1,72 @@
-snippet while "while"
+snippet while "while" w
 while ${1:_} {
 	$0
 }
 endsnippet
-snippet do_while "do_while"
+snippet do_while "do_while" w
 do {
 	$0
 } while ${1:_};
 endsnippet
-snippet goto "goto"
+snippet goto "goto" w
 goto :${1:tag} ${2:_};$0
 endsnippet
-snippet skip "skip"
+snippet skip "skip" w
 skip ${1:_} {
 	$0
 }
 endsnippet
-snippet if "if"
+snippet if "if" w
 if ${1:_} {
 	$0
 }
 endsnippet
-snippet elif "elif"
+snippet elif "elif" w
 elif ${1:_} {
 	$0
 }
 endsnippet
-snippet else "else"
+snippet else "else" w
 else {
 	$0
 }
 endsnippet
-snippet elsel "else line"
+snippet elsel "else line" w
 else
 	$0
 endsnippet
-snippet const "const value"
+snippet const "const value" w
 const ${1:NAME} = ${2:value};$0
 endsnippet
-snippet const_dexp "const DExp"
+snippet const_dexp "const DExp" w
 const ${1:NAME} = (${2});$0
 endsnippet
-snippet take "take"
+snippet take "take" w
 take${1:[${2}]} ${3:${4:RES} = }${5:VALUE};
 endsnippet
-snippet iop "op self"
+snippet iop "op self" w
 op ${1:i} $1 ${2:+} ${3:1};$0
 endsnippet
-snippet switch "switch"
+snippet switch "switch" w
 switch ${1:x} {
 	$0
 }
 endsnippet
-snippet case "switch-case"
+snippet case "switch-case" w
 case ${1:0}:$0
+endsnippet
+snippet op "op result a + b;" w
+op ${1:result} ${2:a} ${3:+} ${4:b};$0
+endsnippet
+snippet print "print values;" w
+print ${1:"frog"};$0
+endsnippet
+snippet set "a = b;" w
+${1} = ${2};
+endsnippet
+snippet read "read result cell1 0;" w
+read ${1:result} ${2:cell1} ${3:0};$0
+endsnippet
+snippet write "write result cell1 0;" w
+write ${1:result} ${2:cell1} ${3:0};$0
 endsnippet
