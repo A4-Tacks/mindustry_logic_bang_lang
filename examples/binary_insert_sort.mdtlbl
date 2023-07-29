@@ -26,9 +26,12 @@ const InsertBinarySearch = (
     take stop = _2;
     take cell = _3;
     take i = $; # 返回的是i, 所以直接映射到返回句柄
-    i = start;
-    take j = ($ = stop;); # 利用DExp的返回句柄与take避免变量污染
+    take j = (); # 利用DExp的返回句柄与take避免变量污染
     take tmp = ();
+
+    i = start;
+    j = stop;
+
     while i < j {
         take[i j] mid = Mid;
         read tmp cell mid;
