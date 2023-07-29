@@ -1,0 +1,98 @@
+#*
+这是二分插排, 使用二分查找寻找到插入点, 再进行插入
+这是插入排序的一种优化版本, 虽然没有希尔排序优化的强
+使用二分查找可以在元素数目变多时将每次插入的比较次数由O(n)降低至O(log2 n)
+    但是它的常量时间更高, 所以对于极少元素还是普通插排好使
+这里使用const-DExp进行封装, 没有已命名变量, 全部由take-DExp进行分配
+    所以可以随处调用不必担心变量污染
+可以看到, 由const-DExp组织代码, 可读性, 代码复用性都很高
+    缺点也有, 就是大型代码最好还是使用如call的方式而不是频繁内联, 毕竟逻辑行数有限
+*#
+
+const Mid = (
+    take a = _0;
+    take b = _1;
+    op $ a + (op $ b - a; op $ $ >> 1;);
+);
+
+const InsertBinarySearch = (
+    # 对`start..stop`也就是包含start不包含stop的区间进行二分查找
+    # 查找出需要插入的位置
+    # 如果是`[0, 2, 3]`查找1, 则返回`1`也就是`2`的位置
+    # 如果是`[0, 2, 3]`查找2, 则返回`2`也就是`3`的位置, 因为需要在3的位置插入2
+    # 这需要被查找区间内元素有序
+    take num = _0;
+    take start = _1;
+    take stop = _2;
+    take cell = _3;
+    take i = $; # 返回的是i, 所以直接映射到返回句柄
+    i = start;
+    take j = ($ = stop;); # 利用DExp的返回句柄与take避免变量污染
+    take tmp = ();
+    while i < j {
+        take[i j] mid = Mid;
+        read tmp cell mid;
+        if tmp > num {
+            j = mid;
+        } else {
+            op i mid + 1;
+        }
+    }
+);
+
+const RWhile = (
+    # 将[a, b]区间进行一次距离为一的向右循环
+    # 在cell中
+    # 并且在空出的空位写入num
+    take a = _0;
+    take b = _1;
+    take num = _2;
+    take cell = _3;
+
+    take i = ();
+    take j = ();
+    take num_1 = ();
+
+    i = b;
+
+    while i > a {
+        op j i - 1;
+        read num_1 cell j;
+        write num_1 cell i;
+        i = j;
+    }
+    write num cell a;
+);
+
+const BinaryInsertSort = (
+    # 对指定区间进行二分插排
+    # 是对start至stop的左闭右开区间进行排序
+    # cell为被排序的内存
+    take start = _0;
+    take stop = _1;
+    take cell = _2;
+
+    take i = ();
+    take num = ();
+
+    op i start + 1;
+    while i < stop {
+        read num cell i;
+        take[num start i cell] insert_point = InsertBinarySearch;
+        take[insert_point i num cell] RWhile;
+        op i i + 1;
+    }
+);
+
+const 'switch' = switch1;
+
+do { # 按钮弹起时等待按钮被按下
+    wait 0.1;
+} while (sensor $ 'switch' @enabled;);
+
+# 可以测试多次调用的行为
+#take[0 88 bank1] BinaryInsertSort;
+#take[88 176 bank1] BinaryInsertSort;
+take[0 176 bank1] BinaryInsertSort;
+
+control enabled 'switch' true 0 0 0;
