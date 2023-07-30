@@ -112,7 +112,7 @@ JumpCmpBody: JumpCmp = {
 
 pub JumpCmp: JumpCmp = {
     JumpCmpBody,
-    Or<"lnot", "!"> <JumpCmpBody> => <>.reverse(),
+    Or<"lnot", "!"> <JumpCmp> => <>.reverse(),
 }
 
 pub Op: Op = {

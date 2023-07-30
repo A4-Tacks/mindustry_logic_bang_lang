@@ -1365,6 +1365,15 @@ mod tests {
             [r#"goto :a ! x;"#, r#"goto :a x == false;"#],
             [r#"goto :a ! _;"#, r#"goto :a 0 != 0;"#],
             [r#"goto :a lnot _;"#, r#"goto :a 0 != 0;"#],
+            // 多次取反
+            [r#"goto :a !!! x == y;"#, r#"goto :a x != y;"#],
+            [r#"goto :a !!! x != y;"#, r#"goto :a x == y;"#],
+            [r#"goto :a !!! x < y;"#, r#"goto :a x >= y;"#],
+            [r#"goto :a !!! x > y;"#, r#"goto :a x <= y;"#],
+            [r#"goto :a !!! x <= y;"#, r#"goto :a x > y;"#],
+            [r#"goto :a !!! x >= y;"#, r#"goto :a x < y;"#],
+            [r#"goto :a !!! x;"#, r#"goto :a x == false;"#],
+            [r#"goto :a !!! _;"#, r#"goto :a 0 != 0;"#],
         ];
         for [src, dst] in datas {
             assert_eq!(
