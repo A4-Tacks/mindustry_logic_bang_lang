@@ -41,3 +41,4 @@ set int 123_456;
 set n_int -123_456;
 set bin 0b1001_0010;
 set n_bin 0b-1001_0010;
+set x 'abc"def'; # 其中的双引号会被替换为单引号

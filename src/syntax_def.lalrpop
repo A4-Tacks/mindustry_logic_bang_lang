@@ -58,10 +58,8 @@ pub OIdent: Var = r"@[_\p{XID_Start}][\p{XID_Continue}\-]*" => <>.into(); // `@a
 pub Number: Var = r"(?:0(?:x-?[\da-fA-F][_\da-fA-F]*|b-?[01][_01]*)|-?\d[_\d]*(?:\.\d[\d_]*)?)"
     => <>.chars().filter(|&c| c != '_').collect();
 pub OtherValue: Var = r"'[^'\s]+'" => {
-    let mut res: Var = <>.chars().skip(1).collect();
-    res.pop().unwrap();
-    res
-}; // 特殊格式的值, 如`'@abc-def'`
+    <>[1..<>.len()-1].replace('"', "\'")
+}; // 特殊格式的值, 如`'@abc-def'`, 其中双引号会被替换为单引号
 
 // 逻辑里面一个单元
 // 例如`0x50` `'@alpha'` `add` `'a-b-c'`

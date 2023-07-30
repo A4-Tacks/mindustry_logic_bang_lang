@@ -1158,6 +1158,7 @@ mod tests {
         assert_eq!(parse!(parser, "@abc-def").unwrap(), "@abc-def");
         assert_eq!(parse!(parser, "@abc-def_30").unwrap(), "@abc-def_30");
         assert_eq!(parse!(parser, "@abc-def-34").unwrap(), "@abc-def-34");
+        assert_eq!(parse!(parser, r#"'abc"def'"#).unwrap(), "abc'def"); // 双引号被替换为单引号
 
         assert!(parse!(parser, "'ab cd'").is_err());
         assert!(parse!(parser, "ab-cd").is_err());
