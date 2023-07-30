@@ -96,9 +96,13 @@ print 1
 
 # 我们可以完成如传入一个函数的操作
 const DoOp = (
+    # 此处先将接受到的参数进行const
+    # 不然在take时, 根据take的原理会先将传入的覆盖到_0 _1这些 然后再去求后方的
+    # 如果我们不const, 那么我们开始求值_0 _1等时, 这些已经是被我们传入参数覆盖后的了
     const Func = _0;
     const a = _1;
     const b = _2;
+
     take[a b] RES = Func;
     $ = RES;
 );
