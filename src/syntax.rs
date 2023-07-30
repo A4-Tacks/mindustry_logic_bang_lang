@@ -102,7 +102,13 @@ impl Value {
             Self::Var(var) => {
                 if let Some(value) = meta.const_expand_enter(&var) {
                     // 是一个常量
-                    let res = value.take(meta);
+                    let res = if let Value::Var(var) = value {
+                        // 只进行单步常量追溯
+                        // 因为常量定义时已经完成了原有的多步
+                        var
+                    } else {
+                        value.take(meta)
+                    };
                     meta.const_expand_exit();
                     res
                 } else {
@@ -113,8 +119,8 @@ impl Value {
                 if result.is_empty() {
                     result = meta.get_tmp_var(); /* init tmp_var */
                 } else if let
-                    Some((_, _, value))
-                        = meta.get_const_value_and_add(&result) {
+                    Some((_, value))
+                        = meta.get_const_value(&result) {
                     // 对返回句柄使用常量值的处理
                     if let Some(dexp) = value.as_dexp() {
                         err!(
@@ -860,8 +866,8 @@ pub struct CompileMeta {
     /// 块中常量, 且带有展开次数与内部标记
     /// 并且存储了需要泄露的常量
     ///
-    /// `Vec<(leaks, HashMap<name, (count, Vec<Label>, Value)>)>`
-    const_var_namespace: Vec<(Vec<Var>, HashMap<Var, (usize, Vec<Var>, Value)>)>,
+    /// `Vec<(leaks, HashMap<name, (Vec<Label>, Value)>)>`
+    const_var_namespace: Vec<(Vec<Var>, HashMap<Var, (Vec<Var>, Value)>)>,
     /// 每层DExp所使用的句柄, 末尾为当前层
     dexp_result_handles: Vec<Var>,
     tmp_tag_count: usize,
@@ -963,7 +969,7 @@ impl CompileMeta {
     /// 退出一个子块, 弹出最顶层命名空间
     /// 如果无物可弹说明逻辑出现了问题, 所以内部处理为unwrap
     /// 一个enter对应一个exit
-    pub fn block_exit(&mut self) -> HashMap<Var, (usize, Vec<Var>, Value)> {
+    pub fn block_exit(&mut self) -> HashMap<Var, (Vec<Var>, Value)> {
         // this is poped block
         let (leaks, mut res)
             = self.const_var_namespace.pop().unwrap();
@@ -994,7 +1000,7 @@ impl CompileMeta {
 
     /// 获取一个常量到值的使用次数与映射与其内部标记的引用,
     /// 从当前作用域往顶层作用域一层层找, 都没找到就返回空
-    pub fn get_const_value(&self, name: &Var) -> Option<&(usize, Vec<Var>, Value)> {
+    pub fn get_const_value(&self, name: &Var) -> Option<&(Vec<Var>, Value)> {
         self.const_var_namespace
             .iter()
             .rev()
@@ -1006,7 +1012,7 @@ impl CompileMeta {
     /// 获取一个常量到值的使用次数与映射与其内部标记的可变引用,
     /// 从当前作用域往顶层作用域一层层找, 都没找到就返回空
     pub fn get_const_value_mut(&mut self, name: &Var)
-    -> Option<&mut (usize, Vec<Var>, Value)> {
+    -> Option<&mut (Vec<Var>, Value)> {
         self.const_var_namespace
             .iter_mut()
             .rev()
@@ -1015,31 +1021,29 @@ impl CompileMeta {
             })
     }
 
-    /// 调用[`Self::get_const_value_mut_and_add`]
-    /// 并将返回结果转换为不可变引用
-    pub fn get_const_value_and_add(&mut self, name: &Var)
-    -> Option<&(usize, Vec<Var>, Value)> {
-        self.get_const_value_mut_and_add(name)
-            .map(|x| &*x)
-    }
-
-    /// 调用[`Self::get_const_value_mut`], 但是非空情况会给使用计数加一
-    pub fn get_const_value_mut_and_add(&mut self, name: &Var)
-    -> Option<&mut (usize, Vec<Var>, Value)> {
-        self.get_const_value_mut(name).map(|x| {
-            x.0 += 1;
-            x
-        })
-    }
-
     /// 新增一个常量到值的映射, 如果当前作用域已有此映射则返回旧的值并插入新值
-    pub fn add_const_value(&mut self, Const(var, value, labels): Const)
-    -> Option<(usize, Vec<Var>, Value)> {
+    pub fn add_const_value(&mut self, Const(var, mut value, mut labels): Const)
+    -> Option<(Vec<Var>, Value)> {
+        // TODO
+        // 去掉调用次数 (*)
+        // 将定义常量映射到常量改为直接把常量对应的值拿过来
+        // 防止`const A = 1;const B = A;const A = 2;print B;`输出2
+        // 这还需考虑const注册标签
+        if let Some(var_1) = value.as_var() {
+            // 如果const的映射目标值是一个var
+            if let Some((labels_1, value_1))
+                = self.get_const_value(var_1).cloned() {
+                    // 且它是一个常量, 则将它直接克隆过来.
+                    // 防止直接映射到另一常量,
+                    // 但是另一常量被覆盖导致这在覆盖之前映射的常量结果也发生改变
+                    (labels, value) = (labels_1, value_1)
+                }
+        }
         self.const_var_namespace
             .last_mut()
             .unwrap()
             .1
-            .insert(var, (0, labels, value))
+            .insert(var, (labels, value))
     }
 
     /// 新增一层DExp, 并且传入它使用的返回句柄
@@ -1096,20 +1100,19 @@ impl CompileMeta {
     /// 这个函数会直接调用获取函数将标记映射完毕, 然后返回其值
     /// 如果不是一个宏则直接返回None, 也不会进入无需清理
     pub fn const_expand_enter(&mut self, name: &Var) -> Option<Value> {
-        let label_count = self.get_const_value(name)?.1.len();
+        let label_count = self.get_const_value(name)?.0.len();
         let mut tmp_tags = Vec::with_capacity(label_count);
         tmp_tags.extend(repeat_with(|| self.get_tmp_tag())
                         .take(label_count));
 
-        let (count, labels, value)
-            = self.get_const_value_and_add(name).unwrap();
+        let (labels, value)
+            = self.get_const_value(name).unwrap();
         let mut labels_map = HashMap::with_capacity(labels.len());
         for (tmp_tag, label) in zip(tmp_tags, labels.iter().cloned()) {
             let maped_label = format!(
-                "{}_const_{}_{}_{}",
+                "{}_const_{}_{}",
                 tmp_tag,
                 &name,
-                count,
                 &label
             );
             labels_map.insert(label, maped_label);
@@ -2059,5 +2062,112 @@ mod tests {
         assert!(parse!(parser, r#"
          = 1 2;
         "#).is_err());
+    }
+
+    #[test]
+    fn const_value_clone_test() {
+        let parser = ExpandParser::new();
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const A = 1;
+        const B = A;
+        const A = 2;
+        print A B;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "print 2",
+                   "print 1",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const A = 1;
+        const B = A;
+        const A = 2;
+        const C = B;
+        const B = 3;
+        const B = B;
+        print A B C;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "print 2",
+                   "print 3",
+                   "print 1",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const A = B;
+        const B = 2;
+        print A;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "print B",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const A = B;
+        const B = 2;
+        const A = A;
+        print A;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "print B",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const A = B;
+        const B = 2;
+        {
+            const A = A;
+            print A;
+        }
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "print B",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const A = B;
+        {
+            const B = 2;
+            const A = A;
+            print A;
+        }
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "print B",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const A = B;
+        {
+            const B = 2;
+            print A;
+        }
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "print B",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const A = B;
+        const B = C;
+        const C = A;
+        print C;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "print B",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const A = C;
+        const C = 2;
+        const B = A;
+        const A = 3;
+        const C = B;
+        print C;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "print C",
+        ]);
     }
 }
