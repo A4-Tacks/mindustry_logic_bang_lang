@@ -1,7 +1,7 @@
 " Vim syntax file
 " Language:		mindustry_logic_bang_lang (mdtlbl)
 " Maintainer:		A4-Tacks <wdsjxhno1001@163.com>
-" Last Change:		2023-7-25
+" Last Change:		2023-7-31
 " URL:		https://github.com/A4-Tacks/mindustry_logic_bang_lang
 
 " 已加载高亮时就退出
@@ -24,7 +24,7 @@ syn case match
 
 
 " 控制语句 {{{1
-syn keyword mdtlblKeyword while do skip goto if elif else switch case const take
+syn keyword mdtlblKeyword while do skip goto if elif else switch case const take gwhile
 hi link mdtlblKeyword Keyword
 
 

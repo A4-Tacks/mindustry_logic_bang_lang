@@ -59,7 +59,7 @@
 		{
 			// control
 			match: keywordsToRegex(
-				"while do skip goto if elif else switch case"
+				"while gwhile do skip goto if elif else switch case"
 			),
 			0: "keyword"
 		},

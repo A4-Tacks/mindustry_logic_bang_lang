@@ -1370,6 +1370,24 @@ mod tests {
             }
             "#).unwrap(),
         );
+
+        assert_eq!(
+            parse!(parser, r#"
+            gwhile a < b {
+                print 1;
+            }
+            "#).unwrap(),
+            parse!(parser, r#"
+            {
+                goto :___0 _;
+                :___1 {
+                    print 1;
+                }
+                :___0
+                goto :___1 a < b;
+            }
+            "#).unwrap(),
+        );
     }
 
     #[test]

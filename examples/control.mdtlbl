@@ -81,3 +81,34 @@ op add n n 1
 jump 0 lessThan n 9
 *#
 # 就如同do_while一样, 我们手动完成了它
+
+
+i = 0;
+gwhile i < 10 {
+    op i i + 1;
+}
+
+#* >>>
+set i 0
+jump 3 always 0 0
+op add i i 1
+jump 2 lessThan i 10
+*#
+# 这是为了避免普通while进行条件复制带来的副作用与代码膨胀而诞生的
+# 可以看到, 头部并不是对条件反转然后跳过循环体而是直接跳到条件部分
+#   然后就是一个do_while结构
+# 也就是说它的结构为
+i = 0;
+goto :x _;
+do {
+    op i i + 1;
+    :x
+} while i < 10;
+#* >>>
+set i 0
+jump 3 always 0 0
+op add i i 1
+jump 2 lessThan i 10
+*#
+# 它的缺点是, 需要多一条跳转, 所以这导致while并没有采用这种形式
+# 当然, 在手写逻辑时, 我们很喜欢这么写, 因为比较省力

@@ -314,6 +314,17 @@ pub Control: LogicLine = {
         ]).into()
     },
 
+    "gwhile" <cmp:JumpCmp> <body:LogicLine> => {
+        let [to, head] = [meta.get_tag(), meta.get_tag()];
+        Expand(vec![
+            Goto(to.clone(), JumpCmp::Always.into()).into(),
+            LogicLine::new_label(head.clone(), meta),
+            body,
+            LogicLine::new_label(to, meta),
+            Goto(head, cmp).into(),
+        ]).into()
+    },
+
     "switch" <value:Value>
     <cases:MBlock<(
         <LogicLine?> // append line
