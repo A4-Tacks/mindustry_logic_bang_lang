@@ -1,0 +1,61 @@
+const Swap = (
+    #**
+    交换两内存元的两个位置的值
+    *#
+    take Cell1 = _0;
+    take Cell2 = _1;
+    take Index1 = _2;
+    take Index2 = _3;
+    
+    take Tmp1 = (); # 用于交换的中间变量
+    take Tmp2 = ();
+
+    read Tmp1 Cell1 Index1;
+    read Tmp2 Cell2 Index2;
+
+    write Tmp2 Cell1 Index1;
+    write Tmp1 Cell2 Index2;
+);
+
+const Reverse = (
+    #*
+    对一个内存元中的[Left,Right]区间的值反转
+    *#
+    take Cell = _0;
+    take Left = _1;
+    take Right = _2;
+
+    take I = ();
+    take J = ();
+
+    I J = Left Right;
+
+    while I < J {
+        take[Cell Cell I J] Swap;
+        op I I + 1;
+        op J J - 1;
+    }
+);
+
+const Fill = (
+    #*
+    对内存Cell中从Start开始到End(不包括)的区域使用Value进行填充
+    这不会预先使用take对Value进行求值, 也就是说你可以使用DExp进行填充
+        如果你使用DExp来进行填充, 你将会在`_0`接受到当前下标
+    *#
+    const Value = _0;
+    take Cell = _1;
+    take Start = _2;
+    take End = _3;
+
+    take I = ();
+
+    I = Start;
+
+    while I < End {
+        take[I] Data = Value;
+        write Data Cell I;
+        op I I + 1;
+    }
+);
+
