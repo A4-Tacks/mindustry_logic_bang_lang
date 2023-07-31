@@ -59,3 +59,17 @@ const Fill = (
     }
 );
 
+const Swaps = (
+    #**
+    使用手摇算法将[LL,LR]与[RL,RR]两个区间的元素进行交换
+    *#
+    take Cell = _0;
+    take LL = _1;
+    take LR = _2;
+    take RL = _3;
+    take RR = _4;
+    take[Cell LL LR] Reverse;
+    take[Cell RL RR] Reverse;
+    take[Cell (op $ LR + 1;) (op $ RL - 1;)] Reverse;
+    take[Cell LL RR] Reverse;
+);
