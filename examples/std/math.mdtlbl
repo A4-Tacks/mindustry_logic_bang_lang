@@ -1,0 +1,36 @@
+#*
+数学标准库
+*#
+
+const PI = 3.1415926535897932;
+const E = 2.7182818284590452;
+
+const Log2_2Value = 0.6931471805599453;
+
+const LogN = (
+    take Value = _0;
+    take Base = _1;
+
+    op $ (op $ log Value;) / (op $ log Base;);
+);
+
+const Log2 = (
+    take Num = _0;
+    op $ (op $ log Num;) / Log2_2Value;
+);
+
+const Deg = (
+    #**
+    将弧度转换为角度
+    *#
+    take Num = _0;
+    op $ Num * 57.2957795130823208;
+);
+
+const Rad = (
+    #**
+    将角度转换为弧度
+    *#
+    take Num = _0;
+    op $ Num * 0.0174532925199432;
+);

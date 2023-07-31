@@ -18,7 +18,7 @@ const Swap = (
 );
 
 const Reverse = (
-    #*
+    #**
     对一个内存元中的[Left,Right]区间的值反转
     *#
     take Cell = _0;
@@ -38,7 +38,7 @@ const Reverse = (
 );
 
 const Fill = (
-    #*
+    #**
     对内存Cell中从Start开始到End(不包括)的区域使用Value进行填充
     这不会预先使用take对Value进行求值, 也就是说你可以使用DExp进行填充
         如果你使用DExp来进行填充, 你将会在`_0`接受到当前下标
