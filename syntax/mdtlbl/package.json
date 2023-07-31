@@ -1,0 +1,41 @@
+{
+    "name": "mdtlbl",
+    "displayName": "mdtlbl",
+    "description": "Mindustry Logic Bang Lang syntax highlight for VSCode",
+    "version": "0.0.1",
+    "engines": {
+        "vscode": "^1.80.0"
+    },
+    "categories": [
+        "Programming Languages",
+        "Snippets"
+    ],
+    "contributes": {
+        "languages": [
+            {
+                "id": "mdtlbl",
+                "aliases": [
+                    "MindustryLogicBangLang",
+                    "mdtlbl"
+                ],
+                "extensions": [
+                    ".mdtlbl"
+                ],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "mdtlbl",
+                "scopeName": "source.mdtlbl",
+                "path": "./syntaxes/mdtlbl.tmLanguage.json"
+            }
+        ],
+        "snippets": [
+            {
+                "language": "mdtlbl",
+                "path": "./snippets/snippets.json"
+            }
+        ]
+    }
+}

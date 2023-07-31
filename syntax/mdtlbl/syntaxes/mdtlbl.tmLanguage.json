@@ -1,0 +1,221 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "MindustryLogicBangLang",
+	"patterns": [
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#string"
+		},
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#special-constants"
+		},
+		{
+			"include": "#label"
+		},
+		{
+			"include": "#object"
+		},
+		{
+			"include": "#variable"
+		},
+		{
+			"include": "#numbers"
+		}
+	],
+	"repository": {
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.control.mdtlbl",
+					"match": "\\b(if|elif|else|do|while|for|take|goto|switch|case|skip|end|gwhile)\\b"
+				},
+				{
+					"match": "(const)\\s+([_a-zA-Z]\\w*)",
+					"captures": {
+						"1": {
+							"name": "storage.modifier.mdtlbl"
+						},
+						"2": {
+							"name": "variable.other.constant.mdtlbl"
+						}
+					}
+				},
+				{
+					"name": "storage.modifier.mdtlbl",
+					"match": "\\b(const|set|read|write|setres)\\b"
+				},
+				{
+					"name": "entity.name.function.mdtlbl",
+					"match": "\\b(op|noop|print|control|printflush|wait|sensor)\\b"
+				},
+				{
+					"name": "keyword.operator.word.mdtlbl",
+					"match": "\\b(equal|notEqual|lessThan|lessThanEq|greaterThan|greaterThanEq|strictEqual|always|lnot|add|sub|mul|div|idiv|mod|pow|shl|shr|or|and|xor|max|min|angle|len|noise|not|abs|log|log10|floor|ceil|sqrt|rand|sin|cos|tan|asin|acos|atan)\\b"
+				},
+				{
+					"match": "(!|&&|\\|\\|)",
+					"name": "keyword.operator.logical.mdtlbl"
+				},
+				{
+					"match": "(\\||&)",
+					"name": "keyword.operator.bitwise.mdtlbl"
+				},
+				{
+					"match": "(=)",
+					"name": "keyword.operator.assignment.mdtlbl"
+				},
+				{
+					"match": "(===?|!=|<=|>=|<|>)",
+					"name": "keyword.operator.comparison.mdtlbl"
+				},
+				{
+					"match": "(<<|>>>?|~|\\^)",
+					"name": "keyword.operator.bitwise.mdtlbl"
+				}
+			]
+		},
+		"string": {
+			"patterns": [
+				{
+					"include": "#qstring-single"
+				},
+				{
+					"include": "#qstring-double"
+				}
+			]
+		},
+		"qstring-double": {
+			"name": "string.quoted.double.mdtlbl",
+			"begin": "\"",
+			"end": "\"",
+			"captures": {
+				"0": {
+					"name": "punctuation.definition.string.mdtlbl"
+				}
+			}
+		},
+		"qstring-single": {
+			"name": "string.quoted.single.mdtlbl",
+			"begin": "'",
+			"end": "'",
+			"captures": {
+				"0": {
+					"name": "punctuation.definition.string.mdtlbl"
+				}
+			}
+		},
+		"comments": {
+			"patterns": [
+				{
+					"captures": {
+						"0": {
+							"name": "punctuation.definition.comment.mdtlbl"
+						}
+					},
+					"match": "#\\*\\*#",
+					"name": "comment.block.empty.mdtlbl"
+				},
+				{
+					"include": "#comments-inline"
+				}
+			]
+		},
+		"comments-inline": {
+			"patterns": [
+				{
+					"begin": "#\\*",
+					"captures": {
+						"0": {
+							"name": "punctuation.definition.comment.mdtlbl"
+						}
+					},
+					"end": "\\*#",
+					"name": "comment.block.mdtlbl"
+				},
+				{
+					"begin": "(^[ \\t]+)?(?=#)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.whitespace.comment.leading.mdtlbl"
+						}
+					},
+					"end": "(?!\\G)",
+					"patterns": [
+						{
+							"begin": "#",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.definition.comment.mdtlbl"
+								}
+							},
+							"end": "\\n",
+							"name": "comment.line.sharp.mdtlbl"
+						}
+					]
+				}
+			]
+		},
+		"special-constants": {
+			"patterns": [
+				{
+					"match": "\\b(true|false)\\b",
+					"name": "constant.language.mdtlbl"
+				},
+				{
+					"match": "\\$",
+					"name": "constant.language.mdtlbl"
+				}
+			]
+		},
+		"label": {
+			"patterns": [
+				{
+					"match": ":\\w+",
+					"name": "entity.name.tag.mdtlbl"
+				}
+			]
+		},
+		"object": {
+			"patterns": [
+				{
+					"match": "@\\w+(-\\w+)?",
+					"name": "variable.other.constant.mdtlbl"
+				}
+			]
+		},
+		"variable": {
+			"patterns": [
+				{
+					"match": "(?<!:|@)\\b[_a-zA-Z]\\w*",
+					"name": "variable.other.readwrite.mdtlbl"
+				}
+			]
+		},
+		"numbers": {
+			"patterns": [
+				{
+					"match": "(?x)\n\\b(?<!\\$)\n0(x|X)\n(\n  (?<!\\.)[0-9a-fA-F]([0-9a-fA-F_]*[0-9a-fA-F])?[Ll]?(?!\\.)\n  |\n  (\n    [0-9a-fA-F]([0-9a-fA-F_]*[0-9a-fA-F])?\\.?\n    |\n    ([0-9a-fA-F]([0-9a-fA-F_]*[0-9a-fA-F])?)?\\.[0-9a-fA-F]([0-9a-fA-F_]*[0-9a-fA-F])?\n  )\n  [Pp][+-]?[0-9]([0-9_]*[0-9])?[FfDd]?\n)\n\\b(?!\\$)",
+					"name": "constant.numeric.hex.mdtlbl"
+				},
+				{
+					"match": "\\b(?<!\\$)0(b|B)-?[01]([01_]*[01])?[Ll]?\\b(?!\\$)",
+					"name": "constant.numeric.binary.mdtlbl"
+				},
+				{
+					"match": "\\b(?<!\\$)0[0-7]([0-7_]*[0-7])?[Ll]?\\b(?!\\$)",
+					"name": "constant.numeric.octal.mdtlbl"
+				},
+				{
+					"match": "(?x)\n(?<!\\$)\n(\n  \\b[0-9]([0-9_]*[0-9])?\\.\\B(?!\\.)\n  |\n  \\b[0-9]([0-9_]*[0-9])?\\.([Ee][+-]?[0-9]([0-9_]*[0-9])?)[FfDd]?\\b\n  |\n  \\b[0-9]([0-9_]*[0-9])?\\.([Ee][+-]?[0-9]([0-9_]*[0-9])?)?[FfDd]\\b\n  |\n  \\b[0-9]([0-9_]*[0-9])?\\.([0-9]([0-9_]*[0-9])?)([Ee][+-]?[0-9]([0-9_]*[0-9])?)?[FfDd]?\\b\n  |\n  (?<!\\.)\\B\\.[0-9]([0-9_]*[0-9])?([Ee][+-]?[0-9]([0-9_]*[0-9])?)?[FfDd]?\\b\n  |\n  \\b[0-9]([0-9_]*[0-9])?([Ee][+-]?[0-9]([0-9_]*[0-9])?)[FfDd]?\\b\n  |\n  \\b[0-9]([0-9_]*[0-9])?([Ee][+-]?[0-9]([0-9_]*[0-9])?)?[FfDd]\\b\n  |\n  \\b(0|[1-9]([0-9_]*[0-9])?)(?!\\.)[Ll]?\\b\n)\n(?!\\$)",
+					"name": "constant.numeric.decimal.mdtlbl"
+				}
+			]
+		}
+	},
+	"scopeName": "source.mdtlbl"
+}
