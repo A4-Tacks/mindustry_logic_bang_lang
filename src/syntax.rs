@@ -226,8 +226,6 @@ impl DExp {
 #[derive(Debug)]
 pub struct Meta {
     tag_number: usize,
-    id: usize,
-    tmp_var: usize,
     /// 被跳转的label
     defined_labels: Vec<Vec<Var>>,
 }
@@ -235,8 +233,6 @@ impl Default for Meta {
     fn default() -> Self {
         Self {
             tag_number: 0,
-            id: 0,
-            tmp_var: 0,
             defined_labels: vec![Vec::new()],
         }
     }
@@ -251,21 +247,7 @@ impl Meta {
     pub fn get_tag(&mut self) -> String {
         let tag = self.tag_number;
         self.tag_number += 1;
-        format!("__{}", tag)
-    }
-
-    /// 获取一个临时变量, 不会重复获取
-    pub fn get_tmp_var(&mut self) -> Var {
-        let id = self.tmp_var;
-        self.tmp_var += 1;
-        format!("__{}", id)
-    }
-
-    /// 获取一个始终不会重复获取的id
-    pub fn get_id(&mut self) -> usize {
-        let id = self.id;
-        self.id += 1;
-        id
+        format!("___{}", tag)
     }
 
     /// 添加一个被跳转的label到当前作用域
@@ -427,6 +409,73 @@ impl JumpCmp {
     }
 }
 
+/// 一颗比较树,
+/// 用于多条件判断.
+/// 例如: `a < b && c < d || e == f`
+#[derive(Debug, PartialEq, Clone)]
+pub enum CmpTree {
+    And(Box<Self>, Box<Self>),
+    Or(Box<Self>, Box<Self>),
+    Atom(JumpCmp),
+}
+impl CmpTree {
+    /// 反转自身条件,
+    /// 使用`德•摩根定律`进行表达式变换.
+    ///
+    /// 即`!(a&&b) == (!a)||(!b)`和`!(a||b) == (!a)&&(!b)`
+    ///
+    /// 例如表达式`(a && b) || c`进行反转变换
+    /// 1. `!((a && b) || c)`
+    /// 2. `!(a && b) && !c`
+    /// 3. `(!a || !b) && !c`
+    pub fn reverse(self) -> Self {
+        match self {
+            Self::Or(a, b)
+                => Self::And(a.reverse().into(), b.reverse().into()),
+            Self::And(a, b)
+                => Self::Or(a.reverse().into(), b.reverse().into()),
+            Self::Atom(cmp)
+                => Self::Atom(cmp.reverse()),
+        }
+    }
+
+    /// TODO
+    /// 构建条件树为goto
+    pub fn build(self, meta: &mut CompileMeta, mut do_tag: Var) {
+        use CmpTree::*;
+
+        // 获取如果在常量展开内则被重命名后的标签
+        do_tag = meta.get_in_const_label(do_tag);
+
+        match self {
+            Or(a, b) => {
+                a.build(meta, do_tag.clone());
+                b.build(meta, do_tag);
+            },
+            And(a, b) => {
+                let end = meta.get_tmp_tag();
+                a.reverse().build(meta, end.clone());
+                b.build(meta, do_tag);
+                let tag_id = meta.get_tag(end);
+                meta.push(TagLine::TagDown(tag_id));
+            },
+            Atom(cmp) => {
+                let cmp_str = cmp.cmp_str();
+                let (a, b) = cmp.build_value(meta);
+
+                let jump = Jump(
+                    meta.get_tag(do_tag).into(),
+                    format!("{} {} {}", cmp_str, a, b)
+                );
+                meta.push(jump.into())
+            },
+        }
+    }
+}
+impl_enum_froms!(impl From for CmpTree {
+    Atom => JumpCmp;
+});
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Op {
     Add(Value, Value, Value),
@@ -578,18 +627,10 @@ impl Compile for Op {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Goto(pub Var, pub JumpCmp);
+pub struct Goto(pub Var, pub CmpTree);
 impl Compile for Goto {
-    fn compile(mut self, meta: &mut CompileMeta) {
-        // 如果在常量替换内, 这将被重命名
-        self.0 = meta.get_in_const_label(self.0);
-        let cmp_str = self.1.cmp_str();
-        let (a, b) = self.1.build_value(meta);
-        let jump = Jump(
-            meta.get_tag(self.0).into(),
-            format!("{} {} {}", cmp_str, a, b)
-        );
-        meta.push(TagLine::Jump(jump.into()))
+    fn compile(self, meta: &mut CompileMeta) {
+        self.1.build(meta, self.0)
     }
 }
 
@@ -1248,7 +1289,7 @@ mod tests {
     fn goto_test() {
         let parser = ExpandParser::new();
         assert_eq!(parse!(parser, "goto :a 1 <= 2; :a").unwrap(), vec![
-            Goto("a".into(), JumpCmp::LessThanEq("1".into(), "2".into())).into(),
+            Goto("a".into(), JumpCmp::LessThanEq("1".into(), "2".into()).into()).into(),
             LogicLine::Label("a".into()),
         ].into());
     }
@@ -1259,9 +1300,9 @@ mod tests {
         assert_eq!(
             parse!(parser, r#"skip 1 < 2 print "hello";"#).unwrap(),
             Expand(vec![
-                Goto("__0".into(), JumpCmp::LessThan("1".into(), "2".into())).into(),
+                Goto("___0".into(), JumpCmp::LessThan("1".into(), "2".into()).into()).into(),
                 LogicLine::Other(vec!["print".into(), r#""hello""#.into()]),
-                LogicLine::Label("__0".into()),
+                LogicLine::Label("___0".into()),
             ]).into()
         );
 
@@ -1277,23 +1318,23 @@ mod tests {
             "#).unwrap(),
             parse!(parser, r#"
             {
-                goto :__1 2 < 3;
-                goto :__2 3 < 4;
-                goto :__3 4 < 5;
+                goto :___1 2 < 3;
+                goto :___2 3 < 4;
+                goto :___3 4 < 5;
                 print 4;
-                goto :__0 _;
-                :__2 {
+                goto :___0 _;
+                :___2 {
                     print 2;
                 }
-                goto :__0 _;
-                :__3 {
+                goto :___0 _;
+                :___3 {
                     print 3;
                 }
-                goto :__0 _;
-                :__1 {
+                goto :___0 _;
+                :___1 {
                     print 1;
                 }
-                :__0
+                :___0
             }
             "#).unwrap(),
         );
@@ -1305,11 +1346,11 @@ mod tests {
             "#).unwrap(),
             parse!(parser, r#"
             {
-                goto :__0 a >= b;
-                :__1
+                goto :___0 a >= b;
+                :___1
                 print 3;
-                goto :__1 a < b;
-                :__0
+                goto :___1 a < b;
+                :___0
             }
             "#).unwrap(),
         );
@@ -1322,10 +1363,10 @@ mod tests {
             "#).unwrap(),
             parse!(parser, r#"
             {
-                :__0 {
+                :___0 {
                     print 1;
                 }
-                goto :__0 a < b;
+                goto :___0 a < b;
             }
             "#).unwrap(),
         );
@@ -2178,6 +2219,329 @@ mod tests {
         "#).unwrap()).compile().unwrap();
         assert_eq!(logic_lines, vec![
                    "print C",
+        ]);
+    }
+
+    #[test]
+    fn cmptree_test() {
+        let parser = ExpandParser::new();
+
+        let ast = parse!(parser, r#"
+        goto :end a && b && c;
+        foo;
+        :end
+        end;
+        "#).unwrap();
+        assert_eq!(
+            ast[0].as_goto().unwrap().1,
+            CmpTree::And(
+                CmpTree::And(
+                    Box::new(JumpCmp::NotEqual("a".into(), "false".into()).into()),
+                    Box::new(JumpCmp::NotEqual("b".into(), "false".into()).into()),
+                ).into(),
+                Box::new(JumpCmp::NotEqual("c".into(), "false".into()).into()),
+            ).into()
+        );
+
+        let ast = parse!(parser, r#"
+        goto :end a || b || c;
+        foo;
+        :end
+        end;
+        "#).unwrap();
+        assert_eq!(
+            ast[0].as_goto().unwrap().1,
+            CmpTree::Or(
+                CmpTree::Or(
+                    Box::new(JumpCmp::NotEqual("a".into(), "false".into()).into()),
+                    Box::new(JumpCmp::NotEqual("b".into(), "false".into()).into()),
+                ).into(),
+                Box::new(JumpCmp::NotEqual("c".into(), "false".into()).into()),
+            ).into()
+        );
+
+        let ast = parse!(parser, r#"
+        goto :end a && b || c && d;
+        foo;
+        :end
+        end;
+        "#).unwrap();
+        assert_eq!(
+            ast[0].as_goto().unwrap().1,
+            CmpTree::Or(
+                CmpTree::And(
+                    Box::new(JumpCmp::NotEqual("a".into(), "false".into()).into()),
+                    Box::new(JumpCmp::NotEqual("b".into(), "false".into()).into()),
+                ).into(),
+                CmpTree::And(
+                    Box::new(JumpCmp::NotEqual("c".into(), "false".into()).into()),
+                    Box::new(JumpCmp::NotEqual("d".into(), "false".into()).into()),
+                ).into(),
+            ).into()
+        );
+
+        let ast = parse!(parser, r#"
+        goto :end a && (b || c) && d;
+        foo;
+        :end
+        end;
+        "#).unwrap();
+        assert_eq!(
+            ast[0].as_goto().unwrap().1,
+            CmpTree::And(
+                CmpTree::And(
+                    Box::new(JumpCmp::NotEqual("a".into(), "false".into()).into()),
+                    CmpTree::Or(
+                        Box::new(JumpCmp::NotEqual("b".into(), "false".into()).into()),
+                        Box::new(JumpCmp::NotEqual("c".into(), "false".into()).into()),
+                    ).into(),
+                ).into(),
+                Box::new(JumpCmp::NotEqual("d".into(), "false".into()).into()),
+            ).into()
+        );
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        goto :end a && b;
+        foo;
+        :end
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 2 equal a false",
+                   "jump 3 notEqual b false",
+                   "foo",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        goto :end (a || b) && c;
+        foo;
+        :end
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 2 notEqual a false",
+                   "jump 3 equal b false",
+                   "jump 4 notEqual c false",
+                   "foo",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        goto :end (a || b) && (c || d);
+        foo;
+        :end
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 2 notEqual a false",
+                   "jump 4 equal b false",
+                   "jump 5 notEqual c false",
+                   "jump 5 notEqual d false",
+                   "foo",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        goto :end a || b || c || d || e;
+        foo;
+        :end
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 6 notEqual a false",
+                   "jump 6 notEqual b false",
+                   "jump 6 notEqual c false",
+                   "jump 6 notEqual d false",
+                   "jump 6 notEqual e false",
+                   "foo",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        goto :end a && b && c && d && e;
+        foo;
+        :end
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 5 equal a false",
+                   "jump 5 equal b false",
+                   "jump 5 equal c false",
+                   "jump 5 equal d false",
+                   "jump 6 notEqual e false",
+                   "foo",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        goto :end (a && b && c) && d && e;
+        foo;
+        :end
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 5 equal a false",
+                   "jump 5 equal b false",
+                   "jump 5 equal c false",
+                   "jump 5 equal d false",
+                   "jump 6 notEqual e false",
+                   "foo",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        goto :end a && b && (c && d && e);
+        foo;
+        :end
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 5 equal a false",
+                   "jump 5 equal b false",
+                   "jump 5 equal c false",
+                   "jump 5 equal d false",
+                   "jump 6 notEqual e false",
+                   "foo",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        goto :end a && (op $ b && c;);
+        foo;
+        :end
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 3 equal a false",
+                   "op land __0 b c",
+                   "jump 4 notEqual __0 false",
+                   "foo",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        goto :end a && b || c && d;
+        foo;
+        :end
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 2 equal a false",
+                   "jump 5 notEqual b false",
+                   "jump 4 equal c false",
+                   "jump 5 notEqual d false",
+                   "foo",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        goto :end !a && b || c && d;
+        foo;
+        :end
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 2 notEqual a false",
+                   "jump 5 notEqual b false",
+                   "jump 4 equal c false",
+                   "jump 5 notEqual d false",
+                   "foo",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        goto :end (a && b) || !(c && d);
+        foo;
+        :end
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 2 equal a false",
+                   "jump 5 notEqual b false",
+                   "jump 5 equal c false",
+                   "jump 5 equal d false",
+                   "foo",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        goto :end (a && b && c) || (d && e);
+        foo;
+        :end
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 3 equal a false",
+                   "jump 3 equal b false",
+                   "jump 6 notEqual c false",
+                   "jump 5 equal d false",
+                   "jump 6 notEqual e false",
+                   "foo",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        goto :end (a && b || c) || (d && e);
+        foo;
+        :end
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 2 equal a false",
+                   "jump 6 notEqual b false",
+                   "jump 6 notEqual c false",
+                   "jump 5 equal d false",
+                   "jump 6 notEqual e false",
+                   "foo",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        goto :end ((a && b) || c) || (d && e);
+        foo;
+        :end
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 2 equal a false",
+                   "jump 6 notEqual b false",
+                   "jump 6 notEqual c false",
+                   "jump 5 equal d false",
+                   "jump 6 notEqual e false",
+                   "foo",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        goto :end (a && (b || c)) || (d && e);
+        foo;
+        :end
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 3 equal a false",
+                   "jump 6 notEqual b false",
+                   "jump 6 notEqual c false",
+                   "jump 5 equal d false",
+                   "jump 6 notEqual e false",
+                   "foo",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        goto :end (op $ a + 2;) && (op $ b + 2;);
+        foo;
+        :end
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "op add __0 a 2",
+                   "jump 4 equal __0 false",
+                   "op add __1 b 2",
+                   "jump 5 notEqual __1 false",
+                   "foo",
+                   "end",
         ]);
     }
 }

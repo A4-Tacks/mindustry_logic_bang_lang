@@ -11,6 +11,7 @@ use crate::syntax::{
     Var,
     DExp,
     JumpCmp,
+    CmpTree,
     Goto,
     Expand,
     Select,
@@ -110,9 +111,26 @@ JumpCmpBody: JumpCmp = {
     <Value> => JumpCmp::bool(<>),
 }
 
-pub JumpCmp: JumpCmp = {
-    JumpCmpBody,
-    Or<"lnot", "!"> <JumpCmp> => <>.reverse(),
+pub JumpCmp: CmpTree = CmpTree1;
+
+pub CmpTree1: CmpTree = {
+    <a:CmpTree1> "||" <b:CmpTree2> => CmpTree::Or(Box::new(a.into()), b.into()),
+    CmpTree2,
+}
+
+pub CmpTree2: CmpTree = {
+    <a:CmpTree2> "&&" <b:CmpTree3> => CmpTree::And(Box::new(a.into()), b.into()),
+    CmpTree3,
+}
+
+pub CmpTree3: CmpTree = {
+    Or<"lnot", "!"> <CmpTree3> => <>.reverse(),
+    CmpTree,
+}
+
+pub CmpTree: CmpTree = {
+    JumpCmpBody => <>.into(),
+    MTuple<JumpCmp>,
 }
 
 pub Op: Op = {
@@ -355,13 +373,13 @@ pub Control: LogicLine = {
             res.push(Goto(tag.clone(), cmp).into()); // true jump
         }
         else_body.map(|body| res.push(body));
-        res.push(Goto(end.clone(), JumpCmp::Always).into()); // jump always to end
+        res.push(Goto(end.clone(), JumpCmp::Always.into()).into()); // jump always to end
 
         // elif body
         for (tag, body) in elif_tags.into_iter().zip(elif_bodys) {
             res.push(LogicLine::new_label(tag, meta));
             res.push(body);
-            res.push(Goto(end.clone(), JumpCmp::Always).into()); // jump always to end
+            res.push(Goto(end.clone(), JumpCmp::Always.into()).into()); // jump always to end
         }
 
         // true body
