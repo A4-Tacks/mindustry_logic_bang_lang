@@ -439,7 +439,6 @@ impl CmpTree {
         }
     }
 
-    /// TODO
     /// 构建条件树为goto
     pub fn build(self, meta: &mut CompileMeta, mut do_tag: Var) {
         use CmpTree::*;
@@ -1065,7 +1064,6 @@ impl CompileMeta {
     /// 新增一个常量到值的映射, 如果当前作用域已有此映射则返回旧的值并插入新值
     pub fn add_const_value(&mut self, Const(var, mut value, mut labels): Const)
     -> Option<(Vec<Var>, Value)> {
-        // TODO
         // 去掉调用次数 (*)
         // 将定义常量映射到常量改为直接把常量对应的值拿过来
         // 防止`const A = 1;const B = A;const A = 2;print B;`输出2
