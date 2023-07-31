@@ -274,6 +274,8 @@ pub BuiltinCommand: LogicLine = {
             Expand(expand).into()
         }
     },
+
+    "setres" <Value> LEnd => LogicLine::SetResultHandle(<>),
 }
 
 pub Block: LogicLine = MBlock<Expand> => <>.into();

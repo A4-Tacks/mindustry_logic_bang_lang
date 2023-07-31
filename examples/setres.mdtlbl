@@ -1,0 +1,30 @@
+#* setres Value;
+强行将该DExp的返回句柄设置为后方的Value, 方法是拿取它的句柄.
+    也就是说它会计算Value.
+注意:
+    这个是强行设置当前DExp的返回句柄, 一般用于DExp定义时返回句柄未知的情况
+        例如返回一个未知的const_dexp的计算结果
+    当你手动指定DExp返回句柄时, 要注意接下来有没有使用setres,
+        与setres的值是否会带来副作用
+*#
+
+const DoOp = (
+    # 使用f传入a和b进行计算
+    const f = _0;
+    const a = _1;
+    const b = _2;
+    take[a b] RES = f;
+    setres RES;
+);
+
+take[(op $ _0 + _1;) 1 2] RES = DoOp;
+
+print RES;
+
+#* >>>
+op add __1 1 2
+print __1
+*#
+
+# 可以看到, 在有了setres后, 零开销抽象更加完备了
+# 还记得我们const中那个示例吗? 现在已经可以用setres完成了

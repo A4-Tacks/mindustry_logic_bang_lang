@@ -70,7 +70,7 @@
 		{
 			// other
 			match: keywordsToRegex(
-				"const take"
+				"const take setres"
 			),
 			0: "keyword2"
 		}

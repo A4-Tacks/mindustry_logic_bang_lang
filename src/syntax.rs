@@ -7,6 +7,7 @@ use std::{
         repeat_with,
     },
     process::exit,
+    mem::replace,
 };
 use crate::{
     err,
@@ -139,13 +140,9 @@ impl Value {
                     result = value.as_var().unwrap().clone()
                 }
                 assert!(! result.is_empty());
-                #[cfg(debug_assertions)]
-                let old_handle = result.clone();
                 meta.push_dexp_handle(result);
                 lines.compile(meta);
                 let result = meta.pop_dexp_handle();
-                #[cfg(debug_assertions)]
-                assert_eq!(result, old_handle);
                 result
             },
             Self::ResultHandle => meta.dexp_handle().clone(),
@@ -748,6 +745,8 @@ pub enum LogicLine {
     Const(Const),
     Take(Take),
     ConstLeak(Var),
+    /// 将返回句柄设置为一个指定值
+    SetResultHandle(Value),
 }
 impl Compile for LogicLine {
     fn compile(self, meta: &mut CompileMeta) {
@@ -766,14 +765,18 @@ impl Compile for LogicLine {
                     .collect();
                 meta.push(TagLine::Line(handles.join(" ").into()))
             },
+            Self::SetResultHandle(value) => {
+                let new_dexp_handle = value.take(meta);
+                meta.set_dexp_handle(new_dexp_handle);
+            },
             Self::Select(select) => select.compile(meta),
             Self::Expand(expand) => expand.compile(meta),
             Self::Goto(goto) => goto.compile(meta),
             Self::Op(op) => op.compile(meta),
-            Self::Ignore => (),
             Self::Const(r#const) => r#const.compile(meta),
             Self::Take(take) => take.compile(meta),
             Self::ConstLeak(r#const) => meta.add_const_value_leak(r#const),
+            Self::Ignore => (),
         }
     }
 }
@@ -1108,23 +1111,41 @@ impl CompileMeta {
             .collect()
     }
 
+    /// 获取当前DExp返回句柄
     pub fn dexp_handle(&self) -> &Var {
-        self.dexp_result_handles.last().unwrap_or_else(|| {
-            let mut tags_map = self.debug_tags_map();
-            let mut tag_lines = self.debug_tag_codes();
-            line_first_add(&mut tags_map, "\t");
-            line_first_add(&mut tag_lines, "\t");
-            err!(
-                concat!(
-                    "尝试在`DExp`的外部使用`DExpHandle` (`$`)\n",
-                    "tag映射id:\n{}\n",
-                    "已经生成的代码:\n{}\n",
-                ),
-                tags_map.join("\n"),
-                tag_lines.join("\n"),
-            );
-            exit(6)
-        })
+        self.dexp_result_handles
+            .last()
+            .unwrap_or_else(
+                || self.do_out_of_dexp_err("`DExpHandle` (`$`)"))
+    }
+
+    /// 将当前DExp返回句柄替换为新的
+    /// 并将旧的句柄返回
+    pub fn set_dexp_handle(&mut self, new_dexp_handle: Var) -> Var {
+        if let Some(ref_) = self.dexp_result_handles.last_mut() {
+            replace(ref_, new_dexp_handle)
+        } else {
+            self.do_out_of_dexp_err("`setres`")
+        }
+    }
+
+    /// 对在外部使用`DExpHandle`进行报错
+    fn do_out_of_dexp_err(&self, value: &str) -> ! {
+        let mut tags_map = self.debug_tags_map();
+        let mut tag_lines = self.debug_tag_codes();
+        line_first_add(&mut tags_map, "\t");
+        line_first_add(&mut tag_lines, "\t");
+        err!(
+            concat!(
+                "尝试在`DExp`的外部使用{}\n",
+                "tag映射id:\n{}\n",
+                "已经生成的代码:\n{}\n",
+            ),
+            value,
+            tags_map.join("\n"),
+            tag_lines.join("\n"),
+        );
+        exit(6)
     }
 
     /// 对于一个标记(Label), 进行寻找, 如果是在展开宏中, 则进行替换
@@ -2558,6 +2579,26 @@ mod tests {
                    "jump 5 notEqual __1 false",
                    "foo",
                    "end",
+        ]);
+    }
+
+    #[test]
+    fn set_res_test() {
+        let parser = ExpandParser::new();
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        print (setres (x: op $ 1 + 2;););
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "op add x 1 2",
+                   "print x",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        print (setres m;);
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "print m",
         ]);
     }
 }

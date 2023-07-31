@@ -99,10 +99,10 @@ jump 2 lessThan i 10
 #   然后就是一个do_while结构
 # 也就是说它的结构为
 i = 0;
-goto :x _;
+goto :x1 _;
 do {
     op i i + 1;
-    :x
+    :x1
 } while i < 10;
 #* >>>
 set i 0
