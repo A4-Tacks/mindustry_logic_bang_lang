@@ -365,6 +365,16 @@ pub Control: LogicLine = {
         <elifs:("elif" <JumpCmp> <Block>)*>
         <else_body:("else" <LogicLine>)?> => {
 
+        // 对于没有elif和else的直接优化成skip
+        if elifs.is_empty() && else_body.is_none() {
+            let lab = meta.get_tag();
+            return Expand(vec![
+                Goto(lab.clone(), cmp.reverse()).into(),
+                body,
+                LogicLine::new_label(lab, meta),
+            ]).into()
+        }
+
         let end = meta.get_tag();
         let true_start = meta.get_tag();
         let mut elif_tags = Vec::with_capacity(elifs.len());
