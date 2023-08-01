@@ -60,6 +60,10 @@ impl<T> TagBox<T> {
         self.tag
     }
 
+    pub fn tag_mut(&mut self) -> &mut Option<Tag> {
+        &mut self.tag
+    }
+
     pub fn data(&self) -> &T {
         &self.data
     }
@@ -250,10 +254,25 @@ impl TagLine {
     /// [`Line`]: `Self::Line`
     /// [`Jump`]: `Self::Jump`
     /// [`TagDown`]: `Self::TagDown`
-    pub fn tag(&self) -> Option<usize> {
+    pub fn tag(&self) -> Option<Tag> {
         match self {
             Self::Jump(jump) => jump.tag(),
             Self::Line(line) => line.tag(),
+            other => panic!("take_tag failed: {:?}", other),
+        }
+    }
+
+    /// 从[`Line`]或者[`Jump`]变体获取其`Tag`的可变引用, 但是这不包括[`TagDown`]变体
+    /// 因为此方法是为了获取当前行的`Tag`
+    /// 如果是[`TagDown`]变体则会触发`panic`
+    ///
+    /// [`Line`]: `Self::Line`
+    /// [`Jump`]: `Self::Jump`
+    /// [`TagDown`]: `Self::TagDown`
+    pub fn tag_mut(&mut self) -> &mut Option<Tag> {
+        match self {
+            Self::Jump(jump) => jump.tag_mut(),
+            Self::Line(line) => line.tag_mut(),
             other => panic!("take_tag failed: {:?}", other),
         }
     }
@@ -557,7 +576,23 @@ impl TagCodes {
             }
         }
 
-        drop(map_stack);
+        // 对于尾部索引进行构建
+        if let Some(first) = lines.iter_mut().find(|line| !line.is_tag_down()) {
+            if first.is_jump() || first.is_line() {
+                let tag = first.tag_mut();
+                if tag.is_none() {
+                    *tag = map_stack.pop();
+                }
+                if let &mut Some(tag) = tag {
+                    // 将尾部tag映射到头部语句
+                    for other in map_stack {
+                        tag_alias_map.insert(other, tag)
+                            .ok_or(())
+                            .unwrap_err()
+                    }
+                }
+            }
+        }
 
         for mut line in lines {
             let tag_refs: Vec<&mut Tag> = match &mut line {
@@ -865,6 +900,62 @@ mod tests {
         assert_eq!(tag_codes.no_tag_index_to_abs_index(1), Some(4));
         assert_eq!(tag_codes.no_tag_index_to_abs_index(2), Some(5));
         assert_eq!(tag_codes.no_tag_index_to_abs_index(3), None);
+    }
+
+    #[test]
+    fn tail_tag_test() {
+        let mut tag_codes = tag_lines! {
+            [:0];
+            [:1 "a"];
+            ["noop"];
+            [:2];
+        };
+        tag_codes.build_tagdown().unwrap();
+        assert_eq!(tag_codes, tag_lines! {
+            [:1 "a"];
+            ["noop"];
+        });
+
+        let mut tag_codes = tag_lines! {
+            [:0];
+            [:1 "a"];
+            ["noop"];
+            [jump 2 "foo"];
+            [:2];
+        };
+        tag_codes.build_tagdown().unwrap();
+        assert_eq!(tag_codes, tag_lines! {
+            [:1 "a"];
+            ["noop"];
+            [jump 1 "foo"];
+        });
+
+        let mut tag_codes = tag_lines! {
+            ["a"];
+            ["noop"];
+            [jump 2 "foo"];
+            [:2];
+        };
+        tag_codes.build_tagdown().unwrap();
+        assert_eq!(tag_codes, tag_lines! {
+            [:2 "a"];
+            ["noop"];
+            [jump 2 "foo"];
+        });
+
+        let mut tag_codes = tag_lines! {
+            ["a"];
+            ["noop"];
+            [jump 2 "foo"];
+            [:2];
+            [:3];
+        };
+        tag_codes.build_tagdown().unwrap();
+        assert_eq!(tag_codes, tag_lines! {
+            [:3 "a"];
+            ["noop"];
+            [jump 3 "foo"];
+        });
     }
 
     #[test]
