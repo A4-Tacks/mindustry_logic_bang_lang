@@ -73,3 +73,138 @@ const Swaps = (
     take[Cell (op $ LR + 1;) (op $ RL - 1;)] Reverse;
     take[Cell LL RR] Reverse;
 );
+
+const RWhile = (
+    # 将[a, b]区间进行一次距离为一的向右循环
+    # 在cell中
+    # 并且在空出的空位写入num
+    take A = _0;
+    take B = _1;
+    take Num = _2;
+    take Cell = _3;
+
+    take I = ();
+    take J = ();
+    take Num_1 = ();
+
+    I = B;
+
+    while I > A {
+        op J I - 1;
+        read Num_1 Cell J;
+        write Num_1 Cell I;
+        I = J;
+    }
+    write Num Cell A;
+);
+
+const Middle = (
+    #**
+    获取A与B之间的中间值, 0 <= A <= B
+    公式为 A + ((B - A) >> 1)
+    但是由于`Mindustry`中数字都是`double`, 所以不用担心啥中间溢出
+    并且单条运算效率都相等
+    故而将其改为 `(A + B) // 2`, 还少了一条`op`
+    *#
+    take A = _0;
+    take B = _1;
+    #op $ A + (op $ B - A; op $ $ >> 1;);
+    op $ (op $ A + B;) // 2;
+);
+
+const BinarySearchInsertIndex = (
+    #**
+    对`Start..Stop`也就是包含Start不包含Stop的区间进行二分查找
+    查找出需要插入的位置, 如果没找到返回值应为Stop
+    如果是`[0, 2, 3]`查找1, 则返回`1`也就是`2`的位置
+    如果是`[0, 2, 3]`查找2, 则返回`2`也就是`3`的位置, 因为需要在3的位置插入2
+    这需要被查找区间内元素有序
+    Key是用来取用于比较的key的, 如果你并不想处理那直接传入`(_0:)`即可
+    Num是已经使用Key求值之后的数据
+    *#
+    take Num = _0;
+    const Key = _1;
+    take Start = _2;
+    take Stop = _3;
+    take Cell = _4;
+
+    take I = $;
+    take J = ();
+    take Tmp = ();
+
+    I J = Start Stop;
+
+    while I < J {
+        take[I J] Mid = Middle;
+        read Tmp Cell Mid;
+        take[Tmp] KeyedTmp = Key;
+
+        if KeyedTmp > Num {
+            J = Mid;
+        } else {
+            op I Mid + 1;
+        }
+    }
+
+    # result `I`
+);
+
+const BinaryInsertSort = (
+    #**
+    二分插入排序算法, 在Cell中对Start..Stop范围中进行二分插入排序
+    Key是用来取用于比较的key的, 如果你并不想处理那直接传入`(_0:)`即可
+    *#
+    const Key = _0;
+    take Start = _1;
+    take Stop = _2;
+    take Cell = _3;
+
+    take I = ();
+    take Num = ();
+
+    op I Start + 1;
+
+    while I < Stop {
+        read Num Cell I;
+        take[Num] KeyedNum = Key;
+        take[KeyedNum Key Start I Cell] InsertPoint = BinarySearchInsertIndex;
+        take[InsertPoint I Num Cell] RWhile;
+        op I I + 1;
+    }
+);
+
+const InsertSort = (
+    #**
+    插入排序算法, 在Cell中对Start..Stop范围中进行二分插入排序
+    Key是用来取用于比较的key的, 如果你并不想处理那直接传入`(_0:)`即可
+    *#
+    const Key = _0;
+    take Start = _1;
+    take Stop = _2;
+    take Cell = _3;
+
+    take I = ();
+    take J = ();
+    take Tmp = ();
+    take PeekNum = ();
+    take KeyedPeekNum = ();
+    take Num = ();
+
+    op I Start + 1;
+
+    while I < Stop {
+        read Num Cell I;
+        take[Num] KeyedNum = Key;
+        J = I;
+        const F = (
+            read PeekNum Cell J;
+            take[PeekNum] KeyedPeekNum = Key;
+            setres KeyedPeekNum;
+        );
+        while (Tmp: $ = J; op J J - 1;) > Start && F > KeyedNum {
+            write PeekNum Cell Tmp;
+        }
+        write Num Cell Tmp;
+        op I I + 1;
+    }
+);
