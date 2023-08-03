@@ -1360,6 +1360,19 @@ mod tests {
 
         assert_eq!(
             parse!(parser, r#"
+            if 2 < 3 { # 对于没有elif与else的if, 会将条件反转并构建为skip
+                print 1;
+            }
+            "#).unwrap(),
+            parse!(parser, r#"
+            skip ! 2 < 3 {
+                print 1;
+            }
+            "#).unwrap(),
+        );
+
+        assert_eq!(
+            parse!(parser, r#"
             while a < b
                 print 3;
             "#).unwrap(),

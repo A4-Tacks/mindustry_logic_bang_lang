@@ -1,0 +1,194 @@
+#*
+op负责着运算部分, 本语言为其提供了用于兼容的多种形式
+以下为示例
+*#
+
+# 以下每一组中编译结果都一样, 只是多种写法
+{
+    op result a add b;
+    op result a + b;
+    op add result a b;
+    op + result a b;
+
+    op result a sub b;
+    op result a - b;
+    op sub result a b;
+    op - result a b;
+
+    op result a mul b;
+    op result a * b;
+    op mul result a b;
+    op * result a b;
+
+    op result a div b;
+    op result a / b;
+    op div result a b;
+    op / result a b;
+
+    op result a idiv b;
+    op result a // b;
+    op idiv result a b;
+    op // result a b;
+
+    op result a mod b;
+    op result a % b;
+    op mod result a b;
+    op % result a b;
+
+    op result a pow b;
+    op result a ** b;
+    op pow result a b;
+    op ** result a b;
+
+    op result a equal b;
+    op result a == b;
+    op equal result a b;
+    op == result a b;
+
+    op result a notEqual b;
+    op result a != b;
+    op notEqual result a b;
+    op != result a b;
+
+    op result a land b;
+    op result a && b;
+    op land result a b;
+    op && result a b;
+
+    op result a lessThan b;
+    op result a < b;
+    op lessThan result a b;
+    op < result a b;
+
+    op result a lessThanEq b;
+    op result a <= b;
+    op lessThanEq result a b;
+    op <= result a b;
+
+    op result a greaterThan b;
+    op result a > b;
+    op greaterThan result a b;
+    op > result a b;
+
+    op result a greaterThanEq b;
+    op result a >= b;
+    op greaterThanEq result a b;
+    op >= result a b;
+
+    op result a strictEqual b;
+    op result a === b;
+    op strictEqual result a b;
+    op === result a b;
+
+    op result a shl b;
+    op result a << b;
+    op shl result a b;
+    op << result a b;
+
+    op result a shr b;
+    op result a >> b;
+    op shr result a b;
+    op >> result a b;
+
+    op result a or b;
+    op result a | b;
+    op or result a b;
+    op | result a b;
+
+    op result a and b;
+    op result a & b;
+    op and result a b;
+    op & result a b;
+
+    op result a xor b;
+    op result a ^ b;
+    op xor result a b;
+    op ^ result a b;
+}
+
+# 以下每一组中编译结果都一样, 只是多种写法
+{
+    op result max a b;
+    op max result a b;
+
+    op result min a b;
+    op min result a b;
+
+    op result angle a b;
+    op angle result a b;
+
+    op result len a b;
+    op len result a b;
+
+    op result noise a b;
+    op noise result a b;
+
+}
+
+# 以下每一组中编译结果都一样, 只是多种写法
+{
+    op result abs x;
+    op abs result x;
+    op result abs x 0;
+    op abs result x 0;
+
+    op result log x;
+    op log result x;
+    op result log x 0;
+    op log result x 0;
+
+    op result log10 x;
+    op log10 result x;
+    op result log10 x 0;
+    op log10 result x 0;
+
+    op result floor x;
+    op floor result x;
+    op result floor x 0;
+    op floor result x 0;
+
+    op result ceil x;
+    op ceil result x;
+    op result ceil x 0;
+    op ceil result x 0;
+
+    op result sqrt x;
+    op sqrt result x;
+    op result sqrt x 0;
+    op sqrt result x 0;
+
+    op result rand x;
+    op rand result x;
+    op result rand x 0;
+    op rand result x 0;
+
+    op result sin x;
+    op sin result x;
+    op result sin x 0;
+    op sin result x 0;
+
+    op result cos x;
+    op cos result x;
+    op result cos x 0;
+    op cos result x 0;
+
+    op result tan x;
+    op tan result x;
+    op result tan x 0;
+    op tan result x 0;
+
+    op result asin x;
+    op asin result x;
+    op result asin x 0;
+    op asin result x 0;
+
+    op result acos x;
+    op acos result x;
+    op result acos x 0;
+    op acos result x 0;
+
+    op result atan x;
+    op atan result x;
+    op result atan x 0;
+    op atan result x 0;
+}
