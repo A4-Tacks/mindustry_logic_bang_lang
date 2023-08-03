@@ -75,6 +75,7 @@ pub Var: Var = {
 pub Value: Value = {
     Var => <>.into(),
     DExp => <>.into(),
+    "`" <Var> "`" => Value::ReprVar(<>),
     "$" => Value::ResultHandle,
 }
 

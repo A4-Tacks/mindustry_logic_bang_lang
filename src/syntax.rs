@@ -84,8 +84,12 @@ pub const COUNTER: &str = "@counter";
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Value {
+    /// 一个普通值
     Var(Var),
+    /// DExp
     DExp(DExp),
+    /// 不可被常量替换的普通值
+    ReprVar(Var),
     /// 编译时被替换为当前DExp返回句柄
     ResultHandle,
 }
@@ -146,6 +150,7 @@ impl Value {
                 result
             },
             Self::ResultHandle => meta.dexp_handle().clone(),
+            Self::ReprVar(var) => var,
         }
     }
 
@@ -194,9 +199,10 @@ impl Deref for Value {
 
     fn deref(&self) -> &Self::Target {
         match self {
-            Self::Var(ref s) => &s,
+            Self::Var(ref s) | Self::ReprVar(ref s) => s,
             Self::DExp(DExp { result, .. }) => &result,
-            Self::ResultHandle => panic!("未进行AST编译, 而DExp的返回句柄是进行AST编译时已知"),
+            Self::ResultHandle =>
+                panic!("未进行AST编译, 而DExp的返回句柄是进行AST编译时已知"),
         }
     }
 }
@@ -2612,6 +2618,25 @@ mod tests {
         "#).unwrap()).compile().unwrap();
         assert_eq!(logic_lines, vec![
                    "print m",
+        ]);
+    }
+
+    #[test]
+    fn repr_var_test() {
+        let parser = ExpandParser::new();
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        print a;
+        print `a`;
+        const a = b;
+        print a;
+        print `a`;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "print a",
+                   "print a",
+                   "print b",
+                   "print a",
         ]);
     }
 }
