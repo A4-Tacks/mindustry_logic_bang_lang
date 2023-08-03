@@ -1,2 +1,3 @@
 /target
 /src/syntax_def.rs
+/syntax/vscode/lsp

@@ -32,22 +32,11 @@
 			"patterns": [
 				{
 					"name": "keyword.control.mdtlbl",
-					"match": "\\b(if|elif|else|do|while|for|take|goto|switch|case|skip|end|gwhile)\\b"
-				},
-				{
-					"match": "(const)\\s+([_a-zA-Z]\\w*)",
-					"captures": {
-						"1": {
-							"name": "storage.modifier.mdtlbl"
-						},
-						"2": {
-							"name": "variable.other.constant.mdtlbl"
-						}
-					}
+					"match": "\\b(if|elif|else|do|while|for|take|goto|switch|case|skip|end|gwhile|setres)\\b"
 				},
 				{
 					"name": "storage.modifier.mdtlbl",
-					"match": "\\b(const|set|read|write|setres)\\b"
+					"match": "\\b(const|set|read|write)\\b"
 				},
 				{
 					"name": "entity.name.function.mdtlbl",
@@ -190,6 +179,14 @@
 		},
 		"variable": {
 			"patterns": [
+				{
+					"match": "(?<!:|@)\\b([_A-Z][_A-Z0-9]*)\\b",
+					"name": "variable.other.constant.mdtlbl"
+				},
+				{
+					"match": "(?<!:|@)\\b([A-Z]\\w*)+\\b",
+					"name": "entity.name.class.mdtlbl"
+				},
 				{
 					"match": "(?<!:|@)\\b[_a-zA-Z]\\w*",
 					"name": "variable.other.readwrite.mdtlbl"
