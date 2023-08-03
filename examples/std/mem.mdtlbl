@@ -1,12 +1,32 @@
-const Swap = (
+const Memory = cell1; # Read/Write默认实现的读写目标
+
+const Read = (
     #**
-    交换两内存元的两个位置的值
+    使用read读取Memory中的Index处
+    *#
+    take Index = _0;
+    read $ Memory Index;
+);
+
+const Write = (
+    #**
+    使用write向Memory中的Index写入Data
+    获取Data时会传入Index
+    *#
+    take Index = _0;
+    take[Index] Data = _1; # 会传入下标, 满足一部分需求
+    write Data Memory Index;
+);
+
+const SwapMem = (
+    #**
+    交换两个内存中两个位置的值
     *#
     take Cell1 = _0;
     take Cell2 = _1;
     take Index1 = _2;
     take Index2 = _3;
-    
+
     take Tmp1 = (); # 用于交换的中间变量
     take Tmp2 = ();
 
@@ -17,13 +37,26 @@ const Swap = (
     write Tmp1 Cell2 Index2;
 );
 
+const Swap = (
+    #**
+    交换两个位置的值, 使用Read/Write
+    *#
+    take Index1 = _0;
+    take Index2 = _1;
+
+    take[Index1] Num1 = Read;
+    take[Index2] Num2 = Read;
+
+    take[Index1 Num2] Write;
+    take[Index2 Num1] Write;
+);
+
 const Reverse = (
     #**
-    对一个内存元中的[Left,Right]区间的值反转
+    对[Left,Right]区间的值反转, 使用Read/Write
     *#
-    take Cell = _0;
-    take Left = _1;
-    take Right = _2;
+    take Left = _0;
+    take Right = _1;
 
     take I = ();
     take J = ();
@@ -31,7 +64,7 @@ const Reverse = (
     I J = Left Right;
 
     while I < J {
-        take[Cell Cell I J] Swap;
+        take[I J] Swap;
         op I I + 1;
         op J J - 1;
     }
@@ -39,22 +72,20 @@ const Reverse = (
 
 const Fill = (
     #**
-    对内存Cell中从Start开始到End(不包括)的区域使用Value进行填充
+    使用Read/Write从Start到End(不包括)的区域使用Value进行填充
     这不会预先使用take对Value进行求值, 也就是说你可以使用DExp进行填充
         如果你使用DExp来进行填充, 你将会在`_0`接受到当前下标
     *#
     const Value = _0;
-    take Cell = _1;
-    take Start = _2;
-    take End = _3;
+    take Start = _1;
+    take End = _2;
 
     take I = ();
 
     I = Start;
 
     while I < End {
-        take[I] Data = Value;
-        write Data Cell I;
+        take[I Value] Write;
         op I I + 1;
     }
 );
@@ -62,40 +93,37 @@ const Fill = (
 const Swaps = (
     #**
     使用手摇算法将[LL,LR]与[RL,RR]两个区间的元素进行交换
+    反转元素使用Reverse
     *#
-    take Cell = _0;
-    take LL = _1;
-    take LR = _2;
-    take RL = _3;
-    take RR = _4;
-    take[Cell LL LR] Reverse;
-    take[Cell RL RR] Reverse;
-    take[Cell (op $ LR + 1;) (op $ RL - 1;)] Reverse;
-    take[Cell LL RR] Reverse;
+    take LL = _0;
+    take LR = _1;
+    take RL = _2;
+    take RR = _3;
+    take[LL LR] Reverse;
+    take[RL RR] Reverse;
+    take[(op $ LR + 1;) (op $ RL - 1;)] Reverse;
+    take[LL RR] Reverse;
 );
 
 const RWhile = (
-    # 将[a, b]区间进行一次距离为一的向右循环
-    # 在cell中
+    # 使用Read/Write将[a, b]区间进行一次距离为一的向右循环
     # 并且在空出的空位写入num
     take A = _0;
     take B = _1;
     take Num = _2;
-    take Cell = _3;
 
     take I = ();
     take J = ();
-    take Num_1 = ();
 
     I = B;
 
     while I > A {
         op J I - 1;
-        read Num_1 Cell J;
-        write Num_1 Cell I;
+        take[J] Num_1 = Read;
+        take[I Num_1] Write;
         I = J;
     }
-    write Num Cell A;
+    take[A Num] Write;
 );
 
 const Middle = (
@@ -121,22 +149,22 @@ const BinarySearchInsertIndex = (
     这需要被查找区间内元素有序
     Key是用来取用于比较的key的, 如果你并不想处理那直接传入`(_0:)`即可
     Num是已经使用Key求值之后的数据
+
+    注: 使用Read进行读取
     *#
     take Num = _0;
     const Key = _1;
     take Start = _2;
     take Stop = _3;
-    take Cell = _4;
 
     take I = $;
     take J = ();
-    take Tmp = ();
 
     I J = Start Stop;
 
     while I < J {
         take[I J] Mid = Middle;
-        read Tmp Cell Mid;
+        take[Mid] Tmp = Read;
         take[Tmp] KeyedTmp = Key;
 
         if KeyedTmp > Num {
@@ -153,19 +181,19 @@ const BinaryInsertSort = (
     #**
     二分插入排序算法, 在Cell中对Start..Stop范围中进行二分插入排序
     Key是用来取用于比较的key的, 如果你并不想处理那直接传入`(_0:)`即可
+
+    注: 使用Read/Write进行读写
     *#
     const Key = _0;
     take Start = _1;
     take Stop = _2;
-    take Cell = _3;
 
     take I = ();
-    take Num = ();
 
     op I Start + 1;
 
     while I < Stop {
-        read Num Cell I;
+        take[I] Num = Read;
         take[Num] KeyedNum = Key;
         take[KeyedNum Key Start I Cell] InsertPoint = BinarySearchInsertIndex;
         take[InsertPoint I Num Cell] RWhile;
@@ -177,34 +205,32 @@ const InsertSort = (
     #**
     插入排序算法, 在Cell中对Start..Stop范围中进行二分插入排序
     Key是用来取用于比较的key的, 如果你并不想处理那直接传入`(_0:)`即可
+
+    注: 使用Read/Write进行读写
     *#
     const Key = _0;
     take Start = _1;
     take Stop = _2;
-    take Cell = _3;
 
     take I = ();
     take J = ();
     take Tmp = ();
-    take PeekNum = ();
     take KeyedPeekNum = ();
-    take Num = ();
 
     op I Start + 1;
 
     while I < Stop {
-        read Num Cell I;
+        take[I] Num = Read;
         take[Num] KeyedNum = Key;
         J = I;
-        const F = (
-            read PeekNum Cell J;
+        while (Tmp: $ = J; op J J - 1;) > Start {
+            take[J] PeekNum = Read;
             take[PeekNum] KeyedPeekNum = Key;
-            setres KeyedPeekNum;
-        );
-        while (Tmp: $ = J; op J J - 1;) > Start && F > KeyedNum {
-            write PeekNum Cell Tmp;
-        }
-        write Num Cell Tmp;
+            goto :break1 ! KeyedPeekNum > KeyedNum;
+
+            take[Tmp PeekNum] Write;
+        } :break1
+        take[Tmp Num] Write;
         op I I + 1;
     }
 );
