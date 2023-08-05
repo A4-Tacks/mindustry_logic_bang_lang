@@ -347,13 +347,19 @@ pub Control: LogicLine = {
             .max()
             .unwrap();
         let mut cases_res = Vec::with_capacity(case_num_max);
+
+        let fill_line = append /* 用于填充的行, 如果有追加在末尾的行则将其封装并替换填充 */
+            .as_ref()
+            .map(|line| Expand(vec![line.clone()]).into())
+            .unwrap_or(LogicLine::NoOp);
+
         for (nums, mut expand) in cases {
             if let Some(append) = &append {
                 expand.push(append.clone())
             }
             for num in nums {
                 for _ in cases_res.len()..=num {
-                    cases_res.push(LogicLine::NoOp)
+                    cases_res.push(fill_line.clone())
                 }
                 cases_res[num] = expand.clone().into()
             }

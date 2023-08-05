@@ -1582,6 +1582,29 @@ mod tests {
                 ])
             ).into()
         );
+
+        // 测试追加对于填充的效用
+        let ast = parse!(parser, r#"
+            switch 1 {
+            print end;
+            case 1: print 1;
+            }
+        "#).unwrap();
+        assert_eq!(
+            ast,
+            Select(
+                "1".into(),
+                Expand(vec![
+                    Expand(vec![
+                            LogicLine::Other(vec!["print".into(), "end".into()]),
+                    ]).into(),
+                    Expand(vec![
+                            LogicLine::Other(vec!["print".into(), "1".into()]),
+                            LogicLine::Other(vec!["print".into(), "end".into()]),
+                    ]).into(),
+                ])
+            ).into()
+        );
     }
 
     #[test]
