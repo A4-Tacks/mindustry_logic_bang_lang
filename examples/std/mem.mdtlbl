@@ -2,9 +2,12 @@ const Memory = cell1; # Read/Write默认实现的读写目标
 
 const Read = (
     #**
-    使用read读取Memory中的Index处
+    使用read读取Memory中的Index处, 读取到RES中, 这里假定传入RES不为`$`
     *#
     take Index = _0;
+    take RES = _1;
+    setres RES;
+
     read $ Memory Index;
 );
 
@@ -44,8 +47,8 @@ const Swap = (
     take Index1 = _0;
     take Index2 = _1;
 
-    take[Index1] Num1 = Read;
-    take[Index2] Num2 = Read;
+    take[Index1 ()] Num1 = Read;
+    take[Index2 ()] Num2 = Read;
 
     take[Index1 Num2] Write;
     take[Index2 Num1] Write;
@@ -119,7 +122,7 @@ const RWhile = (
 
     while I > A {
         op J I - 1;
-        take[J] Num_1 = Read;
+        take[J ()] Num_1 = Read;
         take[I Num_1] Write;
         I = J;
     }
@@ -164,7 +167,7 @@ const BinarySearchInsertIndex = (
 
     while I < J {
         take[I J] Mid = Middle;
-        take[Mid] Tmp = Read;
+        take[Mid ()] Tmp = Read;
         take[Tmp] KeyedTmp = Key;
 
         if KeyedTmp > Num {
@@ -193,7 +196,7 @@ const BinaryInsertSort = (
     op I Start + 1;
 
     while I < Stop {
-        take[I] Num = Read;
+        take[I ()] Num = Read;
         take[Num] KeyedNum = Key;
         take[KeyedNum Key Start I Cell] InsertPoint = BinarySearchInsertIndex;
         take[InsertPoint I Num Cell] RWhile;
@@ -220,11 +223,11 @@ const InsertSort = (
     op I Start + 1;
 
     while I < Stop {
-        take[I] Num = Read;
+        take[I ()] Num = Read;
         take[Num] KeyedNum = Key;
         J = I;
         while (Tmp: $ = J; op J J - 1;) > Start {
-            take[J] PeekNum = Read;
+            take[J ()] PeekNum = Read;
             take[PeekNum] KeyedPeekNum = Key;
             goto :break1 ! KeyedPeekNum > KeyedNum;
 
