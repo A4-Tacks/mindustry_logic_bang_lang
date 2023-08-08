@@ -94,11 +94,18 @@ pub enum Value {
     ResultHandle,
 }
 impl Default for Value {
+    /// 默认的占位值, 它是无副作用的, 不会被常量展开
     fn default() -> Self {
-        Self::Var("0".into())
+        Self::new_noeffect()
     }
 }
 impl Value {
+    /// 新建一个占位符, 使用[`ReprVar`],
+    /// 以保证它是真的不会有副作用的占位符
+    pub fn new_noeffect() -> Self {
+        Self::ReprVar("0".into())
+    }
+
     /// 编译依赖并返回句柄
     pub fn take(self, meta: &mut CompileMeta) -> Var {
         // 改为使用空字符串代表空返回字符串
@@ -223,6 +230,22 @@ impl DExp {
     pub fn new(result: Var, lines: Expand) -> Self {
         Self { result, lines }
     }
+
+    /// 新建一个可能指定返回值的DExp
+    pub fn new_optional_res(result: Option<Var>, lines: Expand) -> Self {
+        Self {
+            result: result.unwrap_or_default(),
+            lines
+        }
+    }
+
+    /// 新建一个未指定返回值的DExp
+    pub fn new_nores(lines: Expand) -> Self {
+        Self {
+            result: Default::default(),
+            lines
+        }
+    }
 }
 
 /// 进行`词法&语法`分析时所依赖的元数据
@@ -330,18 +353,19 @@ pub enum JumpCmp {
     LessThanEq(Value, Value),
     GreaterThan(Value, Value),
     GreaterThanEq(Value, Value),
+    /// 严格相等
     StrictEqual(Value, Value),
+    /// 严格不相等
+    StrictNotEqual(Value, Value),
+    /// 总是
     Always,
+    /// 总不是
+    NotAlways,
 }
 impl JumpCmp {
-    /// 创建一个永远为假的变体
-    pub fn false_val() -> Self {
-        Self::NotEqual("0".into(), "0".into())
-    }
-
     /// 将值转为`bool`来对待
     pub fn bool(val: Value) -> Self {
-        Self::NotEqual(val, "false".into())
+        Self::NotEqual(val, Value::ReprVar("false".into()))
     }
 
     /// 获取反转后的条件
@@ -355,19 +379,14 @@ impl JumpCmp {
             LessThanEq(a, b) => GreaterThan(a, b),
             GreaterThan(a, b) => LessThanEq(a, b),
             GreaterThanEq(a, b) => LessThan(a, b),
-            StrictEqual(a, b) => {
-                // 其中一参数转换为`DExp`计算严格相等, 然后取反
-                let val = DExp::new(
-                    Default::default(),
-                    vec![Op::StrictEqual(Value::ResultHandle, a, b).into()].into()
-                );
-                Self::bool(val.into()).reverse()
-            },
-            Always => Self::false_val(),
+            StrictEqual(a, b) => StrictNotEqual(a, b),
+            StrictNotEqual(a, b) => StrictEqual(a, b),
+            Always => NotAlways,
+            NotAlways => Always,
         }
     }
 
-    /// 获取两个运算成员, 如果是[`Always`]则返回[`Default`]
+    /// 获取两个运算成员, 如果是没有运算成员的则返回[`Default`]
     pub fn get_values(self) -> (Value, Value) {
         match self {
             Self::Equal(a, b)
@@ -377,31 +396,44 @@ impl JumpCmp {
                 | Self::GreaterThan(a, b)
                 | Self::StrictEqual(a, b)
                 | Self::GreaterThanEq(a, b)
+                | Self::StrictNotEqual(a, b)
                 => (a, b),
-            Self::Always => Default::default(),
+            Self::Always
+                | Self::NotAlways
+                // 这里使用default生成无副作用的占位值
+                => Default::default(),
         }
     }
 
+    /// 获取需要生成的变体所对应的文本
+    /// 如果是未真正对应的变体如严格不等则恐慌
     pub fn cmp_str(&self) -> &'static str {
+        macro_rules! e {
+            () => {
+                panic!("这个变体并未对应最终生成的代码")
+            };
+        }
         macro_rules! build_match {
-            ( $( $name:ident $str:literal ),* $(,)? ) => {
+            ( $( $name:ident , $str:expr ),* $(,)? ) => {
                 match self {
                     $(
                         Self::$name(..) => $str,
                     )*
                     Self::Always => "always",
+                    Self::NotAlways => e!(),
                 }
             };
         }
 
         build_match! {
-            Equal "equal",
-            NotEqual "notEqual",
-            LessThan "lessThan",
-            LessThanEq "lessThanEq",
-            GreaterThan "greaterThan",
-            GreaterThanEq "greaterThanEq",
-            StrictEqual "strictEqual",
+            Equal, "equal",
+            NotEqual, "notEqual",
+            LessThan, "lessThan",
+            LessThanEq, "lessThanEq",
+            GreaterThan, "greaterThan",
+            GreaterThanEq, "greaterThanEq",
+            StrictEqual, "strictEqual",
+            StrictNotEqual, e!()
         }
     }
 
@@ -409,6 +441,28 @@ impl JumpCmp {
     pub fn build_value(self, meta: &mut CompileMeta) -> (Var, Var) {
         let (a, b) = self.get_values();
         (a.take(meta), b.take(meta))
+    }
+
+    /// 即将编译时调用, 将自身转换为可以正常编译为逻辑的形式
+    /// 例如`严格不等`, `永不`等变体是无法直接被编译为逻辑的
+    /// 所以需要进行转换
+    pub fn do_start_compile_into(self) -> Self {
+        match self {
+            // 转换为0永不等于0
+            // 要防止0被const, 我们使用repr
+            Self::NotAlways => {
+                Self::NotEqual(Value::new_noeffect(), Value::new_noeffect())
+            },
+            Self::StrictNotEqual(a, b) => {
+                Self::bool(
+                    DExp::new_nores(vec![
+                        Op::StrictEqual(Value::ResultHandle, a, b).into()
+                    ].into()).into()
+                ).reverse()
+            },
+            // 无需做转换
+            cmp => cmp,
+        }
     }
 }
 
@@ -462,6 +516,9 @@ impl CmpTree {
                 meta.push(TagLine::TagDown(tag_id));
             },
             Atom(cmp) => {
+                // 构建为可以进行接下来的编译的形式
+                let cmp = cmp.do_start_compile_into();
+
                 let cmp_str = cmp.cmp_str();
                 let (a, b) = cmp.build_value(meta);
 
@@ -1257,8 +1314,7 @@ mod tests {
             ).unwrap()[0],
             Op::Div(
                 "res".into(),
-                DExp::new(
-                    "".into(),
+                DExp::new_nores(
                     vec![
                         Op::Add(
                             Value::ResultHandle,
@@ -1286,8 +1342,7 @@ mod tests {
             ).unwrap()[0],
             Op::Div(
                 "res".into(),
-                DExp::new(
-                    "".into(),
+                DExp::new_nores(
                     vec![
                         Op::Add(
                             Value::ResultHandle,
@@ -1300,8 +1355,7 @@ mod tests {
                             "2".into()
                         ).into()
                     ].into()).into(),
-                DExp::new(
-                    "".into(),
+                DExp::new_nores(
                     vec![
                         Op::Mul(Value::ResultHandle, "2".into(), "3".into()).into()
                     ].into(),
@@ -1433,15 +1487,15 @@ mod tests {
         let parser = LogicLineParser::new();
 
         let datas = vec![
-            [r#"goto :a x === y;"#, r#"goto :a (op $ x === y;) == false;"#],
+            [r#"goto :a x === y;"#, r#"goto :a x !== y;"#],
             [r#"goto :a x == y;"#, r#"goto :a x != y;"#],
             [r#"goto :a x != y;"#, r#"goto :a x == y;"#],
             [r#"goto :a x < y;"#, r#"goto :a x >= y;"#],
             [r#"goto :a x > y;"#, r#"goto :a x <= y;"#],
             [r#"goto :a x <= y;"#, r#"goto :a x > y;"#],
             [r#"goto :a x >= y;"#, r#"goto :a x < y;"#],
-            [r#"goto :a x;"#, r#"goto :a x == false;"#],
-            [r#"goto :a _;"#, r#"goto :a 0 != 0;"#],
+            [r#"goto :a x;"#, r#"goto :a x == `false`;"#],
+            [r#"goto :a _;"#, r#"goto :a !_;"#],
         ];
         for [src, dst] in datas {
             assert_eq!(
@@ -1452,16 +1506,14 @@ mod tests {
 
         // 手动转换
         let datas = vec![
-            [r#"goto :a ! x === y;"#, r#"goto :a (op $ x === y;) == false;"#],
+            [r#"goto :a ! x === y;"#, r#"goto :a x !== y;"#],
             [r#"goto :a ! x == y;"#, r#"goto :a x != y;"#],
             [r#"goto :a ! x != y;"#, r#"goto :a x == y;"#],
             [r#"goto :a ! x < y;"#, r#"goto :a x >= y;"#],
             [r#"goto :a ! x > y;"#, r#"goto :a x <= y;"#],
             [r#"goto :a ! x <= y;"#, r#"goto :a x > y;"#],
             [r#"goto :a ! x >= y;"#, r#"goto :a x < y;"#],
-            [r#"goto :a ! x;"#, r#"goto :a x == false;"#],
-            [r#"goto :a ! _;"#, r#"goto :a 0 != 0;"#],
-            [r#"goto :a lnot _;"#, r#"goto :a 0 != 0;"#],
+            [r#"goto :a ! x;"#, r#"goto :a x == `false`;"#],
             // 多次取反
             [r#"goto :a !!! x == y;"#, r#"goto :a x != y;"#],
             [r#"goto :a !!! x != y;"#, r#"goto :a x == y;"#],
@@ -1469,8 +1521,9 @@ mod tests {
             [r#"goto :a !!! x > y;"#, r#"goto :a x <= y;"#],
             [r#"goto :a !!! x <= y;"#, r#"goto :a x > y;"#],
             [r#"goto :a !!! x >= y;"#, r#"goto :a x < y;"#],
-            [r#"goto :a !!! x;"#, r#"goto :a x == false;"#],
-            [r#"goto :a !!! _;"#, r#"goto :a 0 != 0;"#],
+            [r#"goto :a !!! x;"#, r#"goto :a x == `false`;"#],
+            [r#"goto :a !!! x === y;"#, r#"goto :a x !== y;"#],
+            [r#"goto :a !!! _;"#, r#"goto :a !_;"#],
         ];
         for [src, dst] in datas {
             assert_eq!(
@@ -1478,6 +1531,94 @@ mod tests {
                 parse!(parser, dst).unwrap().as_goto().unwrap().1,
             );
         }
+    }
+
+    #[test]
+    fn goto_compile_test() {
+        let parser = ExpandParser::new();
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        goto :x _;
+        :x
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 1 always 0 0",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const 0 = 1;
+        goto :x _;
+        :x
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 1 always 0 0",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const 0 = 1;
+        goto :x !_;
+        :x
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 1 notEqual 0 0",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const 0 = 1;
+        const false = true;
+        goto :x a === b;
+        :x
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 1 strictEqual a b",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const 0 = 1;
+        const false = true;
+        goto :x !!a === b;
+        :x
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 1 strictEqual a b",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const 0 = 1;
+        const false = true;
+        goto :x !a === b;
+        :x
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "op strictEqual __0 a b",
+                   "jump 2 equal __0 false",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const 0 = 1;
+        const false = true;
+        goto :x a !== b;
+        :x
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "op strictEqual __0 a b",
+                   "jump 2 equal __0 false",
+                   "end",
+        ]);
+
     }
 
     #[test]
@@ -1884,8 +2025,7 @@ mod tests {
             iter.next().unwrap(),
             Const(
                 "X".into(),
-                DExp::new(
-                    "".into(),
+                DExp::new_nores(
                     vec![
                         LogicLine::Label("in_const".into()),
                         LogicLine::Other(vec!["print".into(), "\"hi\"".into()])
@@ -2315,10 +2455,10 @@ mod tests {
             ast[0].as_goto().unwrap().1,
             CmpTree::And(
                 CmpTree::And(
-                    Box::new(JumpCmp::NotEqual("a".into(), "false".into()).into()),
-                    Box::new(JumpCmp::NotEqual("b".into(), "false".into()).into()),
+                    Box::new(JumpCmp::NotEqual("a".into(), Value::ReprVar("false".into()).into()).into()),
+                    Box::new(JumpCmp::NotEqual("b".into(), Value::ReprVar("false".into()).into()).into()),
                 ).into(),
-                Box::new(JumpCmp::NotEqual("c".into(), "false".into()).into()),
+                Box::new(JumpCmp::NotEqual("c".into(), Value::ReprVar("false".into()).into()).into()),
             ).into()
         );
 
@@ -2332,10 +2472,10 @@ mod tests {
             ast[0].as_goto().unwrap().1,
             CmpTree::Or(
                 CmpTree::Or(
-                    Box::new(JumpCmp::NotEqual("a".into(), "false".into()).into()),
-                    Box::new(JumpCmp::NotEqual("b".into(), "false".into()).into()),
+                    Box::new(JumpCmp::NotEqual("a".into(), Value::ReprVar("false".into()).into()).into()),
+                    Box::new(JumpCmp::NotEqual("b".into(), Value::ReprVar("false".into()).into()).into()),
                 ).into(),
-                Box::new(JumpCmp::NotEqual("c".into(), "false".into()).into()),
+                Box::new(JumpCmp::NotEqual("c".into(), Value::ReprVar("false".into()).into()).into()),
             ).into()
         );
 
@@ -2349,12 +2489,12 @@ mod tests {
             ast[0].as_goto().unwrap().1,
             CmpTree::Or(
                 CmpTree::And(
-                    Box::new(JumpCmp::NotEqual("a".into(), "false".into()).into()),
-                    Box::new(JumpCmp::NotEqual("b".into(), "false".into()).into()),
+                    Box::new(JumpCmp::NotEqual("a".into(), Value::ReprVar("false".into()).into()).into()),
+                    Box::new(JumpCmp::NotEqual("b".into(), Value::ReprVar("false".into()).into()).into()),
                 ).into(),
                 CmpTree::And(
-                    Box::new(JumpCmp::NotEqual("c".into(), "false".into()).into()),
-                    Box::new(JumpCmp::NotEqual("d".into(), "false".into()).into()),
+                    Box::new(JumpCmp::NotEqual("c".into(), Value::ReprVar("false".into()).into()).into()),
+                    Box::new(JumpCmp::NotEqual("d".into(), Value::ReprVar("false".into()).into()).into()),
                 ).into(),
             ).into()
         );
@@ -2369,13 +2509,13 @@ mod tests {
             ast[0].as_goto().unwrap().1,
             CmpTree::And(
                 CmpTree::And(
-                    Box::new(JumpCmp::NotEqual("a".into(), "false".into()).into()),
+                    Box::new(JumpCmp::NotEqual("a".into(), Value::ReprVar("false".into()).into()).into()),
                     CmpTree::Or(
-                        Box::new(JumpCmp::NotEqual("b".into(), "false".into()).into()),
-                        Box::new(JumpCmp::NotEqual("c".into(), "false".into()).into()),
+                        Box::new(JumpCmp::NotEqual("b".into(), Value::ReprVar("false".into()).into()).into()),
+                        Box::new(JumpCmp::NotEqual("c".into(), Value::ReprVar("false".into()).into()).into()),
                     ).into(),
                 ).into(),
-                Box::new(JumpCmp::NotEqual("d".into(), "false".into()).into()),
+                Box::new(JumpCmp::NotEqual("d".into(), Value::ReprVar("false".into()).into()).into()),
             ).into()
         );
 

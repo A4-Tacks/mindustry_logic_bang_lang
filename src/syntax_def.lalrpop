@@ -109,6 +109,7 @@ JumpCmpBody: JumpCmp = {
     <OrSwap<Or<"strictEqual", "===">, <Value>>> <Value> => JumpCmp::StrictEqual(<>),
     Or<"always", "_"> => JumpCmp::Always,
     // 扩展
+    <OrSwap<Or<"strictNotEqual", "!==">, <Value>>> <Value> => JumpCmp::StrictNotEqual(<>),
     <Value> => JumpCmp::bool(<>),
 }
 
@@ -282,7 +283,7 @@ pub BuiltinCommand: LogicLine = {
 pub Block: LogicLine = MBlock<Expand> => <>.into();
 
 pub DExp: DExp = MTuple<(<(<Var> ":")?> <Expand>)>
-    => DExp::new(<>.0.unwrap_or_default(), <>.1);
+    => DExp::new_optional_res(<>.0, <>.1);
 
 pub Control: LogicLine = {
     "goto" <Label> <JumpCmp> LEnd => Goto(<>).into(),
