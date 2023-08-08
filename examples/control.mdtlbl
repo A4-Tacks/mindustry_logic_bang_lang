@@ -112,3 +112,23 @@ jump 2 lessThan i 10
 *#
 # 它的缺点是, 需要多一条跳转, 所以这导致while并没有采用这种形式
 # 当然, 在手写逻辑时, 我们很喜欢这么写, 因为比较省力
+
+
+select x {
+    print 0;
+    print 1 "is one!";
+    print 2;
+}
+#* >>>
+op mul __0 x 2
+op add @counter @counter __0
+print 0
+noop
+print 1
+print "is one!"
+print 2
+noop
+*#
+# select是原始版本, 没有switch那么多的功能,
+# 但是相比switch的好处是不用编写case, 直接跳转到指定行
+#   第0行, 第1行 以此类推

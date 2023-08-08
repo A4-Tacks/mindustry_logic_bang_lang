@@ -280,7 +280,8 @@ pub BuiltinCommand: LogicLine = {
     "setres" <Value> LEnd => LogicLine::SetResultHandle(<>),
 }
 
-pub Block: LogicLine = MBlock<Expand> => <>.into();
+BlockExpand: Expand = MBlock<Expand> => <>;
+pub Block: LogicLine = BlockExpand => <>.into();
 
 pub DExp: DExp = MTuple<(<(<Var> ":")?> <Expand>)>
     => DExp::new_optional_res(<>.0, <>.1);
@@ -368,6 +369,8 @@ pub Control: LogicLine = {
         debug_assert_eq!(cases_res.len(), case_num_max + 1);
         Select(value, Expand(cases_res)).into()
     },
+
+    "select" <value:Value> <lines:BlockExpand> => Select(value, lines).into(),
 
     "if" <cmp:JumpCmp> <body:Block>
         <elifs:("elif" <JumpCmp> <Block>)*>

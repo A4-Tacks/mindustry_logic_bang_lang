@@ -2802,4 +2802,30 @@ mod tests {
                    "print a",
         ]);
     }
+
+    #[test]
+    fn select_test() {
+        let parser = ExpandParser::new();
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        select 1 {
+            print 0;
+            {
+                print 1 " is one!";
+            }
+            print 2;
+        }
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "op mul __0 1 2",
+                   "op add @counter @counter __0",
+                   "print 0",
+                   "noop",
+                   "print 1",
+                   "print \" is one!\"",
+                   "print 2",
+                   "noop",
+        ]);
+
+    }
 }

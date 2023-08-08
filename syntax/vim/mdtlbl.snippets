@@ -22,12 +22,12 @@ skip ${1:_} {
 }
 endsnippet
 snippet if "if" w
-if ${1:_} {
+if $1 {
 	$0
 }
 endsnippet
 snippet elif "elif" w
-elif ${1:_} {
+elif $1 {
 	$0
 }
 endsnippet
@@ -53,7 +53,7 @@ snippet iop "op self" w
 op ${1:i} $1 ${2:+} ${3:1};$0
 endsnippet
 snippet switch "switch" w
-switch ${1:x} {
+switch $1 {
 	$0
 }
 endsnippet
@@ -86,4 +86,9 @@ printflush ${1:message1};$0
 endsnippet
 snippet drawflush "drawflush message1" w
 drawflush ${1:display1};$0
+endsnippet
+snippet select "select" w
+select $1 {
+	$0
+}
 endsnippet

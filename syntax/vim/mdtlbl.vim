@@ -24,7 +24,9 @@ syn case match
 
 
 " 控制语句 {{{1
-syn keyword mdtlblKeyword while do skip goto if elif else switch case const take gwhile setres
+syn keyword mdtlblKeyword
+            \ while do skip goto if elif else
+            \ switch case const take gwhile setres select
 hi link mdtlblKeyword Keyword
 
 
