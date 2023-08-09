@@ -251,6 +251,7 @@ impl DExp {
 /// 进行`词法&语法`分析时所依赖的元数据
 #[derive(Debug)]
 pub struct Meta {
+    tmp_var_count: usize,
     tag_number: usize,
     /// 被跳转的label
     defined_labels: Vec<Vec<Var>>,
@@ -258,6 +259,7 @@ pub struct Meta {
 impl Default for Meta {
     fn default() -> Self {
         Self {
+            tmp_var_count: 0,
             tag_number: 0,
             defined_labels: vec![Vec::new()],
         }
@@ -267,6 +269,13 @@ impl Meta {
     /// use [`Self::default()`]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// 返回一个临时变量, 不会造成重复
+    pub fn get_tmp_var(&mut self) -> Var {
+        let var = self.tmp_var_count;
+        self.tmp_var_count+= 1;
+        format!("___{}", var)
     }
 
     /// 获取一个标签, 并且进行内部自增以保证不会获取到获取过的
@@ -530,6 +539,38 @@ impl CmpTree {
             },
         }
     }
+
+    /// 以全部or组织一个条件树
+    /// 是左至右结合的, 也就是说输入`[a, b, c]`会得到`(a || b) || c`
+    /// 如果给出的条件个数为零则返回空
+    pub fn new_ors<I>(iter: impl IntoIterator<IntoIter = I>) -> Option<Self>
+    where I: Iterator<Item = Self>
+    {
+        let mut iter = iter.into_iter();
+        let mut root = iter.next()?;
+
+        for cmp in iter {
+            root = Self::Or(root.into(), cmp.into())
+        }
+
+        root.into()
+    }
+
+    /// 以全部and组织一个条件树
+    /// 是左至右结合的, 也就是说输入`[a, b, c]`会得到`(a && b) && c`
+    /// 如果给出的条件个数为零则返回空
+    pub fn new_ands<I>(iter: impl IntoIterator<IntoIter = I>) -> Option<Self>
+    where I: Iterator<Item = Self>
+    {
+        let mut iter = iter.into_iter();
+        let mut root = iter.next()?;
+
+        for cmp in iter {
+            root = Self::And(root.into(), cmp.into())
+        }
+
+        root.into()
+    }
 }
 impl_enum_froms!(impl From for CmpTree {
     Atom => JumpCmp;
@@ -763,6 +804,57 @@ impl Compile for Select {
         let lines = meta.tag_codes.lines_mut();
         lines.extend(head);
         lines.extend(cases.into_iter().flatten());
+    }
+}
+
+/// 用于switch捕获器捕获目标的枚举
+pub enum SwitchCatch {
+    /// 上溢
+    Overflow,
+    /// 下溢
+    Underflow,
+    /// 未命中
+    Misses,
+    /// 自定义
+    UserDefine(CmpTree),
+}
+impl SwitchCatch {
+    /// 将自身构建为具体的不满足条件
+    ///
+    /// 也就是说直接可以将输出条件用于一个跳过捕获块的`Goto`中
+    /// 需要给定需要跳转到第几个case目标的值与最大case
+    ///
+    /// 最大case, 例如最大的case为8, 那么传入8
+    pub fn build(self, value: Value, max_case: usize) -> CmpTree {
+        match self {
+            // 对于未命中捕获, 应该在捕获块头部加上一个标记
+            // 然后将填充case改为无条件跳转至该标记
+            // 而不是使用该构建函数进行构建一个条件
+            // 该捕获并不是一个条件捕获式
+            Self::Misses => panic!(),
+            // 用户定义的条件直接取反返回就好啦, 喵!
+            Self::UserDefine(cmp) => cmp.reverse(),
+            // 上溢, 捕获式为 `x > max_case`
+            // 跳过式为`x <= max_case`
+            Self::Overflow => JumpCmp::LessThanEq(
+                value,
+                Value::ReprVar(max_case.to_string())
+            ).into(),
+            // 下溢, 捕获式为 `x < 0`
+            // 跳过式为`x >= 0`
+            Self::Underflow => JumpCmp::GreaterThanEq(
+                value,
+                Value::ReprVar("0".into())
+            ).into(),
+        }
+    }
+
+    /// Returns `true` if the switch catch is [`Misses`].
+    ///
+    /// [`Misses`]: SwitchCatch::Misses
+    #[must_use]
+    pub fn is_misses(&self) -> bool {
+        matches!(self, Self::Misses)
     }
 }
 
@@ -2827,5 +2919,301 @@ mod tests {
                    "noop",
         ]);
 
+    }
+
+    #[test]
+    fn switch_catch_test() {
+        let parser = ExpandParser::new();
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        switch (op $ x + 2;) {
+            end;
+        case <:
+            print "Underflow";
+            stop;
+        case ! e:
+            print "Misses: " e;
+            stop;
+        case > n:
+            print "Overflow: " n;
+            stop;
+        case 1:
+            print 1;
+        case 3:
+            print 3 "!";
+        }
+        "#).unwrap()).compile().unwrap();
+        // 这里由于是比较生成后的代码而不是语法树, 所以可以不用那么严谨
+        assert_eq!(logic_lines, CompileMeta::new().compile(parse!(parser, r#"
+        take tmp = (op $ x + 2;);
+        skip tmp >= 0 {
+            print "Underflow";
+            stop;
+        }
+        skip _ {
+            :mis
+            const e = tmp;
+            print "Misses: " e;
+            stop;
+        }
+        skip tmp <= 3 {
+            const n = tmp;
+            print "Overflow: " n;
+            stop;
+        }
+        select tmp {
+            goto :mis _;
+            {
+                print 1;
+                end;
+            }
+            goto :mis _;
+            {
+                print 3 "!";
+                end;
+            }
+        }
+        "#).unwrap()).compile().unwrap());
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        switch (op $ x + 2;) {
+            end;
+        case <!>:
+            stop;
+        case 1:
+            print 1;
+        case 3:
+            print 3 "!";
+        }
+        "#).unwrap()).compile().unwrap();
+        // 这里由于是比较生成后的代码而不是语法树, 所以可以不用那么严谨
+        assert_eq!(logic_lines, CompileMeta::new().compile(parse!(parser, r#"
+        take tmp = (op $ x + 2;);
+        skip tmp >= 0 && tmp <= 3 {
+            :mis
+            stop;
+        }
+        select tmp {
+            goto :mis _;
+            {
+                print 1;
+                end;
+            }
+            goto :mis _;
+            {
+                print 3 "!";
+                end;
+            }
+        }
+        "#).unwrap()).compile().unwrap());
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        switch (op $ x + 2;) {
+            end;
+        case <!>:
+            stop;
+        case (a < b):
+            foo;
+        case 1:
+            print 1;
+        case 3:
+            print 3 "!";
+        }
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, CompileMeta::new().compile(parse!(parser, r#"
+        take tmp = (op $ x + 2;);
+        skip tmp >= 0 && tmp <= 3 {
+            :mis
+            stop;
+        }
+        skip !a < b {
+            foo;
+        }
+        select tmp {
+            goto :mis _;
+            {
+                print 1;
+                end;
+            }
+            goto :mis _;
+            {
+                print 3 "!";
+                end;
+            }
+        }
+        "#).unwrap()).compile().unwrap());
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        switch (op $ x + 2;) {
+            end;
+        case !!!: # 捕获多个未命中也可以哦, 当然只有最后一个生效
+            stop;
+        case 1:
+            print 1;
+        case 3:
+            print 3 "!";
+        }
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, CompileMeta::new().compile(parse!(parser, r#"
+        take tmp = (op $ x + 2;);
+        skip _ {
+            :mis
+            stop;
+        }
+        select tmp {
+            goto :mis _;
+            {
+                print 1;
+                end;
+            }
+            goto :mis _;
+            {
+                print 3 "!";
+                end;
+            }
+        }
+        "#).unwrap()).compile().unwrap());
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        switch (op $ x + 2;) {
+            end;
+        case !!!: # 捕获多个未命中也可以哦, 当然只有最后一个生效
+            stop;
+        case !:
+            foo; # 最后一个
+        case 1:
+            print 1;
+        case 3:
+            print 3 "!";
+        }
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, CompileMeta::new().compile(parse!(parser, r#"
+        take tmp = (op $ x + 2;);
+        skip _ {
+            # 可以看出, 这个是一个没用的捕获, 也不会被跳转
+            # 所以不要这么玩, 浪费跳转和行数
+            :mis
+            stop;
+        }
+        skip _ {
+            :mis1
+            foo;
+        }
+        select tmp {
+            goto :mis1 _;
+            {
+                print 1;
+                end;
+            }
+            goto :mis1 _;
+            {
+                print 3 "!";
+                end;
+            }
+        }
+        "#).unwrap()).compile().unwrap());
+
+        let ast = parse!(parser, r#"
+        switch (op $ x + 2;) {
+            end;
+        case <!> e:
+            `e` = e;
+            stop;
+        case (e < x) e:
+            foo;
+        case 1:
+            print 1;
+        case 3:
+            print 3;
+        }
+        "#).unwrap();
+        assert_eq!(ast, parse!(parser, r#"
+        {
+            take ___0 = (op $ x + 2;);
+            {
+                {
+                    const e = ___0;
+                    goto :___1 ___0 >= `0` && ___0 <= `3`;
+                    :___0
+                    {
+                        `e` = e;
+                        stop;
+                    }
+                    :___1
+                }
+                {
+                    const e = ___0;
+                    goto :___2 ! e < x;
+                    {
+                        foo;
+                    }
+                    :___2
+                }
+            }
+            select ___0 {
+                goto :___0 _;
+                {
+                    print 1;
+                    end;
+                }
+                goto :___0 _;
+                {
+                    print 3;
+                    end;
+                }
+            }
+        }
+        "#).unwrap());
+
+        let ast = parse!(parser, r#"
+        switch (op $ x + 2;) {
+            end;
+        case <> e:
+            `e` = e;
+            stop;
+        case (e < x) e:
+            foo;
+        case 1:
+            print 1;
+        case 3:
+            print 3;
+        }
+        "#).unwrap();
+        assert_eq!(ast, parse!(parser, r#"
+        {
+            take ___0 = (op $ x + 2;);
+            {
+                {
+                    const e = ___0;
+                    goto :___0 ___0 >= `0` && ___0 <= `3`;
+                    {
+                        `e` = e;
+                        stop;
+                    }
+                    :___0
+                }
+                {
+                    const e = ___0;
+                    goto :___1 ! e < x;
+                    {
+                        foo;
+                    }
+                    :___1
+                }
+            }
+            select ___0 {
+                { end; }
+                {
+                    print 1;
+                    end;
+                }
+                { end; }
+                {
+                    print 3;
+                    end;
+                }
+            }
+        }
+        "#).unwrap());
     }
 }

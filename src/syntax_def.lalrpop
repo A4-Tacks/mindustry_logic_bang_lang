@@ -14,6 +14,7 @@ use crate::syntax::{
     CmpTree,
     Goto,
     Expand,
+    SwitchCatch,
     Select,
     Const,
     Take,
@@ -286,6 +287,13 @@ pub Block: LogicLine = BlockExpand => <>.into();
 pub DExp: DExp = MTuple<(<(<Var> ":")?> <Expand>)>
     => DExp::new_optional_res(<>.0, <>.1);
 
+SwitchCatchFlag: SwitchCatch = {
+    "<" => SwitchCatch::Underflow,
+    "!" => SwitchCatch::Misses,
+    ">" => SwitchCatch::Overflow,
+    MTuple<JumpCmp> => SwitchCatch::UserDefine(<>),
+}
+
 pub Control: LogicLine = {
     "goto" <Label> <JumpCmp> LEnd => Goto(<>).into(),
 
@@ -333,10 +341,25 @@ pub Control: LogicLine = {
     "switch" <value:Value>
     <cases:MBlock<(
         <LogicLine?> // append line
-        <("case" <LiteralUInt+> ":" <Expand>)+>
+        <( // catch 拦截
+            "case"
+            <SwitchCatchFlag+> // 捕获模式, 至少有一个
+            // 可选的Var,
+            // 会在捕获块头部使用const将该Var映射至已经求出的case跳转目标
+            <Var?>
+            ":"
+            <Expand>
+        )*>
+        <( // cases
+            "case"
+            <LiteralUInt+>
+            ":"
+            <Expand>
+        )+>
     )>>
     => {
-        let (append, cases) = cases;
+        let (append, catchs, cases) = cases;
+        let catchs_is_empty = catchs.is_empty();
 
         let case_num_max = cases
             .iter()
@@ -350,10 +373,59 @@ pub Control: LogicLine = {
             .unwrap();
         let mut cases_res = Vec::with_capacity(case_num_max);
 
-        let fill_line = append /* 用于填充的行, 如果有追加在末尾的行则将其封装并替换填充 */
+        // 用于填充填充case的行, 如果有追加在末尾的行则将其封装并替换填充
+        let mut fill_line = append
             .as_ref()
             .map(|line| Expand(vec![line.clone()]).into())
             .unwrap_or(LogicLine::NoOp);
+
+        // 用于添加到头部的捕获块
+        let mut catch_lines = Vec::new();
+        let value_handle: Var = if catchs.is_empty() {
+            Var::with_capacity(0)
+        } else { meta.get_tmp_var() };
+
+        // 这里开始遍历捕获
+        // 如果遇到了未命中捕获, 则改变fill_line为总是跳转到未命中捕获
+        for (flags, name, lines) in catchs {
+            let mut out_block = Vec::new();
+            let skip_cmp = CmpTree::new_ands(
+                flags
+                    .into_iter()
+                    .filter(|flag| {
+                        if flag.is_misses() {
+                            // 是一个未命中捕获
+                            let tag = meta.get_tag();
+                            out_block.push(LogicLine::Label(tag.clone()));
+                            fill_line = Goto(tag, JumpCmp::Always.into()).into();
+                            false // 已处理, 过滤掉
+                        } else {
+                            true
+                        }
+                    })
+                    .map(|flag|
+                        flag.build(value_handle.as_str().into(), case_num_max)
+                    )
+            ).unwrap_or(JumpCmp::Always.into());
+            let skip_tag = meta.get_tag();
+            out_block.insert(0, Goto(skip_tag.clone(), skip_cmp).into());
+            if let Some(name) = name {
+                // 如果有捕获变量则使用一个const进行映射
+                // 这需要插入在头部, 也就是条件前
+                // 防止`case (a) a:`时, a还没被const就进行了判断
+                out_block.insert(
+                    0,
+                    Const::new(
+                        name,
+                        value_handle.as_str().into()
+                    ).into()
+                )
+            }
+            out_block.push(lines.into());
+            out_block.push(LogicLine::Label(skip_tag));
+
+            catch_lines.push(Expand(out_block).into())
+        }
 
         for (nums, mut expand) in cases {
             if let Some(append) = &append {
@@ -367,7 +439,23 @@ pub Control: LogicLine = {
             }
         }
         debug_assert_eq!(cases_res.len(), case_num_max + 1);
-        Select(value, Expand(cases_res)).into()
+
+        if catchs_is_empty {
+            // 没有捕获块
+            Select(value, Expand(cases_res)).into()
+        } else {
+            // 保证我们拿到了一个临时返回句柄, 而不是一个空值
+            assert_ne!(&value_handle, "");
+            // 有捕获块
+            Expand(vec![
+                // 求值
+                Take(value_handle.as_str().into(), value).into(),
+                // 捕获
+                Expand(catch_lines).into(),
+                // 主体
+                Select(value_handle.into(), Expand(cases_res)).into()
+            ]).into()
+        }
     },
 
     "select" <value:Value> <lines:BlockExpand> => Select(value, lines).into(),
