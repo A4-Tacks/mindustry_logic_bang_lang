@@ -54,14 +54,16 @@ CloseArgs<T, S> = (<T> S)* T => { // 一至多个有分隔无后缀值
 };
 Span<T> = @L T @R;
 
-pub String: Var = r#""[^"]*""# => <>.replace('\n', "\\n");
+pub String: Var = r#""[^"]*""# => <>.lines().collect::<Vec<_>>().join("\\n");
 pub Ident: Var = r"[_\p{XID_Start}]\p{XID_Continue}*" => <>.into();
 pub OIdent: Var = r"@[_\p{XID_Start}][\p{XID_Continue}\-]*" => <>.into(); // `@abc-def`这种
 pub Number: Var = r"(?:0(?:x-?[\da-fA-F][_\da-fA-F]*|b-?[01][_01]*)|-?\d[_\d]*(?:\.\d[\d_]*)?)"
     => <>.chars().filter(|&c| c != '_').collect();
+// 原始字面量, 如`'@abc-def'`, 其中双引号会被替换为单引号.
+// 在一对单引号内可以写任意非空字符, 可避开关键字等
 pub OtherValue: Var = r"'[^'\s]+'" => {
     <>[1..<>.len()-1].replace('"', "\'")
-}; // 特殊格式的值, 如`'@abc-def'`, 其中双引号会被替换为单引号
+};
 
 // 逻辑里面一个单元
 // 例如`0x50` `'@alpha'` `add` `'a-b-c'`
@@ -76,7 +78,7 @@ pub Var: Var = {
 pub Value: Value = {
     Var => <>.into(),
     DExp => <>.into(),
-    "`" <Var> "`" => Value::ReprVar(<>),
+    "`" <Var> "`" => Value::ReprVar(<>), // 原始值
     "$" => Value::ResultHandle,
 }
 
@@ -182,7 +184,8 @@ pub Op: Op = {
     <OrSwap<"acos", <Value>>> <Value> Value? => Op::Acos(<>),
     <OrSwap<"atan", <Value>>> <Value> Value? => Op::Atan(<>),
     // 扩展(1)
-    <OrSwap<Or<"lnot", "!">, <Value>>> <Value> Value? => Op::Equal(<>, "false".into()),
+    <OrSwap<Or<"lnot", "!">, <Value>>> <Value> Value? =>
+        Op::Equal(<>, Value::ReprVar("false".into())),
 }
 
 Label: String = ":" <Var>;
@@ -195,12 +198,14 @@ pub LogicLine: LogicLine = {
     Label => LogicLine::new_label(<>, meta),
     "op" <Op> LEnd => <>.into(),
     "noop" LEnd => LogicLine::NoOp,
-    "set" <var:Value> <value:Value> LEnd => LogicLine::Other(vec!["set".into(), var.into(), value]),
+    "set" <var:Value> <value:Value> LEnd => LogicLine::Other(vec![
+        Value::ReprVar("set".into()),
+        var.into(),
+        value
+    ]),
     <l:@L> <vars:PArgs> "=" <values:PArgs> LEnd <r:@R>
         =>? meta.build_sets([l, r], vars, values)
             .map_err(|e| e.into()),
-    "read" <var:Value> <from:Value> <index:Value> LEnd
-        => LogicLine::Other(vec!["read".into(), var.into(), from, index]),
     "print" <Args> LEnd => {
         if <>.is_empty() {
             // 无参数, 啥也不做
@@ -208,16 +213,21 @@ pub LogicLine: LogicLine = {
         }
         if <>.len() == 1 {
             // 单个参数, 老式处理
-            return LogicLine::Other(vec!["print".into(), <>.into_iter().next().unwrap()])
+            return LogicLine::Other(vec![
+                Value::ReprVar("print".into()),
+                <>.into_iter().next().unwrap()
+            ])
         }
         Expand(
             <>.into_iter()
-                .map(|arg| LogicLine::Other(vec!["print".into(), arg]))
+                .map(|arg| LogicLine::Other(vec![
+                    Value::ReprVar("print".into()),
+                    arg
+                ]))
                 .collect()
         ).into()
     },
-    <cmd:Value> <mut args:Args> LEnd => {
-        args.insert(0, cmd);
+    <args:PArgs> LEnd => {
         LogicLine::Other(args)
     },
 }

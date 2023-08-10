@@ -99,6 +99,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "display_source"
+version = "0.3.1"
+
+[[package]]
 name = "either"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -261,10 +265,12 @@ checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
 
 [[package]]
 name = "mindustry_logic_bang_lang"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
+ "display_source",
  "lalrpop",
  "lalrpop-util",
+ "tag_code",
 ]
 
 [[package]]
@@ -469,6 +475,10 @@ dependencies = [
  "quote",
  "unicode-ident",
 ]
+
+[[package]]
+name = "tag_code"
+version = "0.1.0"
 
 [[package]]
 name = "term"
