@@ -1,7 +1,7 @@
 " Vim syntax file
 " Language:		mindustry_logic_bang_lang (mdtlbl)
 " Maintainer:		A4-Tacks <wdsjxhno1001@163.com>
-" Last Change:		2023-7-31
+" Last Change:		2023-8-11
 " URL:		https://github.com/A4-Tacks/mindustry_logic_bang_lang
 
 " 已加载高亮时就退出
@@ -35,6 +35,10 @@ syn region mdtlblComment start=/#/ end=/$/
 syn region mdtlblLongComment start=/#\*/ end=/\*#/
 hi link mdtlblComment Comment
 hi link mdtlblLongComment Comment
+
+setlocal comments=s:#*,mb:*,ex:*#,:#
+setlocal commentstring=#%s
+setlocal formatoptions+=rq
 
 
 " 值(Var) {{{1
