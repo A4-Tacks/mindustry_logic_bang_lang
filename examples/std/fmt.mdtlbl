@@ -128,21 +128,17 @@ const PrintUpperHex = (
     *#
     take Num = _0;
 
-    if Num == 0 {
-        print 0;
-    } else {
-        take[Num] PrintNegativeChar;
-        take[($ = Num;)] HighOne = Bit64HighOne;
-        # 此处如果HighOne不是4的倍数, 那么Base将被下取到4的倍数
-        take Base = (op $ HighOne & 0xFFFF_FFFF_FFFF_FFFC;);
-        while Base >= 0 {
-            take HexCode = (
-                op $ Num >> Base;
-                op $ $ & 0xF;
-            );
-            take[HexCode] PrintUpperHexChar;
-            op Base Base - 4;
-        }
+    take[Num] PrintNegativeChar;
+    take[($ = Num;)] HighOne = Bit64HighOne;
+    # 此处如果HighOne不是4的倍数, 那么Base将被下取到4的倍数
+    take Base = (op $ HighOne & 0xFFFF_FFFF_FFFF_FFFC;);
+    while Base >= 0 {
+        take HexCode = (
+            op $ Num >> Base;
+            op $ $ & 0xF;
+        );
+        take[HexCode] PrintUpperHexChar;
+        op Base Base - 4;
     }
 );
 
@@ -155,21 +151,17 @@ const PrintLowerHex = (
     *#
     take Num = _0;
 
-    if Num == 0 {
-        print 0;
-    } else {
-        take[Num] PrintNegativeChar;
-        take[($ = Num;)] HighOne = Bit64HighOne;
-        # 此处如果HighOne不是4的倍数, 那么Base将被下取到4的倍数
-        take Base = (op $ HighOne & 0xFFFF_FFFF_FFFF_FFFC;);
-        while Base >= 0 {
-            take HexCode = (
-                op $ Num >> Base;
-                op $ $ & 0xF;
-            );
-            take[HexCode] PrintLowerHexChar;
-            op Base Base - 4;
-        }
+    take[Num] PrintNegativeChar;
+    take[($ = Num;)] HighOne = Bit64HighOne;
+    # 此处如果HighOne不是4的倍数, 那么Base将被下取到4的倍数
+    take Base = (op $ HighOne & 0xFFFF_FFFF_FFFF_FFFC;);
+    while Base >= 0 {
+        take HexCode = (
+            op $ Num >> Base;
+            op $ $ & 0xF;
+        );
+        take[HexCode] PrintLowerHexChar;
+        op Base Base - 4;
     }
 );
 
@@ -195,4 +187,31 @@ const PrintBinary = (
     }
 
     print (op $ Num & 1;);
+);
+
+const PrintOctal = (
+    #**
+    * 打印一个数的八进制形式,
+    * 例如`751`会被打印为`1357`
+    * # params
+    * - Num: 被格式化的数, 它会被消耗
+    *#
+
+    take Num = _0;
+
+    take[Num] PrintNegativeChar;
+    take[($ = Num;)] HighOne = Bit64HighOne;
+    # 此处如果HighOne不是4的倍数, 那么Base将被下取到3的倍数
+    take Base = (
+        op $ HighOne // 3;
+        op $ $ * 3;
+    );
+    while Base >= 0 {
+        take Code = (
+            op $ Num >> Base;
+            op $ $ & 7;
+        );
+        print Code;
+        op Base Base - 3;
+    }
 );
