@@ -80,6 +80,14 @@ pub Value: Value = {
     DExp => <>.into(),
     "`" <Var> "`" => Value::ReprVar(<>), // 原始值
     "$" => Value::ResultHandle,
+    <name:Var> <args:MList<Value*>> => {
+        // QuickDExpTake
+        let len = args.len() + 1;
+        let mut expand = Vec::with_capacity(len);
+        Take::build_arg_consts_to_expand(args, &mut expand);
+        expand.push(LogicLine::SetResultHandle(name.into()));
+        DExp::new("__".into(), expand.into()).into()
+    },
 }
 
 pub LiteralUInt: usize = <l:@L> <num:Number> <r:@R> =>? {
@@ -267,25 +275,14 @@ pub BuiltinCommand: LogicLine = {
     // 如果后方是一个DExp则将其计算然后将常量映射到计算出的句柄
     // 此处默认句柄使用Value
     "take" <args:MList<Value*>?> <var:(<Var> "=")?> <value:Value> LEnd => {
-        let default_var = || String::from("__");
-        let args = args.unwrap_or_default();
+        let do_leak_res = var.is_some();
 
-        if args.is_empty() {
-            Take(var.unwrap_or_else(default_var), value).into()
-        } else {
-            let mut len = args.len() + 1;
-            if var.is_some() { len += 1 }
-            let mut expand = Vec::with_capacity(len);
-            meta.build_arg_consts(args, |r#const| expand.push(r#const.into()));
-            if let Some(var) = var {
-                expand.push(Take(var.clone(), value).into());
-                expand.push(LogicLine::ConstLeak(var));
-            } else {
-                expand.push(Take(default_var(), value).into())
-            }
-            debug_assert_eq!(expand.len(), len);
-            Expand(expand).into()
-        }
+        Take::new(
+            args.unwrap_or_default(),
+            var.unwrap_or_else(|| String::from("__")),
+            do_leak_res,
+            value
+        )
     },
 
     "setres" <Value> LEnd => LogicLine::SetResultHandle(<>),
@@ -391,7 +388,7 @@ pub Control: LogicLine = {
 
         // 用于添加到头部的捕获块
         let mut catch_lines = Vec::new();
-        let value_handle: Var = if catchs.is_empty() {
+        let value_handle: Var = if catchs_is_empty {
             Var::with_capacity(0)
         } else { meta.get_tmp_var() };
 

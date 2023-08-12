@@ -367,14 +367,6 @@ impl Meta {
         self.defined_labels.pop().unwrap()
     }
 
-    /// 根据一系列构建一系列常量传参
-    pub fn build_arg_consts(&self, values: Vec<Value>, mut f: impl FnMut(Const)) {
-        for (i, value) in values.into_iter().enumerate() {
-            let name = format!("_{}", i);
-            f(Const(name, value, Vec::with_capacity(0)))
-        }
-    }
-
     /// 构建一个`sets`, 例如`a b c = 1 2 3;`
     /// 如果只有一个值与被赋值则与之前行为一致
     /// 如果值与被赋值数量不匹配则返回错误
@@ -1201,6 +1193,59 @@ impl DisplaySource for Const {
 /// 如果后方不是一个DExp, 而是Var, 那么自然等价于一个常量定义
 #[derive(Debug, PartialEq, Clone)]
 pub struct Take(pub Var, pub Value);
+impl Take {
+    /// 根据一系列构建一系列常量传参
+    pub fn build_arg_consts(values: Vec<Value>, mut f: impl FnMut(Const)) {
+        for (i, value) in values.into_iter().enumerate() {
+            let name = format!("_{}", i);
+            f(Const(name, value, Vec::with_capacity(0)))
+        }
+    }
+
+    /// 将常量传参的行构建到Expand末尾
+    pub fn build_arg_consts_to_expand(
+        values: Vec<Value>,
+        expand: &mut Vec<LogicLine>,
+    ) {
+        Self::build_arg_consts(
+            values,
+            |r#const| expand.push(r#const.into())
+        )
+    }
+
+    /// 构建一个Take语句单元
+    /// 可以带有参数与返回值
+    ///
+    /// 返回的是一个行, 因为实际上可能不止Take, 还有用于传参的const等
+    ///
+    /// - args: 传入参数
+    /// - var: 绑定量
+    /// - do_leak_res: 是否泄露绑定量
+    /// - value: 被求的值
+    pub fn new(
+        args: Vec<Value>,
+        var: Var,
+        do_leak_res: bool,
+        value: Value,
+    ) -> LogicLine {
+        if args.is_empty() {
+            Take(var, value).into()
+        } else {
+            let mut len = args.len() + 1;
+            if do_leak_res { len += 1 }
+            let mut expand = Vec::with_capacity(len);
+            Self::build_arg_consts_to_expand(args, &mut expand);
+            if do_leak_res {
+                expand.push(Take(var.clone(), value).into());
+                expand.push(LogicLine::ConstLeak(var));
+            } else {
+                expand.push(Take(var, value).into())
+            }
+            debug_assert_eq!(expand.len(), len);
+            Expand(expand).into()
+        }
+    }
+}
 impl Compile for Take {
     fn compile(self, meta: &mut CompileMeta) {
         Const::new(self.0, self.1.take(meta).into()).compile(meta)
@@ -3654,5 +3699,57 @@ mod tests {
                 .display_source_and_get(&mut meta),
             "`'print'` ('res':\n    noop;\n    `'set'` $ 'x';\n);"
         );
+    }
+
+    #[test]
+    fn quick_dexp_take_test() {
+        let parser = ExpandParser::new();
+
+        assert_eq!(
+            parse!(parser, r#"
+                print Foo[1 2];
+            "#).unwrap(),
+            parse!(parser, r#"
+                print (__:
+                    const _0 = 1;
+                    const _1 = 2;
+                    setres Foo;
+                );
+            "#).unwrap(),
+        );
+
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const Add = (
+            take A = _0;
+            take B = _1;
+            op $ A + B;
+        );
+        print Add[1 2];
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "op add __0 1 2",
+                   "print __0",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const Add = (
+            take A = _0;
+            take B = _1;
+            op $ A + B;
+        );
+        const Do = (_unused:
+            const Fun = _0;
+
+            print enter Fun;
+        );
+        take[Add[1 2]] Do;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "print enter",
+                   "op add __0 1 2",
+                   "print __0",
+        ]);
+
     }
 }
