@@ -32,29 +32,18 @@
 			"patterns": [
 				{
 					"name": "keyword.control.mdtlbl",
-					"match": "\\b(if|elif|else|do|while|for|take|goto|switch|case|skip|end|gwhile)\\b"
-				},
-				{
-					"match": "(const)\\s+([_a-zA-Z]\\w*)",
-					"captures": {
-						"1": {
-							"name": "storage.modifier.mdtlbl"
-						},
-						"2": {
-							"name": "variable.other.constant.mdtlbl"
-						}
-					}
+					"match": "\\b(if|elif|else|do|while|for|take|goto|switch|case|skip|end|gwhile|setres)\\b"
 				},
 				{
 					"name": "storage.modifier.mdtlbl",
-					"match": "\\b(const|set|read|write|setres)\\b"
+					"match": "\\b(const|set|read|write)\\b"
 				},
 				{
 					"name": "entity.name.function.mdtlbl",
 					"match": "\\b(op|noop|print|control|printflush|wait|sensor)\\b"
 				},
 				{
-					"name": "keyword.operator.word.mdtlbl",
+					"name": "keyword.control.mdtlbl",
 					"match": "\\b(equal|notEqual|lessThan|lessThanEq|greaterThan|greaterThanEq|strictEqual|always|lnot|add|sub|mul|div|idiv|mod|pow|shl|shr|or|and|xor|max|min|angle|len|noise|not|abs|log|log10|floor|ceil|sqrt|rand|sin|cos|tan|asin|acos|atan)\\b"
 				},
 				{
@@ -183,7 +172,7 @@
 		"object": {
 			"patterns": [
 				{
-					"match": "@\\w+(-\\w+)?",
+					"match": "@[_\\p{XID_Start}][\\p{XID_continue}\\-]*",
 					"name": "variable.other.constant.mdtlbl"
 				}
 			]
@@ -191,7 +180,11 @@
 		"variable": {
 			"patterns": [
 				{
-					"match": "(?<!:|@)\\b[_a-zA-Z]\\w*",
+					"match": "(?<!:|@)\\b[_A-Z]\\p{XID_continue}*",
+					"name": "variable.other.constant.mdtlbl"
+				},
+				{
+					"match": "(?<!:|@)\\b\\p{XID_start}\\p{XID_continue}*|_\\p{XID_continue}+",
 					"name": "variable.other.readwrite.mdtlbl"
 				}
 			]
