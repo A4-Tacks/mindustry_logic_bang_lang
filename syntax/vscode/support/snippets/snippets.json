@@ -194,7 +194,7 @@
         "description": "select语句块"
     },
     "mdtlbl doc": {
-        "prefix": "#**",
+        "prefix": "doc",
         "body": [
             "#**",
             "* $1",

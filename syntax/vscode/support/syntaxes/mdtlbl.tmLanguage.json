@@ -180,15 +180,11 @@
 		"variable": {
 			"patterns": [
 				{
-					"match": "(?<!:|@)\\b([_A-Z][_A-Z0-9]*)\\b",
+					"match": "(?<!:|@)\\b[_A-Z]\\p{XID_continue}*\\b",
 					"name": "variable.other.constant.mdtlbl"
 				},
 				{
-					"match": "(?<!:|@)\\b([A-Z]\\w*)+\\b",
-					"name": "entity.name.class.mdtlbl"
-				},
-				{
-					"match": "(?<!:|@)\\b[_a-zA-Z]\\w*",
+					"match": "(?<!:|@)\\b\\p{XID_start}\\p{XID_continue}*|_\\p{XID_continue}+",
 					"name": "variable.other.readwrite.mdtlbl"
 				}
 			]
