@@ -41,7 +41,8 @@ const Complex_add = (
 
 take[3 5] Num1 = Complex_new;
 take[2 8] Num2 = Complex_new;
-print Complex_add[Num1 Num2];
+take[Num1 Num2] Num3 = Complex_add;
+print Num3 "," Num3.i;
 #* >>>
 set __0 3
 set ____0__bind__i 5
@@ -50,5 +51,7 @@ set ____1__bind__i 8
 op add __2 __0 __1
 op add ____2__bind__i ____0__bind__i ____1__bind__i
 print __2
+print ","
+print ____2__bind__i
 *#
 # 可以看到, 这可以使我们方便的组织数据
