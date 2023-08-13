@@ -17,14 +17,14 @@
         ],
         "description": "gwhile语句块"
     },
-    "do_while语句": {
+    "do_while语句块": {
         "prefix": "do_while",
         "body": [
             "do {",
             "    $0",
             "} while ${1:_};"
         ],
-        "description": "do_while语句"
+        "description": "do_while语句块"
     },
     "goto语句": {
         "prefix": "goto",
