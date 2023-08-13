@@ -1,0 +1,54 @@
+#**
+* 这是在0.10.0版本加入的语法
+* 可以有效的把数据组织起来
+* 作用是将一个Var按照特定格式绑定到一个Value的句柄
+* 语法为 `Value "." Var`, 例如`$.data` `foo.bar`
+*#
+
+const Human_new = (
+    take Name = _0;
+    take Age = _1;
+
+    $ $.age = Name Age;
+);
+
+take["jack" 18] Human = Human_new;
+print Human Human.age;
+#* >>>
+set __0 "jack"
+set ____0__bind__age 18
+print __0
+print ____0__bind__age
+*#
+# 可以看到, 我们将额外的age绑定到了我们的Human
+# 这可以用来组织一些复杂结构
+
+
+# 这是一个复数的示例
+const Complex_new = (
+    take RNum = _0;
+    take INum = _1;
+
+    $ $.i = RNum INum;
+);
+const Complex_add = (
+    take Num1 = _0;
+    take Num2 = _1;
+
+    op $ Num1 + Num2;
+    op $.i Num1.i + Num2.i;
+);
+
+take[3 5] Num1 = Complex_new;
+take[2 8] Num2 = Complex_new;
+print Complex_add[Num1 Num2];
+#* >>>
+set __0 3
+set ____0__bind__i 5
+set __1 2
+set ____1__bind__i 8
+op add __2 __0 __1
+op add ____2__bind__i ____0__bind__i ____1__bind__i
+print __2
+*#
+# 可以看到, 这可以使我们方便的组织数据

@@ -10,6 +10,7 @@ use crate::syntax::{
     Value,
     Var,
     DExp,
+    ValueBind,
     JumpCmp,
     CmpTree,
     Goto,
@@ -88,6 +89,7 @@ pub Value: Value = {
         expand.push(LogicLine::SetResultHandle(name.into()));
         DExp::new("__".into(), expand.into()).into()
     },
+    <value:Value> "." <attr:Var> => ValueBind(value.into(), attr).into(),
 }
 
 pub LiteralUInt: usize = <l:@L> <num:Number> <r:@R> =>? {

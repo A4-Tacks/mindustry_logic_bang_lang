@@ -20,5 +20,6 @@
 > `switch_catch.mdtlbl`<br/>
 > `take2.mdtlbl`<br/>
 > `setres.mdtlbl`<br/>
+> `value_bind.mdtlbl`<br/>
 
 如果没有列出那请在看完上述后自行观看, 顺序可以参考文件创建顺序

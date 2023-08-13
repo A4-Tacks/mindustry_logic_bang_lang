@@ -89,6 +89,30 @@ pub type Float = f64;
 
 pub const COUNTER: &str = "@counter";
 
+pub trait TakeHandle {
+    /// 编译依赖并返回句柄
+    fn take_handle(self, meta: &mut CompileMeta) -> Var;
+}
+
+impl TakeHandle for Var {
+    fn take_handle(self, meta: &mut CompileMeta) -> Var {
+        if let Some(value) = meta.const_expand_enter(&self) {
+            // 是一个常量
+            let res = if let Value::Var(var) = value {
+                // 只进行单步常量追溯
+                // 因为常量定义时已经完成了原有的多步
+                var
+            } else {
+                value.take_handle(meta)
+            };
+            meta.const_expand_exit();
+            res
+        } else {
+            self
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Value {
     /// 一个普通值
@@ -99,6 +123,20 @@ pub enum Value {
     ReprVar(Var),
     /// 编译时被替换为当前DExp返回句柄
     ResultHandle,
+    ValueBind(ValueBind),
+}
+impl TakeHandle for Value {
+    fn take_handle(self, meta: &mut CompileMeta) -> Var {
+        // 改为使用空字符串代表空返回字符串
+        // 如果空的返回字符串被编译将会被编译为tmp_var
+        match self {
+            Self::Var(var) => var.take_handle(meta),
+            Self::DExp(dexp) => dexp.take_handle(meta),
+            Self::ResultHandle => meta.dexp_handle().clone(),
+            Self::ReprVar(var) => var,
+            Self::ValueBind(val_bind) => val_bind.take_handle(meta),
+        }
+    }
 }
 impl DisplaySource for Value {
     fn display_source(&self, meta: &mut DisplaySourceMeta) {
@@ -108,6 +146,7 @@ impl DisplaySource for Value {
             Self::ReprVar(s) => meta.push(&format!("`{}`", replace_ident(s))),
             Self::ResultHandle => meta.push("$"),
             Self::DExp(dexp) => dexp.display_source(meta),
+            Self::ValueBind(value_attr) => value_attr.display_source(meta),
         }
     }
 }
@@ -122,61 +161,6 @@ impl Value {
     /// 以保证它是真的不会有副作用的占位符
     pub fn new_noeffect() -> Self {
         Self::ReprVar("0".into())
-    }
-
-    /// 编译依赖并返回句柄
-    pub fn take(self, meta: &mut CompileMeta) -> Var {
-        // 改为使用空字符串代表空返回字符串
-        // 如果空的返回字符串被编译将会被编译为tmp_var
-        match self {
-            Self::Var(var) => {
-                if let Some(value) = meta.const_expand_enter(&var) {
-                    // 是一个常量
-                    let res = if let Value::Var(var) = value {
-                        // 只进行单步常量追溯
-                        // 因为常量定义时已经完成了原有的多步
-                        var
-                    } else {
-                        value.take(meta)
-                    };
-                    meta.const_expand_exit();
-                    res
-                } else {
-                    var
-                }
-            },
-            Self::DExp(DExp { mut result, lines }) => {
-                if result.is_empty() {
-                    result = meta.get_tmp_var(); /* init tmp_var */
-                } else if let
-                    Some((_, value))
-                        = meta.get_const_value(&result) {
-                    // 对返回句柄使用常量值的处理
-                    if let Some(dexp) = value.as_dexp() {
-                        err!(
-                            concat!(
-                                "尝试在`DExp`的返回句柄处使用值为`DExp`的const, ",
-                                "此处仅允许使用`Var`\n",
-                                "DExp: {:?}\n",
-                                "名称: {:?}",
-                            ),
-                            dexp,
-                            result
-                        );
-                        exit(5);
-                    }
-                    assert!(value.is_var());
-                    result = value.as_var().unwrap().clone()
-                }
-                assert!(! result.is_empty());
-                meta.push_dexp_handle(result);
-                lines.compile(meta);
-                let result = meta.pop_dexp_handle();
-                result
-            },
-            Self::ResultHandle => meta.dexp_handle().clone(),
-            Self::ReprVar(var) => var,
-        }
     }
 
     /// Returns `true` if the value is [`DExp`].
@@ -246,6 +230,8 @@ impl Deref for Value {
             Self::DExp(DExp { result, .. }) => &result,
             Self::ResultHandle =>
                 panic!("未进行AST编译, 而DExp的返回句柄是进行AST编译时已知"),
+            Self::ValueBind(..) =>
+                panic!("未进行AST编译, 而ValueAttr的返回句柄是进行AST编译时已知"),
         }
     }
 }
@@ -253,6 +239,7 @@ impl_enum_froms!(impl From for Value {
     Var => Var;
     Var => &str;
     DExp => DExp;
+    ValueBind => ValueBind;
 });
 
 /// 带返回值的表达式
@@ -283,6 +270,39 @@ impl DExp {
         }
     }
 }
+impl TakeHandle for DExp {
+    fn take_handle(self, meta: &mut CompileMeta) -> Var {
+        let DExp { mut result, lines } = self;
+
+        if result.is_empty() {
+            result = meta.get_tmp_var(); /* init tmp_var */
+        } else if let
+            Some((_, value))
+                = meta.get_const_value(&result) {
+            // 对返回句柄使用常量值的处理
+            if let Some(dexp) = value.as_dexp() {
+                err!(
+                    concat!(
+                        "尝试在`DExp`的返回句柄处使用值为`DExp`的const, ",
+                        "此处仅允许使用`Var`\n",
+                        "DExp: {:?}\n",
+                        "名称: {:?}",
+                    ),
+                    dexp,
+                    result
+                );
+                exit(5);
+            }
+            assert!(value.is_var());
+            result = value.as_var().unwrap().clone()
+        }
+        assert!(! result.is_empty());
+        meta.push_dexp_handle(result);
+        lines.compile(meta);
+        let result = meta.pop_dexp_handle();
+        result
+    }
+}
 impl DisplaySource for DExp {
     fn display_source(&self, meta: &mut DisplaySourceMeta) {
         meta.push("(");
@@ -307,6 +327,25 @@ impl DisplaySource for DExp {
             }
         }
         meta.push(")");
+    }
+}
+
+/// 将一个Value与一个Var以特定格式组合起来,
+/// 可完成如属性调用的功能
+#[derive(Debug, PartialEq, Clone)]
+pub struct ValueBind(pub Box<Value>, pub Var);
+impl TakeHandle for ValueBind {
+    fn take_handle(self, meta: &mut CompileMeta) -> Var {
+        // 以`__{}__bind__{}`的形式组合
+        let handle = self.0.take_handle(meta);
+        format!("__{}__bind__{}", handle, self.1)
+    }
+}
+impl DisplaySource for ValueBind {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        self.0.display_source(meta);
+        meta.push(".");
+        meta.push(&Value::replace_ident(&self.1));
     }
 }
 
@@ -521,7 +560,7 @@ impl JumpCmp {
     /// 构建两个值后将句柄送出
     pub fn build_value(self, meta: &mut CompileMeta) -> (Var, Var) {
         let (a, b) = self.get_values();
-        (a.take(meta), b.take(meta))
+        (a.take_handle(meta), b.take_handle(meta))
     }
 
     /// 即将编译时调用, 将自身转换为可以正常编译为逻辑的形式
@@ -863,16 +902,16 @@ impl Op {
                 match self {
                     $(
                         Self::$oper1(res, a) => {
-                            args.push(res.take(meta).into());
-                            args.push(a.take(meta).into());
+                            args.push(res.take_handle(meta).into());
+                            args.push(a.take_handle(meta).into());
                             args.push("0".into());
                         },
                     )*
                     $(
                         Self::$oper2(res, a, b) => {
-                            args.push(res.take(meta).into());
-                            args.push(a.take(meta).into());
-                            args.push(b.take(meta).into());
+                            args.push(res.take_handle(meta).into());
+                            args.push(a.take_handle(meta).into());
+                            args.push(b.take_handle(meta).into());
                         },
                     )*
                 }
@@ -1248,7 +1287,7 @@ impl Take {
 }
 impl Compile for Take {
     fn compile(self, meta: &mut CompileMeta) {
-        Const::new(self.0, self.1.take(meta).into()).compile(meta)
+        Const::new(self.0, self.1.take_handle(meta).into()).compile(meta)
     }
 }
 impl DisplaySource for Take {
@@ -1299,12 +1338,12 @@ impl Compile for LogicLine {
             Self::Other(args) => {
                 let handles: Vec<String> = args
                     .into_iter()
-                    .map(|val| val.take(meta))
+                    .map(|val| val.take_handle(meta))
                     .collect();
                 meta.push(TagLine::Line(handles.join(" ").into()))
             },
             Self::SetResultHandle(value) => {
-                let new_dexp_handle = value.take(meta);
+                let new_dexp_handle = value.take_handle(meta);
                 meta.set_dexp_handle(new_dexp_handle);
             },
             Self::Select(select) => select.compile(meta),
@@ -3699,6 +3738,12 @@ mod tests {
                 .display_source_and_get(&mut meta),
             "`'print'` ('res':\n    noop;\n    `'set'` $ 'x';\n);"
         );
+        assert_eq!(
+            parse!(LogicLineParser::new(), "print a.b.c;")
+                .unwrap()
+                .display_source_and_get(&mut meta),
+            "`'print'` 'a'.'b'.'c';"
+        );
     }
 
     #[test]
@@ -3749,6 +3794,31 @@ mod tests {
                    "print enter",
                    "op add __0 1 2",
                    "print __0",
+        ]);
+
+    }
+
+    #[test]
+    fn value_bind_test() {
+        let parser = ExpandParser::new();
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const Jack = jack;
+        Jack Jack.age = "jack" 18;
+        print Jack Jack.age;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "set jack \"jack\"",
+                   "set __jack__bind__age 18",
+                   "print jack",
+                   "print __jack__bind__age",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        print a.b.c;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "print ____a__bind__b__bind__c",
         ]);
 
     }
