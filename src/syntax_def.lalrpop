@@ -10,10 +10,12 @@ use crate::syntax::{
     Value,
     Var,
     DExp,
+    ValueBind,
     JumpCmp,
     CmpTree,
     Goto,
     Expand,
+    SwitchCatch,
     Select,
     Const,
     Take,
@@ -53,14 +55,16 @@ CloseArgs<T, S> = (<T> S)* T => { // 一至多个有分隔无后缀值
 };
 Span<T> = @L T @R;
 
-pub String: Var = r#""[^"]*""# => <>.replace('\n', "\\n");
+pub String: Var = r#""[^"]*""# => <>.lines().collect::<Vec<_>>().join("\\n");
 pub Ident: Var = r"[_\p{XID_Start}]\p{XID_Continue}*" => <>.into();
 pub OIdent: Var = r"@[_\p{XID_Start}][\p{XID_Continue}\-]*" => <>.into(); // `@abc-def`这种
 pub Number: Var = r"(?:0(?:x-?[\da-fA-F][_\da-fA-F]*|b-?[01][_01]*)|-?\d[_\d]*(?:\.\d[\d_]*)?)"
     => <>.chars().filter(|&c| c != '_').collect();
+// 原始字面量, 如`'@abc-def'`, 其中双引号会被替换为单引号.
+// 在一对单引号内可以写任意非空字符, 可避开关键字等
 pub OtherValue: Var = r"'[^'\s]+'" => {
     <>[1..<>.len()-1].replace('"', "\'")
-}; // 特殊格式的值, 如`'@abc-def'`, 其中双引号会被替换为单引号
+};
 
 // 逻辑里面一个单元
 // 例如`0x50` `'@alpha'` `add` `'a-b-c'`
@@ -75,7 +79,17 @@ pub Var: Var = {
 pub Value: Value = {
     Var => <>.into(),
     DExp => <>.into(),
+    "`" <Var> "`" => Value::ReprVar(<>), // 原始值
     "$" => Value::ResultHandle,
+    <name:Var> <args:MList<Value*>> => {
+        // QuickDExpTake
+        let len = args.len() + 1;
+        let mut expand = Vec::with_capacity(len);
+        Take::build_arg_consts_to_expand(args, &mut expand);
+        expand.push(LogicLine::SetResultHandle(name.into()));
+        DExp::new("__".into(), expand.into()).into()
+    },
+    <value:Value> "." <attr:Var> => ValueBind(value.into(), attr).into(),
 }
 
 pub LiteralUInt: usize = <l:@L> <num:Number> <r:@R> =>? {
@@ -108,6 +122,7 @@ JumpCmpBody: JumpCmp = {
     <OrSwap<Or<"strictEqual", "===">, <Value>>> <Value> => JumpCmp::StrictEqual(<>),
     Or<"always", "_"> => JumpCmp::Always,
     // 扩展
+    <OrSwap<Or<"strictNotEqual", "!==">, <Value>>> <Value> => JumpCmp::StrictNotEqual(<>),
     <Value> => JumpCmp::bool(<>),
 }
 
@@ -179,7 +194,8 @@ pub Op: Op = {
     <OrSwap<"acos", <Value>>> <Value> Value? => Op::Acos(<>),
     <OrSwap<"atan", <Value>>> <Value> Value? => Op::Atan(<>),
     // 扩展(1)
-    <OrSwap<Or<"lnot", "!">, <Value>>> <Value> Value? => Op::Equal(<>, "false".into()),
+    <OrSwap<Or<"lnot", "!">, <Value>>> <Value> Value? =>
+        Op::Equal(<>, Value::ReprVar("false".into())),
 }
 
 Label: String = ":" <Var>;
@@ -192,12 +208,14 @@ pub LogicLine: LogicLine = {
     Label => LogicLine::new_label(<>, meta),
     "op" <Op> LEnd => <>.into(),
     "noop" LEnd => LogicLine::NoOp,
-    "set" <var:Value> <value:Value> LEnd => LogicLine::Other(vec!["set".into(), var.into(), value]),
+    "set" <var:Value> <value:Value> LEnd => LogicLine::Other(vec![
+        Value::ReprVar("set".into()),
+        var.into(),
+        value
+    ]),
     <l:@L> <vars:PArgs> "=" <values:PArgs> LEnd <r:@R>
         =>? meta.build_sets([l, r], vars, values)
             .map_err(|e| e.into()),
-    "read" <var:Value> <from:Value> <index:Value> LEnd
-        => LogicLine::Other(vec!["read".into(), var.into(), from, index]),
     "print" <Args> LEnd => {
         if <>.is_empty() {
             // 无参数, 啥也不做
@@ -205,16 +223,21 @@ pub LogicLine: LogicLine = {
         }
         if <>.len() == 1 {
             // 单个参数, 老式处理
-            return LogicLine::Other(vec!["print".into(), <>.into_iter().next().unwrap()])
+            return LogicLine::Other(vec![
+                Value::ReprVar("print".into()),
+                <>.into_iter().next().unwrap()
+            ])
         }
         Expand(
             <>.into_iter()
-                .map(|arg| LogicLine::Other(vec!["print".into(), arg]))
+                .map(|arg| LogicLine::Other(vec![
+                    Value::ReprVar("print".into()),
+                    arg
+                ]))
                 .collect()
         ).into()
     },
-    <cmd:Value> <mut args:Args> LEnd => {
-        args.insert(0, cmd);
+    <args:PArgs> LEnd => {
         LogicLine::Other(args)
     },
 }
@@ -254,34 +277,31 @@ pub BuiltinCommand: LogicLine = {
     // 如果后方是一个DExp则将其计算然后将常量映射到计算出的句柄
     // 此处默认句柄使用Value
     "take" <args:MList<Value*>?> <var:(<Var> "=")?> <value:Value> LEnd => {
-        let default_var = || String::from("__");
-        let args = args.unwrap_or_default();
+        let do_leak_res = var.is_some();
 
-        if args.is_empty() {
-            Take(var.unwrap_or_else(default_var), value).into()
-        } else {
-            let mut len = args.len() + 1;
-            if var.is_some() { len += 1 }
-            let mut expand = Vec::with_capacity(len);
-            meta.build_arg_consts(args, |r#const| expand.push(r#const.into()));
-            if let Some(var) = var {
-                expand.push(Take(var.clone(), value).into());
-                expand.push(LogicLine::ConstLeak(var));
-            } else {
-                expand.push(Take(default_var(), value).into())
-            }
-            debug_assert_eq!(expand.len(), len);
-            Expand(expand).into()
-        }
+        Take::new(
+            args.unwrap_or_default(),
+            var.unwrap_or_else(|| String::from("__")),
+            do_leak_res,
+            value
+        )
     },
 
     "setres" <Value> LEnd => LogicLine::SetResultHandle(<>),
 }
 
-pub Block: LogicLine = MBlock<Expand> => <>.into();
+BlockExpand: Expand = MBlock<Expand> => <>;
+pub Block: LogicLine = BlockExpand => <>.into();
 
 pub DExp: DExp = MTuple<(<(<Var> ":")?> <Expand>)>
-    => DExp::new(<>.0.unwrap_or_default(), <>.1);
+    => DExp::new_optional_res(<>.0, <>.1);
+
+SwitchCatchFlag: SwitchCatch = {
+    "<" => SwitchCatch::Underflow,
+    "!" => SwitchCatch::Misses,
+    ">" => SwitchCatch::Overflow,
+    MTuple<JumpCmp> => SwitchCatch::UserDefine(<>),
+}
 
 pub Control: LogicLine = {
     "goto" <Label> <JumpCmp> LEnd => Goto(<>).into(),
@@ -330,10 +350,25 @@ pub Control: LogicLine = {
     "switch" <value:Value>
     <cases:MBlock<(
         <LogicLine?> // append line
-        <("case" <LiteralUInt+> ":" <Expand>)+>
+        <( // catch 拦截
+            "case"
+            <SwitchCatchFlag+> // 捕获模式, 至少有一个
+            // 可选的Var,
+            // 会在捕获块头部使用const将该Var映射至已经求出的case跳转目标
+            <Var?>
+            ":"
+            <Expand>
+        )*>
+        <( // cases
+            "case"
+            <LiteralUInt+>
+            ":"
+            <Expand>
+        )+>
     )>>
     => {
-        let (append, cases) = cases;
+        let (append, catchs, cases) = cases;
+        let catchs_is_empty = catchs.is_empty();
 
         let case_num_max = cases
             .iter()
@@ -346,20 +381,93 @@ pub Control: LogicLine = {
             .max()
             .unwrap();
         let mut cases_res = Vec::with_capacity(case_num_max);
+
+        // 用于填充填充case的行, 如果有追加在末尾的行则将其封装并替换填充
+        let mut fill_line = append
+            .as_ref()
+            .map(|line| Expand(vec![line.clone()]).into())
+            .unwrap_or(LogicLine::NoOp);
+
+        // 用于添加到头部的捕获块
+        let mut catch_lines = Vec::new();
+        let value_handle: Var = if catchs_is_empty {
+            Var::with_capacity(0)
+        } else { meta.get_tmp_var() };
+
+        // 这里开始遍历捕获
+        // 如果遇到了未命中捕获, 则改变fill_line为总是跳转到未命中捕获
+        for (flags, name, lines) in catchs {
+            let mut out_block = Vec::new();
+            let skip_cmp = CmpTree::new_ands(
+                flags
+                    .into_iter()
+                    .filter(|flag| {
+                        if flag.is_misses() {
+                            // 是一个未命中捕获
+                            let tag = meta.get_tag();
+                            out_block.push(LogicLine::Label(tag.clone()));
+                            fill_line = Goto(tag, JumpCmp::Always.into()).into();
+                            false // 已处理, 过滤掉
+                        } else {
+                            true
+                        }
+                    })
+                    .map(|flag|
+                        flag.build(value_handle.as_str().into(), case_num_max)
+                    )
+            ).unwrap_or(JumpCmp::Always.into());
+            let skip_tag = meta.get_tag();
+            out_block.insert(0, Goto(skip_tag.clone(), skip_cmp).into());
+            if let Some(name) = name {
+                // 如果有捕获变量则使用一个const进行映射
+                // 这需要插入在头部, 也就是条件前
+                // 防止`case (a) a:`时, a还没被const就进行了判断
+                out_block.insert(
+                    0,
+                    Const::new(
+                        name,
+                        value_handle.as_str().into()
+                    ).into()
+                )
+            }
+            out_block.push(lines.into());
+            out_block.push(LogicLine::Label(skip_tag));
+
+            catch_lines.push(Expand(out_block).into())
+        }
+
         for (nums, mut expand) in cases {
             if let Some(append) = &append {
                 expand.push(append.clone())
             }
             for num in nums {
                 for _ in cases_res.len()..=num {
-                    cases_res.push(LogicLine::NoOp)
+                    cases_res.push(fill_line.clone())
                 }
                 cases_res[num] = expand.clone().into()
             }
         }
         debug_assert_eq!(cases_res.len(), case_num_max + 1);
-        Select(value, Expand(cases_res)).into()
+
+        if catchs_is_empty {
+            // 没有捕获块
+            Select(value, Expand(cases_res)).into()
+        } else {
+            // 保证我们拿到了一个临时返回句柄, 而不是一个空值
+            assert_ne!(&value_handle, "");
+            // 有捕获块
+            Expand(vec![
+                // 求值
+                Take(value_handle.as_str().into(), value).into(),
+                // 捕获
+                Expand(catch_lines).into(),
+                // 主体
+                Select(value_handle.into(), Expand(cases_res)).into()
+            ]).into()
+        }
     },
+
+    "select" <value:Value> <lines:BlockExpand> => Select(value, lines).into(),
 
     "if" <cmp:JumpCmp> <body:Block>
         <elifs:("elif" <JumpCmp> <Block>)*>

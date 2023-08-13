@@ -1,6 +1,17 @@
 #*
  * Value是Bang语言中的重要结构, 它是一个枚举,
- *  可用值为一个Var或者一个DExp又或者一个ResultHandle
+ *  可用值为:
+ *      Var
+ *          一个基本单元 (1234)
+ *      DExp
+ *          有一个返回句柄与一系列行 ((res: res = 2;))
+ *      ResultHandle
+ *          当前层的DExp返回句柄 ($)
+ *      ReprVar
+ *          不会被常量替换的Var (`foo`)
+ *      ValueBind (abc.def)
+ *          将一个Var用特定格式绑定到Value的句柄
+ *
  * DExp和ResultHandle的介绍请移步至dexp.mdtlbl
  * Var是一个基本值单元, 它可以是一个变量, 一个字符串, 一个数字, 一个由@紧贴开头的变量
  * 它有几个匹配分支:
@@ -42,3 +53,5 @@ set n_int -123_456;
 set bin 0b1001_0010;
 set n_bin 0b-1001_0010;
 set x 'abc"def'; # 其中的双引号会被替换为单引号
+set y `y`; # 这里`y`会被编译为y
+set z `"z"`; # 这里`"z"`会被编译为"z"

@@ -10,12 +10,12 @@ use std::{
     mem::replace,
 };
 
+use display_source::DisplaySource;
 use lalrpop_util::{
     lexer::Token,
     ParseError
 };
 use mindustry_logic_bang_lang::{
-    err,
     syntax::{
         CompileMeta,
         Error,
@@ -26,6 +26,13 @@ use mindustry_logic_bang_lang::{
     syntax_def::ExpandParser,
     tag_code::TagCodes,
 };
+
+/// 带有错误前缀, 并且文本为红色的eprintln
+macro_rules! err {
+    ( $fmtter:expr $(, $args:expr)* $(,)? ) => {
+        eprintln!(concat!("\x1b[1;31m", "MainError: ", $fmtter, "\x1b[0m"), $($args),*);
+    };
+}
 
 macro_rules! concat_lines {
     ( $( $( $s:expr ),* ; )* ) => {
@@ -41,6 +48,7 @@ pub const HELP_MSG: &str = concat_lines! {
     "MODE:";
     "\t", "c: compile MdtBangLang to MdtLogicCode";
     "\t", "a: compile MdtBangLang to AST Debug";
+    "\t", "A: compile MdtBangLang to MdtBangLang";
     "\t", "t: compile MdtBangLang to MdtTagCode";
     "\t", "T: compile MdtBangLang to MdtTagCode (Builded TagDown)";
     "\t", "f: compile MdtLogicCode to MdtTagCode";
@@ -81,6 +89,13 @@ fn main() {
         "a" => {
             let ast = from_stdin_build_ast();
             println!("{:#?}", ast)
+        },
+        "A" => {
+            let ast = from_stdin_build_ast();
+            let mut meta = Default::default();
+            ast.display_source(&mut meta);
+            assert!(meta.pop_lf());
+            println!("{}", meta.buffer());
         },
         "t" => {
             let ast = from_stdin_build_ast();
@@ -163,10 +178,13 @@ fn build_tag_down(meta: &mut CompileMeta) {
 type ParseResult<'a> = Result<Expand, ParseError<usize, Token<'a>, Error>>;
 
 fn from_stdin_build_ast() -> Expand {
+    build_ast(&read_stdin())
+}
+
+fn build_ast(src: &str) -> Expand {
     let parser = ExpandParser::new();
     let mut meta = Meta::new();
-    let buf = read_stdin();
-    unwrap_parse_err(parser.parse(&mut meta, &buf), &buf)
+    unwrap_parse_err(parser.parse(&mut meta, src), src)
 }
 
 fn read_stdin() -> String {

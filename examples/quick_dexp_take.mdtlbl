@@ -1,0 +1,84 @@
+#**
+* QuickDExpTake
+* 这是一个在0.9.1版本加入的语法, 其语法为`Var MList<Value*>`
+* 也就是说你可以编写`Func[1 2]`这种更加便捷的形式了
+* 以下为它的展开形式:
+* ```
+* ('__':
+*     const '_0' = '1'; # labels: []
+*     const '_1' = '2'; # labels: []
+*     setres 'Func';
+* )
+* ```
+* 从上述可以看出, 它依旧是先const再求值的, 并不要被方括号放在后面所迷惑
+* 其const的行为与take一致, 但是它并没有使用空take再setres, 而是直接setres,
+* 因为setres也是直接进行求值, 所以就直接使用它了.
+*
+* 需要注意的是, 你需要明确它是一个DExp, 也就是说它是可能会被延迟求值的.
+*   而这种情况下, 如果你需要预先求值, 请使用take而不是使用quick_dexp_take
+*   而需要在外部预先求值的情况例如Func内部使用了某个外部量,
+*   但是在你使用Func的地方这个外部量被遮蔽了.
+*#
+
+# 以下为一些使用实例
+const Add = (
+    take A = _0;
+    take B = _1;
+
+    op $ A + B;
+);
+const AddOne = (
+    take Value = _0;
+
+    op $ Value + 1;
+);
+print "1+2" Add[1 2];
+print "1+2+1" AddOne[Add[1 2]];
+#* >>>
+print "1+2"
+op add __0 1 2
+print __0
+print "1+2+1"
+op add __2 1 2
+op add __1 __2 1
+print __1
+*#
+# 可以看到, 这可以使我们在需要传参并立即使用返回值时更加简洁
+# 但是你依旧需要谨记这个语法的原理与坑! 它是一个DExp!
+
+
+const Add = (
+    take A = _0;
+    take B = _1;
+    op $ A + B;
+);
+const Do = (_unused:
+    const Fun = _0;
+
+    print "start" Fun "stop";
+);
+print "方案1";
+take[1 2] Num = Add;
+take[Num] Do;
+print "方案2";
+take[Add[1 2]] Do;
+#* >>>
+print "方案1"
+op add __0 1 2
+print "start"
+print __0
+print "stop"
+print "方案2"
+print "start"
+op add __1 1 2
+print __1
+print "stop"
+*#
+# 这是两个方案, 乍一眼看去似乎没有毛病
+# 但是编译后我们可以看到, 方案1是先求值然后打印"start"
+# 而方案2是打印"start"再求值
+# 因为Do中, 我们使用const将它原样不动的赋给了Fun, 并没有take,
+# 而是在打印"start"后才使用, 进行了take
+# 而在方案1中, 我们在进行Do之前先手动对它进行了求值, 所以求值发生在"start"前
+# 例如这种需要的值并没有在头部进行计算完毕的场景, 这便可能是一个坑,
+# 所以你需要谨记它是一个DExp

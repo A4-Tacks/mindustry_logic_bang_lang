@@ -9,13 +9,14 @@ use std::{
     process::exit,
     mem::replace,
 };
-use crate::{
-    err,
-    tag_code::{
-        Jump,
-        TagCodes,
-        TagLine
-    },
+use crate::tag_code::{
+    Jump,
+    TagCodes,
+    TagLine
+};
+use display_source::{
+    DisplaySource,
+    DisplaySourceMeta,
 };
 
 
@@ -75,78 +76,91 @@ pub enum Errors {
     SetVarNoPatternValue(usize, usize),
 }
 
+/// 带有错误前缀, 并且文本为红色的eprintln
+macro_rules! err {
+    ( $fmtter:expr $(, $args:expr)* $(,)? ) => {
+        eprintln!(concat!("\x1b[1;31m", "ParseError: ", $fmtter, "\x1b[0m"), $($args),*);
+    };
+}
+
 pub type Var = String;
 pub type Location = usize;
 pub type Float = f64;
 
 pub const COUNTER: &str = "@counter";
 
+pub trait TakeHandle {
+    /// 编译依赖并返回句柄
+    fn take_handle(self, meta: &mut CompileMeta) -> Var;
+}
+
+impl TakeHandle for Var {
+    fn take_handle(self, meta: &mut CompileMeta) -> Var {
+        if let Some(value) = meta.const_expand_enter(&self) {
+            // 是一个常量
+            let res = if let Value::Var(var) = value {
+                // 只进行单步常量追溯
+                // 因为常量定义时已经完成了原有的多步
+                var
+            } else {
+                value.take_handle(meta)
+            };
+            meta.const_expand_exit();
+            res
+        } else {
+            self
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Value {
+    /// 一个普通值
     Var(Var),
+    /// DExp
     DExp(DExp),
+    /// 不可被常量替换的普通值
+    ReprVar(Var),
     /// 编译时被替换为当前DExp返回句柄
     ResultHandle,
+    ValueBind(ValueBind),
 }
-impl Default for Value {
-    fn default() -> Self {
-        Self::Var("0".into())
-    }
-}
-impl Value {
-    /// 编译依赖并返回句柄
-    pub fn take(self, meta: &mut CompileMeta) -> Var {
+impl TakeHandle for Value {
+    fn take_handle(self, meta: &mut CompileMeta) -> Var {
         // 改为使用空字符串代表空返回字符串
         // 如果空的返回字符串被编译将会被编译为tmp_var
         match self {
-            Self::Var(var) => {
-                if let Some(value) = meta.const_expand_enter(&var) {
-                    // 是一个常量
-                    let res = if let Value::Var(var) = value {
-                        // 只进行单步常量追溯
-                        // 因为常量定义时已经完成了原有的多步
-                        var
-                    } else {
-                        value.take(meta)
-                    };
-                    meta.const_expand_exit();
-                    res
-                } else {
-                    var
-                }
-            },
-            Self::DExp(DExp { mut result, lines }) => {
-                if result.is_empty() {
-                    result = meta.get_tmp_var(); /* init tmp_var */
-                } else if let
-                    Some((_, value))
-                        = meta.get_const_value(&result) {
-                    // 对返回句柄使用常量值的处理
-                    if let Some(dexp) = value.as_dexp() {
-                        err!(
-                            concat!(
-                                "尝试在`DExp`的返回句柄处使用值为`DExp`的const, ",
-                                "此处仅允许使用`Var`\n",
-                                "DExp: {:?}\n",
-                                "名称: {:?}",
-                            ),
-                            dexp,
-                            result
-                        );
-                        exit(5);
-                    }
-                    assert!(value.is_var());
-                    result = value.as_var().unwrap().clone()
-                }
-                assert!(! result.is_empty());
-                meta.push_dexp_handle(result);
-                lines.compile(meta);
-                let result = meta.pop_dexp_handle();
-                result
-            },
+            Self::Var(var) => var.take_handle(meta),
+            Self::DExp(dexp) => dexp.take_handle(meta),
             Self::ResultHandle => meta.dexp_handle().clone(),
+            Self::ReprVar(var) => var,
+            Self::ValueBind(val_bind) => val_bind.take_handle(meta),
         }
+    }
+}
+impl DisplaySource for Value {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        let replace_ident = Self::replace_ident;
+        match self {
+            Self::Var(s) => meta.push(&replace_ident(s)),
+            Self::ReprVar(s) => meta.push(&format!("`{}`", replace_ident(s))),
+            Self::ResultHandle => meta.push("$"),
+            Self::DExp(dexp) => dexp.display_source(meta),
+            Self::ValueBind(value_attr) => value_attr.display_source(meta),
+        }
+    }
+}
+impl Default for Value {
+    /// 默认的占位值, 它是无副作用的, 不会被常量展开
+    fn default() -> Self {
+        Self::new_noeffect()
+    }
+}
+impl Value {
+    /// 新建一个占位符, 使用[`ReprVar`],
+    /// 以保证它是真的不会有副作用的占位符
+    pub fn new_noeffect() -> Self {
+        Self::ReprVar("0".into())
     }
 
     /// Returns `true` if the value is [`DExp`].
@@ -188,15 +202,36 @@ impl Value {
             None
         }
     }
+
+    /// 判断是否不应该由原始标识符包裹
+    /// 注意是原始标识符(原始字面量), 不要与原始值混淆
+    pub fn no_use_repr_var(s: &str) -> bool {
+        s.len() >= 2
+            && s.starts_with('"')
+            && s.ends_with('"')
+    }
+
+    /// 返回被规范化的标识符
+    pub fn replace_ident(s: &str) -> String {
+        if Self::no_use_repr_var(s) {
+            s.into()
+        } else {
+            let var = s.replace('\'', "\"");
+            format!("'{}'", var)
+        }
+    }
 }
 impl Deref for Value {
     type Target = str;
 
     fn deref(&self) -> &Self::Target {
         match self {
-            Self::Var(ref s) => &s,
+            Self::Var(ref s) | Self::ReprVar(ref s) => s,
             Self::DExp(DExp { result, .. }) => &result,
-            Self::ResultHandle => panic!("未进行AST编译, 而DExp的返回句柄是进行AST编译时已知"),
+            Self::ResultHandle =>
+                panic!("未进行AST编译, 而DExp的返回句柄是进行AST编译时已知"),
+            Self::ValueBind(..) =>
+                panic!("未进行AST编译, 而ValueAttr的返回句柄是进行AST编译时已知"),
         }
     }
 }
@@ -204,6 +239,7 @@ impl_enum_froms!(impl From for Value {
     Var => Var;
     Var => &str;
     DExp => DExp;
+    ValueBind => ValueBind;
 });
 
 /// 带返回值的表达式
@@ -217,11 +253,106 @@ impl DExp {
     pub fn new(result: Var, lines: Expand) -> Self {
         Self { result, lines }
     }
+
+    /// 新建一个可能指定返回值的DExp
+    pub fn new_optional_res(result: Option<Var>, lines: Expand) -> Self {
+        Self {
+            result: result.unwrap_or_default(),
+            lines
+        }
+    }
+
+    /// 新建一个未指定返回值的DExp
+    pub fn new_nores(lines: Expand) -> Self {
+        Self {
+            result: Default::default(),
+            lines
+        }
+    }
+}
+impl TakeHandle for DExp {
+    fn take_handle(self, meta: &mut CompileMeta) -> Var {
+        let DExp { mut result, lines } = self;
+
+        if result.is_empty() {
+            result = meta.get_tmp_var(); /* init tmp_var */
+        } else if let
+            Some((_, value))
+                = meta.get_const_value(&result) {
+            // 对返回句柄使用常量值的处理
+            if let Some(dexp) = value.as_dexp() {
+                err!(
+                    concat!(
+                        "尝试在`DExp`的返回句柄处使用值为`DExp`的const, ",
+                        "此处仅允许使用`Var`\n",
+                        "DExp: {:?}\n",
+                        "名称: {:?}",
+                    ),
+                    dexp,
+                    result
+                );
+                exit(5);
+            }
+            assert!(value.is_var());
+            result = value.as_var().unwrap().clone()
+        }
+        assert!(! result.is_empty());
+        meta.push_dexp_handle(result);
+        lines.compile(meta);
+        let result = meta.pop_dexp_handle();
+        result
+    }
+}
+impl DisplaySource for DExp {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        meta.push("(");
+        let has_named_res = !self.result.is_empty();
+        if has_named_res {
+            meta.push(&Value::replace_ident(&self.result));
+            meta.push(":");
+        }
+        match self.lines.len() {
+            0 => (),
+            1 => {
+                if has_named_res {
+                    meta.add_space();
+                }
+                self.lines[0].display_source(meta);
+            },
+            _ => {
+                meta.add_lf();
+                meta.do_block(|meta| {
+                    self.lines.display_source(meta);
+                });
+            }
+        }
+        meta.push(")");
+    }
+}
+
+/// 将一个Value与一个Var以特定格式组合起来,
+/// 可完成如属性调用的功能
+#[derive(Debug, PartialEq, Clone)]
+pub struct ValueBind(pub Box<Value>, pub Var);
+impl TakeHandle for ValueBind {
+    fn take_handle(self, meta: &mut CompileMeta) -> Var {
+        // 以`__{}__bind__{}`的形式组合
+        let handle = self.0.take_handle(meta);
+        format!("__{}__bind__{}", handle, self.1)
+    }
+}
+impl DisplaySource for ValueBind {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        self.0.display_source(meta);
+        meta.push(".");
+        meta.push(&Value::replace_ident(&self.1));
+    }
 }
 
 /// 进行`词法&语法`分析时所依赖的元数据
 #[derive(Debug)]
 pub struct Meta {
+    tmp_var_count: usize,
     tag_number: usize,
     /// 被跳转的label
     defined_labels: Vec<Vec<Var>>,
@@ -229,6 +360,7 @@ pub struct Meta {
 impl Default for Meta {
     fn default() -> Self {
         Self {
+            tmp_var_count: 0,
             tag_number: 0,
             defined_labels: vec![Vec::new()],
         }
@@ -238,6 +370,13 @@ impl Meta {
     /// use [`Self::default()`]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// 返回一个临时变量, 不会造成重复
+    pub fn get_tmp_var(&mut self) -> Var {
+        let var = self.tmp_var_count;
+        self.tmp_var_count+= 1;
+        format!("___{}", var)
     }
 
     /// 获取一个标签, 并且进行内部自增以保证不会获取到获取过的
@@ -267,14 +406,6 @@ impl Meta {
         self.defined_labels.pop().unwrap()
     }
 
-    /// 根据一系列构建一系列常量传参
-    pub fn build_arg_consts(&self, values: Vec<Value>, mut f: impl FnMut(Const)) {
-        for (i, value) in values.into_iter().enumerate() {
-            let name = format!("_{}", i);
-            f(Const(name, value, Vec::with_capacity(0)))
-        }
-    }
-
     /// 构建一个`sets`, 例如`a b c = 1 2 3;`
     /// 如果只有一个值与被赋值则与之前行为一致
     /// 如果值与被赋值数量不匹配则返回错误
@@ -283,7 +414,7 @@ impl Meta {
     -> Result<LogicLine, Error> {
         fn build_set(var: Value, value: Value) -> LogicLine {
             LogicLine::Other(vec![
-                    "set".into(),
+                    Value::ReprVar("set".into()),
                     var,
                     value,
             ])
@@ -324,18 +455,19 @@ pub enum JumpCmp {
     LessThanEq(Value, Value),
     GreaterThan(Value, Value),
     GreaterThanEq(Value, Value),
+    /// 严格相等
     StrictEqual(Value, Value),
+    /// 严格不相等
+    StrictNotEqual(Value, Value),
+    /// 总是
     Always,
+    /// 总不是
+    NotAlways,
 }
 impl JumpCmp {
-    /// 创建一个永远为假的变体
-    pub fn false_val() -> Self {
-        Self::NotEqual("0".into(), "0".into())
-    }
-
     /// 将值转为`bool`来对待
     pub fn bool(val: Value) -> Self {
-        Self::NotEqual(val, "false".into())
+        Self::NotEqual(val, Value::ReprVar("false".into()))
     }
 
     /// 获取反转后的条件
@@ -349,19 +481,14 @@ impl JumpCmp {
             LessThanEq(a, b) => GreaterThan(a, b),
             GreaterThan(a, b) => LessThanEq(a, b),
             GreaterThanEq(a, b) => LessThan(a, b),
-            StrictEqual(a, b) => {
-                // 其中一参数转换为`DExp`计算严格相等, 然后取反
-                let val = DExp::new(
-                    Default::default(),
-                    vec![Op::StrictEqual(Value::ResultHandle, a, b).into()].into()
-                );
-                Self::bool(val.into()).reverse()
-            },
-            Always => Self::false_val(),
+            StrictEqual(a, b) => StrictNotEqual(a, b),
+            StrictNotEqual(a, b) => StrictEqual(a, b),
+            Always => NotAlways,
+            NotAlways => Always,
         }
     }
 
-    /// 获取两个运算成员, 如果是[`Always`]则返回[`Default`]
+    /// 获取两个运算成员, 如果是没有运算成员的则返回[`Default`]
     pub fn get_values(self) -> (Value, Value) {
         match self {
             Self::Equal(a, b)
@@ -371,38 +498,132 @@ impl JumpCmp {
                 | Self::GreaterThan(a, b)
                 | Self::StrictEqual(a, b)
                 | Self::GreaterThanEq(a, b)
+                | Self::StrictNotEqual(a, b)
                 => (a, b),
-            Self::Always => Default::default(),
+            Self::Always
+                | Self::NotAlways
+                // 这里使用default生成无副作用的占位值
+                => Default::default(),
         }
     }
 
+    /// 获取两个运算成员, 如果是没有运算成员的则返回空
+    pub fn get_values_ref(&self) -> Option<(&Value, &Value)> {
+        match self {
+            Self::Equal(a, b)
+                | Self::NotEqual(a, b)
+                | Self::LessThan(a, b)
+                | Self::LessThanEq(a, b)
+                | Self::GreaterThan(a, b)
+                | Self::StrictEqual(a, b)
+                | Self::GreaterThanEq(a, b)
+                | Self::StrictNotEqual(a, b)
+                => Some((a, b)),
+            Self::Always
+                | Self::NotAlways
+                => None,
+        }
+    }
+
+    /// 获取需要生成的变体所对应的文本
+    /// 如果是未真正对应的变体如严格不等则恐慌
     pub fn cmp_str(&self) -> &'static str {
+        macro_rules! e {
+            () => {
+                panic!("这个变体并未对应最终生成的代码")
+            };
+        }
         macro_rules! build_match {
-            ( $( $name:ident $str:literal ),* $(,)? ) => {
+            ( $( $name:ident , $str:expr ),* $(,)? ) => {
                 match self {
                     $(
                         Self::$name(..) => $str,
                     )*
                     Self::Always => "always",
+                    Self::NotAlways => e!(),
                 }
             };
         }
 
         build_match! {
-            Equal "equal",
-            NotEqual "notEqual",
-            LessThan "lessThan",
-            LessThanEq "lessThanEq",
-            GreaterThan "greaterThan",
-            GreaterThanEq "greaterThanEq",
-            StrictEqual "strictEqual",
+            Equal, "equal",
+            NotEqual, "notEqual",
+            LessThan, "lessThan",
+            LessThanEq, "lessThanEq",
+            GreaterThan, "greaterThan",
+            GreaterThanEq, "greaterThanEq",
+            StrictEqual, "strictEqual",
+            StrictNotEqual, e!()
         }
     }
 
     /// 构建两个值后将句柄送出
     pub fn build_value(self, meta: &mut CompileMeta) -> (Var, Var) {
         let (a, b) = self.get_values();
-        (a.take(meta), b.take(meta))
+        (a.take_handle(meta), b.take_handle(meta))
+    }
+
+    /// 即将编译时调用, 将自身转换为可以正常编译为逻辑的形式
+    /// 例如`严格不等`, `永不`等变体是无法直接被编译为逻辑的
+    /// 所以需要进行转换
+    pub fn do_start_compile_into(self) -> Self {
+        match self {
+            // 转换为0永不等于0
+            // 要防止0被const, 我们使用repr
+            Self::NotAlways => {
+                Self::NotEqual(Value::new_noeffect(), Value::new_noeffect())
+            },
+            Self::StrictNotEqual(a, b) => {
+                Self::bool(
+                    DExp::new_nores(vec![
+                        Op::StrictEqual(Value::ResultHandle, a, b).into()
+                    ].into()).into()
+                ).reverse()
+            },
+            // 无需做转换
+            cmp => cmp,
+        }
+    }
+
+    /// 获取运算符号
+    pub fn get_symbol_cmp_str(&self) -> &'static str {
+        macro_rules! build_match {
+            ( $( $name:ident , $str:expr ),* $(,)? ) => {
+                match self {
+                    $(
+                        Self::$name(..) => $str,
+                    )*
+                    Self::Always => "_",
+                    Self::NotAlways => "!_",
+                }
+            };
+        }
+
+        build_match! {
+            Equal, "==",
+            NotEqual, "!=",
+            LessThan, "<",
+            LessThanEq, "<=",
+            GreaterThan, ">",
+            GreaterThanEq, ">=",
+            StrictEqual, "===",
+            StrictNotEqual, "!==",
+        }
+    }
+}
+impl DisplaySource for JumpCmp {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        if let Self::Always | Self::NotAlways = self {
+            meta.push(self.get_symbol_cmp_str())
+        } else {
+            let sym = self.get_symbol_cmp_str();
+            let (a, b) = self.get_values_ref().unwrap();
+            a.display_source(meta);
+            meta.add_space();
+            meta.push(sym);
+            meta.add_space();
+            b.display_source(meta);
+        }
     }
 }
 
@@ -456,6 +677,9 @@ impl CmpTree {
                 meta.push(TagLine::TagDown(tag_id));
             },
             Atom(cmp) => {
+                // 构建为可以进行接下来的编译的形式
+                let cmp = cmp.do_start_compile_into();
+
                 let cmp_str = cmp.cmp_str();
                 let (a, b) = cmp.build_value(meta);
 
@@ -467,10 +691,67 @@ impl CmpTree {
             },
         }
     }
+
+    /// 以全部or组织一个条件树
+    /// 是左至右结合的, 也就是说输入`[a, b, c]`会得到`(a || b) || c`
+    /// 如果给出的条件个数为零则返回空
+    pub fn new_ors<I>(iter: impl IntoIterator<IntoIter = I>) -> Option<Self>
+    where I: Iterator<Item = Self>
+    {
+        let mut iter = iter.into_iter();
+        let mut root = iter.next()?;
+
+        for cmp in iter {
+            root = Self::Or(root.into(), cmp.into())
+        }
+
+        root.into()
+    }
+
+    /// 以全部and组织一个条件树
+    /// 是左至右结合的, 也就是说输入`[a, b, c]`会得到`(a && b) && c`
+    /// 如果给出的条件个数为零则返回空
+    pub fn new_ands<I>(iter: impl IntoIterator<IntoIter = I>) -> Option<Self>
+    where I: Iterator<Item = Self>
+    {
+        let mut iter = iter.into_iter();
+        let mut root = iter.next()?;
+
+        for cmp in iter {
+            root = Self::And(root.into(), cmp.into())
+        }
+
+        root.into()
+    }
 }
 impl_enum_froms!(impl From for CmpTree {
     Atom => JumpCmp;
 });
+impl DisplaySource for CmpTree {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        match self {
+            Self::Atom(cmp) => cmp.display_source(meta),
+            Self::Or(a, b) => {
+                meta.push("(");
+                a.display_source(meta);
+                meta.add_space();
+                meta.push("||");
+                meta.add_space();
+                b.display_source(meta);
+                meta.push(")");
+            },
+            Self::And(a, b) => {
+                meta.push("(");
+                a.display_source(meta);
+                meta.add_space();
+                meta.push("&&");
+                meta.add_space();
+                b.display_source(meta);
+                meta.push(")");
+            }
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Op {
@@ -571,6 +852,44 @@ impl Op {
         }
     }
 
+    pub fn oper_symbol_str(&self) -> &'static str {
+        macro_rules! build_match {
+            {
+                $(
+                    $variant:ident $str:literal
+                ),* $(,)?
+            } => {
+                match self {
+                    $( Self::$variant(..) => $str , )*
+                    other => other.oper_str(),
+                }
+            };
+        }
+        build_match! {
+            Add "+",
+            Sub "-",
+            Mul "*",
+            Div "/",
+            Idiv "//",
+            Mod "%",
+            Pow "**",
+            Equal "==",
+            NotEqual "!=",
+            Land "&&",
+            LessThan "<",
+            LessThanEq "<=",
+            GreaterThan ">",
+            GreaterThanEq ">=",
+            StrictEqual "===",
+            Shl "<<",
+            Shr ">>",
+            Or "|",
+            And "&",
+            Xor "^",
+            Not "~",
+        }
+    }
+
     pub fn generate_args(self, meta: &mut CompileMeta) -> Vec<String> {
         let mut args: Vec<Var> = Vec::with_capacity(5);
         args.push("op".into());
@@ -583,16 +902,16 @@ impl Op {
                 match self {
                     $(
                         Self::$oper1(res, a) => {
-                            args.push(res.take(meta).into());
-                            args.push(a.take(meta).into());
+                            args.push(res.take_handle(meta).into());
+                            args.push(a.take_handle(meta).into());
                             args.push("0".into());
                         },
                     )*
                     $(
                         Self::$oper2(res, a, b) => {
-                            args.push(res.take(meta).into());
-                            args.push(a.take(meta).into());
-                            args.push(b.take(meta).into());
+                            args.push(res.take_handle(meta).into());
+                            args.push(a.take_handle(meta).into());
+                            args.push(b.take_handle(meta).into());
                         },
                     )*
                 }
@@ -621,12 +940,96 @@ impl Compile for Op {
         meta.tag_codes.push(args.join(" ").into())
     }
 }
+impl DisplaySource for Op {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        macro_rules! build_match {
+            {
+                op1: [ $( $oper1:ident ),* $(,)?  ]
+                op2: [ $( $oper2:ident ),* $(,)?  ]
+                op2l: [ $( $oper2l:ident ),* $(,)?  ]
+            } => {
+                match self {
+                    $(
+                        Self::$oper1(res, a) => {
+                            res.display_source(meta);
+                            meta.add_space();
+
+                            meta.push(self.oper_symbol_str());
+                            meta.add_space();
+
+                            a.display_source(meta);
+                        },
+                    )*
+                    $(
+                        Self::$oper2(res, a, b) => {
+                            res.display_source(meta);
+                            meta.add_space();
+
+                            a.display_source(meta);
+                            meta.add_space();
+
+                            meta.push(self.oper_symbol_str());
+                            meta.add_space();
+
+                            b.display_source(meta);
+                        },
+                    )*
+                    $(
+                        Self::$oper2l(res, a, b) => {
+                            res.display_source(meta);
+                            meta.add_space();
+
+                            meta.push(self.oper_symbol_str());
+                            meta.add_space();
+
+                            a.display_source(meta);
+                            meta.add_space();
+
+                            b.display_source(meta);
+                        },
+                    )*
+                }
+            };
+        }
+        meta.push("op");
+        meta.add_space();
+        build_match! {
+            op1: [
+                Not, Abs, Log, Log10, Floor, Ceil, Sqrt,
+                Rand, Sin, Cos, Tan, Asin, Acos, Atan,
+            ]
+            op2: [
+                Add, Sub, Mul, Div, Idiv,
+                Mod, Pow, Equal, NotEqual, Land,
+                LessThan, LessThanEq, GreaterThan, GreaterThanEq, StrictEqual,
+                Shl, Shr, Or, And, Xor,
+            ]
+            op2l: [
+                Max, Min, Angle, Len, Noise,
+            ]
+        };
+        meta.push(";");
+    }
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Goto(pub Var, pub CmpTree);
 impl Compile for Goto {
     fn compile(self, meta: &mut CompileMeta) {
         self.1.build(meta, self.0)
+    }
+}
+impl DisplaySource for Goto {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        let Self(lab, cmp) = self;
+
+        meta.push("goto");
+        meta.add_space();
+        meta.push(":");
+        meta.push(&Value::replace_ident(lab));
+        meta.add_space();
+        cmp.display_source(meta);
+        meta.push(";");
     }
 }
 
@@ -649,6 +1052,16 @@ impl Compile for Expand {
 impl From<Vec<LogicLine>> for Expand {
     fn from(value: Vec<LogicLine>) -> Self {
         Self(value)
+    }
+}
+impl DisplaySource for Expand {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        self.0
+            .iter()
+            .for_each(|line| {
+                line.display_source(meta);
+                meta.add_lf();
+            })
     }
 }
 impl_derefs!(impl for Expand => (self: self.0): Vec<LogicLine>);
@@ -702,6 +1115,73 @@ impl Compile for Select {
         lines.extend(cases.into_iter().flatten());
     }
 }
+impl DisplaySource for Select {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        meta.push("select");
+        meta.add_space();
+
+        self.0.display_source(meta);
+        meta.add_space();
+
+        meta.push("{");
+        meta.add_lf();
+        meta.do_block(|meta| {
+            self.1.display_source(meta);
+        });
+        meta.push("}");
+    }
+}
+
+/// 用于switch捕获器捕获目标的枚举
+pub enum SwitchCatch {
+    /// 上溢
+    Overflow,
+    /// 下溢
+    Underflow,
+    /// 未命中
+    Misses,
+    /// 自定义
+    UserDefine(CmpTree),
+}
+impl SwitchCatch {
+    /// 将自身构建为具体的不满足条件
+    ///
+    /// 也就是说直接可以将输出条件用于一个跳过捕获块的`Goto`中
+    /// 需要给定需要跳转到第几个case目标的值与最大case
+    ///
+    /// 最大case, 例如最大的case为8, 那么传入8
+    pub fn build(self, value: Value, max_case: usize) -> CmpTree {
+        match self {
+            // 对于未命中捕获, 应该在捕获块头部加上一个标记
+            // 然后将填充case改为无条件跳转至该标记
+            // 而不是使用该构建函数进行构建一个条件
+            // 该捕获并不是一个条件捕获式
+            Self::Misses => panic!(),
+            // 用户定义的条件直接取反返回就好啦, 喵!
+            Self::UserDefine(cmp) => cmp.reverse(),
+            // 上溢, 捕获式为 `x > max_case`
+            // 跳过式为`x <= max_case`
+            Self::Overflow => JumpCmp::LessThanEq(
+                value,
+                Value::ReprVar(max_case.to_string())
+            ).into(),
+            // 下溢, 捕获式为 `x < 0`
+            // 跳过式为`x >= 0`
+            Self::Underflow => JumpCmp::GreaterThanEq(
+                value,
+                Value::ReprVar("0".into())
+            ).into(),
+        }
+    }
+
+    /// Returns `true` if the switch catch is [`Misses`].
+    ///
+    /// [`Misses`]: SwitchCatch::Misses
+    #[must_use]
+    pub fn is_misses(&self) -> bool {
+        matches!(self, Self::Misses)
+    }
+}
 
 /// 在块作用域将Var常量为后方值, 之后使用Var时都会被替换为后方值
 #[derive(Debug, PartialEq, Clone)]
@@ -718,14 +1198,111 @@ impl Compile for Const {
         meta.add_const_value(self);
     }
 }
+impl DisplaySource for Const {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        meta.push("const");
+        meta.add_space();
+
+        meta.push(&Value::replace_ident(&self.0));
+        meta.add_space();
+
+        meta.push("=");
+        meta.add_space();
+
+        self.1.display_source(meta);
+
+        meta.push(";");
+        meta.add_space();
+
+        let labs = self.2
+            .iter()
+            .map(|s| Value::replace_ident(&*s))
+            .fold(
+                Vec::with_capacity(self.2.len()),
+                |mut labs, s| {
+                    labs.push(s);
+                    labs
+                }
+            );
+        meta.push(&format!("# labels: [{}]", labs.join(", ")));
+    }
+}
 
 /// 在此处计算后方的值, 并将句柄赋给前方值
 /// 如果后方不是一个DExp, 而是Var, 那么自然等价于一个常量定义
 #[derive(Debug, PartialEq, Clone)]
 pub struct Take(pub Var, pub Value);
+impl Take {
+    /// 根据一系列构建一系列常量传参
+    pub fn build_arg_consts(values: Vec<Value>, mut f: impl FnMut(Const)) {
+        for (i, value) in values.into_iter().enumerate() {
+            let name = format!("_{}", i);
+            f(Const(name, value, Vec::with_capacity(0)))
+        }
+    }
+
+    /// 将常量传参的行构建到Expand末尾
+    pub fn build_arg_consts_to_expand(
+        values: Vec<Value>,
+        expand: &mut Vec<LogicLine>,
+    ) {
+        Self::build_arg_consts(
+            values,
+            |r#const| expand.push(r#const.into())
+        )
+    }
+
+    /// 构建一个Take语句单元
+    /// 可以带有参数与返回值
+    ///
+    /// 返回的是一个行, 因为实际上可能不止Take, 还有用于传参的const等
+    ///
+    /// - args: 传入参数
+    /// - var: 绑定量
+    /// - do_leak_res: 是否泄露绑定量
+    /// - value: 被求的值
+    pub fn new(
+        args: Vec<Value>,
+        var: Var,
+        do_leak_res: bool,
+        value: Value,
+    ) -> LogicLine {
+        if args.is_empty() {
+            Take(var, value).into()
+        } else {
+            let mut len = args.len() + 1;
+            if do_leak_res { len += 1 }
+            let mut expand = Vec::with_capacity(len);
+            Self::build_arg_consts_to_expand(args, &mut expand);
+            if do_leak_res {
+                expand.push(Take(var.clone(), value).into());
+                expand.push(LogicLine::ConstLeak(var));
+            } else {
+                expand.push(Take(var, value).into())
+            }
+            debug_assert_eq!(expand.len(), len);
+            Expand(expand).into()
+        }
+    }
+}
 impl Compile for Take {
     fn compile(self, meta: &mut CompileMeta) {
-        Const::new(self.0, self.1.take(meta).into()).compile(meta)
+        Const::new(self.0, self.1.take_handle(meta).into()).compile(meta)
+    }
+}
+impl DisplaySource for Take {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        meta.push("take");
+        meta.add_space();
+
+        meta.push(&Value::replace_ident(&self.0));
+        meta.add_space();
+
+        meta.push("=");
+        meta.add_space();
+
+        self.1.display_source(meta);
+        meta.push(";");
     }
 }
 
@@ -761,12 +1338,12 @@ impl Compile for LogicLine {
             Self::Other(args) => {
                 let handles: Vec<String> = args
                     .into_iter()
-                    .map(|val| val.take(meta))
+                    .map(|val| val.take_handle(meta))
                     .collect();
                 meta.push(TagLine::Line(handles.join(" ").into()))
             },
             Self::SetResultHandle(value) => {
-                let new_dexp_handle = value.take(meta);
+                let new_dexp_handle = value.take_handle(meta);
                 meta.set_dexp_handle(new_dexp_handle);
             },
             Self::Select(select) => select.compile(meta),
@@ -880,6 +1457,53 @@ impl_enum_froms!(impl From for LogicLine {
     Const => Const;
     Take => Take;
 });
+impl DisplaySource for LogicLine {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        match self {
+            Self::Expand(expand) => {
+                meta.push("{");
+                meta.add_lf();
+                meta.do_block(|meta| {
+                    expand.display_source(meta);
+                });
+                meta.push("}");
+            },
+            Self::Ignore => meta.push("# ignore line"),
+            Self::NoOp => meta.push("noop;"),
+            Self::Label(lab) => {
+                meta.push(":");
+                meta.push(&Value::replace_ident(lab))
+            },
+            Self::Goto(goto) => goto.display_source(meta),
+            Self::Op(op) => op.display_source(meta),
+            Self::Select(select) => select.display_source(meta),
+            Self::Take(take) => take.display_source(meta),
+            Self::Const(r#const) => r#const.display_source(meta),
+            Self::ConstLeak(var) => {
+                meta.push("# constleak");
+                meta.add_space();
+                meta.push(&Value::replace_ident(var));
+                meta.push(";");
+            },
+            Self::SetResultHandle(val) => {
+                meta.push("setres");
+                meta.add_space();
+                val.display_source(meta);
+                meta.push(";");
+            },
+            Self::Other(args) => {
+                assert_ne!(args.len(), 0);
+                let mut iter = args.iter();
+                iter.next().unwrap().display_source(meta);
+                iter.for_each(|arg| {
+                    meta.add_space();
+                    arg.display_source(meta);
+                });
+                meta.push(";");
+            },
+        }
+    }
+}
 
 /// 编译到`TagCodes`
 pub trait Compile {
@@ -897,7 +1521,6 @@ pub trait Compile {
         meta.tag_codes.lines_mut().split_off(start)
     }
 }
-
 
 #[derive(Debug)]
 pub struct CompileMeta {
@@ -1251,8 +1874,7 @@ mod tests {
             ).unwrap()[0],
             Op::Div(
                 "res".into(),
-                DExp::new(
-                    "".into(),
+                DExp::new_nores(
                     vec![
                         Op::Add(
                             Value::ResultHandle,
@@ -1280,8 +1902,7 @@ mod tests {
             ).unwrap()[0],
             Op::Div(
                 "res".into(),
-                DExp::new(
-                    "".into(),
+                DExp::new_nores(
                     vec![
                         Op::Add(
                             Value::ResultHandle,
@@ -1294,8 +1915,7 @@ mod tests {
                             "2".into()
                         ).into()
                     ].into()).into(),
-                DExp::new(
-                    "".into(),
+                DExp::new_nores(
                     vec![
                         Op::Mul(Value::ResultHandle, "2".into(), "3".into()).into()
                     ].into(),
@@ -1320,7 +1940,7 @@ mod tests {
             parse!(parser, r#"skip 1 < 2 print "hello";"#).unwrap(),
             Expand(vec![
                 Goto("___0".into(), JumpCmp::LessThan("1".into(), "2".into()).into()).into(),
-                LogicLine::Other(vec!["print".into(), r#""hello""#.into()]),
+                LogicLine::Other(vec![Value::ReprVar("print".into()), r#""hello""#.into()]),
                 LogicLine::Label("___0".into()),
             ]).into()
         );
@@ -1427,15 +2047,15 @@ mod tests {
         let parser = LogicLineParser::new();
 
         let datas = vec![
-            [r#"goto :a x === y;"#, r#"goto :a (op $ x === y;) == false;"#],
+            [r#"goto :a x === y;"#, r#"goto :a x !== y;"#],
             [r#"goto :a x == y;"#, r#"goto :a x != y;"#],
             [r#"goto :a x != y;"#, r#"goto :a x == y;"#],
             [r#"goto :a x < y;"#, r#"goto :a x >= y;"#],
             [r#"goto :a x > y;"#, r#"goto :a x <= y;"#],
             [r#"goto :a x <= y;"#, r#"goto :a x > y;"#],
             [r#"goto :a x >= y;"#, r#"goto :a x < y;"#],
-            [r#"goto :a x;"#, r#"goto :a x == false;"#],
-            [r#"goto :a _;"#, r#"goto :a 0 != 0;"#],
+            [r#"goto :a x;"#, r#"goto :a x == `false`;"#],
+            [r#"goto :a _;"#, r#"goto :a !_;"#],
         ];
         for [src, dst] in datas {
             assert_eq!(
@@ -1446,16 +2066,14 @@ mod tests {
 
         // 手动转换
         let datas = vec![
-            [r#"goto :a ! x === y;"#, r#"goto :a (op $ x === y;) == false;"#],
+            [r#"goto :a ! x === y;"#, r#"goto :a x !== y;"#],
             [r#"goto :a ! x == y;"#, r#"goto :a x != y;"#],
             [r#"goto :a ! x != y;"#, r#"goto :a x == y;"#],
             [r#"goto :a ! x < y;"#, r#"goto :a x >= y;"#],
             [r#"goto :a ! x > y;"#, r#"goto :a x <= y;"#],
             [r#"goto :a ! x <= y;"#, r#"goto :a x > y;"#],
             [r#"goto :a ! x >= y;"#, r#"goto :a x < y;"#],
-            [r#"goto :a ! x;"#, r#"goto :a x == false;"#],
-            [r#"goto :a ! _;"#, r#"goto :a 0 != 0;"#],
-            [r#"goto :a lnot _;"#, r#"goto :a 0 != 0;"#],
+            [r#"goto :a ! x;"#, r#"goto :a x == `false`;"#],
             // 多次取反
             [r#"goto :a !!! x == y;"#, r#"goto :a x != y;"#],
             [r#"goto :a !!! x != y;"#, r#"goto :a x == y;"#],
@@ -1463,8 +2081,9 @@ mod tests {
             [r#"goto :a !!! x > y;"#, r#"goto :a x <= y;"#],
             [r#"goto :a !!! x <= y;"#, r#"goto :a x > y;"#],
             [r#"goto :a !!! x >= y;"#, r#"goto :a x < y;"#],
-            [r#"goto :a !!! x;"#, r#"goto :a x == false;"#],
-            [r#"goto :a !!! _;"#, r#"goto :a 0 != 0;"#],
+            [r#"goto :a !!! x;"#, r#"goto :a x == `false`;"#],
+            [r#"goto :a !!! x === y;"#, r#"goto :a x !== y;"#],
+            [r#"goto :a !!! _;"#, r#"goto :a !_;"#],
         ];
         for [src, dst] in datas {
             assert_eq!(
@@ -1472,6 +2091,94 @@ mod tests {
                 parse!(parser, dst).unwrap().as_goto().unwrap().1,
             );
         }
+    }
+
+    #[test]
+    fn goto_compile_test() {
+        let parser = ExpandParser::new();
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        goto :x _;
+        :x
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 1 always 0 0",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const 0 = 1;
+        goto :x _;
+        :x
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 1 always 0 0",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const 0 = 1;
+        goto :x !_;
+        :x
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 1 notEqual 0 0",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const 0 = 1;
+        const false = true;
+        goto :x a === b;
+        :x
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 1 strictEqual a b",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const 0 = 1;
+        const false = true;
+        goto :x !!a === b;
+        :x
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 1 strictEqual a b",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const 0 = 1;
+        const false = true;
+        goto :x !a === b;
+        :x
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "op strictEqual __0 a b",
+                   "jump 2 equal __0 false",
+                   "end",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const 0 = 1;
+        const false = true;
+        goto :x a !== b;
+        :x
+        end;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "op strictEqual __0 a b",
+                   "jump 2 equal __0 false",
+                   "end",
+        ]);
+
     }
 
     #[test]
@@ -1513,20 +2220,20 @@ mod tests {
                 "2".into(),
                 Expand(vec![
                     LogicLine::NoOp,
-                    Expand(vec![LogicLine::Other(vec!["print".into(), "1".into()])]).into(),
+                    Expand(vec![LogicLine::Other(vec![Value::ReprVar("print".into()), "1".into()])]).into(),
                     Expand(vec![
-                        LogicLine::Other(vec!["print".into(), "2".into()]),
-                        LogicLine::Other(vec!["print".into(), "4".into()]),
+                        LogicLine::Other(vec![Value::ReprVar("print".into()), "2".into()]),
+                        LogicLine::Other(vec![Value::ReprVar("print".into()), "4".into()]),
                     ]).into(),
                     LogicLine::NoOp,
                     Expand(vec![
-                        LogicLine::Other(vec!["print".into(), "2".into()]),
-                        LogicLine::Other(vec!["print".into(), "4".into()]),
+                        LogicLine::Other(vec![Value::ReprVar("print".into()), "2".into()]),
+                        LogicLine::Other(vec![Value::ReprVar("print".into()), "4".into()]),
                     ]).into(),
                     Expand(vec![
                         LogicLine::Label("a".into()),
                         LogicLine::Label("b".into()),
-                        LogicLine::Other(vec!["print".into(), "5".into()]),
+                        LogicLine::Other(vec![Value::ReprVar("print".into()), "5".into()]),
                     ]).into(),
                 ])
             ).into()
@@ -1566,12 +2273,35 @@ mod tests {
                 "1".into(),
                 Expand(vec![
                     Expand(vec![
-                            LogicLine::Other(vec!["print".into(), "0".into()]),
-                            LogicLine::Other(vec!["print".into(), "end".into()]),
+                            LogicLine::Other(vec![Value::ReprVar("print".into()), "0".into()]),
+                            LogicLine::Other(vec![Value::ReprVar("print".into()), "end".into()]),
                     ]).into(),
                     Expand(vec![
-                            LogicLine::Other(vec!["print".into(), "1".into()]),
-                            LogicLine::Other(vec!["print".into(), "end".into()]),
+                            LogicLine::Other(vec![Value::ReprVar("print".into()), "1".into()]),
+                            LogicLine::Other(vec![Value::ReprVar("print".into()), "end".into()]),
+                    ]).into(),
+                ])
+            ).into()
+        );
+
+        // 测试追加对于填充的效用
+        let ast = parse!(parser, r#"
+            switch 1 {
+            print end;
+            case 1: print 1;
+            }
+        "#).unwrap();
+        assert_eq!(
+            ast,
+            Select(
+                "1".into(),
+                Expand(vec![
+                    Expand(vec![
+                            LogicLine::Other(vec![Value::ReprVar("print".into()), "end".into()]),
+                    ]).into(),
+                    Expand(vec![
+                            LogicLine::Other(vec![Value::ReprVar("print".into()), "1".into()]),
+                            LogicLine::Other(vec![Value::ReprVar("print".into()), "end".into()]),
                     ]).into(),
                 ])
             ).into()
@@ -1855,11 +2585,10 @@ mod tests {
             iter.next().unwrap(),
             Const(
                 "X".into(),
-                DExp::new(
-                    "".into(),
+                DExp::new_nores(
                     vec![
                         LogicLine::Label("in_const".into()),
-                        LogicLine::Other(vec!["print".into(), "\"hi\"".into()])
+                        LogicLine::Other(vec![Value::ReprVar("print".into()), "\"hi\"".into()])
                     ].into()
                 ).into(),
                 vec!["in_const".into()]
@@ -2286,10 +3015,10 @@ mod tests {
             ast[0].as_goto().unwrap().1,
             CmpTree::And(
                 CmpTree::And(
-                    Box::new(JumpCmp::NotEqual("a".into(), "false".into()).into()),
-                    Box::new(JumpCmp::NotEqual("b".into(), "false".into()).into()),
+                    Box::new(JumpCmp::NotEqual("a".into(), Value::ReprVar("false".into()).into()).into()),
+                    Box::new(JumpCmp::NotEqual("b".into(), Value::ReprVar("false".into()).into()).into()),
                 ).into(),
-                Box::new(JumpCmp::NotEqual("c".into(), "false".into()).into()),
+                Box::new(JumpCmp::NotEqual("c".into(), Value::ReprVar("false".into()).into()).into()),
             ).into()
         );
 
@@ -2303,10 +3032,10 @@ mod tests {
             ast[0].as_goto().unwrap().1,
             CmpTree::Or(
                 CmpTree::Or(
-                    Box::new(JumpCmp::NotEqual("a".into(), "false".into()).into()),
-                    Box::new(JumpCmp::NotEqual("b".into(), "false".into()).into()),
+                    Box::new(JumpCmp::NotEqual("a".into(), Value::ReprVar("false".into()).into()).into()),
+                    Box::new(JumpCmp::NotEqual("b".into(), Value::ReprVar("false".into()).into()).into()),
                 ).into(),
-                Box::new(JumpCmp::NotEqual("c".into(), "false".into()).into()),
+                Box::new(JumpCmp::NotEqual("c".into(), Value::ReprVar("false".into()).into()).into()),
             ).into()
         );
 
@@ -2320,12 +3049,12 @@ mod tests {
             ast[0].as_goto().unwrap().1,
             CmpTree::Or(
                 CmpTree::And(
-                    Box::new(JumpCmp::NotEqual("a".into(), "false".into()).into()),
-                    Box::new(JumpCmp::NotEqual("b".into(), "false".into()).into()),
+                    Box::new(JumpCmp::NotEqual("a".into(), Value::ReprVar("false".into()).into()).into()),
+                    Box::new(JumpCmp::NotEqual("b".into(), Value::ReprVar("false".into()).into()).into()),
                 ).into(),
                 CmpTree::And(
-                    Box::new(JumpCmp::NotEqual("c".into(), "false".into()).into()),
-                    Box::new(JumpCmp::NotEqual("d".into(), "false".into()).into()),
+                    Box::new(JumpCmp::NotEqual("c".into(), Value::ReprVar("false".into()).into()).into()),
+                    Box::new(JumpCmp::NotEqual("d".into(), Value::ReprVar("false".into()).into()).into()),
                 ).into(),
             ).into()
         );
@@ -2340,13 +3069,13 @@ mod tests {
             ast[0].as_goto().unwrap().1,
             CmpTree::And(
                 CmpTree::And(
-                    Box::new(JumpCmp::NotEqual("a".into(), "false".into()).into()),
+                    Box::new(JumpCmp::NotEqual("a".into(), Value::ReprVar("false".into()).into()).into()),
                     CmpTree::Or(
-                        Box::new(JumpCmp::NotEqual("b".into(), "false".into()).into()),
-                        Box::new(JumpCmp::NotEqual("c".into(), "false".into()).into()),
+                        Box::new(JumpCmp::NotEqual("b".into(), Value::ReprVar("false".into()).into()).into()),
+                        Box::new(JumpCmp::NotEqual("c".into(), Value::ReprVar("false".into()).into()).into()),
                     ).into(),
                 ).into(),
-                Box::new(JumpCmp::NotEqual("d".into(), "false".into()).into()),
+                Box::new(JumpCmp::NotEqual("d".into(), Value::ReprVar("false".into()).into()).into()),
             ).into()
         );
 
@@ -2613,5 +3342,484 @@ mod tests {
         assert_eq!(logic_lines, vec![
                    "print m",
         ]);
+    }
+
+    #[test]
+    fn repr_var_test() {
+        let parser = ExpandParser::new();
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        print a;
+        print `a`;
+        const a = b;
+        print a;
+        print `a`;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "print a",
+                   "print a",
+                   "print b",
+                   "print a",
+        ]);
+    }
+
+    #[test]
+    fn select_test() {
+        let parser = ExpandParser::new();
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        select 1 {
+            print 0;
+            {
+                print 1 " is one!";
+            }
+            print 2;
+        }
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "op mul __0 1 2",
+                   "op add @counter @counter __0",
+                   "print 0",
+                   "noop",
+                   "print 1",
+                   "print \" is one!\"",
+                   "print 2",
+                   "noop",
+        ]);
+
+    }
+
+    #[test]
+    fn switch_catch_test() {
+        let parser = ExpandParser::new();
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        switch (op $ x + 2;) {
+            end;
+        case <:
+            print "Underflow";
+            stop;
+        case ! e:
+            print "Misses: " e;
+            stop;
+        case > n:
+            print "Overflow: " n;
+            stop;
+        case 1:
+            print 1;
+        case 3:
+            print 3 "!";
+        }
+        "#).unwrap()).compile().unwrap();
+        // 这里由于是比较生成后的代码而不是语法树, 所以可以不用那么严谨
+        assert_eq!(logic_lines, CompileMeta::new().compile(parse!(parser, r#"
+        take tmp = (op $ x + 2;);
+        skip tmp >= 0 {
+            print "Underflow";
+            stop;
+        }
+        skip _ {
+            :mis
+            const e = tmp;
+            print "Misses: " e;
+            stop;
+        }
+        skip tmp <= 3 {
+            const n = tmp;
+            print "Overflow: " n;
+            stop;
+        }
+        select tmp {
+            goto :mis _;
+            {
+                print 1;
+                end;
+            }
+            goto :mis _;
+            {
+                print 3 "!";
+                end;
+            }
+        }
+        "#).unwrap()).compile().unwrap());
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        switch (op $ x + 2;) {
+            end;
+        case <!>:
+            stop;
+        case 1:
+            print 1;
+        case 3:
+            print 3 "!";
+        }
+        "#).unwrap()).compile().unwrap();
+        // 这里由于是比较生成后的代码而不是语法树, 所以可以不用那么严谨
+        assert_eq!(logic_lines, CompileMeta::new().compile(parse!(parser, r#"
+        take tmp = (op $ x + 2;);
+        skip tmp >= 0 && tmp <= 3 {
+            :mis
+            stop;
+        }
+        select tmp {
+            goto :mis _;
+            {
+                print 1;
+                end;
+            }
+            goto :mis _;
+            {
+                print 3 "!";
+                end;
+            }
+        }
+        "#).unwrap()).compile().unwrap());
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        switch (op $ x + 2;) {
+            end;
+        case <!>:
+            stop;
+        case (a < b):
+            foo;
+        case 1:
+            print 1;
+        case 3:
+            print 3 "!";
+        }
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, CompileMeta::new().compile(parse!(parser, r#"
+        take tmp = (op $ x + 2;);
+        skip tmp >= 0 && tmp <= 3 {
+            :mis
+            stop;
+        }
+        skip !a < b {
+            foo;
+        }
+        select tmp {
+            goto :mis _;
+            {
+                print 1;
+                end;
+            }
+            goto :mis _;
+            {
+                print 3 "!";
+                end;
+            }
+        }
+        "#).unwrap()).compile().unwrap());
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        switch (op $ x + 2;) {
+            end;
+        case !!!: # 捕获多个未命中也可以哦, 当然只有最后一个生效
+            stop;
+        case 1:
+            print 1;
+        case 3:
+            print 3 "!";
+        }
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, CompileMeta::new().compile(parse!(parser, r#"
+        take tmp = (op $ x + 2;);
+        skip _ {
+            :mis
+            stop;
+        }
+        select tmp {
+            goto :mis _;
+            {
+                print 1;
+                end;
+            }
+            goto :mis _;
+            {
+                print 3 "!";
+                end;
+            }
+        }
+        "#).unwrap()).compile().unwrap());
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        switch (op $ x + 2;) {
+            end;
+        case !!!: # 捕获多个未命中也可以哦, 当然只有最后一个生效
+            stop;
+        case !:
+            foo; # 最后一个
+        case 1:
+            print 1;
+        case 3:
+            print 3 "!";
+        }
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, CompileMeta::new().compile(parse!(parser, r#"
+        take tmp = (op $ x + 2;);
+        skip _ {
+            # 可以看出, 这个是一个没用的捕获, 也不会被跳转
+            # 所以不要这么玩, 浪费跳转和行数
+            :mis
+            stop;
+        }
+        skip _ {
+            :mis1
+            foo;
+        }
+        select tmp {
+            goto :mis1 _;
+            {
+                print 1;
+                end;
+            }
+            goto :mis1 _;
+            {
+                print 3 "!";
+                end;
+            }
+        }
+        "#).unwrap()).compile().unwrap());
+
+        let ast = parse!(parser, r#"
+        switch (op $ x + 2;) {
+            end;
+        case <!> e:
+            `e` = e;
+            stop;
+        case (e < x) e:
+            foo;
+        case 1:
+            print 1;
+        case 3:
+            print 3;
+        }
+        "#).unwrap();
+        assert_eq!(ast, parse!(parser, r#"
+        {
+            take ___0 = (op $ x + 2;);
+            {
+                {
+                    const e = ___0;
+                    goto :___1 ___0 >= `0` && ___0 <= `3`;
+                    :___0
+                    {
+                        `e` = e;
+                        stop;
+                    }
+                    :___1
+                }
+                {
+                    const e = ___0;
+                    goto :___2 ! e < x;
+                    {
+                        foo;
+                    }
+                    :___2
+                }
+            }
+            select ___0 {
+                goto :___0 _;
+                {
+                    print 1;
+                    end;
+                }
+                goto :___0 _;
+                {
+                    print 3;
+                    end;
+                }
+            }
+        }
+        "#).unwrap());
+
+        let ast = parse!(parser, r#"
+        switch (op $ x + 2;) {
+            end;
+        case <> e:
+            `e` = e;
+            stop;
+        case (e < x) e:
+            foo;
+        case 1:
+            print 1;
+        case 3:
+            print 3;
+        }
+        "#).unwrap();
+        assert_eq!(ast, parse!(parser, r#"
+        {
+            take ___0 = (op $ x + 2;);
+            {
+                {
+                    const e = ___0;
+                    goto :___0 ___0 >= `0` && ___0 <= `3`;
+                    {
+                        `e` = e;
+                        stop;
+                    }
+                    :___0
+                }
+                {
+                    const e = ___0;
+                    goto :___1 ! e < x;
+                    {
+                        foo;
+                    }
+                    :___1
+                }
+            }
+            select ___0 {
+                { end; }
+                {
+                    print 1;
+                    end;
+                }
+                { end; }
+                {
+                    print 3;
+                    end;
+                }
+            }
+        }
+        "#).unwrap());
+    }
+
+    #[test]
+    fn display_source_test() {
+        let mut meta = Default::default();
+        assert_eq!(
+            parse!(
+                LogicLineParser::new(),
+                r#"'abc' 'abc"def' "str" "str'str" 'no_str' '2';"#
+            )
+                .unwrap()
+                .display_source_and_get(&mut meta),
+            r#"'abc' 'abc"def' "str" "str'str" 'no_str' '2';"#
+        );
+        assert_eq!(
+            JumpCmp::GreaterThan("a".into(), "1".into())
+                .display_source_and_get(&mut meta),
+            "'a' > '1'"
+        );
+        assert_eq!(
+            parse!(JumpCmpParser::new(), "a < b && c < d && e < f")
+                .unwrap()
+                .display_source_and_get(&mut meta),
+            "(('a' < 'b' && 'c' < 'd') && 'e' < 'f')"
+        );
+        assert_eq!(
+            parse!(LogicLineParser::new(), "{foo;}")
+                .unwrap()
+                .display_source_and_get(&mut meta),
+            "{\n    'foo';\n}"
+        );
+        assert_eq!(
+            parse!(LogicLineParser::new(), "print ($ = x;);")
+                .unwrap()
+                .display_source_and_get(&mut meta),
+            "`'print'` (`'set'` $ 'x';);"
+        );
+        assert_eq!(
+            parse!(LogicLineParser::new(), "print (res: $ = x;);")
+                .unwrap()
+                .display_source_and_get(&mut meta),
+            "`'print'` ('res': `'set'` $ 'x';);"
+        );
+        assert_eq!(
+            parse!(LogicLineParser::new(), "print (noop;$ = x;);")
+                .unwrap()
+                .display_source_and_get(&mut meta),
+            "`'print'` (\n    noop;\n    `'set'` $ 'x';\n);"
+        );
+        assert_eq!(
+            parse!(LogicLineParser::new(), "print (res: noop;$ = x;);")
+                .unwrap()
+                .display_source_and_get(&mut meta),
+            "`'print'` ('res':\n    noop;\n    `'set'` $ 'x';\n);"
+        );
+        assert_eq!(
+            parse!(LogicLineParser::new(), "print a.b.c;")
+                .unwrap()
+                .display_source_and_get(&mut meta),
+            "`'print'` 'a'.'b'.'c';"
+        );
+    }
+
+    #[test]
+    fn quick_dexp_take_test() {
+        let parser = ExpandParser::new();
+
+        assert_eq!(
+            parse!(parser, r#"
+                print Foo[1 2];
+            "#).unwrap(),
+            parse!(parser, r#"
+                print (__:
+                    const _0 = 1;
+                    const _1 = 2;
+                    setres Foo;
+                );
+            "#).unwrap(),
+        );
+
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const Add = (
+            take A = _0;
+            take B = _1;
+            op $ A + B;
+        );
+        print Add[1 2];
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "op add __0 1 2",
+                   "print __0",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const Add = (
+            take A = _0;
+            take B = _1;
+            op $ A + B;
+        );
+        const Do = (_unused:
+            const Fun = _0;
+
+            print enter Fun;
+        );
+        take[Add[1 2]] Do;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "print enter",
+                   "op add __0 1 2",
+                   "print __0",
+        ]);
+
+    }
+
+    #[test]
+    fn value_bind_test() {
+        let parser = ExpandParser::new();
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const Jack = jack;
+        Jack Jack.age = "jack" 18;
+        print Jack Jack.age;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "set jack \"jack\"",
+                   "set __jack__bind__age 18",
+                   "print jack",
+                   "print __jack__bind__age",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        print a.b.c;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "print ____a__bind__b__bind__c",
+        ]);
+
     }
 }

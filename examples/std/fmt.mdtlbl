@@ -1,0 +1,217 @@
+const PrintLowerHexChar = (
+    #**
+    * 打印一个小写十六进制数
+    * # params
+    * - Num: 给定的数, 范围为0..16
+    *#
+    take Num = _0;
+
+    switch Num {
+        goto :end _;
+    case 0:  print "0";
+    case 1:  print "1";
+    case 2:  print "2";
+    case 3:  print "3";
+    case 4:  print "4";
+    case 5:  print "5";
+    case 6:  print "6";
+    case 7:  print "7";
+    case 8:  print "8";
+    case 9:  print "9";
+    case 10: print "a";
+    case 11: print "b";
+    case 12: print "c";
+    case 13: print "d";
+    case 14: print "e";
+    case 15: print "f";
+    } :end
+);
+
+const PrintUpperHexChar = (
+    #**
+    * 打印一个大写十六进制数
+    * # params
+    * - Num: 给定的数, 范围为0..16
+    *#
+    take Num = _0;
+
+    switch Num {
+        goto :end _;
+    case 0:  print "0";
+    case 1:  print "1";
+    case 2:  print "2";
+    case 3:  print "3";
+    case 4:  print "4";
+    case 5:  print "5";
+    case 6:  print "6";
+    case 7:  print "7";
+    case 8:  print "8";
+    case 9:  print "9";
+    case 10: print "A";
+    case 11: print "B";
+    case 12: print "C";
+    case 13: print "D";
+    case 14: print "E";
+    case 15: print "F";
+    } :end
+);
+
+const PrintNegativeChar = (
+    #**
+    * 如果传入一个正数, 原样传出
+    * 如果传入一个负数, 将其去除负号并打印一个负号
+    * # params
+    * - Num: 传入的数, 会被直接改变哦
+    *
+    * # result
+    * 直接返回Num被take的句柄
+    *#
+
+    take Num = _0;
+    setres Num;
+
+    if Num < 0 {
+        op Num Num * -1;
+        print "-";
+    }
+);
+
+const Bit64HighOne = (
+    #**
+    * 使用二分法获取64bit正整数数中最高位1的索引
+    * 如果输入`Num <= 0`返回0
+    * 由于mdt的数字使用java-double, 有52位有效整数
+    *   且进行位运算时会临时转换成java-long, 有63位有效整数
+    *   所以可以直接对这64bit进行二分
+    * # params
+    * - Num: 给定的大于0的数, 它会被直接进行更改
+    *   如果你之后还要使用可以传入`($ = n;)`
+    *#
+    #*
+    *#
+    take Num = _0;
+
+    take Idx = $;
+
+    Idx = 0;
+
+    const DoBinarySplit = (
+        take Mask = _0;
+        take Len = _1;
+
+        if Num > Mask {
+            op Num Num >> Len;
+            op Idx Idx + Len;
+        }
+    );
+
+    take[0xFFFF_FFFF 32] DoBinarySplit;
+    take[0xFFFF 16] DoBinarySplit;
+    take[0xFF 8] DoBinarySplit;
+    take[0xF 4] DoBinarySplit;
+    take[0x3 2] DoBinarySplit;
+
+    if Num > 0x1 {
+        # 结尾并不使用DoBinarySplit,
+        # 因为这是最后一次二分,
+        # 改变Num没有意义
+        op Idx Idx + 1;
+    }
+);
+
+const PrintUpperHex = (
+    #**
+    * 以大写形式打印一个数的十六进制形式
+    * 例如`-79`会被打印`-4F`
+    * # params
+    * - Num: 被格式化的数, 它会被消耗
+    *#
+    take Num = _0;
+
+    take[Num] PrintNegativeChar;
+    take[($ = Num;)] HighOne = Bit64HighOne;
+    # 此处如果HighOne不是4的倍数, 那么Base将被下取到4的倍数
+    take Base = (op $ HighOne & 0xFFFF_FFFF_FFFF_FFFC;);
+    while Base >= 0 {
+        take HexCode = (
+            op $ Num >> Base;
+            op $ $ & 0xF;
+        );
+        take[HexCode] PrintUpperHexChar;
+        op Base Base - 4;
+    }
+);
+
+const PrintLowerHex = (
+    #**
+    * 以小写形式打印一个数的十六进制形式
+    * 例如`-79`会被打印`-4f`
+    * # params
+    * - Num: 被格式化的数, 它会被消耗
+    *#
+    take Num = _0;
+
+    take[Num] PrintNegativeChar;
+    take[($ = Num;)] HighOne = Bit64HighOne;
+    # 此处如果HighOne不是4的倍数, 那么Base将被下取到4的倍数
+    take Base = (op $ HighOne & 0xFFFF_FFFF_FFFF_FFFC;);
+    while Base >= 0 {
+        take HexCode = (
+            op $ Num >> Base;
+            op $ $ & 0xF;
+        );
+        take[HexCode] PrintLowerHexChar;
+        op Base Base - 4;
+    }
+);
+
+const PrintBinary = (
+    #**
+    * 打印一个数的二进制形式,
+    * 例如`0b1011`会被打印为`1011`
+    * # params
+    * - Num: 被格式化的数, 它会被消耗
+    *#
+
+    take Num = _0;
+
+    take[Num] PrintNegativeChar;
+    take[($ = Num;)] Base = Bit64HighOne;
+
+    while Base > 0 {
+        print (
+            op $ Num >> Base;
+            op $ $ & 1;
+        );
+        op Base Base - 1;
+    }
+
+    print (op $ Num & 1;);
+);
+
+const PrintOctal = (
+    #**
+    * 打印一个数的八进制形式,
+    * 例如`751`会被打印为`1357`
+    * # params
+    * - Num: 被格式化的数, 它会被消耗
+    *#
+
+    take Num = _0;
+
+    take[Num] PrintNegativeChar;
+    take[($ = Num;)] HighOne = Bit64HighOne;
+    # 此处如果HighOne不是4的倍数, 那么Base将被下取到3的倍数
+    take Base = (
+        op $ HighOne // 3;
+        op $ $ * 3;
+    );
+    while Base >= 0 {
+        take Code = (
+            op $ Num >> Base;
+            op $ $ & 7;
+        );
+        print Code;
+        op Base Base - 3;
+    }
+);
