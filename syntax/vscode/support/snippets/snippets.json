@@ -1,3 +1,205 @@
 {
-    
+    "while语句块": {
+        "prefix": "while",
+        "body": [
+            "while ${1:_} {",
+            "    $0",
+            "}"
+        ],
+        "description": "while语句块"
+    },
+    "gwhile语句块": {
+        "prefix": "gwhile",
+        "body": [
+            "gwhile ${1:_} {",
+            "    $0",
+            "}"
+        ],
+        "description": "gwhile语句块"
+    },
+    "do_while语句": {
+        "prefix": "do_while",
+        "body": [
+            "do {",
+            "    $0",
+            "} while ${1:_};"
+        ],
+        "description": "do_while语句"
+    },
+    "goto语句": {
+        "prefix": "goto",
+        "body": [
+            "goto :${1:tag} ${2:_};$0"
+        ],
+        "description": "goto语句"
+    },
+    "skip语句块": {
+        "prefix": "skip",
+        "body": [
+            "skip ${1:_} {",
+            "    $0",
+            "}"
+        ],
+        "description": "skip语句块"
+    },
+    "if语句块": {
+        "prefix": "if",
+        "body": [
+            "if $1 {",
+            "    $0",
+            "}"
+        ],
+        "description": "if语句块"
+    },
+    "elif语句块": {
+        "prefix": "elif",
+        "body": [
+            "elif $1 {",
+            "    $0",
+            "}"
+        ],
+        "description": "elif语句块"
+    },
+    "else语句块": {
+        "prefix": "else",
+        "body": [
+            "else {",
+            "    $0",
+            "}"
+        ],
+        "description": "else语句块"
+    },
+    "else line语句": {
+        "prefix": "elsel",
+        "body": [
+            "else",
+            "    $0"
+        ],
+        "description": "else line语句"
+    },
+    "const value语句": {
+        "prefix": "const",
+        "body": [
+            "const ${1:NAME} = ${2:value};$0"
+        ],
+        "description": "const value语句"
+    },
+    "const DExp语句": {
+        "prefix": "const_dexp",
+        "body": [
+            "const ${1:NAME} = (${2});$0"
+        ],
+        "description": "const DExp语句"
+    },
+    "take语句": {
+        "prefix": "take",
+        "body": [
+            "take${1:[${2}]} ${3:${4:RES} = }${5:VALUE};"
+        ],
+        "description": "take语句"
+    },
+    "op self语句": {
+        "prefix": "iop",
+        "body": [
+            "op ${1:i} $1 ${2:+} ${3:1};$0"
+        ],
+        "description": "op self语句"
+    },
+    "switch语句块": {
+        "prefix": "switch",
+        "body": [
+            "switch $1 {",
+            "    $0",
+            "}"
+        ],
+        "description": "switch语句块"
+    },
+    "switch-case语句": {
+        "prefix": "case",
+        "body": [
+            "case ${1:0}:$0"
+        ],
+        "description": "switch-case语句"
+    },
+    "op result a + b;语句": {
+        "prefix": "op",
+        "body": [
+            "op ${1:result} ${2:a} ${3:+} ${4:b};$0"
+        ],
+        "description": "op result a + b;语句"
+    },
+    "print values;语句": {
+        "prefix": "print",
+        "body": [
+            "print ${1:\"frog\"};$0"
+        ],
+        "description": "print values;语句"
+    },
+    "a = b;语句": {
+        "prefix": "set",
+        "body": [
+            "${1} = ${2};"
+        ],
+        "description": "a = b;语句"
+    },
+    "read result cell1 0;语句": {
+        "prefix": "read",
+        "body": [
+            "read ${1:result} ${2:cell1} ${3:0};$0"
+        ],
+        "description": "read result cell1 0;语句"
+    },
+    "write result cell1 0;语句": {
+        "prefix": "write",
+        "body": [
+            "write ${1:result} ${2:cell1} ${3:0};$0"
+        ],
+        "description": "write result cell1 0;语句"
+    },
+    "set DExp result handle语句": {
+        "prefix": "setres",
+        "body": [
+            "setres ${1:RES};$0"
+        ],
+        "description": "set DExp result handle语句"
+    },
+    "use take define tmp var": {
+        "prefix": "tmpvar",
+        "body": [
+            "take ${1:var} = ();$0"
+        ],
+        "description": "use take define tmp var"
+    },
+    "printflush message1语句": {
+        "prefix": "printflush",
+        "body": [
+            "printflush ${1:message1};$0"
+        ],
+        "description": "printflush message1语句"
+    },
+    "drawflush message1语句": {
+        "prefix": "drawflush",
+        "body": [
+            "drawflush ${1:display1};$0"
+        ],
+        "description": "drawflush message1语句"
+    },
+    "select语句块": {
+        "prefix": "select",
+        "body": [
+            "select $1 {",
+            "    $0",
+            "}"
+        ],
+        "description": "select语句块"
+    },
+    "mdtlbl doc": {
+        "prefix": "#**",
+        "body": [
+            "#**",
+            "* $1",
+            "*#$0"
+        ],
+        "description": "mdtlbl doc"
+    }
 }
