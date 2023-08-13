@@ -67,13 +67,18 @@ pub OtherValue: Var = r"'[^'\s]+'" => {
 };
 
 // 逻辑里面一个单元
-// 例如`0x50` `'@alpha'` `add` `'a-b-c'`
-pub Var: Var = {
-    String,
+// 但不包含字符串
+pub NoStringVar: Var = {
     Ident,
     OIdent,
     Number,
     OtherValue,
+}
+// 逻辑里面一个单元
+// 例如`0x50` `'@alpha'` `add` `'a-b-c'`
+pub Var: Var = {
+    String,
+    NoStringVar,
 }
 
 pub Value: Value = {
@@ -89,7 +94,7 @@ pub Value: Value = {
         expand.push(LogicLine::SetResultHandle(name.into()));
         DExp::new("__".into(), expand.into()).into()
     },
-    <value:Value> "." <attr:Var> => ValueBind(value.into(), attr).into(),
+    <value:Value> "." <attr:NoStringVar> => ValueBind(value.into(), attr).into(),
 }
 
 pub LiteralUInt: usize = <l:@L> <num:Number> <r:@R> =>? {
