@@ -43,7 +43,7 @@
 					"match": "\\b(op|noop|print|control|printflush|wait|sensor)\\b"
 				},
 				{
-					"name": "keyword.operator.word.mdtlbl",
+					"name": "keyword.control.mdtlbl",
 					"match": "\\b(equal|notEqual|lessThan|lessThanEq|greaterThan|greaterThanEq|strictEqual|always|lnot|add|sub|mul|div|idiv|mod|pow|shl|shr|or|and|xor|max|min|angle|len|noise|not|abs|log|log10|floor|ceil|sqrt|rand|sin|cos|tan|asin|acos|atan)\\b"
 				},
 				{
