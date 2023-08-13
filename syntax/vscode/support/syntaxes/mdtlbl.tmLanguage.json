@@ -172,7 +172,7 @@
 		"object": {
 			"patterns": [
 				{
-					"match": "@\\w+(-\\w+)?",
+					"match": "@[_\\p{XID_Start}][\\p{XID_continue}\\-]*",
 					"name": "variable.other.constant.mdtlbl"
 				}
 			]
@@ -180,7 +180,7 @@
 		"variable": {
 			"patterns": [
 				{
-					"match": "(?<!:|@)\\b[_A-Z]\\p{XID_continue}*\\b",
+					"match": "(?<!:|@)\\b[_A-Z]\\p{XID_continue}*",
 					"name": "variable.other.constant.mdtlbl"
 				},
 				{
