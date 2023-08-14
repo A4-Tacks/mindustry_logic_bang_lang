@@ -16,7 +16,7 @@ while id < @unitCount {
 
         while Bind != first {
             # 若头单位死亡, 则重新统计该类单位
-            goto :restart (sensor $ @unit @dead;);
+            goto :restart (sensor $ first @dead;);
             op icount icount + 1;
         }
         op count count + icount; # 将该单位数累加到总单位数
