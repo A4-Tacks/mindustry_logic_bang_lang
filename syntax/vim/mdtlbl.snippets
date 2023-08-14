@@ -49,6 +49,12 @@ endsnippet
 snippet take "take" w
 take${1:[${2}]} ${3:${4:RES} = }${5:VALUE};
 endsnippet
+snippet argt "take arg" w
+take ${1:Arg} = _${2:0};$0
+endsnippet
+snippet argc "const arg" w
+const ${1:Arg} = _${2:0};$0
+endsnippet
 snippet iop "op self" w
 op ${1:i} $1 ${2:+} ${3:1};$0
 endsnippet
@@ -75,6 +81,9 @@ endsnippet
 snippet write "write result cell1 0;" w
 write ${1:result} ${2:cell1} ${3:0};$0
 endsnippet
+snippet draw "draw clear 0 0 0 0 0 0" w
+draw ${1:clear} ${2:0} ${3:0} ${4:0} 0 0 0;$0
+endsnippet
 snippet setres "set DExp result handle" w
 setres ${1:RES};$0
 endsnippet
@@ -96,4 +105,37 @@ snippet doccomments "#**\n...\n*#" b
 #**
 * $1
 *#$0
+endsnippet
+snippet control "enabled | shoot[p] | config | color" w
+control ${1:enabled} ${2:block1} ${3:false} 0 0 0;$0
+endsnippet
+snippet ubind "unit bind" w
+ubind ${2:@${1:poly}};$0
+endsnippet
+snippet ucontrol "unit control" w
+ucontrol ${1:move} ${2:0} ${3:0} 0 0 0;$0
+endsnippet
+snippet ulocate "unit locate" w
+ulocate building core true @copper outx outy found building;$0
+endsnippet
+snippet uradar "unit radar" w
+uradar enemy any any distance 0 1 result;$0
+endsnippet
+snippet radar "radar" w
+radar enemy any any distance turret1 1 result;$0
+endsnippet
+snippet lookup "block | unit | item | liquid" w
+lookup ${1:item} ${2:result} ${3:0};$0
+endsnippet
+snippet sleep "wait sec" w
+wait ${1:0.5};$0
+endsnippet
+snippet wait "wait sec" w
+wait ${1:0.5};$0
+endsnippet
+snippet getlink "getlink" w
+getlink ${1:block} ${2:0};$0
+endsnippet
+snippet sensor "sensor" w
+sensor ${1:result} ${2:block1} ${3:@${4:copper}};$0
 endsnippet
