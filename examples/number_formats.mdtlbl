@@ -189,7 +189,7 @@ const PrintNumFmts = (
     #**
     * 打印一系列数字
     * # params
-    * * Num: 输入数字
+    * - Num: 输入数字
     *#
 
     take Num = _0;
