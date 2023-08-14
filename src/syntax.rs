@@ -79,7 +79,7 @@ pub enum Errors {
 /// 带有错误前缀, 并且文本为红色的eprintln
 macro_rules! err {
     ( $fmtter:expr $(, $args:expr)* $(,)? ) => {
-        eprintln!(concat!("\x1b[1;31m", "ParseError: ", $fmtter, "\x1b[0m"), $($args),*);
+        eprintln!(concat!("\x1b[1;31m", "CompileError:\n", $fmtter, "\x1b[0m"), $($args),*);
     };
 }
 
@@ -203,12 +203,16 @@ impl Value {
         }
     }
 
-    /// 判断是否不应该由原始标识符包裹
-    /// 注意是原始标识符(原始字面量), 不要与原始值混淆
-    pub fn no_use_repr_var(s: &str) -> bool {
+    pub fn is_string(s: &str) -> bool {
         s.len() >= 2
             && s.starts_with('"')
             && s.ends_with('"')
+    }
+
+    /// 判断是否不应该由原始标识符包裹
+    /// 注意是原始标识符(原始字面量), 不要与原始值混淆
+    pub fn no_use_repr_var(s: &str) -> bool {
+        Self::is_string(s)
     }
 
     /// 返回被规范化的标识符
@@ -283,11 +287,12 @@ impl TakeHandle for DExp {
             if let Some(dexp) = value.as_dexp() {
                 err!(
                     concat!(
-                        "尝试在`DExp`的返回句柄处使用值为`DExp`的const, ",
+                        "{}\n尝试在`DExp`的返回句柄处使用值为`DExp`的const, ",
                         "此处仅允许使用`Var`\n",
                         "DExp: {:?}\n",
                         "名称: {:?}",
                     ),
+                    meta.err_info().join("\n"),
                     dexp,
                     result
                 );
@@ -338,6 +343,16 @@ impl TakeHandle for ValueBind {
     fn take_handle(self, meta: &mut CompileMeta) -> Var {
         // 以`__{}__bind__{}`的形式组合
         let handle = self.0.take_handle(meta);
+        assert!(! Value::is_string(&self.1));
+        if Value::is_string(&handle) {
+            err!(
+                "{}\nValueBind过程中, 左值句柄为字符串, ({}.{})",
+                meta.err_info().join("\n"),
+                Value::replace_ident(&handle),
+                Value::replace_ident(&self.1),
+            );
+            exit(6)
+        }
         format!("__{}__bind__{}", handle, self.1)
     }
 }
@@ -1728,9 +1743,14 @@ impl CompileMeta {
     }
 
     pub fn debug_tags_map(&self) -> Vec<String> {
-        self.tags_map()
+        let mut tags_map: Vec<_> = self
+            .tags_map()
             .iter()
-            .map(|(tag, id)| format!("{} \t-> {}", tag, id))
+            .collect();
+        tags_map.sort_unstable_by_key(|(_, &k)| k);
+        tags_map
+            .into_iter()
+            .map(|(tag, id)| format!("{} \t-> {}", id, tag))
             .collect()
     }
 
@@ -1754,19 +1774,10 @@ impl CompileMeta {
 
     /// 对在外部使用`DExpHandle`进行报错
     fn do_out_of_dexp_err(&self, value: &str) -> ! {
-        let mut tags_map = self.debug_tags_map();
-        let mut tag_lines = self.debug_tag_codes();
-        line_first_add(&mut tags_map, "\t");
-        line_first_add(&mut tag_lines, "\t");
         err!(
-            concat!(
-                "尝试在`DExp`的外部使用{}\n",
-                "tag映射id:\n{}\n",
-                "已经生成的代码:\n{}\n",
-            ),
+            "{}\n尝试在`DExp`的外部使用{}",
+            self.err_info().join("\n"),
             value,
-            tags_map.join("\n"),
-            tag_lines.join("\n"),
         );
         exit(6)
     }
@@ -1807,6 +1818,21 @@ impl CompileMeta {
 
     pub fn const_expand_exit(&mut self) -> HashMap<Var, Var> {
         self.const_expand_tag_name_map.pop().unwrap()
+    }
+
+    pub fn err_info(&self) -> Vec<String> {
+        let mut res = Vec::new();
+
+        let mut tags_map = self.debug_tags_map();
+        let mut tag_lines = self.debug_tag_codes();
+        line_first_add(&mut tags_map, "\t");
+        line_first_add(&mut tag_lines, "\t");
+
+        res.push("Id映射Tag:".into());
+        res.extend(tags_map);
+        res.push("已生成代码:".into());
+        res.extend(tag_lines);
+        res
     }
 }
 
@@ -3821,5 +3847,21 @@ mod tests {
                    "print ____a__bind__b__bind__c",
         ]);
 
+    }
+
+    #[test]
+    fn no_string_var_test() {
+        let parser = NoStringVarParser::new();
+
+        assert!(parse!(parser, r#"1"#).is_ok());
+        assert!(parse!(parser, r#"1.5"#).is_ok());
+        assert!(parse!(parser, r#"sbosb"#).is_ok());
+        assert!(parse!(parser, r#"0x1b"#).is_ok());
+        assert!(parse!(parser, r#"@abc"#).is_ok());
+        assert!(parse!(parser, r#"'My_name"s'"#).is_ok());
+        assert!(parse!(parser, r#"'"no_str"'"#).is_ok());
+
+        assert!(parse!(parser, r#""abc""#).is_err());
+        assert!(parse!(parser, r#""""#).is_err());
     }
 }

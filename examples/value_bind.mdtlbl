@@ -2,7 +2,8 @@
 * 这是在0.10.0版本加入的语法
 * 可以有效的把数据组织起来
 * 作用是将一个Var按照特定格式绑定到一个Value的句柄
-* 语法为 `Value "." Var`, 例如`$.data` `foo.bar`
+* 语法为 `Value "." NoStringVar`, 例如`$.data` `foo.bar`
+* 这里需要注意的是, 其左值的句柄不能为字符串, 否则会报错
 *#
 
 const Human_new = (

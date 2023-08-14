@@ -1,0 +1,45 @@
+#**
+* 我们知道, const-dexp在大型功能中, 很容易带来过度的代码膨胀
+* 例如一个const-dexp展开后有整整五百行, 但是我们起码需要在四处地方使用
+* 这时候我们可以将其封装为一个传统的非递归函数
+* 这样我们可以用一些额外开销避免代码膨胀
+*#
+
+const Foo = (
+    take Msg = _0;
+    take A = _1;
+    take B = _2;
+    print Msg (op $ A + B;);
+);
+take["num: " 1 2] Foo;
+printflush message1;
+# 我们可以将以上代码改为下面的形式
+
+const Fun_Foo = fun_Foo;
+const Foo = (
+    take Msg = _0; # 求值出需要传递的
+    take A = _1;
+    take B = _2;
+
+    const Self = Fun_Foo;
+
+    Self.Msg Self.A Self.B = Msg A B; # 传递值
+    op Self.back @counter + 1; # 设置返回地址
+    goto :fun_foo_head _; # call
+);
+skip _ { # 跳过这段函数
+    :fun_foo_head # 用于被调用的函数头部标记
+    const Self = Fun_Foo;
+    take Msg = Self.Msg;
+    take A = Self.A;
+    take B = Self.B;
+
+    print Msg (op $ A + B;);
+
+    @counter = Self.back; # 返回到地址
+}
+take["num: " 1 2] Foo;
+printflush message1;
+# 虽然看起来有些冗长, 但是也可以写的很短, 根据需求及个人代码习惯而定
+# 我们虽然将代码封装到了函数中, 但是我们依旧留着Foo
+# 只不过它从执行具体逻辑改成了传参与调用包含具体逻辑的函数
