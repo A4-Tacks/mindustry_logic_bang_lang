@@ -224,6 +224,22 @@ impl Value {
             format!("'{}'", var)
         }
     }
+
+    /// Returns `true` if the value is [`ReprVar`].
+    ///
+    /// [`ReprVar`]: Value::ReprVar
+    #[must_use]
+    pub fn is_repr_var(&self) -> bool {
+        matches!(self, Self::ReprVar(..))
+    }
+
+    pub fn as_repr_var(&self) -> Option<&Var> {
+        if let Self::ReprVar(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
 }
 impl Deref for Value {
     type Target = str;
@@ -1705,10 +1721,6 @@ impl CompileMeta {
     /// 新增一个常量到值的映射, 如果当前作用域已有此映射则返回旧的值并插入新值
     pub fn add_const_value(&mut self, Const(var, mut value, mut labels): Const)
     -> Option<(Vec<Var>, Value)> {
-        // 去掉调用次数 (*)
-        // 将定义常量映射到常量改为直接把常量对应的值拿过来
-        // 防止`const A = 1;const B = A;const A = 2;print B;`输出2
-        // 这还需考虑const注册标签
         if let Some(var_1) = value.as_var() {
             // 如果const的映射目标值是一个var
             if let Some((labels_1, value_1))
@@ -1719,6 +1731,25 @@ impl CompileMeta {
                     (labels, value) = (labels_1, value_1)
                 }
         }
+
+        // 当后方为原始值时, 直接转换为普通Var
+        // 因为常量替换之后进行一次, 并不是之前的链式替换
+        // 所以替换过去一个原始值没有意义
+        // 所以常量定义时会去除后方的原始值
+        //
+        // 去除了原始值后, 我们也可以将其用在DExp返回句柄处防止被替换了
+        // 因为常量替换只进行一次
+        // 而我们已经进行了一次了
+        // 例如
+        // ```
+        // const X = `X`;
+        // print (X:);
+        // ```
+        value = match value {
+            Value::ReprVar(value) => value.into(),
+            value => value,
+        };
+
         self.const_var_namespace
             .last_mut()
             .unwrap()
