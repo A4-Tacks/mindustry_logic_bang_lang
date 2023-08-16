@@ -15,12 +15,21 @@ function catch_error {
 }
 trap catch_error ERR
 
-[ $# -le 1 ]
+case "${#}" in
+    1);;
+    2);;
+    *)
+        echo "USAGE: ${0} <VERSION> [TARGET]" >&2
+        exit 1
+        ;;
+esac
 
-COMPILE_TARGET="${1-aarch64-unknown-linux-musl}"
+VERSION="${1}"
+COMPILE_TARGET="${2-aarch64-unknown-linux-musl}"
 
 TARGET_DIR="target/${COMPILE_TARGET}/"
 NAME=mindustry_logic_bang_lang
+RENAMED_NAME="${NAME}_${VERSION}_${COMPILE_TARGET}"
 
 cargo build --release --target="${COMPILE_TARGET}"
 
@@ -32,17 +41,20 @@ test -f "${NAME}" \
     && test -r "${NAME}" \
     && test -x "${NAME}"
 
-TARPKG_NAME="${NAME}.tar"
+cp "${NAME}" "${RENAMED_NAME}"
+
+TARPKG_NAME="${RENAMED_NAME}.tar"
 XZPKG_NAME="${TARPKG_NAME}.xz"
 [ -f "${TARPKG_NAME}" ] && rm "${TARPKG_NAME}"
 [ -f "${XZPKG_NAME}" ] && rm "${XZPKG_NAME}"
 
-tar -cf "${TARPKG_NAME}" "${NAME}"
-xz -k9evvT1 "${TARPKG_NAME}"
+tar -cf "${TARPKG_NAME}" "${RENAMED_NAME}"
+xz -9evvT1 "${TARPKG_NAME}"
+
+rm "${RENAMED_NAME}"
 
 HASHER=sha256sum
 HASHER_NAME="${HASHER##*/}"
 HASH_OUT="$("${HASHER}" "${XZPKG_NAME}")"
-HASH_CODE="${HASH_OUT%% *}"
-HASH_CODE_FILE="${XZPKG_NAME}.${HASHER_NAME}"
-echo "${HASH_CODE}" > "${HASH_CODE_FILE}"
+HASH_OUT_FILE="${XZPKG_NAME}.${HASHER_NAME}"
+echo "${HASH_OUT}" > "${HASH_OUT_FILE}"
