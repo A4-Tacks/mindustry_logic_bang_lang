@@ -76,13 +76,73 @@
 
    所以不用再编写十几行`print`来打印了, 可以放到一两行中了.
 
+# 这是一份示例的代码及编译结果
+**Bang语言代码**:
+```
+id count = 0 0;
+
+while id < @unitCount {
+    lookup unit unit_type id;
+    const Bind = (@unit: ubind unit_type;);
+
+    :restart # 用于开始统计该种单位的跳转点
+
+    skip Bind === null {
+        # 目前已经绑定了一个非空单位
+        first icount = @unit 1;
+
+        while Bind != first {
+            # 若头单位死亡, 则重新统计该类单位
+            goto :restart (sensor $ first @dead;);
+            op icount icount + 1;
+        }
+        op count count + icount; # 将该单位数累加到总单位数
+
+        # 打印每种存在的单位
+        print unit_type ": " icount "\n";
+    }
+
+    op id id + 1; # 推进单位id
+}
+
+print "unit total: " count;
+printflush message1;
+```
+**以上代码将被编译为**
+```
+set id 0
+set count 0
+jump 22 greaterThanEq id @unitCount
+lookup unit unit_type id
+ubind unit_type
+jump 20 strictEqual @unit null
+set first @unit
+set icount 1
+ubind unit_type
+jump 15 equal @unit first
+sensor __0 first @dead
+jump 4 notEqual __0 false
+op add icount icount 1
+ubind unit_type
+jump 10 notEqual @unit first
+op add count count icount
+print unit_type
+print ": "
+print icount
+print "\n"
+op add id id 1
+jump 3 lessThan id @unitCount
+print "unit total: "
+print count
+printflush message1
+```
 
 # 项目构建
 构建这个项目将会比较慢, 原因如下:
-1. 使用`rustc`进行编译, 而它略慢, 相对`gcc` `clang`
+1. 使用`rustc`进行编译, 而它略慢, 相对于`gcc` `clang`
 2. 使用了大型语法分析框架`lalrpop`, 它会生成二十多万行代码, 再叠加上`rustc`编译更慢
 
-如果你的平台是`Linux`且架构为`aarch64` `arm64`时, 不妨先试试release中作者构建的.
+你可以先翻一翻Releases, 看一看有没有已构建的程序, 如果没有或无法使用再尝试自己构建.
 
 ## 构建方法
 首先安装`rust`工具链, 安装方式可以参考 <https://www.rust-lang.org/tools/install><br/>
@@ -98,13 +158,19 @@ cargo install --path . # 执行这个你可以在你的shell中直接使用它(�
 
 # 编辑器支持
 为一些编辑器提供了基础的支持
-- [x] `Vim` 为其配置了基础的语法高亮及折叠, 与缩进规则.<br/>
-     并且如果你在使用`coc-snippets`, 或者`Ultisnips`(未测试) 的话,
-     你可以享受一些配置的代码片段, 如`set` 流程控制语法 `op` `iop`等
-- [x] `MT-Manager` 这是一个安卓端的文件管理器, 其中有一个文本编辑器, 可支持自定义高亮.<br/>
-     为它配置了基础的语法高亮.
-- [x] `VSCode` 这是一个跨平台的编辑器, 由 [westernat](https://github.com/westernat) 提供了语法支持
-- [ ] `Emacs` 无
+- [**Vim**](https://github.com/vim/vim):
+  这是一个活跃在Unix, Linux等平台的编辑器, 虽然相对来说比较小众<br/>
+  为其配置了基础的语法高亮及折叠, 与缩进规则.<br/>
+  并且如果你在使用`coc-snippets`, 或者`Ultisnips`(未测试) 的话,
+  你可以享受一些配置的代码片段, 如`set` 流程控制语法 `op` `iop`等
+
+- [**MT-Manager**](https://mt2.cn/):
+  这是一个安卓端的文件管理器, 其中有一个文本编辑器, 可支持自定义高亮,
+  为它配置了基础的语法高亮.
+
+- [**VSCode**](https://code.visualstudio.com/):
+  这是一个跨平台的编辑器,
+  由 [westernat](https://github.com/westernat) 提供了它对Bang语言的语法支持
 
 `LSP` 目前暂无实现, 也没啥必要实现, 逻辑语言这乱的, 这功能也没法用啥
 
