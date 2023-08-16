@@ -13,8 +13,10 @@ jobs:
         include:
           - target: x86_64-pc-windows-gnu
             archive: zip
+
           - target: x86_64-unknown-linux-musl
-            archive: tar.gz tar.xz
+            archive: tar.xz
+
           - target: x86_64-apple-darwin
             archive: zip
     steps:
