@@ -53,6 +53,7 @@ pub const HELP_MSG: &str = concat_lines! {
     "\t", "T: compile MdtBangLang to MdtTagCode (Builded TagDown)";
     "\t", "f: compile MdtLogicCode to MdtTagCode";
     "\t", "F: compile MdtLogicCode to MdtTagCode (Builded TagDown)";
+    "\t", "R: compile MdtLogicCode to MdtBangLang";
     "\t", "C: compile MdtTagCode to MdtLogicCode";
     ;
     "input from stdin";
@@ -92,10 +93,7 @@ fn main() {
         },
         "A" => {
             let ast = from_stdin_build_ast();
-            let mut meta = Default::default();
-            ast.display_source(&mut meta);
-            assert!(meta.pop_lf());
-            println!("{}", meta.buffer());
+            display_ast(&ast);
         },
         "t" => {
             let ast = from_stdin_build_ast();
@@ -152,12 +150,43 @@ fn main() {
                 println!("{}", line);
             }
         },
+        "R" => {
+            match TagCodes::from_str(&read_stdin()) {
+                Ok(lines) => {
+                    let ast = Expand::try_from(&lines)
+                        .unwrap_or_else(|(idx, e)| {
+                            let lines_str = lines.iter()
+                                .map(|line| format!("\t{line}"))
+                                .collect::<Vec<_>>();
+                            err!(
+                                "已构建的行:\n{}\n在构建第{}行时出错: {}",
+                                lines_str.join("\n"),
+                                idx + 1,
+                                e
+                            );
+                            exit(4);
+                        });
+                    display_ast(&ast);
+                },
+                Err((line, e)) => {
+                    err!("line: {}, {:?}", line, e);
+                    exit(4);
+                },
+            }
+        },
         mode => {
             err!("mode {:?} no pattern", mode);
             help();
             exit(2)
         },
     }
+}
+
+fn display_ast(ast: &Expand) {
+    let mut meta = Default::default();
+    ast.display_source(&mut meta);
+    assert!(meta.pop_lf());
+    println!("{}", meta.buffer());
 }
 
 fn build_tag_down(meta: &mut CompileMeta) {

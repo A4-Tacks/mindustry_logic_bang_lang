@@ -8,6 +8,7 @@ use std::{
     },
     process::exit,
     mem::replace,
+    fmt::{Display, Debug},
 };
 use crate::tag_code::{
     Jump,
@@ -476,6 +477,14 @@ impl Meta {
     }
 }
 
+pub trait FromMdtArgs
+where Self: Sized
+{
+    type Err;
+
+    /// 从逻辑参数构建
+    fn from_mdt_args(args: &[&str]) -> Result<Self, Self::Err>;
+}
 
 /// `jump`可用判断条件枚举
 #[derive(Debug, PartialEq, Clone)]
@@ -657,6 +666,132 @@ impl DisplaySource for JumpCmp {
         }
     }
 }
+impl FromMdtArgs for JumpCmp {
+    type Err = LogicLineFromTagError;
+
+    fn from_mdt_args(args: &[&str]) -> Result<Self, Self::Err> {
+        let &[oper, a, b] = args else {
+            return Err(JumpCmpRParseError::ArgsCountError(
+                args.into_iter().cloned().map(Into::into).collect()
+            ).into());
+        };
+
+        macro_rules! build_match {
+            ( $( $name:ident , $str:pat ),* $(,)? ) => {
+                match oper {
+                    $(
+                        $str => Ok(Self::$name(a.into(), b.into())),
+                    )*
+                    "always" => Ok(Self::Always),
+                    cmper => {
+                        Err(JumpCmpRParseError::UnknownComparer(
+                            cmper.into(),
+                            [a.into(), b.into()]
+                        ).into())
+                    },
+                }
+            };
+        }
+
+        build_match! {
+            Equal, "equal",
+            NotEqual, "notEqual",
+            LessThan, "lessThan",
+            LessThanEq, "lessThanEq",
+            GreaterThan, "greaterThan",
+            GreaterThanEq, "greaterThanEq",
+            StrictEqual, "strictEqual",
+        }
+    }
+}
+
+/// JumpCmp语法树从字符串生成时的错误
+#[derive(Debug, PartialEq, Clone)]
+pub enum JumpCmpRParseError {
+    ArgsCountError(Vec<String>),
+    UnknownComparer(String, [String; 2]),
+}
+impl Display for JumpCmpRParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use JumpCmpRParseError::*;
+
+        match self {
+            ArgsCountError(args) => write!(
+                f,
+                "参数数量错误, 预期3个参数, 得到{}个参数: {:?}",
+                args.len(),
+                args
+            ),
+            UnknownComparer(oper, [a, b]) => write!(
+                f,
+                "未知的比较符: {:?}, 参数为: {:?}",
+                oper,
+                (a, b)
+            ),
+        }
+    }
+}
+
+/// Op语法树从字符串生成时的错误
+#[derive(Debug, PartialEq, Clone)]
+pub enum OpRParseError {
+    ArgsCountError(Vec<String>),
+    UnknownOper(String, [String; 2]),
+}
+impl Display for OpRParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use OpRParseError::*;
+
+        match self {
+            ArgsCountError(args) => write!(
+                f,
+                "参数数量错误, 预期4个参数, 得到{}个参数: {:?}",
+                args.len(),
+                args
+            ),
+            UnknownOper(oper, [a, b]) => write!(
+                f,
+                "未知的运算符: {:?}, 参数为: {:?}",
+                oper,
+                (a, b)
+            ),
+        }
+    }
+}
+
+/// LogicLine语法树从Tag码生成时的错误
+/// 注意是从逻辑码而不是源码
+#[derive(Debug, PartialEq, Clone)]
+pub enum LogicLineFromTagError {
+    JumpCmpRParseError(JumpCmpRParseError),
+    OpRParseError(OpRParseError),
+    StringNoStop {
+        str: String,
+        char_num: usize,
+    },
+}
+impl Display for LogicLineFromTagError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::JumpCmpRParseError(e) =>
+                Display::fmt(&e, f),
+            Self::OpRParseError(e) =>
+                Display::fmt(&e, f),
+            Self::StringNoStop { str, char_num } => {
+                write!(
+                    f,
+                    "未闭合的字符串, 在第{}个字符处起始, 行:[{}]",
+                    char_num,
+                    str
+                )
+            },
+        }
+    }
+}
+impl_enum_froms!(impl From for LogicLineFromTagError {
+    JumpCmpRParseError => JumpCmpRParseError;
+    OpRParseError => OpRParseError;
+});
 
 /// 一颗比较树,
 /// 用于多条件判断.
@@ -1042,6 +1177,95 @@ impl DisplaySource for Op {
         meta.push(";");
     }
 }
+impl FromMdtArgs for Op {
+    type Err = OpRParseError;
+
+    fn from_mdt_args(args: &[&str]) -> Result<Self, Self::Err> {
+        let &[oper, res, a, b] = args else {
+            return Err(OpRParseError::ArgsCountError(
+                args.into_iter().cloned().map(Into::into).collect()
+            ));
+        };
+
+        macro_rules! build_match {
+            {
+                op2: [
+                    $(
+                        $op2_variant:ident $op2_str:literal
+                    ),* $(,)?
+                ] $(,)?
+                op1: [
+                    $(
+                        $op1_variant:ident $op1_str:literal
+                    ),* $(,)?
+                ]
+            } => {
+                match oper {
+                    $(
+                    $op1_str => Ok(Self::$op1_variant(res.into(), a.into())),
+                    )*
+
+                    $(
+                    $op2_str => Ok(Self::$op2_variant(res.into(), a.into(), b.into())),
+                    )*
+
+                    oper => {
+                        Err(OpRParseError::UnknownOper(
+                            oper.into(),
+                            [a.into(), b.into()]
+                        ))
+                    },
+                }
+            };
+        }
+        build_match! {
+            op2: [
+                Add "add",
+                Sub "sub",
+                Mul "mul",
+                Div "div",
+                Idiv "idiv",
+                Mod "mod",
+                Pow "pow",
+                Equal "equal",
+                NotEqual "notEqual",
+                Land "land",
+                LessThan "lessThan",
+                LessThanEq "lessThanEq",
+                GreaterThan "greaterThan",
+                GreaterThanEq "greaterThanEq",
+                StrictEqual "strictEqual",
+                Shl "shl",
+                Shr "shr",
+                Or "or",
+                And "and",
+                Xor "xor",
+                Max "max",
+                Min "min",
+                Angle "angle",
+                Len "len",
+                Noise "noise",
+            ],
+
+            op1: [
+                Not "not",
+                Abs "abs",
+                Log "log",
+                Log10 "log10",
+                Floor "floor",
+                Ceil "ceil",
+                Sqrt "sqrt",
+                Rand "rand",
+                Sin "sin",
+                Cos "cos",
+                Tan "tan",
+                Asin "asin",
+                Acos "acos",
+                Atan "atan",
+            ]
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Goto(pub Var, pub CmpTree);
@@ -1093,6 +1317,17 @@ impl DisplaySource for Expand {
                 line.display_source(meta);
                 meta.add_lf();
             })
+    }
+}
+impl TryFrom<&TagCodes> for Expand {
+    type Error = (usize, LogicLineFromTagError);
+
+    fn try_from(codes: &TagCodes) -> Result<Self, Self::Error> {
+        let mut lines = Vec::with_capacity(codes.lines().len());
+        for (idx, code) in codes.lines().iter().enumerate() {
+            lines.push(code.try_into().map_err(|e| (idx, e))?)
+        }
+        Ok(Self(lines))
     }
 }
 impl_derefs!(impl for Expand => (self: self.0): Vec<LogicLine>);
@@ -1535,6 +1770,54 @@ impl DisplaySource for LogicLine {
         }
     }
 }
+impl TryFrom<&TagLine> for LogicLine {
+    type Error = LogicLineFromTagError;
+
+    fn try_from(line: &TagLine) -> Result<Self, Self::Error> {
+        type Error = LogicLineFromTagError;
+        fn mdt_logic_split_2(s: &str) -> Result<Vec<&str>, Error> {
+            mdt_logic_split(s)
+                .map_err(|char_num| Error::StringNoStop {
+                    str: s.into(),
+                    char_num
+                })
+        }
+        match line {
+            TagLine::Jump(jump) => {
+                assert!(jump.tag().is_none());
+                let jump = jump.data();
+                let str = &jump.1;
+                let (to_tag, args) = (
+                    jump.0,
+                    mdt_logic_split_2(&str)?
+                );
+                Ok(Goto(
+                    to_tag.to_string(),
+                    match JumpCmp::from_mdt_args(&args) {
+                        Ok(cmp) => cmp.into(),
+                        Err(e) => return Err(e.into()),
+                    }
+                ).into())
+            },
+            TagLine::TagDown(tag) => Ok(Self::Label(tag.to_string())),
+            TagLine::Line(line) => {
+                assert!(line.tag().is_none());
+                let line = line.data();
+                let args = mdt_logic_split_2(line)?;
+                match args[0] {
+                    "op" => Op::from_mdt_args(&args[1..])
+                        .map(Into::into)
+                        .map_err(Into::into),
+                    _ => {
+                        let mut args_value = Vec::with_capacity(args.len());
+                        args_value.extend(args.into_iter().map(Into::into));
+                        Ok(Self::Other(args_value))
+                    },
+                }
+            },
+        }
+    }
+}
 
 /// 编译到`TagCodes`
 pub trait Compile {
@@ -1874,8 +2157,54 @@ pub fn line_first_add(lines: &mut Vec<String>, insert: &str) {
     }
 }
 
+/// 按照Mindustry中的规则进行切分
+/// 也就是空白忽略, 字符串会被保留完整
+/// 如果出现未闭合字符串则会返回其所在字符数(从1开始)
+pub fn mdt_logic_split(s: &str) -> Result<Vec<&str>, usize> {
+    fn get_next_char_idx(s: &str) -> Option<usize> {
+        s
+            .char_indices()
+            .map(|(i, _)| i)
+            .nth(1)
+    }
+    let mut res = Vec::new();
+    let mut s1 = s.trim_start();
+    while !s1.is_empty() {
+        debug_assert!(! s1.chars().next().unwrap().is_whitespace());
+        if s1.starts_with('"') {
+            // string
+            if let Some(mut idx) = s1.trim_start_matches('"').find('"') {
+                idx += '"'.len_utf8();
+                res.push(&s1[..=idx]);
+                s1 = &s1[idx..];
+                let Some(next_char_idx) = get_next_char_idx(s1) else { break };
+                s1 = &s1[next_char_idx..]
+            } else {
+                let byte_idx = s.len() - s1.len();
+                let char_idx = s
+                    .char_indices()
+                    .position(|(idx, _ch)| {
+                        byte_idx == idx
+                    })
+                    .unwrap();
+                return Err(char_idx + 1)
+            }
+        } else {
+            let end = s1
+                .find(|ch: char| ch.is_whitespace() || ch == '"')
+                .unwrap_or(s1.len());
+            res.push(&s1[..end]);
+            s1 = &s1[end..]
+        }
+        s1 = s1.trim_start();
+    }
+    Ok(res)
+}
+
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
     use crate::syntax_def::*;
 
@@ -3894,5 +4223,103 @@ mod tests {
 
         assert!(parse!(parser, r#""abc""#).is_err());
         assert!(parse!(parser, r#""""#).is_err());
+    }
+
+    #[test]
+    fn jumpcmp_from_str_test() {
+        let datas = [
+            ("always", Err(JumpCmpRParseError::ArgsCountError(
+                vec!["always".into()]
+            ).into())),
+            ("always 0", Err(JumpCmpRParseError::ArgsCountError(
+                vec!["always".into(), "0".into()]
+            ).into())),
+            ("add 1 2", Err(JumpCmpRParseError::UnknownComparer(
+                "add".into(),
+                ["1".into(), "2".into()]
+            ).into())),
+            ("equal a b", Ok(JumpCmp::Equal("a".into(), "b".into()))),
+            ("lessThan a b", Ok(JumpCmp::LessThan("a".into(), "b".into()))),
+            ("always 0 0", Ok(JumpCmp::Always)),
+        ];
+
+        for (src, expect) in datas {
+            assert_eq!(JumpCmp::from_mdt_args(&mdt_logic_split(src).unwrap()), expect)
+        }
+    }
+
+    #[test]
+    fn mdt_logic_split_test() {
+        let datas: &[(&str, &[&str])] = &[
+            (r#""#,                         &[]),
+            (r#"       "#,                  &[]),
+            (r#"abc def ghi"#,              &["abc", "def", "ghi"]),
+            (r#"abc   def ghi"#,            &["abc", "def", "ghi"]),
+            (r#"   abc   def ghi"#,         &["abc", "def", "ghi"]),
+            (r#"   abc   def ghi  "#,       &["abc", "def", "ghi"]),
+            (r#"abc   def ghi  "#,          &["abc", "def", "ghi"]),
+            (r#"abc   "def ghi"  "#,        &["abc", "\"def ghi\""]),
+            (r#"abc   "def ghi"  "#,        &["abc", "\"def ghi\""]),
+            (r#"  abc "def ghi"  "#,        &["abc", "\"def ghi\""]),
+            (r#"abc"#,                      &["abc"]),
+            (r#"a"#,                        &["a"]),
+            (r#"a b"#,                      &["a", "b"]),
+            (r#"ab"cd"ef"#,                 &["ab", "\"cd\"", "ef"]),
+            (r#"ab"cd"e"#,                  &["ab", "\"cd\"", "e"]),
+            (r#"ab"cd""#,                   &["ab", "\"cd\""]),
+            (r#"ab"cd" e"#,                 &["ab", "\"cd\"", "e"]),
+            (r#"ab"cd"      e"#,            &["ab", "\"cd\"", "e"]),
+            (r#"ab"cd"  "#,                 &["ab", "\"cd\""]),
+            (r#""cd""#,                     &["\"cd\""]),
+            (r#""cd"  "#,                   &["\"cd\""]),
+            (r#"    "cd"  "#,               &["\"cd\""]),
+        ];
+        for &(src, args) in datas {
+            assert_eq!(&mdt_logic_split(src).unwrap(), args);
+        }
+
+        // 未闭合字符串的测试
+        let faileds: &[(&str, usize)] = &[
+            (r#"ab""#, 3),
+            (r#"ab ""#, 4),
+            (r#"ab cd ""#, 7),
+            (r#"""#, 1),
+            (r#"     ""#, 6),
+            (r#""     "#, 1),
+            (r#""ab" "cd"  "e"#, 12),
+        ];
+        for &(src, char_num) in faileds {
+            assert_eq!(mdt_logic_split(src).unwrap_err(), char_num);
+        }
+    }
+
+    #[test]
+    fn logic_line_from() {
+        type Error = (usize, LogicLineFromTagError);
+        let datas: [(&str, Result<Vec<LogicLine>, Error>); 2] = [
+            (
+                "op add i i 1",
+                Ok(vec![
+                   Op::Add("i".into(), "i".into(), "1".into()).into(),
+                ])
+            ),
+            (
+                "op add i i 1\njump 0 lessThan i 10",
+                Ok(vec![
+                   LogicLine::Label("0".into()).into(),
+                   Op::Add("i".into(), "i".into(), "1".into()).into(),
+                   Goto("0".into(), JumpCmp::LessThan("i".into(), "10".into()).into()).into(),
+                ])
+            ),
+        ];
+        for (src, lines2) in datas {
+            let mut tag_codes = TagCodes::from_str(src).unwrap();
+            tag_codes.build_tagdown().unwrap();
+            tag_codes.tag_up();
+            assert_eq!(
+                (&tag_codes).try_into(),
+                lines2.map(Expand)
+            );
+        }
     }
 }
