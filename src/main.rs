@@ -53,7 +53,8 @@ pub const HELP_MSG: &str = concat_lines! {
     "\t", "T: compile MdtBangLang to MdtTagCode (Builded TagDown)";
     "\t", "f: compile MdtLogicCode to MdtTagCode";
     "\t", "F: compile MdtLogicCode to MdtTagCode (Builded TagDown)";
-    "\t", "R: compile MdtLogicCode to MdtBangLang";
+    "\t", "r: compile MdtLogicCode to MdtBangLang";
+    "\t", "R: compile MdtLogicCode to MdtBangLang (Builded TagDown)";
     "\t", "C: compile MdtTagCode to MdtLogicCode";
     ;
     "input from stdin";
@@ -150,9 +151,13 @@ fn main() {
                 println!("{}", line);
             }
         },
-        "R" => {
+        tag @ ("r" | "R") => {
             match TagCodes::from_str(&read_stdin()) {
-                Ok(lines) => {
+                Ok(mut lines) => {
+                    if tag == "R" {
+                        lines.build_tagdown().unwrap();
+                        lines.tag_up();
+                    }
                     let ast = Expand::try_from(&lines)
                         .unwrap_or_else(|(idx, e)| {
                             let lines_str = lines.iter()
