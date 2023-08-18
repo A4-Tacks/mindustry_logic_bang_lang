@@ -5,7 +5,8 @@
 const PI = 3.1415926535897932;
 const E = 2.7182818284590452;
 
-const Log2_2Value = 0.6931471805599453;
+# \log_e2
+const Ln2Value = 0.6931471805599453;
 
 const LogN = (
     take Value = _0;
@@ -16,7 +17,7 @@ const LogN = (
 
 const Log2 = (
     take Num = _0;
-    op $ (op $ log Num;) / Log2_2Value;
+    op $ (op $ log Num;) / Ln2Value;
 );
 
 const Deg = (
