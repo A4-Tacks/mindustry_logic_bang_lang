@@ -86,7 +86,7 @@ pub Value: Value = {
     DExp => <>.into(),
     "`" <Var> "`" => Value::ReprVar(<>), // 原始值
     "$" => Value::ResultHandle,
-    <name:Var> <args:MList<Value*>> => {
+    <name:Var> <args:MList<Args0>> => {
         // QuickDExpTake
         let len = args.len() + 1;
         let mut expand = Vec::with_capacity(len);
@@ -218,10 +218,10 @@ pub LogicLine: LogicLine = {
         var.into(),
         value
     ]),
-    <l:@L> <vars:PArgs> "=" <values:PArgs> LEnd <r:@R>
+    <l:@L> <vars:Args1> "=" <values:Args1> LEnd <r:@R>
         =>? meta.build_sets([l, r], vars, values)
             .map_err(|e| e.into()),
-    "print" <Args> LEnd => {
+    "print" <Args0> LEnd => {
         if <>.is_empty() {
             // 无参数, 啥也不做
             return LogicLine::Ignore
@@ -242,16 +242,18 @@ pub LogicLine: LogicLine = {
                 .collect()
         ).into()
     },
-    <args:PArgs> LEnd => {
+    <args:Args1> LEnd => {
         LogicLine::Other(args)
     },
 }
 
-Args: Vec<Value> = {
+// 0..
+Args0: Vec<Value> = {
     () => vec![],
-    PArgs,
+    Args1,
 }
-PArgs: Vec<Value> = {
+// 1..
+Args1: Vec<Value> = {
     Value => vec![<>],
     Value Value => vec![<>],
     Value Value Value => vec![<>],
@@ -265,6 +267,8 @@ PArgs: Vec<Value> = {
     Value Value Value Value Value Value Value Value Value Value Value => vec![<>],
     Value Value Value Value Value Value Value Value Value Value Value Value => vec![<>],
     Value Value Value Value Value Value Value Value Value Value Value Value Value => vec![<>],
+    Value Value Value Value Value Value Value Value Value Value Value Value Value Value => vec![<>],
+    Value Value Value Value Value Value Value Value Value Value Value Value Value Value Value => vec![<>],
 }
 
 ConstStart<T>: T = T => {
@@ -281,7 +285,7 @@ pub BuiltinCommand: LogicLine = {
     // 如果后方是一个Var则直接将常量映射到后方的值
     // 如果后方是一个DExp则将其计算然后将常量映射到计算出的句柄
     // 此处默认句柄使用Value
-    "take" <args:MList<Value*>?> <var:(<Var> "=")?> <value:Value> LEnd => {
+    "take" <args:MList<Args0>?> <var:(<Var> "=")?> <value:Value> LEnd => {
         let do_leak_res = var.is_some();
 
         Take::new(
