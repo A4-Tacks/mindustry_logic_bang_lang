@@ -1,8 +1,12 @@
-# 简介
-这是语言`mindustry_logic_bang`的编译器, 编译目标语言是`Mindustry`游戏中的`逻辑语言`
+English README, please click on [**README-en_US.md**](./README-en_US.md)
 
-`逻辑语言`在这是指[`Mindustry`](https://github.com/Anuken/Mindustry)
+# 简介
+这是语言`mindustry_logic_bang`的编译器, 编译目标语言是[`Mindustry`]游戏中的`逻辑语言`
+
+`逻辑语言`在这是指[`Mindustry`]
 游戏中的一种名为`逻辑处理器`的建筑中编写与汇编相似的代码并将其导出的形式
+
+[`Mindustry`]: https://github.com/Anuken/Mindustry
 
 # 对比
 1. ### **流程控制**
@@ -41,9 +45,10 @@
 
 4. ### **运算**
    在`mindustry_logic_bang`语言中, 我们可以使用`DExp`来将语句嵌套的塞进一行,
-   可以在一行内完成多个计算.<br/>
-   产生的中间变量完全编译生成名字,
-   当然你可以手动指定这个变量, 在之后要使用这个中间变量的场景完成零开销.<br/>
+   可以在一行内完成多个计算.
+
+   产生的中间变量完全由编译器自动生成名字,
+   当然, 在之后需要使用此中间变量的情况下，您可以手动指定此变量以实现零开销
 
    如果你手动编写`逻辑语言`而不是使用内置的编辑器,
    那么对于常用运算依旧要使用其序列化名称如`add` `idiv`等,
@@ -57,13 +62,17 @@
    **注意**: 学习这门语言首先要对`逻辑语言`较为熟悉
 
    这门语言包含的内容并不是很多, 并且为大多数语法提供了一个示例,
-   按照目录学习可以快速的掌握这门语言.
+   按照[示例]学习可以快速的掌握这门语言.
 
-   并且在`examples/std/`中, 有着一些编写好的`const-DExp`,
+   并且在[`examples/std/`]中, 有着一些编写好的`const-DExp`,
    可以让你知道怎样规范的编写`const-DExp`.
 
+   [示例]: ./examples/
+   [`examples/std/`]: ./examples/std/
+
 6. ### **特殊语句**
-   对于一些常用的特殊语句, 如`set` `print`, 是被专门处理的<br/>
+   对于一些常用的特殊语句, 如`set` `print`, 是被专门处理的
+
    例如:
 
    | `bang语言`     | `逻辑语言`              |
@@ -140,7 +149,7 @@ printflush message1
 # 项目构建
 构建这个项目将会比较慢, 原因如下:
 1. 使用`rustc`进行编译, 而它略慢, 相对于`gcc` `clang`
-2. 使用了大型语法分析框架`lalrpop`, 它会生成二十多万行代码, 再叠加上`rustc`编译更慢
+2. 使用了大型语法分析框架`lalrpop`, 它会生成近三十万行代码, 再叠加上`rustc`编译更慢
 
 你可以先翻一翻Releases, 看一看有没有已构建的程序, 如果没有或无法使用再尝试自己构建.
 
@@ -148,7 +157,7 @@ printflush message1
 首先安装`rust`工具链, 安装方式可以参考 <https://www.rust-lang.org/tools/install><br/>
 请确保你正在使用的工具链是`stable`版本的.<br/>
 
-接下来的构建需要更新索引并从`crates`中获取依赖, 你应该具有合适的网络环境或者配置了镜像源等
+接下来的构建需要更新索引并从`crates-io`中获取依赖, 你应该具有合适的网络环境或者配置了镜像源等
 
 将工作目录切换至项目路径(一般就是你`git clone`下来生成的那个目录)
 ```shell
@@ -158,21 +167,26 @@ cargo install --path . # 执行这个你可以在你的shell中直接使用它(�
 
 # 编辑器支持
 为一些编辑器提供了基础的支持
-- [**Vim**](https://github.com/vim/vim):
+- [**Vim**]:
   这是一个活跃在Unix, Linux等平台的编辑器, 虽然相对来说比较小众<br/>
   为其配置了基础的语法高亮及折叠, 与缩进规则.<br/>
   并且如果你在使用`coc-snippets`, 或者`Ultisnips`(未测试) 的话,
   你可以享受一些配置的代码片段, 如`set` 流程控制语法 `op` `iop`等
 
-- [**MT-Manager**](https://mt2.cn/):
+- [**MT-Manager**]:
   这是一个安卓端的文件管理器, 其中有一个文本编辑器, 可支持自定义高亮,
   为它配置了基础的语法高亮.
 
-- [**VSCode**](https://code.visualstudio.com/):
+- [**VSCode**]:
   这是一个跨平台的编辑器,
-  由 [westernat](https://github.com/westernat) 提供了它对Bang语言的语法支持
+  由 [westernat] 提供了它对Bang语言的语法支持
 
 `LSP` 目前暂无实现, 也没啥必要实现, 逻辑语言这乱的, 这功能也没法用啥
+
+[**Vim**]: https://github.com/vim/vim
+[**MT-Manager**]: https://mt2.cn/
+[**VSCode**]: https://code.visualstudio.com/
+[westernat]: https://github.com/westernat
 
 
 # 性能
@@ -182,7 +196,7 @@ cargo install --path . # 执行这个你可以在你的shell中直接使用它(�
 基本没有什么报错位置, 不怎么友好, 不过基本也没啥报错, 信息也差不多够找出错误
 
 # 如何使用
-我们先说明本示例程序的二进制文件名为`mindustry_logic_bang_lang`,
+我们先说明本示例程序的文件名为`mindustry_logic_bang_lang`,
 因为可能由于平台原因或个人进行的重命名带来名称不同,
 例如在 Windows 上会有`exe`后缀.
 
@@ -197,7 +211,7 @@ mindustry_logic_bang_lang c < my_source.mdtlbl > out.logic
 
 这个示例中, 我们使用了几乎所有shell都会有的语法, `<`和`>`.
 
-- 选项`c`代表将输入的`MindustryLogicBangLang`语言编译为`MindustryLogicCode`
+- 参数`c`代表将输入的`Bang`语言编译为`逻辑语言`
 - `<`后面跟着一个文件, 将这个文件作为程序的标准输入,
 - `>`后面跟着一个文件, 并将这个文件作为程序标准输出, 也就是标准输出被覆写进这个文件
 

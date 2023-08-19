@@ -1,9 +1,9 @@
-# 指南
+# 学习指南 Study Guide
 如果你想学习这门语言, 首先你需要对`Mindustry`的逻辑导出形式较为熟悉
 
 如果你满足了上述条件, 那么你只需要阅读这些示例即可.
 
-## 以下是推荐的阅读顺序
+## 以下是推荐的阅读顺序 The following is the recommended reading order
 > `value.mdtlbl`<br/>
 > `dexp.mdtlbl`<br/>
 > `print.mdtlbl`<br/>
