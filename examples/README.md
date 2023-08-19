@@ -4,24 +4,24 @@
 如果你满足了上述条件, 那么你只需要阅读这些示例即可.
 
 ## 以下是推荐的阅读顺序 The following is the recommended reading order
-> `value.mdtlbl`<br/>
-> `dexp.mdtlbl`<br/>
-> `print.mdtlbl`<br/>
-> `sets.mdtlbl`<br/>
-> `op.mdtlbl`<br/>
-> `control.mdtlbl`<br/>
-> `cmps.mdtlbl`<br/>
-> `insert_sort.mdtlbl`<br/>
-> `switch.mdtlbl`<br/>
-> `const.mdtlbl`<br/>
-> `take.mdtlbl`<br/>
-> `switch_append.mdtlbl`<br/>
-> `shell_sort.mdtlbl`<br/>
-> `switch_catch.mdtlbl`<br/>
-> `take2.mdtlbl`<br/>
-> `setres.mdtlbl`<br/>
-> `quick_dexp_take.mdtlbl`<br/>
-> `value_bind.mdtlbl`<br/>
-> `caller.mdtlbl`<br/>
+> [`value.mdtlbl`](./value.mdtlbl)<br/>
+> [`dexp.mdtlbl`](./dexp.mdtlbl)<br/>
+> [`print.mdtlbl`](./print.mdtlbl)<br/>
+> [`sets.mdtlbl`](./sets.mdtlbl)<br/>
+> [`op.mdtlbl`](./op.mdtlbl)<br/>
+> [`control.mdtlbl`](./control.mdtlbl)<br/>
+> [`cmps.mdtlbl`](./cmps.mdtlbl)<br/>
+> [`insert_sort.mdtlbl`](./insert_sort.mdtlbl)<br/>
+> [`switch.mdtlbl`](./switch.mdtlbl)<br/>
+> [`const.mdtlbl`](./const.mdtlbl)<br/>
+> [`take.mdtlbl`](./take.mdtlbl)<br/>
+> [`switch_append.mdtlbl`](./switch_append.mdtlbl)<br/>
+> [`shell_sort.mdtlbl`](./shell_sort.mdtlbl)<br/>
+> [`switch_catch.mdtlbl`](./switch_catch.mdtlbl)<br/>
+> [`take2.mdtlbl`](./take2.mdtlbl)<br/>
+> [`setres.mdtlbl`](./setres.mdtlbl)<br/>
+> [`quick_dexp_take.mdtlbl`](./quick_dexp_take.mdtlbl)<br/>
+> [`value_bind.mdtlbl`](./value_bind.mdtlbl)<br/>
+> [`caller.mdtlbl`](./caller.mdtlbl)<br/>
 
 如果没有列出那请在看完上述后自行观看, 顺序可以参考文件创建顺序
