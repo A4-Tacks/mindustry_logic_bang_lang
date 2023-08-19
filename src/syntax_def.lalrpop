@@ -7,10 +7,16 @@ use crate::syntax::{
     Errors,
     Error,
     Op,
-    Value,
+    Value::{
+        self,
+        ResultHandle,
+        ReprVar,
+    },
     Var,
     DExp,
     ValueBind,
+    op_expr_do,
+    OpExprInfo,
     JumpCmp,
     CmpTree,
     Goto,
@@ -53,6 +59,10 @@ CloseArgs<T, S> = (<T> S)* T => { // 一至多个有分隔无后缀值
     args.push(tail);
     args
 };
+OOCArgs<T, S> = {
+    OpenArgs<T, S>,
+    CloseArgs<T, S>,
+}
 Span<T> = @L T @R;
 
 pub String: Var = r#""[^"]*""# => <>.lines().collect::<Vec<_>>().join("\\n");
@@ -84,8 +94,8 @@ pub Var: Var = {
 pub Value: Value = {
     Var => <>.into(),
     DExp => <>.into(),
-    "`" <Var> "`" => Value::ReprVar(<>), // 原始值
-    "$" => Value::ResultHandle,
+    "`" <Var> "`" => ReprVar(<>), // 原始值
+    "$" => ResultHandle,
     <name:Var> <args:MList<Args0>> => {
         // QuickDExpTake
         let len = args.len() + 1;
@@ -200,7 +210,7 @@ pub Op: Op = {
     <OrSwap<"atan", <Value>>> <Value> Value? => Op::Atan(<>),
     // 扩展(1)
     <OrSwap<Or<"lnot", "!">, <Value>>> <Value> Value? =>
-        Op::Equal(<>, Value::ReprVar("false".into())),
+        Op::Equal(<>, ReprVar("false".into())),
 }
 
 Label: String = ":" <Var>;
@@ -213,14 +223,11 @@ pub LogicLine: LogicLine = {
     Label => LogicLine::new_label(<>, meta),
     "op" <Op> LEnd => <>.into(),
     "noop" LEnd => LogicLine::NoOp,
-    "set" <var:Value> <value:Value> LEnd => LogicLine::Other(vec![
-        Value::ReprVar("set".into()),
-        var.into(),
-        value
-    ]),
-    <l:@L> <vars:Args1> "=" <values:Args1> LEnd <r:@R>
-        =>? meta.build_sets([l, r], vars, values)
+    "set" <Value> <Value> LEnd => Meta::build_set(<>),
+    <l:@L> <vars:Args2> "=" <values:Args2> LEnd <r:@R>
+        =>? Meta::build_sets([l, r], vars, values)
             .map_err(|e| e.into()),
+    OpExpr,
     "print" <Args0> LEnd => {
         if <>.is_empty() {
             // 无参数, 啥也不做
@@ -229,14 +236,14 @@ pub LogicLine: LogicLine = {
         if <>.len() == 1 {
             // 单个参数, 老式处理
             return LogicLine::Other(vec![
-                Value::ReprVar("print".into()),
+                ReprVar("print".into()),
                 <>.into_iter().next().unwrap()
             ])
         }
         Expand(
             <>.into_iter()
                 .map(|arg| LogicLine::Other(vec![
-                    Value::ReprVar("print".into()),
+                    ReprVar("print".into()),
                     arg
                 ]))
                 .collect()
@@ -255,6 +262,10 @@ Args0: Vec<Value> = {
 // 1..
 Args1: Vec<Value> = {
     Value => vec![<>],
+    Args2,
+}
+// 2..
+Args2: Vec<Value> = {
     Value Value => vec![<>],
     Value Value Value => vec![<>],
     Value Value Value Value => vec![<>],
@@ -269,6 +280,166 @@ Args1: Vec<Value> = {
     Value Value Value Value Value Value Value Value Value Value Value Value Value => vec![<>],
     Value Value Value Value Value Value Value Value Value Value Value Value Value Value => vec![<>],
     Value Value Value Value Value Value Value Value Value Value Value Value Value Value Value => vec![<>],
+}
+
+OpExpr: LogicLine = <var:Value> "=" <value:OpExprBody> LEnd => {
+    let (do_inline, mut value) = value;
+    if do_inline {
+        // 将Op内联过来, 而不是构建一个set
+        assert_eq!(value.as_dexp().unwrap().len(), 1);
+        assert!(value.as_dexp().unwrap()[0].is_op());
+        assert_eq!(value.as_dexp().unwrap()[0].as_op().unwrap().get_result(), &ResultHandle);
+        let mut op_line = value
+            .as_dexp_mut().unwrap()
+            .pop().unwrap();
+        *op_line.as_op_mut().unwrap().get_result_mut() = var;
+        op_line
+    } else {
+        Meta::build_set(var, value)
+    }
+};
+
+OpExprBody: OpExprInfo = OpExprBody11;
+
+OpExprBody11: OpExprInfo = {
+    <a:OpExprBody11> "||" <b:OpExprBody10> => op_expr_do(|| Op::Add(ResultHandle, a.1, b.1)),
+    OpExprBody10,
+}
+
+OpExprBody10: OpExprInfo = {
+    <a:OpExprBody10> "&&" <b:OpExprBody9> => op_expr_do(|| Op::Land(ResultHandle, a.1, b.1)),
+    OpExprBody9,
+}
+
+OpExprBody9: OpExprInfo = {
+    <a:OpExprBody9> "==" <b:OpExprBody8> => op_expr_do(|| Op::Equal(ResultHandle, a.1, b.1)),
+    <a:OpExprBody9> "!=" <b:OpExprBody8> => op_expr_do(|| Op::NotEqual(ResultHandle, a.1, b.1)),
+    <a:OpExprBody9> "<" <b:OpExprBody8> => op_expr_do(|| Op::LessThan(ResultHandle, a.1, b.1)),
+    <a:OpExprBody9> ">" <b:OpExprBody8> => op_expr_do(|| Op::GreaterThan(ResultHandle, a.1, b.1)),
+    <a:OpExprBody9> "<=" <b:OpExprBody8> => op_expr_do(|| Op::LessThanEq(ResultHandle, a.1, b.1)),
+    <a:OpExprBody9> ">=" <b:OpExprBody8> => op_expr_do(|| Op::GreaterThanEq(ResultHandle, a.1, b.1)),
+    <a:OpExprBody9> "===" <b:OpExprBody8> => op_expr_do(|| Op::StrictEqual(ResultHandle, a.1, b.1)),
+    OpExprBody8,
+}
+
+OpExprBody8: OpExprInfo = {
+    <a:OpExprBody8> "|" <b:OpExprBody7> => op_expr_do(|| Op::Or(ResultHandle, a.1, b.1)),
+    OpExprBody7,
+}
+
+OpExprBody7: OpExprInfo = {
+    <a:OpExprBody7> "^" <b:OpExprBody6> => op_expr_do(|| Op::Xor(ResultHandle, a.1, b.1)),
+    OpExprBody6,
+}
+
+OpExprBody6: OpExprInfo = {
+    <a:OpExprBody6> "&" <b:OpExprBody5> => op_expr_do(|| Op::And(ResultHandle, a.1, b.1)),
+    OpExprBody5,
+}
+
+OpExprBody5: OpExprInfo = {
+    <a:OpExprBody5> "<<" <b:OpExprBody4> => op_expr_do(|| Op::Shl(ResultHandle, a.1, b.1)),
+    <a:OpExprBody5> ">>" <b:OpExprBody4> => op_expr_do(|| Op::Shr(ResultHandle, a.1, b.1)),
+    OpExprBody4,
+}
+
+OpExprBody4: OpExprInfo = {
+    <a:OpExprBody4> "+" <b:OpExprBody3> => op_expr_do(|| Op::Add(ResultHandle, a.1, b.1)),
+    <a:OpExprBody4> "-" <b:OpExprBody3> => op_expr_do(|| Op::Sub(ResultHandle, a.1, b.1)),
+    OpExprBody3,
+}
+
+OpExprBody3: OpExprInfo = {
+    <a:OpExprBody3> "*" <b:OpExprBody2> => op_expr_do(|| Op::Mul(ResultHandle, a.1, b.1)),
+    <a:OpExprBody3> "/" <b:OpExprBody2> => op_expr_do(|| Op::Div(ResultHandle, a.1, b.1)),
+    <a:OpExprBody3> "//" <b:OpExprBody2> => op_expr_do(|| Op::Idiv(ResultHandle, a.1, b.1)),
+    <a:OpExprBody3> "%" <b:OpExprBody2> => op_expr_do(|| Op::Mod(ResultHandle, a.1, b.1)),
+    OpExprBody2,
+}
+
+OpExprBody2: OpExprInfo = {
+    "!" <x:OpExprBody2> => op_expr_do(|| Op::Equal(ResultHandle, ReprVar("false".into()), x.1)),
+    "-" <x:OpExprBody2> => op_expr_do(|| Op::Sub(ResultHandle, ReprVar("0".into()), x.1)),
+    "~" <x:OpExprBody2> => op_expr_do(|| Op::Not(ResultHandle, x.1)),
+    OpExprBody1,
+}
+
+OpExprBody1: OpExprInfo = {
+    <a:OpExprAtom> "**" <b:OpExprBody1> => op_expr_do(|| Op::Pow(ResultHandle, a.1, b.1)),
+    OpExprAtom,
+}
+
+OpExprFun1<Name> = Name <MTuple<(<OpExprBody> ","?)>>;
+OpExprFun2<Name> = Name <MTuple<(<OpExprBody> "," <OpExprBody> ","?)>>;
+
+
+OpExprCallOp: OpExprInfo = {
+    OpExprFun2<"max"> => {
+        let ((_, a), (_, b)) = <>;
+        op_expr_do(|| Op::Max(ResultHandle, a, b))
+    },
+    OpExprFun2<"min"> => {
+        let ((_, a), (_, b)) = <>;
+        op_expr_do(|| Op::Min(ResultHandle, a, b))
+    },
+    OpExprFun2<"angle"> => {
+        let ((_, a), (_, b)) = <>;
+        op_expr_do(|| Op::Angle(ResultHandle, a, b))
+    },
+    OpExprFun2<"len"> => {
+        let ((_, a), (_, b)) = <>;
+        op_expr_do(|| Op::Len(ResultHandle, a, b))
+    },
+    OpExprFun2<"noise"> => {
+        let ((_, a), (_, b)) = <>;
+        op_expr_do(|| Op::Noise(ResultHandle, a, b))
+    },
+
+    OpExprFun1<"abs"> => {
+        op_expr_do(|| Op::Abs(ResultHandle, <>.1))
+    },
+    OpExprFun1<"log"> => {
+        op_expr_do(|| Op::Log(ResultHandle, <>.1))
+    },
+    OpExprFun1<"log10"> => {
+        op_expr_do(|| Op::Log10(ResultHandle, <>.1))
+    },
+    OpExprFun1<"floor"> => {
+        op_expr_do(|| Op::Floor(ResultHandle, <>.1))
+    },
+    OpExprFun1<"ceil"> => {
+        op_expr_do(|| Op::Ceil(ResultHandle, <>.1))
+    },
+    OpExprFun1<"sqrt"> => {
+        op_expr_do(|| Op::Sqrt(ResultHandle, <>.1))
+    },
+    OpExprFun1<"rand"> => {
+        op_expr_do(|| Op::Rand(ResultHandle, <>.1))
+    },
+    OpExprFun1<"sin"> => {
+        op_expr_do(|| Op::Sin(ResultHandle, <>.1))
+    },
+    OpExprFun1<"cos"> => {
+        op_expr_do(|| Op::Cos(ResultHandle, <>.1))
+    },
+    OpExprFun1<"tan"> => {
+        op_expr_do(|| Op::Tan(ResultHandle, <>.1))
+    },
+    OpExprFun1<"asin"> => {
+        op_expr_do(|| Op::Asin(ResultHandle, <>.1))
+    },
+    OpExprFun1<"acos"> => {
+        op_expr_do(|| Op::Acos(ResultHandle, <>.1))
+    },
+    OpExprFun1<"atan"> => {
+        op_expr_do(|| Op::Atan(ResultHandle, <>.1))
+    },
+}
+
+OpExprAtom: OpExprInfo = {
+    Value => (false, <>),
+    MTuple<OpExprBody>,
+    OpExprCallOp,
 }
 
 ConstStart<T>: T = T => {

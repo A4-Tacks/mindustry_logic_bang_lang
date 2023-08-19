@@ -290,6 +290,14 @@ impl DExp {
             lines
         }
     }
+
+    pub fn result(&self) -> &str {
+        self.result.as_ref()
+    }
+
+    pub fn lines(&self) -> &Expand {
+        &self.lines
+    }
 }
 impl TakeHandle for DExp {
     fn take_handle(self, meta: &mut CompileMeta) -> Var {
@@ -351,6 +359,7 @@ impl DisplaySource for DExp {
         meta.push(")");
     }
 }
+impl_derefs!(impl for DExp => (self: self.lines): Expand);
 
 /// 将一个Value与一个Var以特定格式组合起来,
 /// 可完成如属性调用的功能
@@ -442,15 +451,9 @@ impl Meta {
     /// 如果只有一个值与被赋值则与之前行为一致
     /// 如果值与被赋值数量不匹配则返回错误
     /// 如果值与被赋值数量匹配且大于一对就返回Expand中多个set
-    pub fn build_sets(&self, loc: [Location; 2], mut vars: Vec<Value>, mut values: Vec<Value>)
+    pub fn build_sets(loc: [Location; 2], mut vars: Vec<Value>, mut values: Vec<Value>)
     -> Result<LogicLine, Error> {
-        fn build_set(var: Value, value: Value) -> LogicLine {
-            LogicLine::Other(vec![
-                    Value::ReprVar("set".into()),
-                    var,
-                    value,
-            ])
-        }
+        let build_set = Self::build_set;
         if vars.len() != values.len() {
             // 接受与值数量不匹配
             return Err((
@@ -474,6 +477,15 @@ impl Meta {
             debug_assert_eq!(expand.len(), len);
             Ok(Expand(expand).into())
         }
+    }
+
+    /// 单纯的构建一个set语句
+    pub fn build_set(var: Value, value: Value) -> LogicLine {
+        LogicLine::Other(vec![
+                Value::ReprVar("set".into()),
+                var,
+                value,
+        ])
     }
 }
 
@@ -1015,6 +1027,50 @@ impl Op {
             Asin "asin",
             Acos "acos",
             Atan "atan",
+        }
+    }
+
+    pub fn get_result(&self) -> &Value {
+        macro_rules! build_match {
+            {
+                $(
+                    $variant:ident
+                ),* $(,)?
+            } => {
+                match self {
+                    $( Self::$variant(res, ..) => res ),*
+                }
+            };
+        }
+        build_match! {
+            Add, Sub, Mul, Div, Idiv, Mod, Pow,
+            Equal, NotEqual, Land, LessThan, LessThanEq, GreaterThan, GreaterThanEq,
+            StrictEqual, Shl, Shr, Or, And, Xor, Not,
+            Max, Min, Angle, Len, Noise, Abs, Log,
+            Log10, Floor, Ceil, Sqrt, Rand, Sin, Cos,
+            Tan, Asin, Acos, Atan,
+        }
+    }
+
+    pub fn get_result_mut(&mut self) -> &mut Value {
+        macro_rules! build_match {
+            {
+                $(
+                    $variant:ident
+                ),* $(,)?
+            } => {
+                match self {
+                    $( Self::$variant(res, ..) => res ),*
+                }
+            };
+        }
+        build_match! {
+            Add, Sub, Mul, Div, Idiv, Mod, Pow,
+            Equal, NotEqual, Land, LessThan, LessThanEq, GreaterThan, GreaterThanEq,
+            StrictEqual, Shl, Shr, Or, And, Xor, Not,
+            Max, Min, Angle, Len, Noise, Abs, Log,
+            Log10, Floor, Ceil, Sqrt, Rand, Sin, Cos,
+            Tan, Asin, Acos, Atan,
         }
     }
 
@@ -1651,6 +1707,14 @@ impl LogicLine {
         }
     }
 
+    pub fn as_op_mut(&mut self) -> Option<&mut Op> {
+        if let Self::Op(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
     /// Returns `true` if the logic line is [`Label`].
     ///
     /// [`Label`]: LogicLine::Label
@@ -2199,6 +2263,14 @@ pub fn mdt_logic_split(s: &str) -> Result<Vec<&str>, usize> {
         s1 = s1.trim_start();
     }
     Ok(res)
+}
+
+pub type OpExprInfo = (bool, Value);
+
+pub fn op_expr_do<F>(f: F) -> OpExprInfo
+where F: FnOnce() -> Op
+{
+    (true, DExp::new_nores(vec![f().into()].into()).into())
 }
 
 #[cfg(test)]
@@ -4321,5 +4393,59 @@ mod tests {
                 lines2.map(Expand)
             );
         }
+    }
+
+    #[test]
+    fn op_expr_test() {
+        let parser = ExpandParser::new();
+
+        assert_eq!(
+            parse!(parser, r#"
+            x = max(1, 2);
+            y = max(max(1, 2), max(3, max(4, 5)));
+            "#).unwrap(),
+            parse!(parser, r#"
+            op x max 1 2;
+            op y max (op $ max 1 2;) (op $ max 3 (op $ max 4 5;););
+            "#).unwrap(),
+        );
+
+        assert_eq!(
+            parse!(parser, r#"
+            x = 1+2*3;
+            y = (1+2)*3;
+            z = 1+2+3;
+            "#).unwrap(),
+            parse!(parser, r#"
+            op x 1 + (op $ 2 * 3;);
+            op y (op $ 1 + 2;) * 3;
+            op z (op $ 1 + 2;) + 3;
+            "#).unwrap(),
+        );
+
+        assert_eq!(
+            parse!(parser, r#"
+            x = 1*max(2, 3);
+            y = a & b | c & d & e | f;
+            "#).unwrap(),
+            parse!(parser, r#"
+            op x 1 * (op $ max 2 3;);
+            op y (op $ (op $ a & b;) | (op $ (op $ c & d;) & e;);) | f;
+            "#).unwrap(),
+        );
+
+        assert_eq!(
+            parse!(parser, r#"
+            x = a**b**c; # pow的右结合
+            y = -x;
+            z = ~y;
+            "#).unwrap(),
+            parse!(parser, r#"
+            op x a ** (op $ b ** c;);
+            op y `0` - x;
+            op z ~y;
+            "#).unwrap(),
+        );
+
     }
 }
