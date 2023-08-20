@@ -38,43 +38,14 @@ const Rad = (
 
 const Bit64HighOne = (
     #**
-    * 使用二分法获取64bit正整数数中最高位1的索引
+    * 使用`floor(log2(n))`获取64bit正整数数中最高位1的索引
     * 如果输入`Num <= 0`返回0
-    * 由于mdt的数字使用java-double, 有52位有效整数
-    *   且进行位运算时会临时转换成java-long, 有63位有效整数
-    *   所以可以直接对这64bit进行二分
     * # params
-    * - Num: 给定的大于0的数, 它会被直接进行更改
+    * * Num: 给定的大于0的数, 它会被直接进行更改
     *   如果你之后还要使用可以传入`($ = n;)`
-    *#
-    #*
+    * 由于在Mindustry中, op运算都是同时间, 而op有log, 那么我们可以直接使用log2
     *#
     take Num = _0;
 
-    take Idx = $;
-
-    Idx = 0;
-
-    const DoBinarySplit = (
-        take Mask = _0;
-        take Len = _1;
-
-        if Num > Mask {
-            op Num Num >> Len;
-            op Idx Idx + Len;
-        }
-    );
-
-    take[0xFFFF_FFFF 32] DoBinarySplit;
-    take[0xFFFF 16] DoBinarySplit;
-    take[0xFF 8] DoBinarySplit;
-    take[0xF 4] DoBinarySplit;
-    take[0x3 2] DoBinarySplit;
-
-    if Num > 0x1 {
-        # 结尾并不使用DoBinarySplit,
-        # 因为这是最后一次二分,
-        # 改变Num没有意义
-        op Idx Idx + 1;
-    }
+    $ = floor(Log2[Num]);
 );
