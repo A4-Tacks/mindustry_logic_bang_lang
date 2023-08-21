@@ -1,0 +1,53 @@
+#**
+* 一个小搬运豆
+*#
+
+const Type = @flare;
+const Sorted = sorter1;
+const ApproachLen = 3;
+
+while (target: getlink $ 1;) === null { wait 0.2; }
+
+# 当目前单位未死亡 未被控制或者由这控制 未被玩家控制 则不循环
+gwhile (sensor $ my_unit @dead;)
+|| (ctrler: sensor $ my_unit @controller;) != @this && ctrler != @unit
+|| (sensor $ my_unit @controlled;) == @ctrlPlayer
+{
+    # 寻找一个未被控制的单位
+    while (@unit: ubind Type;) === null || (sensor $ @unit @controlled;) {}
+    my_unit = @unit;
+}
+
+sensor my_item Sorted @config;
+if my_item != null {
+    const GetCore = ('_': ulocate building core false 0 core.x core.y core.founded core;);
+    ubind my_unit;
+    sensor unit_item @unit @firstItem;
+    sensor unit_item_cap @unit @itemCapacity;
+
+    if unit_item != null && unit_item != my_item {
+        # 携带物品不为空且类型错误
+        take GetCore;
+        ucontrol approach core.x core.y ApproachLen 0 0;
+        while (sensor $ @unit @firstItem;) !== null {
+            ucontrol itemDrop @air unit_item_cap 0 0 0;
+        }
+    } elif unit_item === null || !(sensor $ @unit my_item;) {
+        # 没有携带物品或物品为零时
+        take GetCore;
+        if core.founded {
+            ucontrol approach core.x core.y ApproachLen 0 0;
+            ucontrol itemTake core my_item unit_item_cap 0 0;
+        }
+        # 成功拿到物品, 直接跳转省去一轮
+        goto :goto_target (sensor $ @unit @my_item;);
+    } else {
+        :goto_target
+        # 携带满物品且种类正确
+        sensor target.x target @x;
+        sensor target.y target @y;
+
+        ucontrol approach target.x target.y ApproachLen 0 0;
+        ucontrol itemDrop target unit_item_cap 0 0 0;
+    }
+}
