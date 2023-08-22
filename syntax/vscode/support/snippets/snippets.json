@@ -1,205 +1,303 @@
 {
-    "while语句块": {
+    "while": {
         "prefix": "while",
         "body": [
             "while ${1:_} {",
-            "    $0",
+            "\t$0",
             "}"
         ],
-        "description": "while语句块"
+        "description": "while"
     },
-    "gwhile语句块": {
+    "gwhile": {
         "prefix": "gwhile",
         "body": [
             "gwhile ${1:_} {",
-            "    $0",
+            "\t$0",
             "}"
         ],
-        "description": "gwhile语句块"
+        "description": "gwhile"
     },
-    "do_while语句块": {
+    "do_while": {
         "prefix": "do_while",
         "body": [
             "do {",
-            "    $0",
+            "\t$0",
             "} while ${1:_};"
         ],
-        "description": "do_while语句块"
+        "description": "do_while"
     },
-    "goto语句": {
+    "goto": {
         "prefix": "goto",
         "body": [
             "goto :${1:tag} ${2:_};$0"
         ],
-        "description": "goto语句"
+        "description": "goto"
     },
-    "skip语句块": {
+    "skip": {
         "prefix": "skip",
         "body": [
             "skip ${1:_} {",
-            "    $0",
+            "\t$0",
             "}"
         ],
-        "description": "skip语句块"
+        "description": "skip"
     },
-    "if语句块": {
+    "if": {
         "prefix": "if",
         "body": [
             "if $1 {",
-            "    $0",
+            "\t$0",
             "}"
         ],
-        "description": "if语句块"
+        "description": "if"
     },
-    "elif语句块": {
+    "elif": {
         "prefix": "elif",
         "body": [
             "elif $1 {",
-            "    $0",
+            "\t$0",
             "}"
         ],
-        "description": "elif语句块"
+        "description": "elif"
     },
-    "else语句块": {
+    "else": {
         "prefix": "else",
         "body": [
             "else {",
-            "    $0",
+            "\t$0",
             "}"
         ],
-        "description": "else语句块"
+        "description": "else"
     },
-    "else line语句": {
-        "prefix": "elsel",
+    "elsel": {
+        "prefix": "else line",
         "body": [
             "else",
-            "    $0"
+            "\t$0"
         ],
-        "description": "else line语句"
+        "description": "elsel"
     },
-    "const value语句": {
-        "prefix": "const",
+    "const": {
+        "prefix": "const value",
         "body": [
             "const ${1:NAME} = ${2:value};$0"
         ],
-        "description": "const value语句"
+        "description": "const"
     },
-    "const DExp语句": {
-        "prefix": "const_dexp",
+    "const_dexp": {
+        "prefix": "const DExp",
         "body": [
             "const ${1:NAME} = (${2});$0"
         ],
-        "description": "const DExp语句"
+        "description": "const_dexp"
     },
-    "take语句": {
+    "take": {
         "prefix": "take",
         "body": [
             "take${1:[${2}]} ${3:${4:RES} = }${5:VALUE};"
         ],
-        "description": "take语句"
+        "description": "take"
     },
-    "op self语句": {
-        "prefix": "iop",
+    "argt": {
+        "prefix": "take arg",
+        "body": [
+            "take ${1:Arg} = _${2:0};$0"
+        ],
+        "description": "argt"
+    },
+    "argc": {
+        "prefix": "const arg",
+        "body": [
+            "const ${1:Arg} = _${2:0};$0"
+        ],
+        "description": "argc"
+    },
+    "iop": {
+        "prefix": "op self",
         "body": [
             "op ${1:i} $1 ${2:+} ${3:1};$0"
         ],
-        "description": "op self语句"
+        "description": "iop"
     },
-    "switch语句块": {
+    "switch": {
         "prefix": "switch",
         "body": [
             "switch $1 {",
-            "    $0",
+            "\t$0",
             "}"
         ],
-        "description": "switch语句块"
+        "description": "switch"
     },
-    "switch-case语句": {
-        "prefix": "case",
+    "case": {
+        "prefix": "switch-case",
         "body": [
             "case ${1:0}:$0"
         ],
-        "description": "switch-case语句"
+        "description": "case"
     },
-    "op result a + b;语句": {
-        "prefix": "op",
+    "op": {
+        "prefix": "op result a + b;",
         "body": [
             "op ${1:result} ${2:a} ${3:+} ${4:b};$0"
         ],
-        "description": "op result a + b;语句"
+        "description": "op"
     },
-    "print values;语句": {
-        "prefix": "print",
+    "print": {
+        "prefix": "print values;",
         "body": [
             "print ${1:\"frog\"};$0"
         ],
-        "description": "print values;语句"
+        "description": "print"
     },
-    "a = b;语句": {
-        "prefix": "set",
+    "set": {
+        "prefix": "a = b;",
         "body": [
             "${1} = ${2};"
         ],
-        "description": "a = b;语句"
+        "description": "set"
     },
-    "read result cell1 0;语句": {
-        "prefix": "read",
+    "read": {
+        "prefix": "read result cell1 0;",
         "body": [
             "read ${1:result} ${2:cell1} ${3:0};$0"
         ],
-        "description": "read result cell1 0;语句"
+        "description": "read"
     },
-    "write result cell1 0;语句": {
-        "prefix": "write",
+    "write": {
+        "prefix": "write result cell1 0;",
         "body": [
             "write ${1:result} ${2:cell1} ${3:0};$0"
         ],
-        "description": "write result cell1 0;语句"
+        "description": "write"
     },
-    "set DExp result handle语句": {
-        "prefix": "setres",
+    "draw": {
+        "prefix": "draw clear 0 0 0 0 0 0",
+        "body": [
+            "draw ${1:clear} ${2:0} ${3:0} ${4:0} 0 0 0;$0"
+        ],
+        "description": "draw"
+    },
+    "setres": {
+        "prefix": "set DExp result handle",
         "body": [
             "setres ${1:RES};$0"
         ],
-        "description": "set DExp result handle语句"
+        "description": "setres"
     },
-    "use take define tmp var": {
-        "prefix": "tmpvar",
+    "tmpvar": {
+        "prefix": "use take define tmp var",
         "body": [
             "take ${1:var} = ();$0"
         ],
-        "description": "use take define tmp var"
+        "description": "tmpvar"
     },
-    "printflush message1语句": {
-        "prefix": "printflush",
+    "printflush": {
+        "prefix": "printflush message1",
         "body": [
             "printflush ${1:message1};$0"
         ],
-        "description": "printflush message1语句"
+        "description": "printflush"
     },
-    "drawflush message1语句": {
-        "prefix": "drawflush",
+    "drawflush": {
+        "prefix": "drawflush message1",
         "body": [
             "drawflush ${1:display1};$0"
         ],
-        "description": "drawflush message1语句"
+        "description": "drawflush"
     },
-    "select语句块": {
+    "select": {
         "prefix": "select",
         "body": [
             "select $1 {",
-            "    $0",
+            "\t$0",
             "}"
         ],
-        "description": "select语句块"
+        "description": "select"
     },
-    "mdtlbl doc": {
-        "prefix": "doc",
+    "doccomments": {
+        "prefix": "#**\\n...\\n*#",
         "body": [
             "#**",
             "* $1",
             "*#$0"
         ],
-        "description": "mdtlbl doc"
+        "description": "doccomments"
+    },
+    "control": {
+        "prefix": "enabled | shoot[p] | config | color",
+        "body": [
+            "control ${1:enabled} ${2:block1} ${3:false} 0 0 0;$0"
+        ],
+        "description": "control"
+    },
+    "ubind": {
+        "prefix": "unit bind",
+        "body": [
+            "ubind ${2:@${1:poly}};$0"
+        ],
+        "description": "ubind"
+    },
+    "ucontrol": {
+        "prefix": "unit control",
+        "body": [
+            "ucontrol ${1:move} ${2:0} ${3:0} 0 0 0;$0"
+        ],
+        "description": "ucontrol"
+    },
+    "ulocate": {
+        "prefix": "unit locate",
+        "body": [
+            "ulocate building core true @copper outx outy found building;$0"
+        ],
+        "description": "ulocate"
+    },
+    "uradar": {
+        "prefix": "unit radar",
+        "body": [
+            "uradar enemy any any distance 0 1 result;$0"
+        ],
+        "description": "uradar"
+    },
+    "radar": {
+        "prefix": "radar",
+        "body": [
+            "radar enemy any any distance turret1 1 result;$0"
+        ],
+        "description": "radar"
+    },
+    "lookup": {
+        "prefix": "block | unit | item | liquid",
+        "body": [
+            "lookup ${1:item} ${2:result} ${3:0};$0"
+        ],
+        "description": "lookup"
+    },
+    "sleep": {
+        "prefix": "wait sec",
+        "body": [
+            "wait ${1:0.5};$0"
+        ],
+        "description": "sleep"
+    },
+    "wait": {
+        "prefix": "wait sec",
+        "body": [
+            "wait ${1:0.5};$0"
+        ],
+        "description": "wait"
+    },
+    "getlink": {
+        "prefix": "getlink",
+        "body": [
+            "getlink ${1:block} ${2:0};$0"
+        ],
+        "description": "getlink"
+    },
+    "sensor": {
+        "prefix": "sensor",
+        "body": [
+            "sensor ${1:result} ${2:block1} ${3:@${4:copper}};$0"
+        ],
+        "description": "sensor"
     }
 }
