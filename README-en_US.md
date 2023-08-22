@@ -198,18 +198,18 @@ cargo install --path .
 
 # Editor support
 Provided basic support for some editors
-- [**Vim**]:
+- [**Vim**]\:
   This is an editor active on platforms such as Unix and Linux, although relatively niche<br/>
   Basic syntax highlighting and folding, as well as indentation rules, have been configured for it<br/>
   And if you are using `coc-snippets` or `Ultisnips` (untested),
   You can enjoy some configuration code snippets,
   such as `set` process control syntax `op` and `iop`, etc
 
-- [**MT-Manager**]:
+- [**MT-Manager**]\:
   This is an Android file manager with a text editor that supports custom highlighting,
   It has been configured with basic syntax highlighting.
 
-- [**VSCode**]:
+- [**VSCode**]\:
   This is a cross platform editor,
   Provided syntax support for Bang language by [westernat] in this editor
 
