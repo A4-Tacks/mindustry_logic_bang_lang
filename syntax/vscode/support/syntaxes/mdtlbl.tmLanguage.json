@@ -1,12 +1,16 @@
 {
 	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
 	"name": "MindustryLogicBangLang",
+	"scopeName": "source.mdtlbl",
 	"patterns": [
 		{
 			"include": "#keywords"
 		},
 		{
 			"include": "#string"
+		},
+		{
+			"include": "#comments-doc"
 		},
 		{
 			"include": "#comments"
@@ -32,18 +36,18 @@
 			"patterns": [
 				{
 					"name": "keyword.control.mdtlbl",
-					"match": "\\b(if|elif|else|do|while|for|take|goto|switch|case|skip|end|gwhile|setres)\\b"
+					"match": "\\b(if|elif|else|do|while|for|take|goto|switch|case|skip|gwhile|setres|select)\\b"
 				},
 				{
 					"name": "storage.modifier.mdtlbl",
-					"match": "\\b(const|set|read|write)\\b"
+					"match": "\\bconst\\b"
 				},
 				{
 					"name": "entity.name.function.mdtlbl",
-					"match": "\\b(op|noop|print|control|printflush|wait|sensor)\\b"
+					"match": "\\b(op|read|write|draw|print|drawflush|printflush|getlink|control|radar|sensor|lookup|packcolor|wait|stop|ubind|ucontrol|uradar|ulocate|end)\\b"
 				},
 				{
-					"name": "keyword.control.mdtlbl",
+					"name": "storage.modifier.mdtlbl",
 					"match": "\\b(equal|notEqual|lessThan|lessThanEq|greaterThan|greaterThanEq|strictEqual|always|lnot|add|sub|mul|div|idiv|mod|pow|shl|shr|or|and|xor|max|min|angle|len|noise|not|abs|log|log10|floor|ceil|sqrt|rand|sin|cos|tan|asin|acos|atan)\\b"
 				},
 				{
@@ -98,6 +102,25 @@
 				}
 			}
 		},
+		"comments-doc": {
+			"patterns": [
+				{
+					"begin": "^\\s*(#\\*\\*)(?!#)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.comment.mdtlbl"
+						}
+					},
+					"end": "\\*#",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.comment.mdtlbl"
+						}
+					},
+					"name": "comment.block.doc.mdtlbl"
+				}
+			]
+		},
 		"comments": {
 			"patterns": [
 				{
@@ -117,7 +140,7 @@
 		"comments-inline": {
 			"patterns": [
 				{
-					"begin": "#\\*",
+					"begin": "^\\s*#\\*",
 					"captures": {
 						"0": {
 							"name": "punctuation.definition.comment.mdtlbl"
@@ -152,7 +175,7 @@
 		"special-constants": {
 			"patterns": [
 				{
-					"match": "\\b(true|false)\\b",
+					"match": "\\b(true|false|noop)\\b",
 					"name": "constant.language.mdtlbl"
 				},
 				{
@@ -209,6 +232,5 @@
 				}
 			]
 		}
-	},
-	"scopeName": "source.mdtlbl"
+	}
 }
