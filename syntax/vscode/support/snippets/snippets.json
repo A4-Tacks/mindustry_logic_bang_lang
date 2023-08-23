@@ -69,27 +69,27 @@
         ],
         "description": "else"
     },
-    "elsel": {
-        "prefix": "else line",
+    "else line": {
+        "prefix": "elsel",
         "body": [
             "else",
             "\t$0"
         ],
-        "description": "elsel"
+        "description": "else line"
     },
-    "const": {
-        "prefix": "const value",
+    "const value": {
+        "prefix": "const",
         "body": [
             "const ${1:NAME} = ${2:value};$0"
         ],
-        "description": "const"
+        "description": "const value"
     },
-    "const_dexp": {
-        "prefix": "const DExp",
+    "const DExp": {
+        "prefix": "const_dexp",
         "body": [
             "const ${1:NAME} = (${2});$0"
         ],
-        "description": "const_dexp"
+        "description": "const DExp"
     },
     "take": {
         "prefix": "take",
@@ -98,26 +98,26 @@
         ],
         "description": "take"
     },
-    "argt": {
-        "prefix": "take arg",
+    "take arg": {
+        "prefix": "argt",
         "body": [
             "take ${1:Arg} = _${2:0};$0"
         ],
-        "description": "argt"
+        "description": "take arg"
     },
-    "argc": {
-        "prefix": "const arg",
+    "const arg": {
+        "prefix": "argc",
         "body": [
             "const ${1:Arg} = _${2:0};$0"
         ],
-        "description": "argc"
+        "description": "const arg"
     },
-    "iop": {
-        "prefix": "op self",
+    "op self": {
+        "prefix": "iop",
         "body": [
             "op ${1:i} $1 ${2:+} ${3:1};$0"
         ],
-        "description": "iop"
+        "description": "op self"
     },
     "switch": {
         "prefix": "switch",
@@ -128,82 +128,82 @@
         ],
         "description": "switch"
     },
-    "case": {
-        "prefix": "switch-case",
+    "switch-case": {
+        "prefix": "case",
         "body": [
             "case ${1:0}:$0"
         ],
-        "description": "case"
+        "description": "switch-case"
     },
-    "op": {
-        "prefix": "op result a + b;",
+    "op result a + b;": {
+        "prefix": "op",
         "body": [
             "op ${1:result} ${2:a} ${3:+} ${4:b};$0"
         ],
-        "description": "op"
+        "description": "op result a + b;"
     },
-    "print": {
-        "prefix": "print values;",
+    "print values;": {
+        "prefix": "print",
         "body": [
             "print ${1:\"frog\"};$0"
         ],
-        "description": "print"
+        "description": "print values;"
     },
-    "set": {
-        "prefix": "a = b;",
+    "a = b;": {
+        "prefix": "set",
         "body": [
             "${1} = ${2};"
         ],
-        "description": "set"
+        "description": "a = b;"
     },
-    "read": {
-        "prefix": "read result cell1 0;",
+    "read result cell1 0;": {
+        "prefix": "read",
         "body": [
             "read ${1:result} ${2:cell1} ${3:0};$0"
         ],
-        "description": "read"
+        "description": "read result cell1 0;"
     },
-    "write": {
-        "prefix": "write result cell1 0;",
+    "write result cell1 0;": {
+        "prefix": "write",
         "body": [
             "write ${1:result} ${2:cell1} ${3:0};$0"
         ],
-        "description": "write"
+        "description": "write result cell1 0;"
     },
-    "draw": {
-        "prefix": "draw clear 0 0 0 0 0 0",
+    "draw clear 0 0 0 0 0 0": {
+        "prefix": "draw",
         "body": [
             "draw ${1:clear} ${2:0} ${3:0} ${4:0} 0 0 0;$0"
         ],
-        "description": "draw"
+        "description": "draw clear 0 0 0 0 0 0"
     },
-    "setres": {
-        "prefix": "set DExp result handle",
+    "set DExp result handle": {
+        "prefix": "setres",
         "body": [
             "setres ${1:RES};$0"
         ],
-        "description": "setres"
+        "description": "set DExp result handle"
     },
-    "tmpvar": {
-        "prefix": "use take define tmp var",
+    "use take define tmp var": {
+        "prefix": "tmpvar",
         "body": [
             "take ${1:var} = ();$0"
         ],
-        "description": "tmpvar"
+        "description": "use take define tmp var"
     },
-    "printflush": {
-        "prefix": "printflush message1",
+    "printflush message1": {
+        "prefix": "printflush",
         "body": [
             "printflush ${1:message1};$0"
         ],
-        "description": "printflush"
+        "description": "printflush message1"
     },
-    "drawflush": {
-        "prefix": "drawflush message1",
+    "drawflush message1": {
+        "prefix": "drawflush",
         "body": [
             "drawflush ${1:display1};$0"
         ],
-        "description": "drawflush"
+        "description": "drawflush message1"
     },
     "select": {
         "prefix": "select",
@@ -214,49 +214,49 @@
         ],
         "description": "select"
     },
-    "doccomments": {
-        "prefix": "#**\\n...\\n*#",
+    "#**\\n...\\n*#": {
+        "prefix": "doccomments",
         "body": [
             "#**",
             "* $1",
             "*#$0"
         ],
-        "description": "doccomments"
+        "description": "#**\\n...\\n*#"
     },
-    "control": {
-        "prefix": "enabled | shoot[p] | config | color",
+    "enabled | shoot[p] | config | color": {
+        "prefix": "control",
         "body": [
             "control ${1:enabled} ${2:block1} ${3:false} 0 0 0;$0"
         ],
-        "description": "control"
+        "description": "enabled | shoot[p] | config | color"
     },
-    "ubind": {
-        "prefix": "unit bind",
+    "unit bind": {
+        "prefix": "ubind",
         "body": [
             "ubind ${2:@${1:poly}};$0"
         ],
-        "description": "ubind"
+        "description": "unit bind"
     },
-    "ucontrol": {
-        "prefix": "unit control",
+    "unit control": {
+        "prefix": "ucontrol",
         "body": [
             "ucontrol ${1:move} ${2:0} ${3:0} 0 0 0;$0"
         ],
-        "description": "ucontrol"
+        "description": "unit control"
     },
-    "ulocate": {
-        "prefix": "unit locate",
+    "unit locate": {
+        "prefix": "ulocate",
         "body": [
             "ulocate building core true @copper outx outy found building;$0"
         ],
-        "description": "ulocate"
+        "description": "unit locate"
     },
-    "uradar": {
-        "prefix": "unit radar",
+    "unit radar": {
+        "prefix": "uradar",
         "body": [
             "uradar enemy any any distance 0 1 result;$0"
         ],
-        "description": "uradar"
+        "description": "unit radar"
     },
     "radar": {
         "prefix": "radar",
@@ -265,26 +265,19 @@
         ],
         "description": "radar"
     },
-    "lookup": {
-        "prefix": "block | unit | item | liquid",
+    "block | unit | item | liquid": {
+        "prefix": "lookup",
         "body": [
             "lookup ${1:item} ${2:result} ${3:0};$0"
         ],
-        "description": "lookup"
+        "description": "block | unit | item | liquid"
     },
-    "sleep": {
-        "prefix": "wait sec",
+    "wait sec": {
+        "prefix": "wait",
         "body": [
             "wait ${1:0.5};$0"
         ],
-        "description": "sleep"
-    },
-    "wait": {
-        "prefix": "wait sec",
-        "body": [
-            "wait ${1:0.5};$0"
-        ],
-        "description": "wait"
+        "description": "wait sec"
     },
     "getlink": {
         "prefix": "getlink",
