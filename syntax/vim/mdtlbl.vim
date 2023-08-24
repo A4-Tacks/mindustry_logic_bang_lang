@@ -1,7 +1,7 @@
 " Vim syntax file
 " Language:		mindustry_logic_bang_lang (mdtlbl)
 " Maintainer:		A4-Tacks <wdsjxhno1001@163.com>
-" Last Change:		2023-8-11
+" Last Change:		2023-8-24
 " URL:		https://github.com/A4-Tacks/mindustry_logic_bang_lang
 
 " 已加载高亮时就退出
@@ -22,13 +22,25 @@ endif
 " 大小写敏感 {{{1
 syn case match
 
-
-" 控制语句 {{{1
+" 一些关键字 {{{1
 syn keyword mdtlblKeyword
             \ while do skip goto if elif else
             \ switch case const take gwhile setres select
+            \ inline
+            \ op set noop print
 hi link mdtlblKeyword Keyword
 
+syn keyword mdtlblOpFunKeyword
+            \ add sub mul div idiv mod pow
+            \ equal notEqual land lessThan lessThanEq greaterThan greaterThanEq
+            \ strictEqual shl shr or and xor max
+            \ min angle len noise not abs log
+            \ floor ceil sqrt rand sin cos tan
+            \ asin acos atan lnot
+hi link mdtlblOpFunKeyword Operator
+
+syn match mdtlblCmpTreeOper /&&\|||\|!/
+hi link mdtlblCmpTreeOper Operator
 
 " 注释 {{{1
 syn region mdtlblComment start=/#/ end=/$/
@@ -56,6 +68,12 @@ hi link mdtlblOtherValue Identifier
 
 syn match mdtlblNumber /\v<(0(x\-?[0-9a-fA-F][0-9a-fA-F_]*|b\-?[01][_01]*)|\-?[0-9][0-9_]*(\.[0-9][0-9_]*)?)>/
 hi link mdtlblNumber Number
+
+syn match mdtlblBoolean /\v<true|false>/
+hi link mdtlblBoolean Boolean
+
+syn match mdtlblNull /\<null\>/
+hi link mdtlblNull Boolean
 
 syn match mdtlblResultHandle /\$/
 hi link mdtlblResultHandle Identifier

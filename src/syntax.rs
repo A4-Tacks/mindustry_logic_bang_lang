@@ -1388,6 +1388,27 @@ impl TryFrom<&TagCodes> for Expand {
 }
 impl_derefs!(impl for Expand => (self: self.0): Vec<LogicLine>);
 
+#[derive(Debug, PartialEq, Clone)]
+pub struct InlineBlock(pub Vec<LogicLine>);
+impl DisplaySource for InlineBlock {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        self.0
+            .iter()
+            .for_each(|line| {
+                line.display_source(meta);
+                meta.add_lf();
+            })
+    }
+}
+impl Compile for InlineBlock {
+    fn compile(self, meta: &mut CompileMeta) {
+        for line in self.0 {
+            line.compile(meta)
+        }
+    }
+}
+impl_derefs!(impl for InlineBlock => (self: self.0): Vec<LogicLine>);
+
 /// 用于`switch`的`select`结构
 /// 编译最后一步会将其填充至每个语句定长
 /// 然后将`self.0`乘以每个语句的长并让`@counter += _`来跳转到目标
@@ -1637,6 +1658,7 @@ pub enum LogicLine {
     Goto(Goto),
     Other(Vec<Value>),
     Expand(Expand),
+    InlineBlock(InlineBlock),
     Select(Select),
     NoOp,
     /// 空语句, 什么也不生成
@@ -1670,6 +1692,7 @@ impl Compile for LogicLine {
             },
             Self::Select(select) => select.compile(meta),
             Self::Expand(expand) => expand.compile(meta),
+            Self::InlineBlock(block) => block.compile(meta),
             Self::Goto(goto) => goto.compile(meta),
             Self::Op(op) => op.compile(meta),
             Self::Const(r#const) => r#const.compile(meta),
@@ -1783,6 +1806,7 @@ impl_enum_froms!(impl From for LogicLine {
     Op => Op;
     Goto => Goto;
     Expand => Expand;
+    InlineBlock => InlineBlock;
     Select => Select;
     Const => Const;
     Take => Take;
@@ -1795,6 +1819,16 @@ impl DisplaySource for LogicLine {
                 meta.add_lf();
                 meta.do_block(|meta| {
                     expand.display_source(meta);
+                });
+                meta.push("}");
+            },
+            Self::InlineBlock(block) => {
+                meta.push("inline");
+                meta.add_space();
+                meta.push("{");
+                meta.add_lf();
+                meta.do_block(|meta| {
+                    block.display_source(meta);
                 });
                 meta.push("}");
             },
@@ -4447,5 +4481,37 @@ mod tests {
             "#).unwrap(),
         );
 
+    }
+
+    #[test]
+    fn inline_block_test() {
+        let parser = ExpandParser::new();
+
+        assert_eq!(
+            parse!(parser, r#"
+            inline {
+                foo;
+            }
+            "#).unwrap(),
+            Expand(vec![
+                InlineBlock(vec![
+                    LogicLine::Other(vec!["foo".into()])
+                ]).into()
+            ]).into()
+        );
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        print A;
+        inline {
+            const A = 2;
+            print A;
+        }
+        print A;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "print A",
+                   "print 2",
+                   "print 2",
+        ]);
     }
 }

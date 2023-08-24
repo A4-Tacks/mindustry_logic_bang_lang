@@ -21,6 +21,7 @@ use crate::syntax::{
     CmpTree,
     Goto,
     Expand,
+    InlineBlock,
     SwitchCatch,
     Select,
     Const,
@@ -220,15 +221,21 @@ pub LogicLine: LogicLine = {
     Control,
     BuiltinCommand,
     MBlock<Expand> => <>.into(),
+    "inline" <MBlock<LogicLine*>> => InlineBlock(<>).into(),
     Label => LogicLine::new_label(<>, meta),
     "op" <Op> LEnd => <>.into(),
     "noop" LEnd => LogicLine::NoOp,
     "set" <Value> <Value> LEnd => Meta::build_set(<>),
     <l:@L> <vars:Args2> "=" <values:Args2> LEnd <r:@R>
-        =>? Meta::build_sets([l, r], vars, values)
-            .map_err(|e| e.into()),
+        =>? Meta::build_sets([l, r], vars, values).map_err(|e| e.into()),
     OpExpr,
-    "print" <Args0> LEnd => {
+    Print,
+    <args:Args1> LEnd => {
+        LogicLine::Other(args)
+    },
+}
+
+Print: LogicLine = "print" <Args0> LEnd => {
         if <>.is_empty() {
             // 无参数, 啥也不做
             return LogicLine::Ignore
@@ -248,11 +255,7 @@ pub LogicLine: LogicLine = {
                 ]))
                 .collect()
         ).into()
-    },
-    <args:Args1> LEnd => {
-        LogicLine::Other(args)
-    },
-}
+};
 
 // 0..
 Args0: Vec<Value> = {
