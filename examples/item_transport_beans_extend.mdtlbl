@@ -1,0 +1,161 @@
+#**
+* 多功能搬运豆
+*
+* 连接首个为分类器时会将核心做为源, 将其余作为目标
+* 否则会将核心做为目标, 其余作为源
+*
+* 搬运的物品有连接的首个目标的config来决定
+*
+* 如果除了分类器以外只有一个, 那么将会始终一对一
+* 否则会选择未满/拥有的进行搬运
+*
+* 因为将多个功能集成到了一个, 并且考虑了众多情况,
+* 在效率方面比单一功能、速度专精那些要差
+*#
+
+:logic_start
+
+const BuildXY = (__:
+    #**
+    * 给Target的绑定量[x,y]构建为其sensor的@x和@y
+    *#
+    take Target = _0;
+
+    sensor Target.x Target @x;
+    sensor Target.y Target @y;
+);
+
+const UnitBind = (
+    #**
+    * 文明的长绑定一个单位,
+    * 参数为单位要绑定到的量与其类型
+    * 需要绑定后控制
+    *#
+    take MyUnit = _0;
+    take UnitType = _1;
+
+    setres MyUnit;
+
+    # 当目前单位未死亡 未被控制或者由这控制 未被玩家控制 则不循环
+    gwhile (sensor $ MyUnit @dead;)
+    || (ctrler: sensor $ MyUnit @controller;) != @this && ctrler != @unit
+    || (sensor $ MyUnit @controlled;) == @ctrlPlayer
+    {
+        # 寻找一个未被控制的单位
+        while (@unit: ubind UnitType;) === null || (sensor $ @unit @controlled;) {}
+        MyUnit = @unit;
+    }
+);
+
+while (links: $ = @links;) < 2 { wait 0.2; }
+
+# 这里使用非内联方便游戏中手动设置
+# 反正速度也不是特别重要了
+unit_type = @flare;
+approach_range = 3;
+
+getlink sorter 0;
+sensor my_item sorter @config;
+is_invert = (sorter_ty: sensor $ sorter @type;) != @sorter;
+
+goto :logic_start my_item === null; # 没选物品的话, 直接跳回
+
+const GetSource = (
+    #**
+    * 获取需要拿物品的目标,
+    * 会给其构建绑定量x和y
+    *#
+
+    take Return = $;
+
+    if is_invert {
+        # 如果是反转的, 那么寻找一个有目标物品的容器
+        i = 1;
+        while i < links
+        && (sensor $ (Return: getlink $ i;) my_item;) == 0
+        {
+            op i i + 1;
+        }
+        if i == links {
+            # 如果没找到那就选首个了
+            getlink Return 1;
+        }
+        take[Return] BuildXY;
+    } else ulocate building core false 0 $.x $.y 0 $;
+);
+
+const GetTarget = (
+    #**
+    * 获取物品放到哪,
+    * 会给其构建绑定量x和y
+    *#
+
+    take Return = $;
+
+    if !is_invert {
+        # 不是反转模式, 选择第一个没有满的放
+        # 如果每个都满那么选择最后一个
+        # 这需要被放的是容器才可以获取其物品上限及对应物品数
+        # 连接一个时也就是总链接数为2时直接返回它
+        if links == 2 {
+            getlink Return 1;
+        } else {
+            i = 1;
+            while i < links {
+                # 链接了一个分类器和多个目标
+                getlink Return i;
+                goto :bk1 (sensor $ Return my_item;) < (sensor $ Return @itemCapacity;);
+                op i i + 1;
+            } :bk1
+        }
+        take[Return] BuildXY;
+    } else ulocate building core false 0 $.x $.y 0 $;
+);
+
+const CatchException = (__:
+    #**
+    * 发生以下事件时, 跳回处理器头部
+    * 1. 链接数变更
+    * 2. 选择物品变更
+    * 3. 分类器类型变更
+    * 4. 单位控制方不是自己了
+    *#
+    goto :logic_start @links != links
+    || (sensor $ sorter @config;) != my_item
+    || (sensor $ (getlink $ 0;) @type;) != sorter_ty
+    || (sensor $ @unit @controller;) != @this
+    ;
+);
+
+take[my_unit unit_type] UnitBind;
+
+ubind my_unit;
+sensor unit_item @unit @firstItem;
+sensor unit_item_cap @unit @itemCapacity;
+
+if unit_item != null && unit_item != my_item {
+    # 携带物品不为空且类型错误
+    take Source = GetSource;
+    ucontrol approach Source.x Source.y approach_range 0 0;
+    do {
+        # 轮询尝试丢弃无效物品
+        ucontrol itemDrop @air unit_item_cap 0 0 0;
+        take CatchException;
+    } while (sensor $ @unit @firstItem;) != null;
+} elif unit_item === null || !(sensor $ @unit my_item;) {
+    # 没有携带物品或物品为零时从源拿取
+    do {
+        take Source = GetSource;
+        ucontrol approach Source.x Source.y approach_range 0 0;
+        ucontrol itemTake Source my_item unit_item_cap 0 0;
+        take CatchException;
+    } while (sensor $ @unit my_item;) < unit_item_cap;
+    # 成功拿到物品, 直接跳转省去一轮
+    goto :goto_target (sensor $ @unit my_item;);
+} else {
+    :goto_target
+    # 携带满物品且种类正确
+    take Target = GetTarget;
+    ucontrol approach Target.x Target.y approach_range 0 0;
+    ucontrol itemDrop Target unit_item_cap 0 0 0;
+}
