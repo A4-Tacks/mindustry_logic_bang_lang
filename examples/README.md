@@ -15,6 +15,7 @@
 > [`insert_sort.mdtlbl`](./insert_sort.mdtlbl)<br/>
 > [`switch.mdtlbl`](./switch.mdtlbl)<br/>
 > [`const.mdtlbl`](./const.mdtlbl)<br/>
+> [`inline_block.mdtlbl`](./inline_block.mdtlbl)<br/>
 > [`take.mdtlbl`](./take.mdtlbl)<br/>
 > [`switch_append.mdtlbl`](./switch_append.mdtlbl)<br/>
 > [`shell_sort.mdtlbl`](./shell_sort.mdtlbl)<br/>
