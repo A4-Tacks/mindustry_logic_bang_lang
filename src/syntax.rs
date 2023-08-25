@@ -487,6 +487,48 @@ impl Meta {
                 value,
         ])
     }
+
+    /// 单纯的构建一个OpExpr
+    pub fn build_op_expr(var: Value, (do_inline, mut value): OpExprInfo)
+    -> LogicLine {
+        if do_inline {
+            // 将Op内联过来, 而不是构建一个set
+            let dexp = value
+                .as_dexp_mut().unwrap();
+            assert_eq!(dexp.len(), 1);
+            assert!(dexp[0].is_op());
+            assert_eq!(dexp[0].as_op().unwrap().get_result(), &Value::ResultHandle);
+            let mut op_line = dexp.pop().unwrap();
+            *op_line.as_op_mut().unwrap().get_result_mut() = var;
+            op_line
+        } else {
+            Meta::build_set(var, value)
+        }
+    }
+
+    /// 构建可能同时有多对的OpExpr
+    pub fn build_op_exprs(mut vars: Vec<Value>, mut values: Vec<OpExprInfo>) -> LogicLine {
+        assert_eq!(vars.len(), values.len());
+        assert!(! vars.is_empty());
+        let len = vars.len();
+        if len == 1 {
+            Self::build_op_expr(vars.pop().unwrap(), values.pop().unwrap())
+        } else {
+            Expand(
+                vars.into_iter()
+                    .zip(values)
+                    .map(|(var, value)|
+                        Self::build_op_expr(var, value)
+                    )
+                    .fold(
+                        Vec::with_capacity(len),
+                        |mut lines, line| {
+                        lines.push(line);
+                        lines
+                    })
+            ).into()
+        }
+    }
 }
 
 pub trait FromMdtArgs
@@ -4478,6 +4520,19 @@ mod tests {
             op x a ** (op $ b ** c;);
             op y `0` - x;
             op z ~y;
+            "#).unwrap(),
+        );
+
+        assert_eq!(
+            parse!(parser, r#"
+            a, b, c = x, -y, z+2*3;
+            "#).unwrap(),
+            parse!(parser, r#"
+            {
+                a = x;
+                b = -y;
+                c = z+2*3;
+            }
             "#).unwrap(),
         );
 

@@ -285,22 +285,22 @@ Args2: Vec<Value> = {
     Value Value Value Value Value Value Value Value Value Value Value Value Value Value Value => vec![<>],
 }
 
-OpExpr: LogicLine = <var:Value> "=" <value:OpExprBody> LEnd => {
-    let (do_inline, mut value) = value;
-    if do_inline {
-        // 将Op内联过来, 而不是构建一个set
-        assert_eq!(value.as_dexp().unwrap().len(), 1);
-        assert!(value.as_dexp().unwrap()[0].is_op());
-        assert_eq!(value.as_dexp().unwrap()[0].as_op().unwrap().get_result(), &ResultHandle);
-        let mut op_line = value
-            .as_dexp_mut().unwrap()
-            .pop().unwrap();
-        *op_line.as_op_mut().unwrap().get_result_mut() = var;
-        op_line
-    } else {
-        Meta::build_set(var, value)
-    }
+OpExpr: LogicLine = <OpExprDoMultiple> LEnd => {
+    let (mut vars, values) = <>;
+    vars.reverse();
+    Meta::build_op_exprs(vars, values)
 };
+
+// 例如`a, b = 1, 2`返回`([b, a], [1, 2])`
+OpExprDoMultiple: (Vec<Value>, Vec<OpExprInfo>) = {
+    <var:Value> "=" <value:OpExprBody> => (vec![var], vec![value]),
+    <var:Value> "," <mut mid:OpExprDoMultiple> "," <value:OpExprBody> => {
+        let (ref mut vars, ref mut values) = mid;
+        vars.push(var);
+        values.push(value);
+        mid
+    },
+}
 
 OpExprBody: OpExprInfo = OpExprBody11;
 
