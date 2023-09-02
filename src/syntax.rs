@@ -4526,4 +4526,78 @@ mod tests {
                    "print 2",
         ]);
     }
+
+    #[test]
+    fn consted_dexp() {
+        let parser = ExpandParser::new();
+
+        assert_eq!(
+            parse!(parser, r#"
+            foo const(:x bar;);
+            "#).unwrap(),
+            Expand(vec![
+                LogicLine::Other(vec![
+                    "foo".into(),
+                    DExp::new(
+                        "__".into(),
+                        vec![
+                            Const(
+                                "___0".into(),
+                                DExp::new_nores(vec![
+                                    LogicLine::Label("x".into()),
+                                    LogicLine::Other(vec!["bar".into()])
+                                ].into()).into(),
+                                vec!["x".into()],
+                            ).into(),
+                            LogicLine::SetResultHandle("___0".into()),
+                        ].into()
+                    ).into()
+                ]),
+            ]).into()
+        );
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        const Do2 = (
+            const F = _0;
+            take F;
+            take F;
+        );
+        take[
+            const(
+                if a < b {
+                    print 1;
+                } else {
+                    print 2;
+                }
+            )
+        ] Do2;
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "jump 3 lessThan a b",
+                   "print 2",
+                   "jump 4 always 0 0",
+                   "print 1",
+                   "jump 7 lessThan a b",
+                   "print 2",
+                   "jump 0 always 0 0",
+                   "print 1",
+        ]);
+
+        assert!(CompileMeta::new().compile(parse!(parser, r#"
+        const Do2 = (
+            const F = _0;
+            take F;
+            take F;
+        );
+        take[
+            (
+                if a < b {
+                    print 1;
+                } else {
+                    print 2;
+                }
+            )
+        ] Do2;
+        "#).unwrap()).compile().is_err());
+    }
 }

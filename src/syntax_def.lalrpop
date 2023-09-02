@@ -106,6 +106,15 @@ pub Value: Value = {
         DExp::new("__".into(), expand.into()).into()
     },
     <value:Value> "." <attr:NoStringVar> => ValueBind(value.into(), attr).into(),
+    // consted-dexp
+    "const" ConstStart <DExp> => {
+        let tmp_name = meta.get_tmp_var();
+        let dexp_const = Const(tmp_name.clone(), <>.into(), meta.pop_label_scope());
+        DExp::new("__".into(), vec![
+            dexp_const.into(),
+            LogicLine::SetResultHandle(tmp_name.into()),
+        ].into()).into()
+    },
 }
 
 pub LiteralUInt: usize = <l:@L> <num:Number> <r:@R> =>? {

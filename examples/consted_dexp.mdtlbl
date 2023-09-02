@@ -1,0 +1,75 @@
+#**
+* 这是在0.11.3版本加入的语法
+* 它属于Value, 也就是说你可以在使用Value的地方使用它
+*
+* 它是为了解决DExp被到处传递时进行多次展开而产生内部标记冲突的问题.
+* 虽然可以手动编写一个const来对内部标签进行重命名, 但是那太不优雅了,
+* 所以诞生了这个语法, 可以快速的编写一个DExp内部的const并将它返回
+*
+* 语法为: "const" DExp
+* 可以看到, 语法非常简单
+*#
+
+const Do2 = (
+    const F = _0;
+
+    take F;
+    take F;
+);
+
+take[
+    const(
+        if a < b {
+            print 1;
+        } else {
+            print 2;
+        }
+    )
+] Do2;
+#* >>>
+jump 3 lessThan a b
+print 2
+jump 4 always 0 0
+print 1
+jump 7 lessThan a b
+print 2
+jump 0 always 0 0
+print 1
+*#
+#* A >>>
+const 'Do2' = (
+    const 'F' = '_0'; # labels: []
+    take '__' = 'F';
+    take '__' = 'F';
+); # labels: []
+{
+    const '_0' = ('__':
+        const '___0' = ({
+            goto :'___1' 'a' < 'b';
+            {
+                `'print'` '2';
+            }
+            goto :'___0' _;
+            :'___1'
+            {
+                `'print'` '1';
+            }
+            :'___0'
+        }); # labels: ['___1', '___0']
+        setres '___0';
+    ); # labels: []
+    take '__' = 'Do2';
+}
+*#
+# 可以看到, 并没有发生标记冲突.
+# 如果你把consted-DExp换成普通的DExp
+# 那么你将可以看到内部标记冲突
+#
+# 接着, 我们可以观察A选项的结果
+# 可以看到, 它是构成了一个新DExp, 并把原DExp在内部进行const并setres
+# 并且还进行了标签收集.
+# 标签收集是在语法树构建期间进行的, 所以我们需要显式使用const等语法才能进行.
+#
+# 设计为DExp内部包裹着原DExp的原因为: 我们需要容纳收集到的标签, 并且展开并重命名
+# 直接往里面放一个const再合适不过了, 这也是没有这个语法时我们经常做的.
+# 并且放到DExp里面可以避免作用域污染, 虽然自动分配名称也无所谓了

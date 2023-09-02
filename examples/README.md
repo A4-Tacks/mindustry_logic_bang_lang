@@ -22,6 +22,7 @@
 > [`switch_catch.mdtlbl`](./switch_catch.mdtlbl)<br/>
 > [`take2.mdtlbl`](./take2.mdtlbl)<br/>
 > [`setres.mdtlbl`](./setres.mdtlbl)<br/>
+> [`consted_dexp.mdtlbl`](./consted_dexp.mdtlbl)<br/>
 > [`quick_dexp_take.mdtlbl`](./quick_dexp_take.mdtlbl)<br/>
 > [`value_bind.mdtlbl`](./value_bind.mdtlbl)<br/>
 > [`caller.mdtlbl`](./caller.mdtlbl)<br/>
