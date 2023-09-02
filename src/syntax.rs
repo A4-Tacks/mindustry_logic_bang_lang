@@ -19,6 +19,7 @@ use display_source::{
     DisplaySource,
     DisplaySourceMeta,
 };
+pub use crate::tag_code::mdt_logic_split;
 
 
 macro_rules! impl_enum_froms {
@@ -2295,50 +2296,6 @@ pub fn line_first_add(lines: &mut Vec<String>, insert: &str) {
         let s = format!("{}{}", insert, line);
         *line = s;
     }
-}
-
-/// 按照Mindustry中的规则进行切分
-/// 也就是空白忽略, 字符串会被保留完整
-/// 如果出现未闭合字符串则会返回其所在字符数(从1开始)
-pub fn mdt_logic_split(s: &str) -> Result<Vec<&str>, usize> {
-    fn get_next_char_idx(s: &str) -> Option<usize> {
-        s
-            .char_indices()
-            .map(|(i, _)| i)
-            .nth(1)
-    }
-    let mut res = Vec::new();
-    let mut s1 = s.trim_start();
-    while !s1.is_empty() {
-        debug_assert!(! s1.chars().next().unwrap().is_whitespace());
-        if s1.starts_with('"') {
-            // string
-            if let Some(mut idx) = s1.trim_start_matches('"').find('"') {
-                idx += '"'.len_utf8();
-                res.push(&s1[..=idx]);
-                s1 = &s1[idx..];
-                let Some(next_char_idx) = get_next_char_idx(s1) else { break };
-                s1 = &s1[next_char_idx..]
-            } else {
-                let byte_idx = s.len() - s1.len();
-                let char_idx = s
-                    .char_indices()
-                    .position(|(idx, _ch)| {
-                        byte_idx == idx
-                    })
-                    .unwrap();
-                return Err(char_idx + 1)
-            }
-        } else {
-            let end = s1
-                .find(|ch: char| ch.is_whitespace() || ch == '"')
-                .unwrap_or(s1.len());
-            res.push(&s1[..end]);
-            s1 = &s1[end..]
-        }
-        s1 = s1.trim_start();
-    }
-    Ok(res)
 }
 
 pub type OpExprInfo = (bool, Value);

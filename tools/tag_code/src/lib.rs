@@ -93,6 +93,13 @@ impl<T> From<T> for TagBox<T> {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Jump(pub Tag, pub String);
+impl Jump {
+    pub fn is_always_jump(&self) -> bool {
+        let jump_body = self.1.as_str();
+        let jump_args = mdt_logic_split(jump_body).unwrap();
+        matches!(jump_args.first(), Some(&"always"))
+    }
+}
 impl From<(Tag, &str)> for Jump {
     fn from((tag, value): (Tag, &str)) -> Self {
         let value: String = value.into();
@@ -515,6 +522,7 @@ impl TagCodes {
 
     /// 构建, 将[`TagDown`]消除, 如果是最后一行裸`Tag`则被丢弃
     /// 如果目标`Tag`重复则将其返回
+    ///
     /// > jump :a
     /// > :a
     /// > :b
@@ -756,6 +764,50 @@ fn take_jump_body(line: &str) -> String {
         .collect()
 }
 
+/// 按照Mindustry中的规则进行切分
+/// 也就是空白忽略, 字符串会被保留完整
+/// 如果出现未闭合字符串则会返回其所在字符数(从1开始)
+pub fn mdt_logic_split(s: &str) -> Result<Vec<&str>, usize> {
+    fn get_next_char_idx(s: &str) -> Option<usize> {
+        s
+            .char_indices()
+            .map(|(i, _)| i)
+            .nth(1)
+    }
+    let mut res = Vec::new();
+    let mut s1 = s.trim_start();
+    while !s1.is_empty() {
+        debug_assert!(! s1.chars().next().unwrap().is_whitespace());
+        if s1.starts_with('"') {
+            // string
+            if let Some(mut idx) = s1.trim_start_matches('"').find('"') {
+                idx += '"'.len_utf8();
+                res.push(&s1[..=idx]);
+                s1 = &s1[idx..];
+                let Some(next_char_idx) = get_next_char_idx(s1) else { break };
+                s1 = &s1[next_char_idx..]
+            } else {
+                let byte_idx = s.len() - s1.len();
+                let char_idx = s
+                    .char_indices()
+                    .position(|(idx, _ch)| {
+                        byte_idx == idx
+                    })
+                    .unwrap();
+                return Err(char_idx + 1)
+            }
+        } else {
+            let end = s1
+                .find(|ch: char| ch.is_whitespace() || ch == '"')
+                .unwrap_or(s1.len());
+            res.push(&s1[..end]);
+            s1 = &s1[end..]
+        }
+        s1 = s1.trim_start();
+    }
+    Ok(res)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -991,5 +1043,21 @@ mod tests {
         assert_eq!(TagLine::from_tag_str("jump :c foo", &mut tag_map), tag_line!(jump 2 "foo"));
         assert_eq!(TagLine::from_tag_str(":c", &mut tag_map), tag_line!(:2));
         assert_eq!(TagLine::from_tag_str("op add a a 1", &mut tag_map), tag_line!("op add a a 1"));
+    }
+
+    #[test]
+    fn is_always_jump_test() {
+        assert!(! Jump(0, "equal 0 0".into()).is_always_jump());
+        assert!(! Jump(0, "always0 0".into()).is_always_jump());
+        assert!(! Jump(0, "always. 0".into()).is_always_jump());
+        assert!(! Jump(0, "equal always 0".into()).is_always_jump());
+        assert!(! Jump(0, "always.".into()).is_always_jump());
+        assert!(! Jump(0, "Always".into()).is_always_jump());
+
+        assert!(Jump(0, "always 0 0 0".into()).is_always_jump());
+        assert!(Jump(0, "always 0 0".into()).is_always_jump());
+        assert!(Jump(0, "always a b".into()).is_always_jump());
+        assert!(Jump(0, "always a".into()).is_always_jump());
+        assert!(Jump(0, "always".into()).is_always_jump());
     }
 }

@@ -478,7 +478,7 @@ dependencies = [
 
 [[package]]
 name = "tag_code"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "term"
