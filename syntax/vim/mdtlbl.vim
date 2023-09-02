@@ -80,10 +80,10 @@ hi link mdtlblResultHandle Identifier
 
 
 " Label {{{1
-syn match mdtlblDefineResultHandle /\I\i*\s*:/
+syn match mdtlblDefineResultHandle /\I\i*:/
 hi link mdtlblDefineResultHandle Identifier
 
-syn match mdtlblIdentLabel /:\s*\I\i*/
+syn match mdtlblIdentLabel /:\I\i*/
 hi link mdtlblIdentLabel Label
 
 setlocal foldmethod=syntax

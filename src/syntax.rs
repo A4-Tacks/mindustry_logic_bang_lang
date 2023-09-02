@@ -602,48 +602,6 @@ impl Meta {
                 value,
         ])
     }
-
-    /// 单纯的构建一个OpExpr
-    pub fn build_op_expr(var: Value, (do_inline, mut value): OpExprInfo)
-    -> LogicLine {
-        if do_inline {
-            // 将Op内联过来, 而不是构建一个set
-            let dexp = value
-                .as_dexp_mut().unwrap();
-            assert_eq!(dexp.len(), 1);
-            assert!(dexp[0].is_op());
-            assert_eq!(dexp[0].as_op().unwrap().get_result(), &Value::ResultHandle);
-            let mut op_line = dexp.pop().unwrap();
-            *op_line.as_op_mut().unwrap().get_result_mut() = var;
-            op_line
-        } else {
-            Meta::build_set(var, value)
-        }
-    }
-
-    /// 构建可能同时有多对的OpExpr
-    pub fn build_op_exprs(mut vars: Vec<Value>, mut values: Vec<OpExprInfo>) -> LogicLine {
-        assert_eq!(vars.len(), values.len());
-        assert!(! vars.is_empty());
-        let len = vars.len();
-        if len == 1 {
-            Self::build_op_expr(vars.pop().unwrap(), values.pop().unwrap())
-        } else {
-            Expand(
-                vars.into_iter()
-                    .zip(values)
-                    .map(|(var, value)|
-                        Self::build_op_expr(var, value)
-                    )
-                    .fold(
-                        Vec::with_capacity(len),
-                        |mut lines, line| {
-                        lines.push(line);
-                        lines
-                    })
-            ).into()
-        }
-    }
 }
 
 pub trait FromMdtArgs
@@ -2472,12 +2430,103 @@ pub fn line_first_add(lines: &mut Vec<String>, insert: &str) {
     }
 }
 
-pub type OpExprInfo = (bool, Value);
+pub enum OpExprInfo {
+    Value(Value),
+    Op(Op),
+    IfElse {
+        child_result: Var,
+        cmp: CmpTree,
+        true_line: LogicLine,
+        false_line: LogicLine,
+    },
+}
+impl OpExprInfo {
+    pub fn new_if_else(
+        meta: &mut Meta,
+        cmp: CmpTree,
+        true_line: Self,
+        false_line: Self,
+    ) -> Self {
+        let result = meta.get_tmp_var();
+        Self::IfElse {
+            child_result: result.clone(),
+            cmp,
+            true_line: true_line.into_logic_line(meta, result.clone().into()),
+            false_line: false_line.into_logic_line(meta, result.into()),
+        }
+    }
 
-pub fn op_expr_do<F>(f: F) -> OpExprInfo
+    pub fn into_value(self, meta: &mut Meta) -> Value {
+        match self {
+            Self::Op(op) => {
+                assert!(op.get_result().is_result_handle());
+                DExp::new_nores(vec![op.into()].into()).into()
+            },
+            Self::Value(value) => {
+                value
+            },
+            Self::IfElse {
+                child_result,
+                cmp,
+                true_line,
+                false_line,
+            } => {
+                let (true_lab, skip_lab)
+                    = (meta.get_tag(), meta.get_tag());
+                DExp::new_nores(vec![
+                    Take(child_result, Value::ResultHandle).into(),
+                    Goto(true_lab.clone(), cmp).into(),
+                    false_line,
+                    Goto(skip_lab.clone(), JumpCmp::Always.into()).into(),
+                    LogicLine::Label(true_lab),
+                    true_line,
+                    LogicLine::Label(skip_lab),
+                ].into()).into()
+            },
+        }
+    }
+
+    pub fn into_logic_line(self, meta: &mut Meta, result: Value) -> LogicLine {
+        match self {
+            Self::Op(mut op) => {
+                assert!(op.get_result().is_result_handle());
+                *op.get_result_mut() = result;
+                op.into()
+            },
+            Self::Value(value) => {
+                Meta::build_set(result, value)
+            },
+            Self::IfElse {
+                child_result,
+                cmp,
+                true_line,
+                false_line,
+            } => {
+                let (true_lab, skip_lab)
+                    = (meta.get_tag(), meta.get_tag());
+                Expand(vec![
+                    Take(child_result, result).into(),
+                    Goto(true_lab.clone(), cmp).into(),
+                    false_line,
+                    Goto(skip_lab.clone(), JumpCmp::Always.into()).into(),
+                    LogicLine::Label(true_lab),
+                    true_line,
+                    LogicLine::Label(skip_lab),
+                ]).into()
+            },
+        }
+    }
+}
+impl_enum_froms!(impl From for OpExprInfo {
+    Value => Value;
+    Op => Op;
+});
+
+/// 构建一个op运算
+pub fn op_expr_build_op<F>(f: F) -> OpExprInfo
 where F: FnOnce() -> Op
 {
-    (true, DExp::new_nores(vec![f().into()].into()).into())
+    f().into()
 }
 
 #[cfg(test)]
@@ -5088,7 +5137,7 @@ mod tests {
         let parser = TopLevelParser::new();
 
         assert_eq!(
-            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            CompileMeta::new().compile(parse!(parser, r#"
             foo;
             while a < b {
                 foo1;
@@ -5101,7 +5150,7 @@ mod tests {
             }
             bar;
             break;
-            "#).unwrap())).compile().unwrap(),
+            "#).unwrap()).compile().unwrap(),
             [
                 "foo",
                 "jump 10 greaterThanEq a b",
@@ -5119,7 +5168,7 @@ mod tests {
         );
 
         assert_eq!(
-            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            CompileMeta::new().compile(parse!(parser, r#"
             foo;
             gwhile a < b {
                 foo1;
@@ -5132,7 +5181,7 @@ mod tests {
             }
             bar;
             break;
-            "#).unwrap())).compile().unwrap(),
+            "#).unwrap()).compile().unwrap(),
             [
                 "foo",
                 "jump 9 always 0 0",
@@ -5150,7 +5199,7 @@ mod tests {
         );
 
         assert_eq!(
-            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            CompileMeta::new().compile(parse!(parser, r#"
             foo;
             xxx;
             do {
@@ -5165,7 +5214,7 @@ mod tests {
             } while a < b;
             bar;
             break;
-            "#).unwrap())).compile().unwrap(),
+            "#).unwrap()).compile().unwrap(),
             [
                 "foo",
                 "xxx",
@@ -5183,7 +5232,7 @@ mod tests {
         );
 
         assert_eq!(
-            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            CompileMeta::new().compile(parse!(parser, r#"
             switch a {
             case 0: foo;
             case 1: break;
@@ -5191,7 +5240,7 @@ mod tests {
             }
             end;
             break;
-            "#).unwrap())).compile().unwrap(),
+            "#).unwrap()).compile().unwrap(),
             [
                 "op add @counter @counter a",
                 "foo",
@@ -5203,7 +5252,7 @@ mod tests {
         );
 
         assert_eq!(
-            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            CompileMeta::new().compile(parse!(parser, r#"
             select a {
                 foo;
                 break;
@@ -5211,7 +5260,7 @@ mod tests {
             }
             end;
             break;
-            "#).unwrap())).compile().unwrap(),
+            "#).unwrap()).compile().unwrap(),
             [
                 "op add @counter @counter a",
                 "foo",
@@ -5223,7 +5272,7 @@ mod tests {
         );
 
         assert_eq!(
-            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            CompileMeta::new().compile(parse!(parser, r#"
             foo;
             while a < b {
                 foo1;
@@ -5236,7 +5285,7 @@ mod tests {
             }
             bar;
             continue;
-            "#).unwrap())).compile().unwrap(),
+            "#).unwrap()).compile().unwrap(),
             [
                 "foo",
                 "jump 10 greaterThanEq a b",
@@ -5254,7 +5303,7 @@ mod tests {
         );
 
         assert_eq!(
-            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            CompileMeta::new().compile(parse!(parser, r#"
             foo;
             while a < b {
                 foo1;
@@ -5267,7 +5316,7 @@ mod tests {
             }
             bar;
             continue;
-            "#).unwrap())).compile().unwrap(),
+            "#).unwrap()).compile().unwrap(),
             [
                 "foo",
                 "jump 10 greaterThanEq a b",
@@ -5285,7 +5334,7 @@ mod tests {
         );
 
         assert_eq!(
-            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            CompileMeta::new().compile(parse!(parser, r#"
             foo;
             gwhile a < b {
                 foo1;
@@ -5298,7 +5347,7 @@ mod tests {
             }
             bar;
             continue;
-            "#).unwrap())).compile().unwrap(),
+            "#).unwrap()).compile().unwrap(),
             [
                 "foo",
                 "jump 9 always 0 0",
@@ -5316,7 +5365,7 @@ mod tests {
         );
 
         assert_eq!(
-            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            CompileMeta::new().compile(parse!(parser, r#"
             foo;
             xxx;
             do {
@@ -5331,7 +5380,7 @@ mod tests {
             } while a < b;
             bar;
             continue;
-            "#).unwrap())).compile().unwrap(),
+            "#).unwrap()).compile().unwrap(),
             [
                 "foo",
                 "xxx",
@@ -5349,7 +5398,7 @@ mod tests {
         );
 
         assert_eq!(
-            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            CompileMeta::new().compile(parse!(parser, r#"
             switch a {
             case 0: foo;
             case 1: continue;
@@ -5357,7 +5406,7 @@ mod tests {
             }
             end;
             continue;
-            "#).unwrap())).compile().unwrap(),
+            "#).unwrap()).compile().unwrap(),
             [
                 "op add @counter @counter a",
                 "foo",
@@ -5369,7 +5418,7 @@ mod tests {
         );
 
         assert_eq!(
-            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            CompileMeta::new().compile(parse!(parser, r#"
             select a {
                 foo;
                 continue;
@@ -5377,7 +5426,7 @@ mod tests {
             }
             end;
             continue;
-            "#).unwrap())).compile().unwrap(),
+            "#).unwrap()).compile().unwrap(),
             [
                 "op add @counter @counter a",
                 "foo",
@@ -5389,7 +5438,7 @@ mod tests {
         );
 
         assert_eq!(
-            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            CompileMeta::new().compile(parse!(parser, r#"
             end;
             switch a {
             case 0: foo;
@@ -5398,7 +5447,7 @@ mod tests {
             }
             end;
             continue;
-            "#).unwrap())).compile().unwrap(),
+            "#).unwrap()).compile().unwrap(),
             [
                 "end",
                 "op add @counter @counter a",
@@ -5411,7 +5460,7 @@ mod tests {
         );
 
         assert_eq!(
-            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            CompileMeta::new().compile(parse!(parser, r#"
             end;
             select a {
                 foo;
@@ -5420,7 +5469,7 @@ mod tests {
             }
             end;
             continue;
-            "#).unwrap())).compile().unwrap(),
+            "#).unwrap()).compile().unwrap(),
             [
                 "end",
                 "op add @counter @counter a",
@@ -5430,6 +5479,88 @@ mod tests {
                 "end",
                 "jump 0 always 0 0",
             ]
+        );
+
+    }
+
+    #[test]
+    fn test_op_expr_if_else() {
+        let parser = TopLevelParser::new();
+
+        assert_eq!(
+            parse!(parser, r#"
+            a = if b < c ? b + 2 : c;
+            "#).unwrap(),
+            parse!(parser, r#"
+            {
+                take ___0 = a;
+                goto :___0 b < c;
+                set ___0 c;
+                goto :___1 _;
+                :___0
+                op ___0 b + 2;
+                :___1
+            }
+            "#).unwrap()
+        );
+
+        assert_eq!(
+            parse!(parser, r#"
+            a = (if b < c ? b + 2 : c);
+            "#).unwrap(),
+            parse!(parser, r#"
+            {
+                take ___0 = a;
+                goto :___0 b < c;
+                set ___0 c;
+                goto :___1 _;
+                :___0
+                op ___0 b + 2;
+                :___1
+            }
+            "#).unwrap()
+        );
+
+        assert_eq!(
+            parse!(parser, r#"
+            a = if b < c ? b + 2 : if d < e ? 8 : c - 2;
+            "#).unwrap(),
+            parse!(parser, r#"
+            {
+                take ___1 = a;
+                goto :___2 b < c;
+                {
+                    take ___0 = ___1;
+                    goto :___0 d < e;
+                    op ___0 c - 2;
+                    goto :___1 _;
+                    :___0
+                    set ___0 8;
+                    :___1
+                }
+                goto :___3 _;
+                :___2
+                op ___1 b + 2;
+                :___3
+            }
+            "#).unwrap()
+        );
+
+        assert_eq!(
+            parse!(parser, r#"
+            a = 1 + (if b ? c : d);
+            "#).unwrap(),
+            parse!(parser, r#"
+            op a 1 + (
+                take ___0 = $;
+                goto :___0 b;
+                set ___0 d;
+                goto :___1 _;
+                :___0
+                set ___0 c;
+                :___1
+            );
+            "#).unwrap()
         );
 
     }
