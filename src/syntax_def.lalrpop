@@ -445,15 +445,11 @@ OpExprAtom: OpExprInfo = {
     OpExprCallOp,
 }
 
-ConstStart<T>: T = T => {
-    // 开始一个const, 开启了必须负责清理
-    // T是一个非空匹配, 因为如果用如`()`的空匹配会造成不执行, 因为没必要求值
-    meta.add_label_scope();
-    <>
-};
+// 开始一个const, 开启了必须负责清理
+ConstStart: () = () => meta.add_label_scope();
 
 pub BuiltinCommand: LogicLine = {
-    "const" <var:Var> <_unused:ConstStart<"=">> <value:Value> LEnd
+    "const" <var:Var> "=" ConstStart <value:Value> LEnd
         => Const(var, value, meta.pop_label_scope()).into(),
 
     // 如果后方是一个Var则直接将常量映射到后方的值
