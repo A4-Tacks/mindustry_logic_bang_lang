@@ -80,6 +80,11 @@ op负责着运算部分, 本语言为其提供了用于兼容的多种形式
     op strictEqual result a b;
     op === result a b;
 
+    op result a strictNotEqual b;
+    op result a !== b;
+    op strictNotEqual result a b;
+    op !== result a b;
+
     op result a shl b;
     op result a << b;
     op shl result a b;

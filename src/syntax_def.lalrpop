@@ -28,6 +28,8 @@ use crate::syntax::{
     Take,
     LogicLine,
     Meta,
+    ZERO_VAR,
+    FALSE_VAR,
 };
 
 grammar(meta: &mut Meta);
@@ -220,7 +222,16 @@ pub Op: Op = {
     <OrSwap<"atan", <Value>>> <Value> Value? => Op::Atan(<>),
     // 扩展(1)
     <OrSwap<Or<"lnot", "!">, <Value>>> <Value> Value? =>
-        Op::Equal(<>, ReprVar("false".into())),
+        Op::Equal(<>, ReprVar(FALSE_VAR.into())),
+    // 扩展(2)
+    <a:OrShl<Or<"strictNotEqual", "!==">, <Value>, <Value>>> <b:Value> =>
+        Op::Equal(
+            a.0,
+            DExp::new_nores(vec![
+                Op::StrictEqual(ResultHandle, a.1, b).into()
+            ].into()).into(),
+            ReprVar(FALSE_VAR.into())
+        ),
 }
 
 Label: String = ":" <Var>;
@@ -331,6 +342,14 @@ OpExprBody9: OpExprInfo = {
     <a:OpExprBody9> "<=" <b:OpExprBody8> => op_expr_do(|| Op::LessThanEq(ResultHandle, a.1, b.1)),
     <a:OpExprBody9> ">=" <b:OpExprBody8> => op_expr_do(|| Op::GreaterThanEq(ResultHandle, a.1, b.1)),
     <a:OpExprBody9> "===" <b:OpExprBody8> => op_expr_do(|| Op::StrictEqual(ResultHandle, a.1, b.1)),
+    <a:OpExprBody9> "!==" <b:OpExprBody8> =>
+        op_expr_do(|| Op::Equal(
+            ResultHandle,
+            DExp::new_nores(vec![
+                Op::StrictEqual(ResultHandle, a.1, b.1).into()
+            ].into()).into(),
+            ReprVar(FALSE_VAR.into())
+        )),
     OpExprBody8,
 }
 
@@ -370,8 +389,8 @@ OpExprBody3: OpExprInfo = {
 }
 
 OpExprBody2: OpExprInfo = {
-    "!" <x:OpExprBody2> => op_expr_do(|| Op::Equal(ResultHandle, ReprVar("false".into()), x.1)),
-    "-" <x:OpExprBody2> => op_expr_do(|| Op::Sub(ResultHandle, ReprVar("0".into()), x.1)),
+    "!" <x:OpExprBody2> => op_expr_do(|| Op::Equal(ResultHandle, ReprVar(FALSE_VAR.into()), x.1)),
+    "-" <x:OpExprBody2> => op_expr_do(|| Op::Sub(ResultHandle, ReprVar(ZERO_VAR.into()), x.1)),
     "~" <x:OpExprBody2> => op_expr_do(|| Op::Not(ResultHandle, x.1)),
     OpExprBody1,
 }

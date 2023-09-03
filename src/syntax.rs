@@ -90,6 +90,9 @@ pub type Location = usize;
 pub type Float = f64;
 
 pub const COUNTER: &str = "@counter";
+pub const FALSE_VAR: &str = "false";
+pub const ZERO_VAR: &str = "0";
+pub const UNUSED_VAR: &str = "0";
 
 pub trait TakeHandle {
     /// 编译依赖并返回句柄
@@ -162,7 +165,7 @@ impl Value {
     /// 新建一个占位符, 使用[`ReprVar`],
     /// 以保证它是真的不会有副作用的占位符
     pub fn new_noeffect() -> Self {
-        Self::ReprVar("0".into())
+        Self::ReprVar(ZERO_VAR.into())
     }
 
     /// Returns `true` if the value is [`DExp`].
@@ -562,7 +565,7 @@ pub enum JumpCmp {
 impl JumpCmp {
     /// 将值转为`bool`来对待
     pub fn bool(val: Value) -> Self {
-        Self::NotEqual(val, Value::ReprVar("false".into()))
+        Self::NotEqual(val, Value::ReprVar(FALSE_VAR.into()))
     }
 
     /// 获取反转后的条件
@@ -1169,7 +1172,7 @@ impl Op {
                         Self::$oper1(res, a) => {
                             args.push(res.take_handle(meta).into());
                             args.push(a.take_handle(meta).into());
-                            args.push("0".into());
+                            args.push(UNUSED_VAR.into());
                         },
                     )*
                     $(
@@ -1573,7 +1576,7 @@ impl SwitchCatch {
             // 跳过式为`x >= 0`
             Self::Underflow => JumpCmp::GreaterThanEq(
                 value,
-                Value::ReprVar("0".into())
+                Value::ReprVar(ZERO_VAR.into())
             ).into(),
         }
     }
@@ -3524,10 +3527,10 @@ mod tests {
             ast[0].as_goto().unwrap().1,
             CmpTree::And(
                 CmpTree::And(
-                    Box::new(JumpCmp::NotEqual("a".into(), Value::ReprVar("false".into()).into()).into()),
-                    Box::new(JumpCmp::NotEqual("b".into(), Value::ReprVar("false".into()).into()).into()),
+                    Box::new(JumpCmp::NotEqual("a".into(), Value::ReprVar(FALSE_VAR.into()).into()).into()),
+                    Box::new(JumpCmp::NotEqual("b".into(), Value::ReprVar(FALSE_VAR.into()).into()).into()),
                 ).into(),
-                Box::new(JumpCmp::NotEqual("c".into(), Value::ReprVar("false".into()).into()).into()),
+                Box::new(JumpCmp::NotEqual("c".into(), Value::ReprVar(FALSE_VAR.into()).into()).into()),
             ).into()
         );
 
@@ -3541,10 +3544,10 @@ mod tests {
             ast[0].as_goto().unwrap().1,
             CmpTree::Or(
                 CmpTree::Or(
-                    Box::new(JumpCmp::NotEqual("a".into(), Value::ReprVar("false".into()).into()).into()),
-                    Box::new(JumpCmp::NotEqual("b".into(), Value::ReprVar("false".into()).into()).into()),
+                    Box::new(JumpCmp::NotEqual("a".into(), Value::ReprVar(FALSE_VAR.into()).into()).into()),
+                    Box::new(JumpCmp::NotEqual("b".into(), Value::ReprVar(FALSE_VAR.into()).into()).into()),
                 ).into(),
-                Box::new(JumpCmp::NotEqual("c".into(), Value::ReprVar("false".into()).into()).into()),
+                Box::new(JumpCmp::NotEqual("c".into(), Value::ReprVar(FALSE_VAR.into()).into()).into()),
             ).into()
         );
 
@@ -3558,12 +3561,12 @@ mod tests {
             ast[0].as_goto().unwrap().1,
             CmpTree::Or(
                 CmpTree::And(
-                    Box::new(JumpCmp::NotEqual("a".into(), Value::ReprVar("false".into()).into()).into()),
-                    Box::new(JumpCmp::NotEqual("b".into(), Value::ReprVar("false".into()).into()).into()),
+                    Box::new(JumpCmp::NotEqual("a".into(), Value::ReprVar(FALSE_VAR.into()).into()).into()),
+                    Box::new(JumpCmp::NotEqual("b".into(), Value::ReprVar(FALSE_VAR.into()).into()).into()),
                 ).into(),
                 CmpTree::And(
-                    Box::new(JumpCmp::NotEqual("c".into(), Value::ReprVar("false".into()).into()).into()),
-                    Box::new(JumpCmp::NotEqual("d".into(), Value::ReprVar("false".into()).into()).into()),
+                    Box::new(JumpCmp::NotEqual("c".into(), Value::ReprVar(FALSE_VAR.into()).into()).into()),
+                    Box::new(JumpCmp::NotEqual("d".into(), Value::ReprVar(FALSE_VAR.into()).into()).into()),
                 ).into(),
             ).into()
         );
@@ -3578,13 +3581,13 @@ mod tests {
             ast[0].as_goto().unwrap().1,
             CmpTree::And(
                 CmpTree::And(
-                    Box::new(JumpCmp::NotEqual("a".into(), Value::ReprVar("false".into()).into()).into()),
+                    Box::new(JumpCmp::NotEqual("a".into(), Value::ReprVar(FALSE_VAR.into()).into()).into()),
                     CmpTree::Or(
-                        Box::new(JumpCmp::NotEqual("b".into(), Value::ReprVar("false".into()).into()).into()),
-                        Box::new(JumpCmp::NotEqual("c".into(), Value::ReprVar("false".into()).into()).into()),
+                        Box::new(JumpCmp::NotEqual("b".into(), Value::ReprVar(FALSE_VAR.into()).into()).into()),
+                        Box::new(JumpCmp::NotEqual("c".into(), Value::ReprVar(FALSE_VAR.into()).into()).into()),
                     ).into(),
                 ).into(),
-                Box::new(JumpCmp::NotEqual("d".into(), Value::ReprVar("false".into()).into()).into()),
+                Box::new(JumpCmp::NotEqual("d".into(), Value::ReprVar(FALSE_VAR.into()).into()).into()),
             ).into()
         );
 
@@ -4536,11 +4539,13 @@ mod tests {
             x = a**b**c; # pow的右结合
             y = -x;
             z = ~y;
+            e = a !== b;
             "#).unwrap(),
             parse!(parser, r#"
             op x a ** (op $ b ** c;);
             op y `0` - x;
             op z ~y;
+            op e (op $ a === b;) == `false`;
             "#).unwrap(),
         );
 
@@ -4554,6 +4559,21 @@ mod tests {
                 b = -y;
                 c = z+2*3;
             }
+            "#).unwrap(),
+        );
+
+    }
+
+    #[test]
+    fn op_test() {
+        let parser = ExpandParser::new();
+
+        assert_eq!(
+            parse!(parser, r#"
+            op x a !== b;
+            "#).unwrap(),
+            parse!(parser, r#"
+            op x (op $ a === b;) == `false`;
             "#).unwrap(),
         );
 

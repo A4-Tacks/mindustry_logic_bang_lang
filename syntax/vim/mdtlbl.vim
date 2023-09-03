@@ -33,7 +33,7 @@ hi link mdtlblKeyword Keyword
 syn keyword mdtlblOpFunKeyword
             \ add sub mul div idiv mod pow
             \ equal notEqual land lessThan lessThanEq greaterThan greaterThanEq
-            \ strictEqual shl shr or and xor max
+            \ strictEqual strictNotEqual shl shr or and xor max
             \ min angle len noise not abs log
             \ floor ceil sqrt rand sin cos tan
             \ asin acos atan lnot
