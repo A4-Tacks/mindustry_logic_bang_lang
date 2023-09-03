@@ -3131,12 +3131,12 @@ mod tests {
             vec![
                 r#"jump 3 lessThan num 2"#,
                 r#"print "num >= 2""#,
-                r#"jump 4 always 0 0"#,
+                r#"jump 0 always 0 0"#,
                 r#"print "num < 2""#,
                 r#"jump 0 always 0 0"#,
                 r#"jump 8 lessThan num 2"#,
                 r#"print "num >= 2""#,
-                r#"jump 9 always 0 0"#,
+                r#"jump 0 always 0 0"#,
                 r#"print "num < 2""#,
                 r#"jump 0 always 0 0"#,
             ]

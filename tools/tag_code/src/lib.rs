@@ -91,13 +91,51 @@ impl<T> From<T> for TagBox<T> {
     }
 }
 
+macro_rules! panic_tag_out_of_range {
+    ($id:expr, $tags_table:expr $(,)?) => {
+        err!(
+            concat!(
+                "进行了越界的跳转标签构建, ",
+                "你可以查看是否在尾部编写了空的被跳转标签\n",
+                "标签id: {}, 目标行表:\n",
+                "id \t-> target\n",
+                "{}",
+            ),
+            $id,
+            $tags_table.iter()
+                .enumerate()
+                .map(|(id, &target)| {
+                    format!("\t{} \t-> {},", id, if target == UNINIT_TAG_TARGET {
+                        "{unknown}".to_string()
+                    } else {
+                        target.to_string()
+                    })
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+        panic!("显式恐慌");
+    };
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Jump(pub Tag, pub String);
 impl Jump {
     pub fn is_always_jump(&self) -> bool {
         let jump_body = self.1.as_str();
         let jump_args = mdt_logic_split(jump_body).unwrap();
-        matches!(jump_args.first(), Some(&"always"))
+        match jump_args[..] {
+            ["always", ..] => true,
+            ["equal", a, b] if a == b => true,
+            _ => false,
+        }
+    }
+
+    /// 校验跳转目标是否在行表中, 如果不在则进行恐慌
+    pub fn check_target_unwrap(&self, tags_table: &TagsTable) {
+        if self.0 >= tags_table.len() || tags_table[self.0] == UNINIT_TAG_TARGET {
+            panic_tag_out_of_range!(self.0, tags_table);
+        }
     }
 }
 impl From<(Tag, &str)> for Jump {
@@ -113,30 +151,7 @@ impl From<(Tag, String)> for Jump {
 }
 impl Compile for Jump {
     fn compile(&self, tags_table: &TagsTable) -> String {
-        if self.0 >= tags_table.len() || tags_table[self.0] == UNINIT_TAG_TARGET {
-            err!(
-                concat!(
-                    "进行了越界的跳转标签构建, ",
-                    "你可以查看是否在尾部编写了空的被跳转标签\n",
-                    "标签id: {}, 目标行表:\n",
-                    "id \t-> target\n",
-                    "{}",
-                ),
-                self.0,
-                tags_table.iter()
-                    .enumerate()
-                    .map(|(id, &target)| {
-                        format!("\t{} \t-> {},", id, if target == UNINIT_TAG_TARGET {
-                            "{unknown}".to_string()
-                        } else {
-                            target.to_string()
-                        })
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            );
-            panic!("显式恐慌");
-        }
+        self.check_target_unwrap(tags_table);
         assert!(self.0 < tags_table.len()); // 越界检查
         assert_ne!(tags_table[self.0], UNINIT_TAG_TARGET); // 确保要跳转的目标有效
         format!("jump {} {}", tags_table[self.0], self.1)
@@ -632,6 +647,56 @@ impl TagCodes {
         Ok(())
     }
 
+    /// 对目标跳转表中的无条件跳转链进行跟踪,
+    /// 这可以优化掉跳转表中的一些无意义跳转
+    pub fn follow_always_jump_chain(&self, tags_table: &mut TagsTable) {
+        // 当本标签对应行为无条件跳转, 且不是跳转其自身
+        // 那么将本标签跳转目标改为这个无条件跳转的目标
+        let lines = self.lines();
+        let mut tag_target_history = Vec::new();
+        let mut is_loop_jumps = Vec::new();
+        let add_history
+            = |history: &mut Vec<_>, tag: usize| {
+                if tag >= history.len() {
+                    history.resize(tag+1, false)
+                }
+                let res = history[tag];
+                history[tag] = true;
+                res
+            };
+        for tag in 0..tags_table.len() {
+            if is_loop_jumps.get(tag).copied().unwrap_or_default() { continue }
+            let init_line_idx = tags_table[tag];
+            let mut line_idx = init_line_idx;
+            if line_idx == UNINIT_TAG_TARGET { continue }
+            tag_target_history.fill(false); // init
+            loop {
+                let line @ &TagLine::Jump(TagBox {
+                    tag: self_tag,
+                    data: ref jump @ Jump(target_tag, _)
+                }) = &lines[line_idx] else { break };
+                assert!(line.as_tag_down().is_none());
+                if Some(target_tag) == self_tag || ! jump.is_always_jump() { break }
+                jump.check_target_unwrap(tags_table);
+                if add_history(&mut tag_target_history, target_tag) {
+                    // 如果是环路, 那么不要去处理
+                    line_idx = init_line_idx;
+                    let iter = tag_target_history
+                        .iter()
+                        .enumerate()
+                        .filter(|&(_, &x)| x)
+                        .map(|(i, _)| i);
+                    for looped_tag in iter {
+                        add_history(&mut is_loop_jumps, looped_tag);
+                    }
+                    break
+                }
+                line_idx = tags_table[target_tag];
+            }
+            tags_table[tag] = line_idx
+        }
+    }
+
     /// 编译为逻辑行码
     /// 如果有重复的`Tag`, 返回其行下标及重复`Tag`
     /// 会调用[`build_tagdown`]来改变源码
@@ -654,6 +719,8 @@ impl TagCodes {
                 tags_table[tag] = num
             }
         }
+
+        self.follow_always_jump_chain(&mut tags_table);
 
         let mut logic_lines = Vec::with_capacity(self.lines.len());
         for line in &self.lines {
@@ -1047,17 +1114,169 @@ mod tests {
 
     #[test]
     fn is_always_jump_test() {
-        assert!(! Jump(0, "equal 0 0".into()).is_always_jump());
-        assert!(! Jump(0, "always0 0".into()).is_always_jump());
-        assert!(! Jump(0, "always. 0".into()).is_always_jump());
-        assert!(! Jump(0, "equal always 0".into()).is_always_jump());
-        assert!(! Jump(0, "always.".into()).is_always_jump());
-        assert!(! Jump(0, "Always".into()).is_always_jump());
+        assert!(! Jump(0, r#"always0 0"#.into()).is_always_jump());
+        assert!(! Jump(0, r#"always. 0"#.into()).is_always_jump());
+        assert!(! Jump(0, r#"equal always 0"#.into()).is_always_jump());
+        assert!(! Jump(0, r#"always."#.into()).is_always_jump());
+        assert!(! Jump(0, r#"Always"#.into()).is_always_jump());
+        assert!(! Jump(0, r#"equal a b"#.into()).is_always_jump());
+        assert!(! Jump(0, r#"equal 2 3"#.into()).is_always_jump());
+        assert!(! Jump(0, r#"equal "2" "3""#.into()).is_always_jump());
 
-        assert!(Jump(0, "always 0 0 0".into()).is_always_jump());
-        assert!(Jump(0, "always 0 0".into()).is_always_jump());
-        assert!(Jump(0, "always a b".into()).is_always_jump());
-        assert!(Jump(0, "always a".into()).is_always_jump());
-        assert!(Jump(0, "always".into()).is_always_jump());
+        assert!(Jump(0, r#"always 0 0 0"#.into()).is_always_jump());
+        assert!(Jump(0, r#"always 0 0"#.into()).is_always_jump());
+        assert!(Jump(0, r#"always a b"#.into()).is_always_jump());
+        assert!(Jump(0, r#"always a"#.into()).is_always_jump());
+        assert!(Jump(0, r#"always"#.into()).is_always_jump());
+
+        assert!(Jump(0, r#"equal 0 0"#.into()).is_always_jump());
+        assert!(Jump(0, r#"equal a a"#.into()).is_always_jump());
+        assert!(Jump(0, r#"equal "0" "0""#.into()).is_always_jump());
+        assert!(Jump(0, r#"equal "a" "a""#.into()).is_always_jump());
+    }
+
+    #[test]
+    fn empty_compile_test() {
+        assert_eq!(tag_lines! { }.compile().unwrap(), Vec::<&str>::new());
+    }
+
+    #[test]
+    fn follow_always_jump_chain_test() {
+        assert_eq!(
+            tag_lines! {
+                [jump 0 "lessThan a b"];
+                ["a"];
+                [:0 jump 1 "always 0 0"];
+                ["b"];
+                [:1 jump 2 "always 0 0"];
+                [:2 "c"];
+            }.compile().unwrap(),
+            [
+                "jump 5 lessThan a b",
+                "a",
+                "jump 5 always 0 0",
+                "b",
+                "jump 5 always 0 0",
+                "c",
+            ]
+        );
+        assert_eq!(
+            tag_lines! {
+                [jump 0 "lessThan a b"];
+                ["a"];
+                [:0 jump 1 "notEqual 0 0"];
+                ["b"];
+                [:1 jump 2 "always 0 0"];
+                [:2 "c"];
+            }.compile().unwrap(),
+            [
+                "jump 2 lessThan a b",
+                "a",
+                "jump 5 notEqual 0 0",
+                "b",
+                "jump 5 always 0 0",
+                "c",
+            ]
+        );
+        assert_eq!(
+            tag_lines! {
+                [jump 0 "lessThan a b"];
+                ["a"];
+                [:0 jump 1 "always 0 0"];
+                ["b"];
+                [:1 jump 1 "always 0 0"];
+            }.compile().unwrap(),
+            [
+                "jump 4 lessThan a b",
+                "a",
+                "jump 4 always 0 0",
+                "b",
+                "jump 4 always 0 0",
+            ]
+        );
+        assert_eq!( // 环路不做处理
+            tag_lines! {
+                [:0 jump 1 "always 0 0"];
+                [:1 jump 0 "always 0 0"];
+            }.compile().unwrap(),
+            [
+                "jump 1 always 0 0",
+                "jump 0 always 0 0",
+            ]
+        );
+        assert_eq!( // 环路不做处理
+            tag_lines! {
+                [:0 jump 1 "always 0 0"];
+                [:1 jump 3 "always 0 0"];
+                [:3 jump 0 "always 0 0"];
+            }.compile().unwrap(),
+            [
+                "jump 1 always 0 0",
+                "jump 2 always 0 0",
+                "jump 0 always 0 0",
+            ]
+        );
+        assert_eq!( // 环路不做处理
+            tag_lines! {
+                [:0 jump 0 "always 0 0"];
+            }.compile().unwrap(),
+            [
+                "jump 0 always 0 0",
+            ]
+        );
+        assert_eq!( // 环路不做处理
+            tag_lines! {
+                [:0 jump 2 "always 0 0"];
+                [:1 jump 3 "always 0 0"];
+                [:2 jump 4 "always 0 0"];
+                [:3 jump 5 "always 0 0"];
+                [:4 jump 5 "always 0 0"];
+                [:5 jump 0 "always 0 0"];
+            }.compile().unwrap(),
+            [
+                "jump 2 always 0 0",
+                "jump 3 always 0 0",
+                "jump 4 always 0 0",
+                "jump 5 always 0 0",
+                "jump 5 always 0 0",
+                "jump 0 always 0 0",
+            ]
+        );
+        assert_eq!(
+            tag_lines! {
+                [:0 jump 2 "always 0 0"];
+                [:1 jump 3 "always 0 0"];
+                [:2 jump 4 "always 0 0"];
+                [:3 jump 5 "always 0 0"];
+                [:4 jump 5 "always 0 0"];
+                [:5 jump 0 "lessThan a b"];
+            }.compile().unwrap(),
+            [
+                "jump 5 always 0 0",
+                "jump 5 always 0 0",
+                "jump 5 always 0 0",
+                "jump 5 always 0 0",
+                "jump 5 always 0 0",
+                "jump 5 lessThan a b",
+            ]
+        );
+        assert_eq!(
+            tag_lines! {
+                [:0 "a"];
+                [:1 jump 3 "always 0 0"];
+                [:2 jump 4 "always 0 0"];
+                [:3 jump 5 "always 0 0"];
+                [:4 jump 5 "always 0 0"];
+                [:5 jump 0 "lessThan a b"];
+            }.compile().unwrap(),
+            [
+                "a",
+                "jump 5 always 0 0",
+                "jump 5 always 0 0",
+                "jump 5 always 0 0",
+                "jump 5 always 0 0",
+                "jump 0 lessThan a b",
+            ]
+        );
     }
 }
