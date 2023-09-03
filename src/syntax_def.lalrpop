@@ -574,7 +574,7 @@ pub Control: LogicLine = {
         let mut fill_line = append
             .as_ref()
             .map(|line| Expand(vec![line.clone()]).into())
-            .unwrap_or(LogicLine::NoOp);
+            .unwrap_or(LogicLine::Ignore);
 
         // 用于添加到头部的捕获块
         let mut catch_lines = Vec::new();

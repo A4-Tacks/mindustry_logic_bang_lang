@@ -1472,21 +1472,39 @@ impl Compile for Select {
                     )
                     .count()
             }).collect();
-        let max_len = lens.iter().copied().max().unwrap();
+        let max_len = lens.iter().copied().max().unwrap_or_default();
+
+        let counter = Value::ReprVar(COUNTER.into());
 
         // build head
-        let tmp_var = meta.get_tmp_var();
-        let mut head = Op::Mul(
-            tmp_var.clone().into(),
-            self.0,
-            max_len.to_string().into()
-        ).compile_take(meta);
-        let head_1 = Op::Add(
-            COUNTER.into(),
-            COUNTER.into(),
-            tmp_var.into()
-        ).compile_take(meta);
-        head.extend(head_1);
+        let head = match max_len {
+            0 => {          // no op
+                Take("__".into(), self.0).compile_take(meta)
+            },
+            1 => {          // no mul
+                Op::Add(
+                    counter.clone(),
+                    counter,
+                    self.0
+                ).compile_take(meta)
+            },
+            // normal
+            _ => {
+                let tmp_var = meta.get_tmp_var();
+                let mut head = Op::Mul(
+                    tmp_var.clone().into(),
+                    self.0,
+                    Value::ReprVar(max_len.to_string())
+                ).compile_take(meta);
+                let head_1 = Op::Add(
+                    counter.clone(),
+                    counter,
+                    tmp_var.into()
+                ).compile_take(meta);
+                head.extend(head_1);
+                head
+            }
+        };
 
         // 填补不够长的`case`
         for (len, case) in zip(lens, &mut cases) {
@@ -2710,13 +2728,13 @@ mod tests {
             Select(
                 "2".into(),
                 Expand(vec![
-                    LogicLine::NoOp,
+                    LogicLine::Ignore,
                     Expand(vec![LogicLine::Other(vec![Value::ReprVar("print".into()), "1".into()])]).into(),
                     Expand(vec![
                         LogicLine::Other(vec![Value::ReprVar("print".into()), "2".into()]),
                         LogicLine::Other(vec![Value::ReprVar("print".into()), "4".into()]),
                     ]).into(),
-                    LogicLine::NoOp,
+                    LogicLine::Ignore,
                     Expand(vec![
                         LogicLine::Other(vec![Value::ReprVar("print".into()), "2".into()]),
                         LogicLine::Other(vec![Value::ReprVar("print".into()), "4".into()]),
@@ -3861,9 +3879,7 @@ mod tests {
         let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
         select 1 {
             print 0;
-            {
-                print 1 " is one!";
-            }
+            print 1 " is one!";
             print 2;
         }
         "#).unwrap()).compile().unwrap();
@@ -3877,6 +3893,32 @@ mod tests {
                    "print 2",
                    "noop",
         ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        select x {
+            print 0;
+            print 1;
+            print 2;
+        }
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "op add @counter @counter x",
+                   "print 0",
+                   "print 1",
+                   "print 2",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        select (y: op $ x + 2;) {}
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, vec![
+                   "op add y x 2",
+        ]);
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        select x {}
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, Vec::<&str>::new());
 
     }
 
@@ -4174,6 +4216,28 @@ mod tests {
             }
         }
         "#).unwrap());
+
+        let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+        switch (op $ x + 2;) {
+        case !:
+            stop;
+        case 1:
+        case 3:
+        }
+        "#).unwrap()).compile().unwrap();
+        assert_eq!(logic_lines, CompileMeta::new().compile(parse!(parser, r#"
+        take tmp = (op $ x + 2;);
+        skip _ {
+            :mis
+            stop;
+        }
+        select tmp {
+            goto :mis _;
+            noop;
+            goto :mis _;
+            noop;
+        }
+        "#).unwrap()).compile().unwrap());
     }
 
     #[test]
