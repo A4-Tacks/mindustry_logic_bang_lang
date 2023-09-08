@@ -49,6 +49,34 @@ macro_rules! impl_derefs {
         }
     };
 }
+macro_rules! geter_builder {
+    (
+        $(
+            $f_vis:vis fn $fname:ident($($paramtt:tt)*) -> $res_ty:ty ;
+        )+
+        $body:block
+    ) => {
+        $(
+            $f_vis fn $fname($($paramtt)*) -> $res_ty $body
+        )+
+    };
+}
+/// 通过token匹配进行宏展开时的流分支
+macro_rules! macro_if {
+    (@yes ($($t:tt)*) else ($($f:tt)*)) => {
+        $($t)*
+    };
+    (else ($($f:tt)*)) => {
+        $($f)*
+    };
+}
+macro_rules! do_return {
+    ($e:expr $(=> $v:expr)?) => {
+        if $e {
+            return $($v)?
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Error {
@@ -245,6 +273,14 @@ impl Value {
             None
         }
     }
+
+    /// Returns `true` if the value is [`ResultHandle`].
+    ///
+    /// [`ResultHandle`]: Value::ResultHandle
+    #[must_use]
+    pub fn is_result_handle(&self) -> bool {
+        matches!(self, Self::ResultHandle)
+    }
 }
 impl Deref for Value {
     type Target = str;
@@ -301,6 +337,10 @@ impl DExp {
 
     pub fn lines(&self) -> &Expand {
         &self.lines
+    }
+
+    pub fn lines_mut(&mut self) -> &mut Expand {
+        &mut self.lines
     }
 }
 impl TakeHandle for DExp {
@@ -664,7 +704,8 @@ impl JumpCmp {
     /// 即将编译时调用, 将自身转换为可以正常编译为逻辑的形式
     /// 例如`严格不等`, `永不`等变体是无法直接被编译为逻辑的
     /// 所以需要进行转换
-    pub fn do_start_compile_into(self) -> Self {
+    pub fn do_start_compile_into(mut self) -> Self {
+        self.inline_cmp_op();
         match self {
             // 转换为0永不等于0
             // 要防止0被const, 我们使用repr
@@ -708,6 +749,42 @@ impl JumpCmp {
             StrictNotEqual, "!==",
         }
     }
+
+    pub fn inline_cmp_op(&mut self) {
+        use {
+            JumpCmp as JC,
+            Value as V,
+            LogicLine as LL,
+        };
+        let (dexp, invert) = match self {
+            | JC::Equal(V::DExp(dexp), V::ReprVar(s))
+            | JC::Equal(V::ReprVar(s), V::DExp(dexp))
+            if dexp.result.is_empty() && s == FALSE_VAR
+            => {
+                (dexp.lines_mut(), true)
+            }
+            | JC::NotEqual(V::DExp(dexp), V::ReprVar(s))
+            | JC::NotEqual(V::ReprVar(s), V::DExp(dexp))
+            if dexp.result.is_empty() && s == FALSE_VAR
+            => {
+                (dexp.lines_mut(), false)
+            }
+            _ => return,
+        };
+        if dexp.0.len() != 1 { return }
+        let LL::Op(op) = dexp.0.get_mut(0).unwrap() else { return };
+        let do_reverse = |x: JC| if invert {
+            x.reverse()
+        } else {
+            x
+        };
+        // 获取some后已经不可以中途返回了,
+        // 因为根据try_into_cmp的约定, op已经被破坏, 不可再使用
+        let Some(cmp) = op.try_into_cmp() else { return };
+        *self = do_reverse(cmp);
+        self.inline_cmp_op(); // 尝试继续内联
+    }
+
 }
 impl DisplaySource for JumpCmp {
     fn display_source(&self, meta: &mut DisplaySourceMeta) {
@@ -882,21 +959,21 @@ impl CmpTree {
     }
 
     /// 构建条件树为goto
-    pub fn build(self, meta: &mut CompileMeta, mut do_tag: Var) {
+    pub fn build(self, meta: &mut CompileMeta, do_tag: Var) {
         use CmpTree::*;
 
         // 获取如果在常量展开内则被重命名后的标签
-        do_tag = meta.get_in_const_label(do_tag);
+        let do_tag_expanded = meta.get_in_const_label(do_tag);
 
         match self {
             Or(a, b) => {
-                a.build(meta, do_tag.clone());
-                b.build(meta, do_tag);
+                a.build(meta, do_tag_expanded.clone());
+                b.build(meta, do_tag_expanded);
             },
             And(a, b) => {
                 let end = meta.get_tmp_tag();
                 a.reverse().build(meta, end.clone());
-                b.build(meta, do_tag);
+                b.build(meta, do_tag_expanded);
                 let tag_id = meta.get_tag(end);
                 meta.push(TagLine::TagDown(tag_id));
             },
@@ -908,7 +985,7 @@ impl CmpTree {
                 let (a, b) = cmp.build_value(meta);
 
                 let jump = Jump(
-                    meta.get_tag(do_tag).into(),
+                    meta.get_tag(do_tag_expanded).into(),
                     format!("{} {} {}", cmp_str, a, b)
                 );
                 meta.push(jump.into())
@@ -977,6 +1054,32 @@ impl DisplaySource for CmpTree {
     }
 }
 
+/// 用于承载Op信息的容器
+pub struct OpInfo<Arg> {
+    pub oper_str: &'static str,
+    pub oper_sym: Option<&'static str>,
+    pub result: Arg,
+    pub arg1: Arg,
+    pub arg2: Option<Arg>,
+}
+impl<Arg> OpInfo<Arg> {
+    pub fn new(
+        oper_str: &'static str,
+        oper_sym: Option<&'static str>,
+        result: Arg,
+        arg1: Arg,
+        arg2: Option<Arg>,
+    ) -> Self {
+        Self {
+            oper_str,
+            oper_sym,
+            result,
+            arg1,
+            arg2
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Op {
     Add(Value, Value, Value),
@@ -1021,185 +1124,170 @@ pub enum Op {
     Atan(Value, Value),
 }
 impl Op {
+    geter_builder! {
+        pub fn get_info(&self) -> OpInfo<&Value>;
+        pub fn get_info_mut(&mut self) -> OpInfo<&mut Value>;
+        pub fn into_info(self) -> OpInfo<Value>;
+        {
+            macro_rules! build_match {
+                {
+                    op1: [
+                        $(
+                            $oper1:ident =>
+                                $oper1_str:literal
+                                $($oper1_sym:literal)?
+                        ),* $(,)?
+                    ],
+                    op2: [
+                        $(
+                            $oper2:ident =>
+                                $oper2_str:literal
+                                $($oper2_sym:literal)?
+                        ),* $(,)?
+                    ] $(,)?
+                } => {
+                    match self {
+                        $(
+                            Self::$oper1(result, a) => OpInfo::new(
+                                $oper1_str,
+                                macro_if!($(@yes (Some($oper1_sym)))? else (None)),
+                                result,
+                                a,
+                                None,
+                            ),
+                        )*
+                        $(
+                            Self::$oper2(result, a, b) => OpInfo::new(
+                                $oper2_str,
+                                macro_if!($(@yes (Some($oper2_sym)))? else (None)),
+                                result,
+                                a,
+                                b.into(),
+                            ),
+                        )*
+                    }
+                };
+            }
+            build_match! {
+                op1: [
+                    Not => "not" "~",
+                    Abs => "abs",
+                    Log => "log",
+                    Log10 => "log10",
+                    Floor => "floor",
+                    Ceil => "ceil",
+                    Sqrt => "sqrt",
+                    Rand => "rand",
+                    Sin => "sin",
+                    Cos => "cos",
+                    Tan => "tan",
+                    Asin => "asin",
+                    Acos => "acos",
+                    Atan => "atan",
+                ],
+                op2: [
+                    Add => "add" "+",
+                    Sub => "sub" "-",
+                    Mul => "mul" "*",
+                    Div => "div" "/",
+                    Idiv => "idiv" "//",
+                    Mod => "mod" "%",
+                    Pow => "pow" "**",
+                    Equal => "equal" "==",
+                    NotEqual => "notEqual" "!=",
+                    Land => "land" "&&",
+                    LessThan => "lessThan" "<",
+                    LessThanEq => "lessThanEq" "<=",
+                    GreaterThan => "greaterThan" ">",
+                    GreaterThanEq => "greaterThanEq" ">=",
+                    StrictEqual => "strictEqual" "===",
+                    Shl => "shl" "<<",
+                    Shr => "shr" ">>",
+                    Or => "or" "|",
+                    And => "and" "&",
+                    Xor => "xor" "^",
+                    Max => "max",
+                    Min => "min",
+                    Angle => "angle",
+                    Len => "len",
+                    Noise => "noise",
+                ]
+            }
+        }
+    }
+
     pub fn oper_str(&self) -> &'static str {
-        macro_rules! build_match {
-            {
-                $(
-                    $variant:ident $str:literal
-                ),* $(,)?
-            } => {
-                match self {
-                    $( Self::$variant(..) => $str ),*
-                }
-            };
-        }
-        build_match! {
-            Add "add",
-            Sub "sub",
-            Mul "mul",
-            Div "div",
-            Idiv "idiv",
-            Mod "mod",
-            Pow "pow",
-            Equal "equal",
-            NotEqual "notEqual",
-            Land "land",
-            LessThan "lessThan",
-            LessThanEq "lessThanEq",
-            GreaterThan "greaterThan",
-            GreaterThanEq "greaterThanEq",
-            StrictEqual "strictEqual",
-            Shl "shl",
-            Shr "shr",
-            Or "or",
-            And "and",
-            Xor "xor",
-            Not "not",
-            Max "max",
-            Min "min",
-            Angle "angle",
-            Len "len",
-            Noise "noise",
-            Abs "abs",
-            Log "log",
-            Log10 "log10",
-            Floor "floor",
-            Ceil "ceil",
-            Sqrt "sqrt",
-            Rand "rand",
-            Sin "sin",
-            Cos "cos",
-            Tan "tan",
-            Asin "asin",
-            Acos "acos",
-            Atan "atan",
-        }
+        self.get_info().oper_str
     }
 
     pub fn get_result(&self) -> &Value {
-        macro_rules! build_match {
-            {
-                $(
-                    $variant:ident
-                ),* $(,)?
-            } => {
-                match self {
-                    $( Self::$variant(res, ..) => res ),*
-                }
-            };
-        }
-        build_match! {
-            Add, Sub, Mul, Div, Idiv, Mod, Pow,
-            Equal, NotEqual, Land, LessThan, LessThanEq, GreaterThan, GreaterThanEq,
-            StrictEqual, Shl, Shr, Or, And, Xor, Not,
-            Max, Min, Angle, Len, Noise, Abs, Log,
-            Log10, Floor, Ceil, Sqrt, Rand, Sin, Cos,
-            Tan, Asin, Acos, Atan,
-        }
+        self.get_info().result
     }
 
     pub fn get_result_mut(&mut self) -> &mut Value {
-        macro_rules! build_match {
-            {
-                $(
-                    $variant:ident
-                ),* $(,)?
-            } => {
-                match self {
-                    $( Self::$variant(res, ..) => res ),*
-                }
-            };
-        }
-        build_match! {
-            Add, Sub, Mul, Div, Idiv, Mod, Pow,
-            Equal, NotEqual, Land, LessThan, LessThanEq, GreaterThan, GreaterThanEq,
-            StrictEqual, Shl, Shr, Or, And, Xor, Not,
-            Max, Min, Angle, Len, Noise, Abs, Log,
-            Log10, Floor, Ceil, Sqrt, Rand, Sin, Cos,
-            Tan, Asin, Acos, Atan,
-        }
+        self.get_info_mut().result
     }
 
     pub fn oper_symbol_str(&self) -> &'static str {
-        macro_rules! build_match {
-            {
-                $(
-                    $variant:ident $str:literal
-                ),* $(,)?
-            } => {
-                match self {
-                    $( Self::$variant(..) => $str , )*
-                    other => other.oper_str(),
-                }
-            };
-        }
-        build_match! {
-            Add "+",
-            Sub "-",
-            Mul "*",
-            Div "/",
-            Idiv "//",
-            Mod "%",
-            Pow "**",
-            Equal "==",
-            NotEqual "!=",
-            Land "&&",
-            LessThan "<",
-            LessThanEq "<=",
-            GreaterThan ">",
-            GreaterThanEq ">=",
-            StrictEqual "===",
-            Shl "<<",
-            Shr ">>",
-            Or "|",
-            And "&",
-            Xor "^",
-            Not "~",
-        }
+        let info = self.get_info();
+        info.oper_sym.unwrap_or(info.oper_str)
     }
 
     pub fn generate_args(self, meta: &mut CompileMeta) -> Vec<String> {
+        let info = self.into_info();
         let mut args: Vec<Var> = Vec::with_capacity(5);
+
         args.push("op".into());
-        args.push(self.oper_str().into());
-        macro_rules! build_match {
-            {
-                op1: [ $( $oper1:ident ),* $(,)?  ]
-                op2: [ $( $oper2:ident ),* $(,)?  ]
-            } => {
-                match self {
-                    $(
-                        Self::$oper1(res, a) => {
-                            args.push(res.take_handle(meta).into());
-                            args.push(a.take_handle(meta).into());
-                            args.push(UNUSED_VAR.into());
-                        },
-                    )*
-                    $(
-                        Self::$oper2(res, a, b) => {
-                            args.push(res.take_handle(meta).into());
-                            args.push(a.take_handle(meta).into());
-                            args.push(b.take_handle(meta).into());
-                        },
-                    )*
-                }
-            };
-        }
-        build_match!(
-            op1: [
-                Not, Abs, Log, Log10, Floor, Ceil, Sqrt,
-                Rand, Sin, Cos, Tan, Asin, Acos, Atan,
-            ]
-            op2: [
-                Add, Sub, Mul, Div, Idiv,
-                Mod, Pow, Equal, NotEqual, Land,
-                LessThan, LessThanEq, GreaterThan, GreaterThanEq, StrictEqual,
-                Shl, Shr, Or, And, Xor,
-                Max, Min, Angle, Len, Noise,
-            ]
+        args.push(info.oper_str.into());
+        args.push(info.result.take_handle(meta).into());
+        args.push(info.arg1.take_handle(meta).into());
+        args.push(
+            info.arg2.map(|arg| arg.take_handle(meta))
+                .unwrap_or(UNUSED_VAR.into())
         );
+
         debug_assert!(args.len() == 5);
         args
+    }
+
+    /// 根据自身运算类型尝试获取一个比较器
+    pub fn get_cmper(&self) -> Option<fn(Value, Value) -> JumpCmp> {
+        macro_rules! build_match {
+            ($( $sname:ident : $cname:ident ),* $(,)?) => {{
+                match self {
+                    $(
+                        Self::$sname(..) => {
+                            Some(JumpCmp::$cname)
+                        },
+                    )*
+                    _ => None,
+                }
+            }};
+        }
+        build_match! [
+            LessThan: LessThan,
+            LessThanEq: LessThanEq,
+            GreaterThan: GreaterThanEq,
+            GreaterThanEq: GreaterThanEq,
+            Equal: Equal,
+            NotEqual: NotEqual,
+            StrictEqual: StrictEqual,
+        ]
+    }
+
+    /// 尝试将自身内联为一个比较, 如果返回非空, 则self不可再被使用
+    /// 考虑到短路会改变副作用条件
+    /// 所以不再内联为逻辑与和逻辑或,仅内联顶层比较
+    ///
+    /// 需要返回句柄为返回句柄替换符
+    pub fn try_into_cmp(&mut self) -> Option<JumpCmp> {
+        fn get(value: &mut Value) -> Value {
+            replace(value, Value::ResultHandle)
+        }
+        let cmper = self.get_cmper()?;
+        let info = self.get_info_mut();
+        do_return!(! info.result.is_result_handle() => None);
+        cmper(get(info.arg1), get(info.arg2.unwrap())).into()
     }
 }
 impl Compile for Op {
@@ -1218,10 +1306,7 @@ impl DisplaySource for Op {
             } => {
                 match self {
                     $(
-                        Self::$oper1(res, a) => {
-                            res.display_source(meta);
-                            meta.add_space();
-
+                        Self::$oper1(_, a) => {
                             meta.push(self.oper_symbol_str());
                             meta.add_space();
 
@@ -1229,10 +1314,7 @@ impl DisplaySource for Op {
                         },
                     )*
                     $(
-                        Self::$oper2(res, a, b) => {
-                            res.display_source(meta);
-                            meta.add_space();
-
+                        Self::$oper2(_, a, b) => {
                             a.display_source(meta);
                             meta.add_space();
 
@@ -1243,10 +1325,7 @@ impl DisplaySource for Op {
                         },
                     )*
                     $(
-                        Self::$oper2l(res, a, b) => {
-                            res.display_source(meta);
-                            meta.add_space();
-
+                        Self::$oper2l(_, a, b) => {
                             meta.push(self.oper_symbol_str());
                             meta.add_space();
 
@@ -1261,6 +1340,9 @@ impl DisplaySource for Op {
         }
         meta.push("op");
         meta.add_space();
+        self.get_info().result.display_source(meta);
+        meta.add_space();
+
         build_match! {
             op1: [
                 Not, Abs, Log, Log10, Floor, Ceil, Sqrt,
@@ -4302,6 +4384,18 @@ mod tests {
                 .display_source_and_get(&mut meta),
             "`'print'` 'a'.'b'.'c';"
         );
+        assert_eq!(
+            parse!(LogicLineParser::new(), "op add a b c;")
+                .unwrap()
+                .display_source_and_get(&mut meta),
+            "op 'a' 'b' + 'c';"
+        );
+        assert_eq!(
+            parse!(LogicLineParser::new(), "op x noise a b;")
+                .unwrap()
+                .display_source_and_get(&mut meta),
+            "op 'x' noise 'a' 'b';"
+        );
     }
 
     #[test]
@@ -4417,51 +4511,6 @@ mod tests {
 
         for (src, expect) in datas {
             assert_eq!(JumpCmp::from_mdt_args(&mdt_logic_split(src).unwrap()), expect)
-        }
-    }
-
-    #[test]
-    fn mdt_logic_split_test() {
-        let datas: &[(&str, &[&str])] = &[
-            (r#""#,                         &[]),
-            (r#"       "#,                  &[]),
-            (r#"abc def ghi"#,              &["abc", "def", "ghi"]),
-            (r#"abc   def ghi"#,            &["abc", "def", "ghi"]),
-            (r#"   abc   def ghi"#,         &["abc", "def", "ghi"]),
-            (r#"   abc   def ghi  "#,       &["abc", "def", "ghi"]),
-            (r#"abc   def ghi  "#,          &["abc", "def", "ghi"]),
-            (r#"abc   "def ghi"  "#,        &["abc", "\"def ghi\""]),
-            (r#"abc   "def ghi"  "#,        &["abc", "\"def ghi\""]),
-            (r#"  abc "def ghi"  "#,        &["abc", "\"def ghi\""]),
-            (r#"abc"#,                      &["abc"]),
-            (r#"a"#,                        &["a"]),
-            (r#"a b"#,                      &["a", "b"]),
-            (r#"ab"cd"ef"#,                 &["ab", "\"cd\"", "ef"]),
-            (r#"ab"cd"e"#,                  &["ab", "\"cd\"", "e"]),
-            (r#"ab"cd""#,                   &["ab", "\"cd\""]),
-            (r#"ab"cd" e"#,                 &["ab", "\"cd\"", "e"]),
-            (r#"ab"cd"      e"#,            &["ab", "\"cd\"", "e"]),
-            (r#"ab"cd"  "#,                 &["ab", "\"cd\""]),
-            (r#""cd""#,                     &["\"cd\""]),
-            (r#""cd"  "#,                   &["\"cd\""]),
-            (r#"    "cd"  "#,               &["\"cd\""]),
-        ];
-        for &(src, args) in datas {
-            assert_eq!(&mdt_logic_split(src).unwrap(), args);
-        }
-
-        // 未闭合字符串的测试
-        let faileds: &[(&str, usize)] = &[
-            (r#"ab""#, 3),
-            (r#"ab ""#, 4),
-            (r#"ab cd ""#, 7),
-            (r#"""#, 1),
-            (r#"     ""#, 6),
-            (r#""     "#, 1),
-            (r#""ab" "cd"  "e"#, 12),
-        ];
-        for &(src, char_num) in faileds {
-            assert_eq!(mdt_logic_split(src).unwrap_err(), char_num);
         }
     }
 
@@ -4683,5 +4732,170 @@ mod tests {
             )
         ] Do2;
         "#).unwrap()).compile().is_err());
+    }
+
+    #[test]
+    fn op_into_cmp_test() {
+        assert_eq!(
+            Op::Add("a".into(), "b".into(), "c".into()).try_into_cmp(),
+            None,
+        );
+        assert_eq!(
+            Op::Add(Value::ResultHandle, "b".into(), "c".into()).try_into_cmp(),
+            None,
+        );
+        assert_eq!(
+            Op::Land("a".into(), "b".into(), "c".into()).try_into_cmp(),
+            None,
+        );
+        assert_eq!(
+            Op::Land(Value::ResultHandle, "b".into(), "c".into()).try_into_cmp(),
+            None,
+        );
+        assert_eq!(
+            Op::LessThan("a".into(), "b".into(), "c".into()).try_into_cmp(),
+            None,
+        );
+        assert_eq!(
+            Op::LessThan(Value::ResultHandle, "b".into(), "c".into()).try_into_cmp(),
+            Some(JumpCmp::LessThan("b".into(), "c".into())),
+        );
+        assert_eq!(
+            Op::StrictEqual(Value::ResultHandle, "b".into(), "c".into()).try_into_cmp(),
+            Some(JumpCmp::StrictEqual("b".into(), "c".into())),
+        );
+    }
+
+    #[test]
+    fn inline_cmp_op_test() {
+        let parser = ExpandParser::new();
+
+        assert_eq!(
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 a < b;
+            "#).unwrap()).compile().unwrap(),
+            vec![
+                "jump 0 lessThan a b"
+            ]
+        );
+
+        assert_eq!(
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 a < b;
+            "#).unwrap()).compile().unwrap(),
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 a < b;
+            "#).unwrap()).compile().unwrap(),
+        );
+
+        assert_eq!(
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 (op $ a < b;);
+            "#).unwrap()).compile().unwrap(),
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 a < b;
+            "#).unwrap()).compile().unwrap(),
+        );
+
+        assert_eq!(
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 (op $ a === b;);
+            "#).unwrap()).compile().unwrap(),
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 a === b;
+            "#).unwrap()).compile().unwrap(),
+        );
+
+        assert_eq!(
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 (x: op x a === b;);
+            "#).unwrap()).compile().unwrap(),
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 (x: op x a === b;);
+            "#).unwrap()).compile().unwrap(),
+        );
+
+        assert_eq!(
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 (op x a === b;);
+            "#).unwrap()).compile().unwrap(),
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 (op x a === b;);
+            "#).unwrap()).compile().unwrap(),
+        );
+
+        assert_eq!(
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 (x: op $ a === b;);
+            "#).unwrap()).compile().unwrap(),
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 (x: op $ a === b;);
+            "#).unwrap()).compile().unwrap(),
+        );
+
+        assert_eq!(
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 !(op $ a < b;);
+            "#).unwrap()).compile().unwrap(),
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 !a < b;
+            "#).unwrap()).compile().unwrap(),
+        );
+
+        assert_eq!(
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 !!!(op $ a < b;);
+            "#).unwrap()).compile().unwrap(),
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 !!!a < b;
+            "#).unwrap()).compile().unwrap(),
+        );
+
+        // 暂未实现直接到StrictNotEqual, 目前这就算了吧, 反正最终编译产物一样
+        assert_eq!(
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 !(op $ a === b;);
+            "#).unwrap()).compile().unwrap(),
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 a !== b;
+            "#).unwrap()).compile().unwrap(),
+        );
+
+        assert_eq!(
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 (noop; op $ a < b;);
+            "#).unwrap()).compile().unwrap(),
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 (noop; op $ a < b;);
+            "#).unwrap()).compile().unwrap(),
+        );
+
+        assert_eq!(
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 (op $ a < b; noop;);
+            "#).unwrap()).compile().unwrap(),
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 (op $ a < b; noop;);
+            "#).unwrap()).compile().unwrap(),
+        );
+
+        assert_eq!( // 连续内联的作用
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 (op $ !(op $ a < b;););
+            "#).unwrap()).compile().unwrap(),
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 !a < b;
+            "#).unwrap()).compile().unwrap(),
+        );
+
+        assert_eq!( // 连续内联的作用
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 (op $ !(op $ !(op $ a < b;);););
+            "#).unwrap()).compile().unwrap(),
+            CompileMeta::new().compile(parse!(parser, r#"
+            :0 goto :0 a < b;
+            "#).unwrap()).compile().unwrap(),
+        );
+
     }
 }

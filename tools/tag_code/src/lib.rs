@@ -121,14 +121,52 @@ macro_rules! panic_tag_out_of_range {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Jump(pub Tag, pub String);
 impl Jump {
+    pub fn new_always(target: Tag) -> Self {
+        Self(target, "always 0 0".into())
+    }
+
+    /// 尝试转换到即将编译的状态, 可以在此处进行一些优化
+    pub fn try_to_start_compile(&self) -> Option<Self> {
+        let mut res = None;
+        if !self.is_literal_always_jump() && self.is_always_jump() {
+            res = Self::new_always(self.0).into()
+        }
+        res
+    }
+
+    /// 判断自身是否为一个无条件跳转
+    ///
+    /// 在两运算成员相同的情况下, 匹配以下运算
+    /// - 相等
+    /// - 严格相等
+    /// - 小于等于
+    /// - 大于等于
+    ///
+    /// 在其余情况下, 返回[`is_literal_always_jump`]的结果
+    ///
+    /// [`is_literal_always_jump`]: Self::is_literal_always_jump
     pub fn is_always_jump(&self) -> bool {
         let jump_body = self.1.as_str();
-        let jump_args = mdt_logic_split(jump_body).unwrap();
+        let jump_args = mdt_logic_split_unwraped(jump_body);
         match jump_args[..] {
-            ["always", ..] => true,
-            ["equal", a, b] if a == b => true,
-            _ => false,
+            [
+                | "equal"
+                | "strictEqual"
+                | "lessThanEq"
+                | "greaterThanEq"
+                ,
+                a,
+                b
+            ] if a == b => true,
+            _ => self.is_literal_always_jump(),
         }
+    }
+
+    /// 不考虑运算成员, 仅考虑字面上是否是一个无条件跳转
+    pub fn is_literal_always_jump(&self) -> bool {
+        let jump_body = self.1.as_str();
+        let jump_args = mdt_logic_split_unwraped(jump_body);
+        matches!(jump_args[..], ["always", ..])
     }
 
     /// 校验跳转目标是否在行表中, 如果不在则进行恐慌
@@ -151,10 +189,14 @@ impl From<(Tag, String)> for Jump {
 }
 impl Compile for Jump {
     fn compile(&self, tags_table: &TagsTable) -> String {
-        self.check_target_unwrap(tags_table);
-        assert!(self.0 < tags_table.len()); // 越界检查
-        assert_ne!(tags_table[self.0], UNINIT_TAG_TARGET); // 确保要跳转的目标有效
-        format!("jump {} {}", tags_table[self.0], self.1)
+        let mut this = self;
+        let try_new_this = this.try_to_start_compile();
+        if let Some(new_this) = try_new_this.as_ref() { this = new_this }
+
+        this.check_target_unwrap(tags_table);
+        assert!(this.0 < tags_table.len()); // 越界检查
+        assert_ne!(tags_table[this.0], UNINIT_TAG_TARGET); // 确保要跳转的目标有效
+        format!("jump {} {}", tags_table[this.0], this.1)
     }
 }
 
@@ -189,7 +231,7 @@ impl Display for TagLine {
             },
             Self::Line(line) => {
                 push_tag(&mut res, line.tag, true);
-                res.push_str(&format!("{}", line.data()));
+                res.push_str(&line.data().to_string());
             },
             &Self::TagDown(tag) => push_tag(&mut res, Some(tag), false),
         }
@@ -332,7 +374,7 @@ impl TagLine {
         match self {
             Self::Jump(TagBox { tag, .. })
                 | Self::Line(TagBox { tag, .. })
-                => replace(tag, None),
+                => tag.take(),
             Self::TagDown(..) => None
         }
     }
@@ -364,7 +406,7 @@ impl TagLine {
             };
         }
 
-        if s.starts_with(":") {
+        if s.starts_with(':') {
             let tag = get_tag_body(s);
             Self::TagDown(get_or_insert_tag!(tag))
         } else if s.starts_with("jump") {
@@ -552,6 +594,8 @@ impl TagCodes {
     /// 会变成
     /// > jump :b
     /// > :b foo
+    ///
+    /// [`TagDown`]: TagLine::TagDown
     pub fn build_tagdown(&mut self) -> Result<(), (usize, Tag)> {
         let mut tag_alias_map: HashMap<Tag, Tag> = HashMap::new();
         let mut lines: Vec<TagLine> = Vec::new();
@@ -638,7 +682,9 @@ impl TagCodes {
             };
             for tag in tag_refs {
                 // 将每个`Tag`(包括jump目标)进行映射
-                tag_alias_map.get(&tag).map(|&dst| *tag = dst);
+                if let Some(&dst) = tag_alias_map.get(tag) {
+                    *tag = dst
+                }
             }
             // 将非`TagDown`行加入
             self.lines.push(line);
@@ -751,6 +797,10 @@ impl TagCodes {
         Ok(logic_lines)
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.lines.is_empty()
+    }
+
     /// 获取内部代码条数
     pub fn len(&self) -> usize {
         self.lines.len()
@@ -792,7 +842,8 @@ impl TagCodes {
     /// [`TagDown`]: `TagLine::TagDown`
     pub fn tag_up(&mut self) {
         let len = self.len();
-        let lines = replace(&mut self.lines, Vec::with_capacity(len));
+        let lines
+            = replace(&mut self.lines, Vec::with_capacity(len));
         for mut line in lines {
             if let Some(tag_down) = line.pop_tag() {
                 self.lines.push(TagLine::TagDown(tag_down))
@@ -813,27 +864,44 @@ impl TagCodes {
         lines.into()
     }
 }
+impl Default for TagCodes {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 
 fn take_jump_target(line: &str) -> String {
+    debug_assert!(line.starts_with("jump"));
+
+    let is_whitespace = |ch: &char| ch.is_whitespace();
+    let is_not_whitespace = |ch: &char| ! ch.is_whitespace();
+
     line.chars()
         .skip(4)
-        .skip_while(|c| c.is_whitespace()) // ` `
-        .take_while(|c| !c.is_whitespace())
+        .skip_while(is_whitespace) // ` `
+        .take_while(is_not_whitespace)
         .collect()
 }
 fn take_jump_body(line: &str) -> String {
+    debug_assert!(line.starts_with("jump"));
+
+    let is_whitespace = |ch: &char| ch.is_whitespace();
+    let is_not_whitespace = |ch: &char| ! ch.is_whitespace();
+
     line
         .chars()
         .skip(4) // `jump`
-        .skip_while(|c| c.is_whitespace()) // ` `
-        .skip_while(|c| !c.is_whitespace()) // `123`
-        .skip_while(|c| c.is_whitespace()) // ` `
+        .skip_while(is_whitespace) // ` `
+        .skip_while(is_not_whitespace) // `123`
+        .skip_while(is_whitespace) // ` `
         .collect()
 }
 
 /// 按照Mindustry中的规则进行切分
 /// 也就是空白忽略, 字符串会被保留完整
 /// 如果出现未闭合字符串则会返回其所在字符数(从1开始)
+#[must_use]
 pub fn mdt_logic_split(s: &str) -> Result<Vec<&str>, usize> {
     fn get_next_char_idx(s: &str) -> Option<usize> {
         s
@@ -874,6 +942,13 @@ pub fn mdt_logic_split(s: &str) -> Result<Vec<&str>, usize> {
     }
     Ok(res)
 }
+#[must_use]
+pub fn mdt_logic_split_unwraped(s: &str) -> Vec<&str> {
+    mdt_logic_split(s).unwrap_or_else(|err_char_cl| {
+        err!("未闭合的字符串, 在第 {} 个字符处, 行: {}", err_char_cl, s);
+        exit(8)
+    })
+}
 
 #[cfg(test)]
 mod tests {
@@ -891,7 +966,7 @@ mod tests {
         };
     }
     macro_rules! tag_lines {
-        ($( [$($t:tt)*] ; )*) => {{
+        ($( [$($t:tt)*] $(;)? )*) => {{
             let mut lines = TagCodes::new();
             $(
                 lines.push(tag_line!($($t)*));
@@ -1114,25 +1189,40 @@ mod tests {
 
     #[test]
     fn is_always_jump_test() {
-        assert!(! Jump(0, r#"always0 0"#.into()).is_always_jump());
-        assert!(! Jump(0, r#"always. 0"#.into()).is_always_jump());
-        assert!(! Jump(0, r#"equal always 0"#.into()).is_always_jump());
-        assert!(! Jump(0, r#"always."#.into()).is_always_jump());
-        assert!(! Jump(0, r#"Always"#.into()).is_always_jump());
-        assert!(! Jump(0, r#"equal a b"#.into()).is_always_jump());
-        assert!(! Jump(0, r#"equal 2 3"#.into()).is_always_jump());
-        assert!(! Jump(0, r#"equal "2" "3""#.into()).is_always_jump());
-
-        assert!(Jump(0, r#"always 0 0 0"#.into()).is_always_jump());
-        assert!(Jump(0, r#"always 0 0"#.into()).is_always_jump());
-        assert!(Jump(0, r#"always a b"#.into()).is_always_jump());
-        assert!(Jump(0, r#"always a"#.into()).is_always_jump());
-        assert!(Jump(0, r#"always"#.into()).is_always_jump());
-
-        assert!(Jump(0, r#"equal 0 0"#.into()).is_always_jump());
-        assert!(Jump(0, r#"equal a a"#.into()).is_always_jump());
-        assert!(Jump(0, r#"equal "0" "0""#.into()).is_always_jump());
-        assert!(Jump(0, r#"equal "a" "a""#.into()).is_always_jump());
+        let false_data = [
+            r#"always0 0"#,
+            r#"always. 0"#,
+            r#"equal always 0"#,
+            r#"always."#,
+            r#"Always"#,
+            r#"equal a b"#,
+            r#"equal 2 3"#,
+            r#"equal "2" "3""#,
+            r#"strictEqual a b"#,
+            r#"strictEqual 2 3"#,
+            r#"strictEqual "2" "3""#,
+        ];
+        let true_data = [
+            r#"equal 0 0"#,
+            r#"equal a a"#,
+            r#"equal "0" "0""#,
+            r#"equal "a" "a""#,
+            r#"strictEqual 0 0"#,
+            r#"strictEqual a a"#,
+            r#"strictEqual "0" "0""#,
+            r#"strictEqual "a" "a""#,
+            r#"always 0 0 0"#,
+            r#"always 0 0"#,
+            r#"always a b"#,
+            r#"always a"#,
+            r#"always"#,
+        ];
+        for src in false_data {
+            assert!(! Jump(0, src.into()).is_always_jump(), "err: {:?}", src);
+        }
+        for src in true_data {
+            assert!(Jump(0, src.into()).is_always_jump(), "err: {:?}", src);
+        }
     }
 
     #[test]
@@ -1278,5 +1368,160 @@ mod tests {
                 "jump 0 lessThan a b",
             ]
         );
+    }
+
+    #[test]
+    fn is_literal_always_jump_test() {
+        let false_data = [
+            r#"always0 0"#,
+            r#"always. 0"#,
+            r#"equal always 0"#,
+            r#"always."#,
+            r#"Always"#,
+            r#"equal a b"#,
+            r#"equal 2 3"#,
+            r#"equal "2" "3""#,
+            r#"strictEqual a b"#,
+            r#"strictEqual 2 3"#,
+            r#"strictEqual "2" "3""#,
+            r#"equal 0 0"#,
+            r#"equal a a"#,
+            r#"equal "0" "0""#,
+            r#"equal "a" "a""#,
+            r#"strictEqual 0 0"#,
+            r#"strictEqual a a"#,
+            r#"strictEqual "0" "0""#,
+            r#"strictEqual "a" "a""#,
+        ];
+        let true_data = [
+            r#"always 0 0 0"#,
+            r#"always 0 0"#,
+            r#"always a b"#,
+            r#"always a"#,
+            r#"always"#,
+        ];
+        for src in false_data {
+            assert!(! Jump(0, src.into()).is_literal_always_jump(), "err: {:?}", src);
+        }
+        for src in true_data {
+            assert!(Jump(0, src.into()).is_literal_always_jump(), "err: {:?}", src);
+        }
+    }
+
+    #[test]
+    fn jump_to_always_test() {
+        assert_eq!(
+            tag_lines! {
+                [:0];
+                [jump 0 "always 0 0"];
+            }.compile().unwrap(),
+            ["jump 0 always 0 0"]
+        );
+
+        assert_eq!(
+            tag_lines! {
+                [:0];
+                [jump 0 "always a b"];
+            }.compile().unwrap(),
+            ["jump 0 always a b"]
+        );
+
+        assert_eq!(
+            tag_lines! {
+                [:0];
+                [jump 0 "equal 0 0"];
+            }.compile().unwrap(),
+            ["jump 0 always 0 0"]
+        );
+
+        assert_eq!(
+            tag_lines! {
+                [:0];
+                [jump 0 "equal a a"];
+            }.compile().unwrap(),
+            ["jump 0 always 0 0"]
+        );
+
+        assert_eq!(
+            tag_lines! {
+                [:0];
+                [jump 0 "strictEqual 0 0"];
+            }.compile().unwrap(),
+            ["jump 0 always 0 0"]
+        );
+
+        assert_eq!(
+            tag_lines! {
+                [:0];
+                [jump 0 "strictEqual a a"];
+            }.compile().unwrap(),
+            ["jump 0 always 0 0"]
+        );
+
+        assert_eq!(
+            tag_lines! {
+                [:0];
+                [jump 0 "lessThanEq a a"];
+            }.compile().unwrap(),
+            ["jump 0 always 0 0"]
+        );
+
+        assert_eq!(
+            tag_lines! {
+                [:0];
+                [jump 0 "greaterThanEq a a"];
+            }.compile().unwrap(),
+            ["jump 0 always 0 0"]
+        );
+
+    }
+
+    #[test]
+    fn mdt_logic_split_test() {
+        let datas: &[(&str, &[&str])] = &[
+            (r#""#,                         &[]),
+            (r#"       "#,                  &[]),
+            (r#"abc def ghi"#,              &["abc", "def", "ghi"]),
+            (r#"abc   def ghi"#,            &["abc", "def", "ghi"]),
+            (r#"   abc   def ghi"#,         &["abc", "def", "ghi"]),
+            (r#"   abc   def ghi  "#,       &["abc", "def", "ghi"]),
+            (r#"abc   def ghi  "#,          &["abc", "def", "ghi"]),
+            (r#"abc   "def ghi"  "#,        &["abc", "\"def ghi\""]),
+            (r#"abc   "def ghi"  "#,        &["abc", "\"def ghi\""]),
+            (r#"  abc "def ghi"  "#,        &["abc", "\"def ghi\""]),
+            (r#"abc"#,                      &["abc"]),
+            (r#"a"#,                        &["a"]),
+            (r#"a b"#,                      &["a", "b"]),
+            (r#"ab"cd"ef"#,                 &["ab", "\"cd\"", "ef"]),
+            (r#"ab"cd"e"#,                  &["ab", "\"cd\"", "e"]),
+            (r#"ab"cd""#,                   &["ab", "\"cd\""]),
+            (r#"ab"cd" e"#,                 &["ab", "\"cd\"", "e"]),
+            (r#"ab"cd"      e"#,            &["ab", "\"cd\"", "e"]),
+            (r#"ab"cd"  "#,                 &["ab", "\"cd\""]),
+            (r#""cd""#,                     &["\"cd\""]),
+            (r#""cd"  "#,                   &["\"cd\""]),
+            (r#"    "cd"  "#,               &["\"cd\""]),
+            (r#"    "你好"  "#,             &["\"你好\""]),
+            (r#"甲乙"丙丁"  "#,             &["甲乙", "\"丙丁\""]),
+            (r#"张三 李四"#,                &["张三", "李四"]),
+        ];
+        for &(src, args) in datas {
+            assert_eq!(&mdt_logic_split(src).unwrap(), args);
+        }
+
+        // 未闭合字符串的测试
+        let faileds: &[(&str, usize)] = &[
+            (r#"ab""#, 3),
+            (r#"ab ""#, 4),
+            (r#"ab cd ""#, 7),
+            (r#"""#, 1),
+            (r#"     ""#, 6),
+            (r#""     "#, 1),
+            (r#""ab" "cd"  "e"#, 12),
+            (r#"甲乙""#, 3),
+        ];
+        for &(src, char_num) in faileds {
+            assert_eq!(mdt_logic_split(src).unwrap_err(), char_num);
+        }
     }
 }
