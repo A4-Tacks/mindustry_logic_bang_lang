@@ -11,6 +11,7 @@
 > [`op.mdtlbl`](./op.mdtlbl)<br/>
 > [`op_expr.mdtlbl`](./op_expr.mdtlbl)<br/>
 > [`control.mdtlbl`](./control.mdtlbl)<br/>
+> [`control_plus.mdtlbl`](./control_plus.mdtlbl)<br/>
 > [`cmps.mdtlbl`](./cmps.mdtlbl)<br/>
 > [`insert_sort.mdtlbl`](./insert_sort.mdtlbl)<br/>
 > [`switch.mdtlbl`](./switch.mdtlbl)<br/>

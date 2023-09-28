@@ -24,8 +24,8 @@ syn case match
 
 " 一些关键字 {{{1
 syn keyword mdtlblKeyword
-            \ while do skip goto if elif else
-            \ switch case const take gwhile setres select
+            \ while gwhile do skip goto if elif else switch case break continue
+            \ const take setres select
             \ inline
             \ op set noop print
 hi link mdtlblKeyword Keyword

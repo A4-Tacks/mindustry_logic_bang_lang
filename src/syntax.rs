@@ -441,6 +441,8 @@ pub struct Meta {
     tag_number: usize,
     /// 被跳转的label
     defined_labels: Vec<Vec<Var>>,
+    break_labels: Vec<Option<Var>>,
+    continue_labels: Vec<Option<Var>>,
 }
 impl Default for Meta {
     fn default() -> Self {
@@ -448,6 +450,8 @@ impl Default for Meta {
             tmp_var_count: 0,
             tag_number: 0,
             defined_labels: vec![Vec::new()],
+            break_labels: Vec::new(),
+            continue_labels: Vec::new(),
         }
     }
 }
@@ -491,6 +495,71 @@ impl Meta {
     /// 用于const定义完成收集信息
     pub fn pop_label_scope(&mut self) -> Vec<Var> {
         self.defined_labels.pop().unwrap()
+    }
+
+    /// 添加一层用于`break`和`continue`的未使用控制层
+    ///
+    /// 需要在结构结束时将其销毁
+    pub fn add_control_level(
+        &mut self, r#break: Option<Var>,
+        r#continue: Option<Var>,
+    ) {
+        self.break_labels.push(r#break);
+        self.continue_labels.push(r#continue);
+    }
+
+    /// 将`break`和`continue`的标签返回
+    ///
+    /// 如果未使用那么返回的会为空
+    pub fn pop_control_level(&mut self) -> (Option<Var>, Option<Var>) {
+        (
+            self.break_labels.pop().unwrap(),
+            self.continue_labels.pop().unwrap(),
+        )
+    }
+
+    /// 返回`break`的目标标签, 这会执行惰性初始化
+    pub fn get_break(&mut self) -> &Var {
+        // 由于设计上的懒惰与所有权系统的缺陷冲突, 所以这里的代码会略繁琐
+        let new_lab
+            = if self.break_labels.last().unwrap().is_none() {
+                self.get_tag().into()
+            } else {
+                None
+            };
+        let label = self.break_labels.last_mut().unwrap();
+        if let Some(new_lab) = new_lab {
+            assert!(label.is_none());
+            *label = Some(new_lab)
+        }
+        label.as_ref().unwrap()
+    }
+
+    /// 返回`continue`的目标标签, 这会执行惰性初始化
+    pub fn get_continue(&mut self) -> &Var {
+        // 由于设计上的懒惰与所有权系统的缺陷冲突, 所以这里的代码会略繁琐
+        let new_lab
+            = if self.continue_labels.last().unwrap().is_none() {
+                self.get_tag().into()
+            } else {
+                None
+            };
+        let label = self.continue_labels.last_mut().unwrap();
+        if let Some(new_lab) = new_lab {
+            assert!(label.is_none());
+            *label = Some(new_lab)
+        }
+        label.as_ref().unwrap()
+    }
+
+    pub fn push_some_label_to(
+        &mut self,
+        lines: &mut Vec<LogicLine>,
+        label: Option<Var>,
+    ) {
+        if let Some(label) = label {
+            lines.push(LogicLine::new_label(label, self))
+        }
     }
 
     /// 构建一个`sets`, 例如`a b c = 1 2 3;`
@@ -631,37 +700,37 @@ impl JumpCmp {
     /// 获取两个运算成员, 如果是没有运算成员的则返回[`Default`]
     pub fn get_values(self) -> (Value, Value) {
         match self {
-            Self::Equal(a, b)
-                | Self::NotEqual(a, b)
-                | Self::LessThan(a, b)
-                | Self::LessThanEq(a, b)
-                | Self::GreaterThan(a, b)
-                | Self::StrictEqual(a, b)
-                | Self::GreaterThanEq(a, b)
-                | Self::StrictNotEqual(a, b)
-                => (a, b),
-            Self::Always
-                | Self::NotAlways
-                // 这里使用default生成无副作用的占位值
-                => Default::default(),
+            | Self::Equal(a, b)
+            | Self::NotEqual(a, b)
+            | Self::LessThan(a, b)
+            | Self::LessThanEq(a, b)
+            | Self::GreaterThan(a, b)
+            | Self::StrictEqual(a, b)
+            | Self::GreaterThanEq(a, b)
+            | Self::StrictNotEqual(a, b)
+            => (a, b),
+            | Self::Always
+            | Self::NotAlways
+            // 这里使用default生成无副作用的占位值
+            => Default::default(),
         }
     }
 
     /// 获取两个运算成员, 如果是没有运算成员的则返回空
     pub fn get_values_ref(&self) -> Option<(&Value, &Value)> {
         match self {
-            Self::Equal(a, b)
-                | Self::NotEqual(a, b)
-                | Self::LessThan(a, b)
-                | Self::LessThanEq(a, b)
-                | Self::GreaterThan(a, b)
-                | Self::StrictEqual(a, b)
-                | Self::GreaterThanEq(a, b)
-                | Self::StrictNotEqual(a, b)
-                => Some((a, b)),
-            Self::Always
-                | Self::NotAlways
-                => None,
+            | Self::Equal(a, b)
+            | Self::NotEqual(a, b)
+            | Self::LessThan(a, b)
+            | Self::LessThanEq(a, b)
+            | Self::GreaterThan(a, b)
+            | Self::StrictEqual(a, b)
+            | Self::GreaterThanEq(a, b)
+            | Self::StrictNotEqual(a, b)
+            => Some((a, b)),
+            | Self::Always
+            | Self::NotAlways
+            => None,
         }
     }
 
@@ -4898,6 +4967,469 @@ mod tests {
             CompileMeta::new().compile(parse!(parser, r#"
             :0 goto :0 a < b;
             "#).unwrap()).compile().unwrap(),
+        );
+
+    }
+
+    #[test]
+    fn top_level_break_and_continue_test() {
+        let parser = TopLevelParser::new();
+
+        assert_eq!(
+            CompileMeta::new().compile(parse!(parser, r#"
+            foo;
+            continue;
+            bar;
+            "#).unwrap()).compile().unwrap(),
+            [
+                "foo",
+                "jump 0 always 0 0",
+                "bar",
+            ]
+        );
+
+        assert_eq!(
+            CompileMeta::new().compile(parse!(parser, r#"
+            foo;
+            continue _;
+            bar;
+            "#).unwrap()).compile().unwrap(),
+            [
+                "foo",
+                "jump 0 always 0 0",
+                "bar",
+            ]
+        );
+
+        assert_eq!(
+            CompileMeta::new().compile(parse!(parser, r#"
+            foo;
+            continue a < b;
+            bar;
+            "#).unwrap()).compile().unwrap(),
+            [
+                "foo",
+                "jump 0 lessThan a b",
+                "bar",
+            ]
+        );
+
+        assert_eq!(
+            CompileMeta::new().compile(parse!(parser, r#"
+            foo;
+            continue a < b || c < d;
+            bar;
+            "#).unwrap()).compile().unwrap(),
+            [
+                "foo",
+                "jump 0 lessThan a b",
+                "jump 0 lessThan c d",
+                "bar",
+            ]
+        );
+
+        assert_eq!(
+            CompileMeta::new().compile(parse!(parser, r#"
+            foo;
+            continue;
+            bar;
+            "#).unwrap()).compile().unwrap(),
+            [
+                "foo",
+                "jump 0 always 0 0",
+                "bar",
+            ]
+        );
+
+        assert_eq!(
+            CompileMeta::new().compile(parse!(parser, r#"
+            foo;
+            continue _;
+            bar;
+            "#).unwrap()).compile().unwrap(),
+            [
+                "foo",
+                "jump 0 always 0 0",
+                "bar",
+            ]
+        );
+
+        assert_eq!(
+            CompileMeta::new().compile(parse!(parser, r#"
+            foo;
+            continue a < b;
+            bar;
+            "#).unwrap()).compile().unwrap(),
+            [
+                "foo",
+                "jump 0 lessThan a b",
+                "bar",
+            ]
+        );
+
+        assert_eq!(
+            CompileMeta::new().compile(parse!(parser, r#"
+            foo;
+            continue a < b || c < d;
+            bar;
+            "#).unwrap()).compile().unwrap(),
+            [
+                "foo",
+                "jump 0 lessThan a b",
+                "jump 0 lessThan c d",
+                "bar",
+            ]
+        );
+
+    }
+
+    #[test]
+    fn control_stmt_break_and_continue_test() {
+        let parser = TopLevelParser::new();
+
+        assert_eq!(
+            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            foo;
+            while a < b {
+                foo1;
+                while c < d {
+                    foo2;
+                    break;
+                }
+                bar1;
+                break;
+            }
+            bar;
+            break;
+            "#).unwrap())).compile().unwrap(),
+            [
+                "foo",
+                "jump 10 greaterThanEq a b",
+                "foo1",
+                "jump 7 greaterThanEq c d",
+                "foo2",
+                "jump 7 always 0 0",
+                "jump 4 lessThan c d",
+                "bar1",
+                "jump 10 always 0 0",
+                "jump 2 lessThan a b",
+                "bar",
+                "jump 0 always 0 0",
+            ]
+        );
+
+        assert_eq!(
+            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            foo;
+            gwhile a < b {
+                foo1;
+                gwhile c < d {
+                    foo2;
+                    break;
+                }
+                bar1;
+                break;
+            }
+            bar;
+            break;
+            "#).unwrap())).compile().unwrap(),
+            [
+                "foo",
+                "jump 9 always 0 0",
+                "foo1",
+                "jump 6 always 0 0",
+                "foo2",
+                "jump 7 always 0 0",
+                "jump 4 lessThan c d",
+                "bar1",
+                "jump 10 always 0 0",
+                "jump 2 lessThan a b",
+                "bar",
+                "jump 0 always 0 0",
+            ]
+        );
+
+        assert_eq!(
+            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            foo;
+            xxx;
+            do {
+                foo1;
+                xxx;
+                do {
+                    foo2;
+                    break;
+                } while c < d;
+                bar1;
+                break;
+            } while a < b;
+            bar;
+            break;
+            "#).unwrap())).compile().unwrap(),
+            [
+                "foo",
+                "xxx",
+                "foo1",
+                "xxx",
+                "foo2",
+                "jump 7 always 0 0",
+                "jump 4 lessThan c d",
+                "bar1",
+                "jump 10 always 0 0",
+                "jump 2 lessThan a b",
+                "bar",
+                "jump 0 always 0 0",
+            ]
+        );
+
+        assert_eq!(
+            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            switch a {
+            case 0: foo;
+            case 1: break;
+            case 2: bar;
+            }
+            end;
+            break;
+            "#).unwrap())).compile().unwrap(),
+            [
+                "op add @counter @counter a",
+                "foo",
+                "jump 4 always 0 0",
+                "bar",
+                "end",
+                "jump 0 always 0 0",
+            ]
+        );
+
+        assert_eq!(
+            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            select a {
+                foo;
+                break;
+                bar;
+            }
+            end;
+            break;
+            "#).unwrap())).compile().unwrap(),
+            [
+                "op add @counter @counter a",
+                "foo",
+                "jump 4 always 0 0",
+                "bar",
+                "end",
+                "jump 0 always 0 0",
+            ]
+        );
+
+        assert_eq!(
+            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            foo;
+            while a < b {
+                foo1;
+                while c < d {
+                    foo2;
+                    continue;
+                }
+                bar1;
+                continue;
+            }
+            bar;
+            continue;
+            "#).unwrap())).compile().unwrap(),
+            [
+                "foo",
+                "jump 10 greaterThanEq a b",
+                "foo1",
+                "jump 7 greaterThanEq c d",
+                "foo2",
+                "jump 6 always 0 0",
+                "jump 4 lessThan c d",
+                "bar1",
+                "jump 9 always 0 0",
+                "jump 2 lessThan a b",
+                "bar",
+                "jump 0 always 0 0",
+            ]
+        );
+
+        assert_eq!(
+            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            foo;
+            while a < b {
+                foo1;
+                while c < d {
+                    continue;
+                    foo2;
+                }
+                bar1;
+                continue;
+            }
+            bar;
+            continue;
+            "#).unwrap())).compile().unwrap(),
+            [
+                "foo",
+                "jump 10 greaterThanEq a b",
+                "foo1",
+                "jump 7 greaterThanEq c d",
+                "jump 6 always 0 0",
+                "foo2",
+                "jump 6 lessThan c d", // 4 -> 6
+                "bar1",
+                "jump 9 always 0 0",
+                "jump 2 lessThan a b",
+                "bar",
+                "jump 0 always 0 0",
+            ]
+        );
+
+        assert_eq!(
+            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            foo;
+            gwhile a < b {
+                foo1;
+                gwhile c < d {
+                    foo2;
+                    continue;
+                }
+                bar1;
+                continue;
+            }
+            bar;
+            continue;
+            "#).unwrap())).compile().unwrap(),
+            [
+                "foo",
+                "jump 9 always 0 0",
+                "foo1",
+                "jump 6 always 0 0",
+                "foo2",
+                "jump 6 always 0 0",
+                "jump 4 lessThan c d",
+                "bar1",
+                "jump 9 always 0 0",
+                "jump 2 lessThan a b",
+                "bar",
+                "jump 0 always 0 0",
+            ]
+        );
+
+        assert_eq!(
+            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            foo;
+            xxx;
+            do {
+                foo1;
+                xxx;
+                do {
+                    foo2;
+                    continue;
+                } while c < d;
+                bar1;
+                continue;
+            } while a < b;
+            bar;
+            continue;
+            "#).unwrap())).compile().unwrap(),
+            [
+                "foo",
+                "xxx",
+                "foo1",
+                "xxx",
+                "foo2",
+                "jump 6 always 0 0",
+                "jump 4 lessThan c d",
+                "bar1",
+                "jump 9 always 0 0",
+                "jump 2 lessThan a b",
+                "bar",
+                "jump 0 always 0 0",
+            ]
+        );
+
+        assert_eq!(
+            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            switch a {
+            case 0: foo;
+            case 1: continue;
+            case 2: bar;
+            }
+            end;
+            continue;
+            "#).unwrap())).compile().unwrap(),
+            [
+                "op add @counter @counter a",
+                "foo",
+                "jump 0 always 0 0",
+                "bar",
+                "end",
+                "jump 0 always 0 0",
+            ]
+        );
+
+        assert_eq!(
+            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            select a {
+                foo;
+                continue;
+                bar;
+            }
+            end;
+            continue;
+            "#).unwrap())).compile().unwrap(),
+            [
+                "op add @counter @counter a",
+                "foo",
+                "jump 0 always 0 0",
+                "bar",
+                "end",
+                "jump 0 always 0 0",
+            ]
+        );
+
+        assert_eq!(
+            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            end;
+            switch a {
+            case 0: foo;
+            case 1: continue;
+            case 2: bar;
+            }
+            end;
+            continue;
+            "#).unwrap())).compile().unwrap(),
+            [
+                "end",
+                "op add @counter @counter a",
+                "foo",
+                "jump 1 always 0 0",
+                "bar",
+                "end",
+                "jump 0 always 0 0",
+            ]
+        );
+
+        assert_eq!(
+            dbg!(CompileMeta::new().compile(parse!(parser, r#"
+            end;
+            select a {
+                foo;
+                continue;
+                bar;
+            }
+            end;
+            continue;
+            "#).unwrap())).compile().unwrap(),
+            [
+                "end",
+                "op add @counter @counter a",
+                "foo",
+                "jump 1 always 0 0",
+                "bar",
+                "end",
+                "jump 0 always 0 0",
+            ]
         );
 
     }

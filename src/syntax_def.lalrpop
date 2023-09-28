@@ -1,4 +1,5 @@
 // this is a lalrpop file
+
 #![allow(clippy::just_underscores_and_digits)]
 #![allow(clippy::needless_lifetimes)]
 #![allow(clippy::deprecated_cfg_attr)]
@@ -68,7 +69,15 @@ OOCArgs<T, S> = {
 }
 Span<T> = @L T @R;
 
-pub TopLevel: Expand = Expand;
+CtrlStart: () = () => meta.add_control_level(None, None);
+CtrlStop: (Option<Var>, Option<Var>) = () => meta.pop_control_level();
+
+pub TopLevel: Expand = CtrlStart <mut lines:Expand> <ctrl:CtrlStop> => {
+    let (break_lab, continue_lab) = ctrl;
+    meta.push_some_label_to(&mut lines, break_lab);
+    meta.push_some_label_to(&mut lines, continue_lab);
+    lines
+};
 
 pub String: Var = r#""[^"]*""# => <>.lines().collect::<Vec<_>>().join("\\n");
 pub Ident: Var = r"[_\p{XID_Start}]\p{XID_Continue}*" => <>.into();
@@ -515,6 +524,20 @@ SwitchCatchFlag: SwitchCatch = {
 pub Control: LogicLine = {
     "goto" <Label> <JumpCmp> LEnd => Goto(<>).into(),
 
+    "break" <JumpCmp?> LEnd => {
+        Goto(
+            meta.get_break().clone(),
+            <>.unwrap_or(JumpCmp::Always.into()),
+        ).into()
+    },
+
+    "continue" <JumpCmp?> LEnd => {
+        Goto(
+            meta.get_continue().clone(),
+            <>.unwrap_or(JumpCmp::Always.into()),
+        ).into()
+    },
+
     "skip" <cmp:JumpCmp> <body:LogicLine> => {
         let lab = meta.get_tag();
         Expand(vec![
@@ -524,39 +547,63 @@ pub Control: LogicLine = {
         ]).into()
     },
 
-    "while" <cmp:JumpCmp> <body:LogicLine> => {
+    "while" <cmp:JumpCmp> CtrlStart <body:LogicLine> <ctrl:CtrlStop> => {
+        let (break_lab, continue_lab) = ctrl;
         let [end, head] = [meta.get_tag(), meta.get_tag()];
         let rev_cmp = cmp.clone().reverse();
-        Expand(vec![
+        let mut res = Vec::with_capacity(7);
+
+        res.extend([
             Goto(end.clone(), rev_cmp).into(),
             LogicLine::new_label(head.clone(), meta),
             body,
+        ]);
+        meta.push_some_label_to(&mut res, continue_lab);
+        res.extend([
             Goto(head, cmp).into(),
             LogicLine::new_label(end, meta),
-        ]).into()
+        ]);
+        meta.push_some_label_to(&mut res, break_lab);
+
+        Expand(res).into()
     },
 
-    "do" <body:Block> "while" <cmp:JumpCmp> LEnd => {
+    "do" CtrlStart <body:Block> <ctrl:CtrlStop> "while" <cmp:JumpCmp> LEnd => {
+        let (break_lab, continue_lab) = ctrl;
         let head = meta.get_tag();
-        Expand(vec![
+        let mut res = Vec::with_capacity(5);
+
+        res.extend([
             LogicLine::new_label(head.clone(), meta),
             body,
-            Goto(head, cmp).into(),
-        ]).into()
+        ]);
+        meta.push_some_label_to(&mut res, continue_lab);
+        res.push(Goto(head, cmp).into());
+        meta.push_some_label_to(&mut res, break_lab);
+
+        Expand(res).into()
     },
 
-    "gwhile" <cmp:JumpCmp> <body:LogicLine> => {
+    "gwhile" <cmp:JumpCmp> CtrlStart <body:LogicLine> <ctrl:CtrlStop> => {
+        let (break_lab, continue_lab) = ctrl;
         let [to, head] = [meta.get_tag(), meta.get_tag()];
-        Expand(vec![
+        let mut res = Vec::with_capacity(7);
+
+        res.extend([
             Goto(to.clone(), JumpCmp::Always.into()).into(),
             LogicLine::new_label(head.clone(), meta),
             body,
             LogicLine::new_label(to, meta),
-            Goto(head, cmp).into(),
-        ]).into()
+        ]);
+        meta.push_some_label_to(&mut res, continue_lab);
+        res.push(Goto(head, cmp).into());
+        meta.push_some_label_to(&mut res, break_lab);
+
+        Expand(res).into()
     },
 
     "switch" <value:Value>
+    CtrlStart
     <cases:MBlock<(
         <LogicLine?> // append line
         <( // catch 拦截
@@ -575,6 +622,7 @@ pub Control: LogicLine = {
             <Expand>
         )+>
     )>>
+    <ctrl:CtrlStop>
     => {
         let (append, catchs, cases) = cases;
         let catchs_is_empty = catchs.is_empty();
@@ -658,25 +706,55 @@ pub Control: LogicLine = {
         }
         debug_assert_eq!(cases_res.len(), case_num_max + 1);
 
+        let (break_lab, continue_lab) = ctrl;
         if catchs_is_empty {
             // 没有捕获块
-            Select(value, Expand(cases_res)).into()
+            let mut res = Vec::with_capacity(3);
+
+            meta.push_some_label_to(&mut res, continue_lab);
+            res.push(Select(value, Expand(cases_res)).into());
+            meta.push_some_label_to(&mut res, break_lab);
+
+            if res.len() == 1 {
+                res.pop().unwrap()
+            } else {
+                Expand(res).into()
+            }
         } else {
+            // 有捕获块
             // 保证我们拿到了一个临时返回句柄, 而不是一个空值
             assert_ne!(&value_handle, "");
-            // 有捕获块
-            Expand(vec![
+            let mut res = Vec::with_capacity(5);
+
+            meta.push_some_label_to(&mut res, continue_lab);
+            res.extend([
                 // 求值
                 Take(value_handle.as_str().into(), value).into(),
                 // 捕获
                 Expand(catch_lines).into(),
                 // 主体
                 Select(value_handle.into(), Expand(cases_res)).into()
-            ]).into()
+            ]);
+            meta.push_some_label_to(&mut res, break_lab);
+
+            Expand(res).into()
         }
     },
 
-    "select" <value:Value> <lines:BlockExpand> => Select(value, lines).into(),
+    "select" <value:Value> CtrlStart <lines:BlockExpand> <ctrl:CtrlStop> => {
+        let (break_lab, continue_lab) = ctrl;
+        let mut res = Vec::with_capacity(3);
+
+        meta.push_some_label_to(&mut res, continue_lab);
+        res.push(Select(value, lines).into());
+        meta.push_some_label_to(&mut res, break_lab);
+
+        if res.len() == 1 {
+            res.pop().unwrap()
+        } else {
+            Expand(res).into()
+        }
+    },
 
     "if" <cmp:JumpCmp> <body:Block>
         <elifs:("elif" <JumpCmp> <Block>)*>

@@ -1,23 +1,23 @@
 snippet while "while" w
-while ${1:_} {
+while ${1} {
 	$0
 }
 endsnippet
 snippet gwhile "gwhile" w
-gwhile ${1:_} {
+gwhile ${1} {
 	$0
 }
 endsnippet
 snippet do_while "do_while" w
 do {
 	$0
-} while ${1:_};
+} while ${1};
 endsnippet
 snippet goto "goto" w
 goto :${1:tag} ${2:_};$0
 endsnippet
 snippet skip "skip" w
-skip ${1:_} {
+skip ${1} {
 	$0
 }
 endsnippet
@@ -91,6 +91,12 @@ draw ${1:clear} ${2:0} ${3:0} ${4:0} 0 0 0;$0
 endsnippet
 snippet setres "set DExp result handle" w
 setres ${1:RES};$0
+endsnippet
+snippet break "break top-level loop" w
+break$1;$0
+endsnippet
+snippet continue "continue top-level loop" w
+continue$1;$0
 endsnippet
 snippet tmpvar "use take define tmp var" w
 take ${1:var} = ();$0

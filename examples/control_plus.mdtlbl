@@ -1,0 +1,92 @@
+#**
+* 这是0.11.7加入的功能, 可以在跳出或继续当前循环语句时不必编写标签
+*
+* # 以下两种语法为
+* `"break" JumpCmp? LEnd`
+* `"continue" JumpCmp? LEnd`
+*
+* # 示例
+* `break;`
+* `break _;`
+* `break a < b;`
+* `continue a < b;`
+*
+* 目前被囊括到的语句有
+* - `while`
+* - `gwhile`
+* - `do_while`
+* - `switch`
+* - `select`
+*
+* 如果是在最顶层, 那么`break`与`continue`都指向末尾
+*
+* `switch` & `select`的`continue`和`break`分别指向起始及末尾处
+* `while` & `gwhile` & `do_while`的`continue`和`break`指向末尾条件前后
+*
+*
+* 需要注意的是
+* `while` & `gwhile` & `do_while` 的条件部分,
+* `switch` & `select` 的值部分
+* 都不在一个新的控制域中,
+* 也就是说不能例如`while`的条件跑了一半便直接中断或重新计算此循环.
+* 如果有此方面需要, 请用回`goto`
+*#
+
+
+i = 0;
+while i < 64 {
+    read num cell1 i;
+    op i i + 1;
+    continue num == 0;
+    break num > 0xFF;
+    print i ": " num "\n";
+}
+printflush message1;
+#* >>>
+set i 0
+jump 11 greaterThanEq i 64
+read num cell1 i
+op add i i 1
+jump 10 equal num 0
+jump 11 greaterThan num 0xFF
+print i
+print ": "
+print num
+print "\n"
+jump 2 lessThan i 64
+printflush message1
+*#
+# 示例1
+
+
+i = 0;
+while i < 64 {
+    read num cell1 i;
+    op i i + 1;
+    skip num == 0 {
+        goto :bk1 num > 0xFF;
+        print i ": " num "\n";
+    }
+} :bk1
+printflush message1;
+#* >>>
+set i 0
+jump 11 greaterThanEq i 64
+read num cell1 i
+op add i i 1
+jump 10 equal num 0
+jump 11 greaterThan num 0xFF
+print i
+print ": "
+print num
+print "\n"
+jump 2 lessThan i 64
+printflush message1
+*#
+# 示例2
+
+
+# 从以上两个示例中可以看出
+# 有了break和continue的示例1相比示例2有效减少了代码嵌套与控制结构中的命名标记
+# 虽然如果乱用的话会丢失明确嵌套流控制结构使控制流混乱
+# 不过至少相较于直接编写goto, 它不用去命名标记且语义更清晰
