@@ -68,6 +68,8 @@ OOCArgs<T, S> = {
 }
 Span<T> = @L T @R;
 
+pub TopLevel: Expand = Expand;
+
 pub String: Var = r#""[^"]*""# => <>.lines().collect::<Vec<_>>().join("\\n");
 pub Ident: Var = r"[_\p{XID_Start}]\p{XID_Continue}*" => <>.into();
 pub OIdent: Var = r"@[_\p{XID_Start}][\p{XID_Continue}\-]*" => <>.into(); // `@abc-def`这种

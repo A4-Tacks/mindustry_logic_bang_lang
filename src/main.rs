@@ -23,7 +23,7 @@ use mindustry_logic_bang_lang::{
         Expand,
         Meta
     },
-    syntax_def::ExpandParser,
+    syntax_def::TopLevelParser,
     tag_code::TagCodes,
 };
 
@@ -216,7 +216,7 @@ fn from_stdin_build_ast() -> Expand {
 }
 
 fn build_ast(src: &str) -> Expand {
-    let parser = ExpandParser::new();
+    let parser = TopLevelParser::new();
     let mut meta = Meta::new();
     unwrap_parse_err(parser.parse(&mut meta, src), src)
 }

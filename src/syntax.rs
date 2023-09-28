@@ -453,6 +453,8 @@ impl Default for Meta {
 }
 impl Meta {
     /// use [`Self::default()`]
+    ///
+    /// [`Self::default()`]: Self::default
     pub fn new() -> Self {
         Self::default()
     }
@@ -2426,6 +2428,7 @@ mod tests {
     #[test]
     fn var_test() {
         let parser = VarParser::new();
+
         assert_eq!(parse!(parser, "_abc").unwrap(), "_abc");
         assert_eq!(parse!(parser, "'ab-cd'").unwrap(), "ab-cd");
         assert_eq!(parse!(parser, "'ab.cd'").unwrap(), "ab.cd");
@@ -2448,7 +2451,7 @@ mod tests {
 
     #[test]
     fn expand_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
         let lines = parse!(parser, r#"
         op + a a 1;
         op - a a 1;
@@ -2520,7 +2523,7 @@ mod tests {
 
     #[test]
     fn goto_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
         assert_eq!(parse!(parser, "goto :a 1 <= 2; :a").unwrap(), vec![
             Goto("a".into(), JumpCmp::LessThanEq("1".into(), "2".into()).into()).into(),
             LogicLine::Label("a".into()),
@@ -2689,7 +2692,7 @@ mod tests {
 
     #[test]
     fn goto_compile_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
         goto :x _;
@@ -2936,7 +2939,7 @@ mod tests {
 
     #[test]
     fn compile_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
         let src = r#"
         op x 1 + 2;
         op y (op $ x + 3;) * (op $ x * 2;);
@@ -2986,7 +2989,7 @@ mod tests {
 
     #[test]
     fn const_value_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         let src = r#"
         x = C;
@@ -3064,7 +3067,7 @@ mod tests {
 
     #[test]
     fn const_value_block_range_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         let src = r#"
         {
@@ -3099,7 +3102,7 @@ mod tests {
 
     #[test]
     fn take_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         let src = r#"
         print start;
@@ -3142,7 +3145,7 @@ mod tests {
 
     #[test]
     fn print_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         let src = r#"
         print "abc" "def" "ghi" j 123 @counter;
@@ -3164,7 +3167,7 @@ mod tests {
 
     #[test]
     fn in_const_label_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
         let mut meta = Meta::new();
         let ast = parser.parse(&mut meta, r#"
         :start
@@ -3193,7 +3196,7 @@ mod tests {
 
     #[test]
     fn const_expand_label_rename_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         let mut meta = Meta::new();
         let ast = parser.parse(&mut meta, r#"
@@ -3265,7 +3268,7 @@ mod tests {
 
     #[test]
     fn dexp_result_handle_use_const_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         let ast = parse!(parser, r#"
         {
@@ -3290,7 +3293,7 @@ mod tests {
 
     #[test]
     fn in_const_const_label_rename_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         let ast = parse!(parser, r#"
         const X = (
@@ -3391,7 +3394,7 @@ mod tests {
 
     #[test]
     fn take_args_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         let ast = parse!(parser, r#"
         const M = (
@@ -3460,7 +3463,7 @@ mod tests {
 
     #[test]
     fn sets_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         let ast = parse!(parser, r#"
         a b c = 1 2 (op $ 2 + 1;);
@@ -3490,7 +3493,7 @@ mod tests {
 
     #[test]
     fn const_value_clone_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
         const A = 1;
@@ -3597,7 +3600,7 @@ mod tests {
 
     #[test]
     fn cmptree_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         let ast = parse!(parser, r#"
         goto :end a && b && c;
@@ -3920,7 +3923,7 @@ mod tests {
 
     #[test]
     fn set_res_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
         print (setres (x: op $ 1 + 2;););
@@ -3940,7 +3943,7 @@ mod tests {
 
     #[test]
     fn repr_var_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
         print a;
@@ -3959,7 +3962,7 @@ mod tests {
 
     #[test]
     fn select_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
         select 1 {
@@ -4009,7 +4012,7 @@ mod tests {
 
     #[test]
     fn switch_catch_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
         switch (op $ x + 2;) {
@@ -4400,7 +4403,7 @@ mod tests {
 
     #[test]
     fn quick_dexp_take_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         assert_eq!(
             parse!(parser, r#"
@@ -4452,7 +4455,7 @@ mod tests {
 
     #[test]
     fn value_bind_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
         const Jack = jack;
@@ -4546,7 +4549,7 @@ mod tests {
 
     #[test]
     fn op_expr_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         assert_eq!(
             parse!(parser, r#"
@@ -4615,7 +4618,7 @@ mod tests {
 
     #[test]
     fn op_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         assert_eq!(
             parse!(parser, r#"
@@ -4630,7 +4633,7 @@ mod tests {
 
     #[test]
     fn inline_block_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         assert_eq!(
             parse!(parser, r#"
@@ -4662,7 +4665,7 @@ mod tests {
 
     #[test]
     fn consted_dexp() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         assert_eq!(
             parse!(parser, r#"
@@ -4768,7 +4771,7 @@ mod tests {
 
     #[test]
     fn inline_cmp_op_test() {
-        let parser = ExpandParser::new();
+        let parser = TopLevelParser::new();
 
         assert_eq!(
             CompileMeta::new().compile(parse!(parser, r#"
