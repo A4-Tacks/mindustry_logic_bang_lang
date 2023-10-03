@@ -166,6 +166,9 @@ JumpCmpBody: JumpCmp = {
 
 pub JumpCmp: CmpTree = CmpTree1;
 
+// 可空的, 空时为总是的条件
+AlwaysJumpCmp: CmpTree = JumpCmp? => <>.unwrap_or(JumpCmp::Always.into());
+
 pub CmpTree1: CmpTree = {
     <a:CmpTree1> "||" <b:CmpTree2> => CmpTree::Or(Box::new(a.into()), b.into()),
     CmpTree2,
@@ -586,20 +589,16 @@ SwitchCatchFlag: SwitchCatch = {
 }
 
 pub Control: LogicLine = {
-    "goto" <Label> <JumpCmp> LEnd => Goto(<>).into(),
-
-    "break" <JumpCmp?> LEnd => {
-        Goto(
-            meta.get_break().clone(),
-            <>.unwrap_or(JumpCmp::Always.into()),
-        ).into()
+    "goto" <Label> <AlwaysJumpCmp> LEnd => {
+        Goto(<>).into()
     },
 
-    "continue" <JumpCmp?> LEnd => {
-        Goto(
-            meta.get_continue().clone(),
-            <>.unwrap_or(JumpCmp::Always.into()),
-        ).into()
+    "break" <AlwaysJumpCmp> LEnd => {
+        Goto(meta.get_break().clone(), <>).into()
+    },
+
+    "continue" <AlwaysJumpCmp> LEnd => {
+        Goto(meta.get_continue().clone(), <>).into()
     },
 
     "skip" <cmp:JumpCmp> <body:LogicLine> => {
@@ -632,7 +631,7 @@ pub Control: LogicLine = {
         Expand(res).into()
     },
 
-    "do" CtrlStart <body:Block> <ctrl:CtrlStop> "while" <cmp:JumpCmp> LEnd => {
+    "do" CtrlStart <body:Block> <ctrl:CtrlStop> "while" <cmp:AlwaysJumpCmp> LEnd => {
         let (break_lab, continue_lab) = ctrl;
         let head = meta.get_tag();
         let mut res = Vec::with_capacity(5);

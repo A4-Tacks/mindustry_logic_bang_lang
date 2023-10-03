@@ -5484,7 +5484,7 @@ mod tests {
     }
 
     #[test]
-    fn test_op_expr_if_else() {
+    fn op_expr_if_else_test() {
         let parser = TopLevelParser::new();
 
         assert_eq!(
@@ -5560,6 +5560,36 @@ mod tests {
                 set ___0 c;
                 :___1
             );
+            "#).unwrap()
+        );
+
+    }
+
+    #[test]
+    fn optional_jumpcmp_test() {
+        let parser = TopLevelParser::new();
+
+        assert_eq!(
+            parse!(parser, r#"
+            :x
+            goto :x;
+            "#).unwrap(),
+            parse!(parser, r#"
+            :x
+            goto :x _;
+            "#).unwrap()
+        );
+
+        assert_eq!(
+            parse!(parser, r#"
+            do {
+                foo;
+            } while;
+            "#).unwrap(),
+            parse!(parser, r#"
+            do {
+                foo;
+            } while _;
             "#).unwrap()
         );
 
