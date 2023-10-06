@@ -3,7 +3,7 @@ pub mod def;
 use std::{
     ops::Deref,
     num::ParseIntError,
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     iter::{
         zip,
         repeat_with,
@@ -123,17 +123,6 @@ pub const COUNTER: &str = "@counter";
 pub const FALSE_VAR: &str = "false";
 pub const ZERO_VAR: &str = "0";
 pub const UNUSED_VAR: &str = "0";
-pub const VAR_KEYWORDS: &[&str] = {&[
-    "_", "abs", "acos", "add", "always", "and", "angle",
-    "asin", "atan", "break", "case", "ceil", "const", "continue",
-    "cos", "div", "do", "elif", "else", "equal", "floor",
-    "goto", "greaterThan", "greaterThanEq", "gwhile", "idiv", "if", "inline",
-    "land", "len", "lessThan", "lessThanEq", "lnot", "log", "max",
-    "min", "mod", "mul", "noise", "noop", "not", "notEqual",
-    "op", "or", "pow", "print", "rand", "select", "set",
-    "setres", "shl", "shr", "sin", "skip", "sqrt", "strictEqual",
-    "strictNotEqual", "sub", "switch", "take", "tan", "while", "xor",
-]};
 
 pub trait TakeHandle {
     /// 编译依赖并返回句柄
@@ -262,13 +251,7 @@ impl Value {
 
     /// 判断是否是一个标识符(包括数字)关键字
     pub fn is_ident_keyword(s: &str) -> bool {
-        use std::sync::OnceLock;
-        static VAR_KEYWORDS_SET: OnceLock<HashSet<&'static str>>
-            = OnceLock::new();
-        let var_keywords = VAR_KEYWORDS_SET.get_or_init(|| {
-            HashSet::from_iter(VAR_KEYWORDS.into_iter().copied())
-        });
-        var_keywords.get(s).is_some()
+        var_utils::is_ident_keyword(s)
     }
 
     /// 判断是否不应该由原始标识符包裹

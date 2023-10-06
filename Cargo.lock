@@ -288,7 +288,7 @@ checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
 
 [[package]]
 name = "mindustry_logic_bang_lang"
-version = "0.12.2"
+version = "0.12.3"
 dependencies = [
  "display_source",
  "lalrpop",
@@ -558,7 +558,7 @@ checksum = "f962df74c8c05a667b5ee8bcf162993134c104e96440b663c8daa176dc772d8c"
 
 [[package]]
 name = "var_utils"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "lazy-regex",
 ]
