@@ -23,7 +23,7 @@ use mindustry_logic_bang_lang::{
         Expand,
         Meta
     },
-    syntax_def::TopLevelParser,
+    syntax::def::TopLevelParser,
     tag_code::TagCodes,
 };
 

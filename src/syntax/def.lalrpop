@@ -86,7 +86,7 @@ pub Number: Var = r"(?:0(?:x-?[\da-fA-F][_\da-fA-F]*|b-?[01][_01]*)|-?\d[_\d]*(?
     => <>.chars().filter(|&c| c != '_').collect();
 // 原始字面量, 如`'@abc-def'`, 其中双引号会被替换为单引号.
 // 在一对单引号内可以写任意非空字符, 可避开关键字等
-pub OtherValue: Var = r"'[^'\s]+'" => {
+pub OtherVar: Var = r"'[^'\s]+'" => {
     <>[1..<>.len()-1].replace('"', "\'")
 };
 
@@ -96,7 +96,7 @@ pub NoStringVar: Var = {
     Ident,
     OIdent,
     Number,
-    OtherValue,
+    OtherVar,
 }
 // 逻辑里面一个单元
 // 例如`0x50` `'@alpha'` `add` `'a-b-c'`

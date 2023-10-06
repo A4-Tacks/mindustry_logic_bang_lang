@@ -1,6 +1,6 @@
 [package]
 name = "mindustry_logic_bang_lang"
-version = "0.12.1"
+version = "0.12.2"
 edition = "2021"
 
 authors = ["A4-Tacks <wdsjxhno1001@163.com>"]
@@ -17,6 +17,7 @@ lalrpop = "0.20.0"
 [dependencies]
 tag_code = { path = "./tools/tag_code", version = "*" }
 display_source = { path = "./tools/display_source", version = "*" }
+var_utils = { path = "./tools/var_utils", version = "*"}
 
 [dependencies.lalrpop-util]
 version = "0.20.0"

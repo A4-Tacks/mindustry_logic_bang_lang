@@ -1,3 +1,3 @@
 pub mod syntax;
-pub mod syntax_def;
+pub use syntax::def;
 pub use tag_code;
