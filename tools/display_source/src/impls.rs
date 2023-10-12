@@ -294,6 +294,12 @@ impl DisplaySource for LogicLine {
                 meta.push("}");
             },
             Self::Ignore => meta.push("{} # ignore line"),
+            Self::SetArgs(args) => {
+                meta.push(&format!(
+                    "# set args ... (len: {})",
+                    args.len(),
+                ))
+            },
             Self::NoOp => meta.push("noop;"),
             Self::Label(lab) => {
                 meta.push(":");

@@ -1978,6 +1978,15 @@ impl Compile for Take {
     }
 }
 
+/// 可能含有一个展开的Args
+#[derive(Debug, PartialEq, Clone)]
+pub enum Args {
+    /// 正常的参数
+    Normal(Vec<Value>),
+    /// 夹杂一个展开的参数
+    Expanded(Vec<Value>, Vec<Value>),
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum LogicLine {
     Op(Op),
@@ -1985,7 +1994,7 @@ pub enum LogicLine {
     /// 否则无法将它注册到可能的`const`
     Label(Var),
     Goto(Goto),
-    Other(Vec<Value>),
+    Other(Args),
     Expand(Expand),
     InlineBlock(InlineBlock),
     Select(Select),
@@ -1998,6 +2007,7 @@ pub enum LogicLine {
     ConstLeak(Var),
     /// 将返回句柄设置为一个指定值
     SetResultHandle(Value),
+    SetArgs(Args),
 }
 impl Compile for LogicLine {
     fn compile(self, meta: &mut CompileMeta) {
@@ -2019,6 +2029,9 @@ impl Compile for LogicLine {
             Self::SetResultHandle(value) => {
                 let new_dexp_handle = value.take_handle(meta);
                 meta.set_dexp_handle((new_dexp_handle, false));
+            },
+            Self::SetArgs(args) => {
+                meta.set_expand_args(args);
             },
             Self::Select(select) => select.compile(meta),
             Self::Expand(expand) => expand.compile(meta),
@@ -2238,10 +2251,15 @@ impl ConstData {
 pub struct ExpandEnv {
     leak_vars: Vec<Var>,
     consts: HashMap<Var, ConstData>,
+    expand_args: Option<Vec<Value>>,
 }
 impl ExpandEnv {
     pub fn new(leak_vars: Vec<Var>, consts: HashMap<Var, ConstData>) -> Self {
-        Self { leak_vars, consts }
+        Self {
+            leak_vars,
+            consts,
+            ..Default::default()
+        }
     }
 
     pub fn leak_vars(&self) -> &[String] {
@@ -2258,6 +2276,18 @@ impl ExpandEnv {
 
     pub fn leak_vars_mut(&mut self) -> &mut Vec<Var> {
         &mut self.leak_vars
+    }
+
+    pub fn expand_args(&self) -> Option<&Vec<Value>> {
+        self.expand_args.as_ref()
+    }
+
+    pub fn expand_args_mut(&mut self) -> &mut Option<Vec<Value>> {
+        &mut self.expand_args
+    }
+
+    pub fn set_expand_args(&mut self, expand_args: Option<Vec<Value>>) {
+        self.expand_args = expand_args;
     }
 }
 
@@ -2422,6 +2452,7 @@ impl CompileMeta {
             let ExpandEnv {
                 leak_vars: leaks,
                 consts: mut res,
+                ..
             } = this.expand_env.pop().unwrap();
 
             // do leak
@@ -2638,6 +2669,23 @@ impl CompileMeta {
 
     pub fn const_var_namespace(&self) -> &[ExpandEnv] {
         self.expand_env.as_ref()
+    }
+
+    /// 获取最内层args, 如果不存在则返回空切片
+    pub fn get_expand_args(&self) -> &[Value] {
+        static EMPTY: &[Value] = &[];
+        self.expand_env.iter()
+            .filter_map(|env| env.expand_args())
+            .map(Vec::as_slice)
+            .next_back()
+            .unwrap_or(EMPTY)
+    }
+
+    /// 设置最内层args, 返回旧值
+    pub fn set_expand_args(&mut self, expand_args: Vec<Value>) -> Option<Vec<Value>> {
+        let args = self.expand_env.last_mut().unwrap()
+            .expand_args_mut();
+        replace(args, expand_args.into())
     }
 }
 
