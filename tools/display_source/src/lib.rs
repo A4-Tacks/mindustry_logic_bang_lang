@@ -140,16 +140,43 @@ impl DisplaySourceMeta {
     pub fn space_str(&self) -> &str {
         self.space_str.as_ref()
     }
+
+    /// 从可迭代对象中生成, 并且在每两次生成之间调用分割函数
+    pub fn display_source_iter_by_splitter<'a, T: DisplaySource + 'a>(
+        &mut self,
+        mut split: impl FnMut(&mut Self),
+        iter: impl IntoIterator<Item = &'a T>
+    ) {
+        let mut iter = iter.into_iter();
+        if let Some(s) = iter.next() {
+            s.display_source(self)
+        }
+        iter.for_each(|s| {
+            split(self);
+            s.display_source(self)
+        })
+    }
 }
 
 pub trait DisplaySource {
     fn display_source(&self, meta: &mut DisplaySourceMeta);
+
     /// 构建元数据的同时返回已构建的引用
     /// 注意, 返回的是这次构建的, 不包括在此之前构建的
     fn display_source_and_get<'a>(&self, meta: &'a mut DisplaySourceMeta) -> &'a str {
         let start = meta.buffer().len();
         self.display_source(meta);
         &meta.buffer()[start..]
+    }
+}
+impl<T> DisplaySource for &'_ T
+where T: DisplaySource
+{
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        T::display_source(self, meta)
+    }
+    fn display_source_and_get<'a>(&self, meta: &'a mut DisplaySourceMeta) -> &'a str {
+        T::display_source_and_get(&self, meta)
     }
 }
 

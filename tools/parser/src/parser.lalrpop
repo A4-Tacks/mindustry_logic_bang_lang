@@ -29,6 +29,11 @@ use ::syntax::{
     Const,
     Take,
     LogicLine,
+    Args,
+    ArgsRepeat,
+    Match,
+    MatchPat,
+    MatchPatAtom,
     Meta,
     ZERO_VAR,
     FALSE_VAR,
@@ -117,13 +122,12 @@ pub Value: Value = {
     DExp => <>.into(),
     "`" <Var> "`" => ReprVar(<>), // 原始值
     "$" => ResultHandle,
-    <name:Var> <args:MList<Args0>> => {
+    <name:Var> <args:MList<Args?>> => {
         // QuickDExpTake
-        let len = args.len() + 1;
-        let mut expand = Vec::with_capacity(len);
-        Take::build_arg_consts_to_expand(args, &mut expand);
-        expand.push(LogicLine::SetResultHandle(name.into()));
-        DExp::new("__".into(), expand.into()).into()
+        DExp::new("__".into(), vec![
+            LogicLine::SetArgs(args.unwrap_or_default()),
+            LogicLine::SetResultHandle(name.into()),
+        ].into()).into()
     },
     <value:Value> "." <attr:NoStringVar> => ValueBind(value.into(), attr).into(),
     // consted-dexp
@@ -280,31 +284,102 @@ pub LogicLine: LogicLine = {
         =>? Meta::build_sets([l, r], vars, values).map_err(|e| e.into()),
     OpExpr,
     Print,
-    <args:Args1> LEnd => {
-        LogicLine::Other(args)
-    },
+    //ArgsRepeatBlock => <>.into(),
+    <Args> LEnd => LogicLine::Other(<>),
+    "inline" <ArgsRepeatBlock> => <>.into(),
+    Match => <>.into(),
 }
 
-Print: LogicLine = "print" <Args0> LEnd => {
-        if <>.is_empty() {
-            // 无参数, 啥也不做
-            return LogicLine::Ignore
-        }
-        if <>.len() == 1 {
+Match: Match = "match" <args:Args?> <cases:MBlock<(
+    <MatchPat*> <("@" <MatchPat*>)?> <MBlock<LogicLine*>>
+)*>> => {
+    Match::new(args.unwrap_or_default(), cases.into_iter()
+        .map(|(prep, sufp, body)| {
+            (if let Some(sufp) = sufp {
+                MatchPat::Expanded(prep, sufp)
+            } else {
+                MatchPat::Normal(prep)
+            }, body.into())
+        })
+        .collect()
+    )
+};
+
+MatchPat: MatchPatAtom = {
+    MList<Args1> => MatchPatAtom::new_unnamed(<>),
+    Var => MatchPatAtom::new(<>, vec![]),
+    <name:Var> ":" <pat:MList<Args1>> => MatchPatAtom::new(name, pat),
+}
+
+Args: Args = {
+    <prefix:Args0> "@" <suffix:Args0> => {
+        Args::Expanded(prefix, suffix)
+    },
+    <args:Args1> => {
+        args.into()
+    },
+}
+ArgsRepeatBlock: ArgsRepeat
+= <l:@L><chunk:LiteralUInt?><r:@R> "@" <block:MBlock<LogicLine*>> =>? {
+    if chunk == Some(0) {
+        return Err(Error::from((l, Errors::ArgsRepeatChunkByZero, r)).into())
+    }
+    Ok(ArgsRepeat::new(chunk.unwrap_or(1), block.into()))
+};
+
+Print: LogicLine = "print" <Args?> LEnd => {
+    let Some(args) = <> else {
+        // 无参数, 啥也不做
+        return LogicLine::Ignore
+    };
+    fn one(arg: Value) -> LogicLine {
+        LogicLine::Other(vec![
+            ReprVar("print".into()),
+            arg,
+        ].into())
+    }
+    match args {
+        Args::Normal(mut args) if args.len() == 1 => {
             // 单个参数, 老式处理
-            return LogicLine::Other(vec![
-                ReprVar("print".into()),
-                <>.into_iter().next().unwrap()
-            ])
-        }
-        Expand(
-            <>.into_iter()
-                .map(|arg| LogicLine::Other(vec![
+            return one(args.pop().unwrap())
+        },
+        Args::Normal(args) => {
+            Expand(
+                args.into_iter()
+                    .map(|arg| one(arg))
+                    .collect()
+            ).into()
+        },
+        Args::Expanded(p, s) if p.len() == 0 && s.len() == 0 => {
+            ArgsRepeat::new(1, vec![
+                LogicLine::Other(Args::Expanded(
+                    vec![ReprVar("print".into())],
+                    vec![],
+                )),
+            ].into()).into()
+        },
+        Args::Expanded(prefix, suffix) => {
+            let len = prefix.len() + 1 + suffix.len();
+            let mut res = Vec::with_capacity(len);
+
+            for arg in prefix {
+                res.push(one(arg))
+            }
+
+            res.push(ArgsRepeat::new(1, vec![
+                LogicLine::Other(Args::Expanded(vec![
                     ReprVar("print".into()),
-                    arg
-                ]))
-                .collect()
-        ).into()
+                ], vec![]))
+            ].into()).into());
+
+            for arg in suffix {
+                res.push(one(arg))
+            }
+
+            assert_eq!(res.len(), len);
+            InlineBlock(res).into()
+        },
+    }
 };
 
 // 0..
@@ -595,11 +670,11 @@ pub BuiltinCommand: LogicLine = {
     // 如果后方是一个Var则直接将常量映射到后方的值
     // 如果后方是一个DExp则将其计算然后将常量映射到计算出的句柄
     // 此处默认句柄使用Value
-    "take" <args:MList<Args0>?> <var:(<Var> "=")?> <value:Value> LEnd => {
+    "take" <args:MList<Args?>?> <var:(<Var> "=")?> <value:Value> LEnd => {
         let do_leak_res = var.is_some();
 
         Take::new(
-            args.unwrap_or_default(),
+            args.flatten().unwrap_or_default(),
             var.unwrap_or_else(|| String::from("__")),
             do_leak_res,
             value

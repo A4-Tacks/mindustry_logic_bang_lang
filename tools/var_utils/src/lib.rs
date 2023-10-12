@@ -18,7 +18,7 @@ pub const VAR_KEYWORDS: &[&str] = {&[
     "asin", "atan", "break", "case", "ceil", "const", "continue",
     "cos", "div", "do", "elif", "else", "equal", "floor",
     "goto", "greaterThan", "greaterThanEq", "gwhile", "idiv", "if", "inline",
-    "land", "len", "lessThan", "lessThanEq", "lnot", "log", "max",
+    "land", "len", "lessThan", "lessThanEq", "lnot", "log", "match", "max",
     "min", "mod", "mul", "noise", "noop", "not", "notEqual",
     "op", "or", "pow", "print", "rand", "select", "set",
     "setres", "shl", "shr", "sin", "skip", "sqrt", "strictEqual",

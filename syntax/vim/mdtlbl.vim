@@ -26,7 +26,7 @@ syn case match
 " 一些关键字 {{{1
 syn keyword mdtlblKeyword
             \ while gwhile do skip goto if elif else switch case break continue
-            \ const take setres select
+            \ const take setres select match
             \ inline
             \ op set noop print
 
@@ -39,6 +39,7 @@ syn keyword mdtlblOpFunKeyword
             \ asin acos atan lnot
 
 syn match mdtlblCmpTreeOper /&&\|||\|!/
+syn match mdtlblArgsExpand /@/
 
 " 注释 {{{1
 syn region mdtlblComment start=/#[^*]\=/ end=/$/ oneline
@@ -141,4 +142,5 @@ hi def link mdtlblDefineResultHandle Identifier
 hi def link mdtlblIdentLabel Label
 hi def link mdtlblArgsBracket Macro
 hi def link mdtlblQuickDExpTakeIdent Macro
+hi def link mdtlblArgsExpand Structure
 " }}}1

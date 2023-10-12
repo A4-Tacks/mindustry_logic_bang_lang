@@ -122,7 +122,7 @@ fn control_test() {
         parse!(parser, r#"skip 1 < 2 print "hello";"#).unwrap(),
         Expand(vec![
             Goto("___0".into(), JumpCmp::LessThan("1".into(), "2".into()).into()).into(),
-            LogicLine::Other(vec![Value::ReprVar("print".into()), r#""hello""#.into()]),
+            LogicLine::Other(vec![Value::ReprVar("print".into()), r#""hello""#.into()].into()),
             LogicLine::Label("___0".into()),
         ]).into()
     );
@@ -402,20 +402,20 @@ fn switch_test() {
             "2".into(),
             Expand(vec![
                 LogicLine::Ignore,
-                Expand(vec![LogicLine::Other(vec![Value::ReprVar("print".into()), "1".into()])]).into(),
+                Expand(vec![LogicLine::Other(vec![Value::ReprVar("print".into()), "1".into()].into())]).into(),
                 Expand(vec![
-                    LogicLine::Other(vec![Value::ReprVar("print".into()), "2".into()]),
-                    LogicLine::Other(vec![Value::ReprVar("print".into()), "4".into()]),
+                    LogicLine::Other(vec![Value::ReprVar("print".into()), "2".into()].into()),
+                    LogicLine::Other(vec![Value::ReprVar("print".into()), "4".into()].into()),
                 ]).into(),
                 LogicLine::Ignore,
                 Expand(vec![
-                    LogicLine::Other(vec![Value::ReprVar("print".into()), "2".into()]),
-                    LogicLine::Other(vec![Value::ReprVar("print".into()), "4".into()]),
+                    LogicLine::Other(vec![Value::ReprVar("print".into()), "2".into()].into()),
+                    LogicLine::Other(vec![Value::ReprVar("print".into()), "4".into()].into()),
                 ]).into(),
                 Expand(vec![
                     LogicLine::Label("a".into()),
                     LogicLine::Label("b".into()),
-                    LogicLine::Other(vec![Value::ReprVar("print".into()), "5".into()]),
+                    LogicLine::Other(vec![Value::ReprVar("print".into()), "5".into()].into()),
                 ]).into(),
             ])
         ).into()
@@ -455,12 +455,12 @@ fn switch_test() {
             "1".into(),
             Expand(vec![
                 Expand(vec![
-                        LogicLine::Other(vec![Value::ReprVar("print".into()), "0".into()]),
-                        LogicLine::Other(vec![Value::ReprVar("print".into()), "end".into()]),
+                        LogicLine::Other(vec![Value::ReprVar("print".into()), "0".into()].into()),
+                        LogicLine::Other(vec![Value::ReprVar("print".into()), "end".into()].into()),
                 ]).into(),
                 Expand(vec![
-                        LogicLine::Other(vec![Value::ReprVar("print".into()), "1".into()]),
-                        LogicLine::Other(vec![Value::ReprVar("print".into()), "end".into()]),
+                        LogicLine::Other(vec![Value::ReprVar("print".into()), "1".into()].into()),
+                        LogicLine::Other(vec![Value::ReprVar("print".into()), "end".into()].into()),
                 ]).into(),
             ])
         ).into()
@@ -479,11 +479,11 @@ fn switch_test() {
             "1".into(),
             Expand(vec![
                 Expand(vec![
-                        LogicLine::Other(vec![Value::ReprVar("print".into()), "end".into()]),
+                        LogicLine::Other(vec![Value::ReprVar("print".into()), "end".into()].into()),
                 ]).into(),
                 Expand(vec![
-                        LogicLine::Other(vec![Value::ReprVar("print".into()), "1".into()]),
-                        LogicLine::Other(vec![Value::ReprVar("print".into()), "end".into()]),
+                        LogicLine::Other(vec![Value::ReprVar("print".into()), "1".into()].into()),
+                        LogicLine::Other(vec![Value::ReprVar("print".into()), "end".into()].into()),
                 ]).into(),
             ])
         ).into()
@@ -501,10 +501,10 @@ fn switch_test() {
             "1".into(),
             Expand(vec![
                 Expand(vec![
-                        LogicLine::Other(vec![Value::ReprVar("print".into()), "0".into()]),
+                        LogicLine::Other(vec![Value::ReprVar("print".into()), "0".into()].into()),
                         Expand(vec![
-                            LogicLine::Other(vec![Value::ReprVar("print".into()), "end".into()]),
-                            LogicLine::Other(vec![Value::ReprVar("print".into()), "end1".into()]),
+                            LogicLine::Other(vec![Value::ReprVar("print".into()), "end".into()].into()),
+                            LogicLine::Other(vec![Value::ReprVar("print".into()), "end1".into()].into()),
                         ]).into(),
                 ]).into(),
             ])
@@ -793,7 +793,7 @@ fn in_const_label_test() {
             DExp::new_nores(
                 vec![
                     LogicLine::Label("in_const".into()),
-                    LogicLine::Other(vec![Value::ReprVar("print".into()), "\"hi\"".into()])
+                    LogicLine::Other(vec![Value::ReprVar("print".into()), "\"hi\"".into()].into())
                 ].into()
             ).into(),
             vec!["in_const".into()]
@@ -934,11 +934,11 @@ fn take_default_result_test() {
 fn const_value_leak_test() {
     let ast: Expand = vec![
         Expand(vec![
-            LogicLine::Other(vec!["print".into(), "N".into()]),
+            LogicLine::Other(vec!["print".into(), "N".into()].into()),
             Const("N".into(), "2".into(), Vec::new()).into(),
-            LogicLine::Other(vec!["print".into(), "N".into()]),
+            LogicLine::Other(vec!["print".into(), "N".into()].into()),
         ]).into(),
-        LogicLine::Other(vec!["print".into(), "N".into()]),
+        LogicLine::Other(vec!["print".into(), "N".into()].into()),
     ].into();
     let meta = CompileMeta::new();
     let mut tag_codes = meta.compile(ast);
@@ -951,12 +951,12 @@ fn const_value_leak_test() {
 
     let ast: Expand = vec![
         Expand(vec![
-            LogicLine::Other(vec!["print".into(), "N".into()]),
+            LogicLine::Other(vec!["print".into(), "N".into()].into()),
             Const("N".into(), "2".into(), Vec::new()).into(),
-            LogicLine::Other(vec!["print".into(), "N".into()]),
+            LogicLine::Other(vec!["print".into(), "N".into()].into()),
             LogicLine::ConstLeak("N".into()),
         ]).into(),
-        LogicLine::Other(vec!["print".into(), "N".into()]),
+        LogicLine::Other(vec!["print".into(), "N".into()].into()),
     ].into();
     let meta = CompileMeta::new();
     let mut tag_codes = meta.compile(ast);
@@ -986,16 +986,14 @@ fn take_test2() {
 
     let ast = parse!(parser, "take[1 2] R = X;").unwrap();
     assert_eq!(ast, Expand(vec![
-            Const::new("_0".into(), "1".into()).into(),
-            Const::new("_1".into(), "2".into()).into(),
+            LogicLine::SetArgs(vec!["1".into(), "2".into()].into()),
             Take("R".into(), "X".into()).into(),
             LogicLine::ConstLeak("R".into()),
     ]).into());
 
     let ast = parse!(parser, "take[1 2] X;").unwrap();
     assert_eq!(ast, Expand(vec![
-            Const::new("_0".into(), "1".into()).into(),
-            Const::new("_1".into(), "2".into()).into(),
+            LogicLine::SetArgs(vec!["1".into(), "2".into()].into()),
             Take("__".into(), "X".into()).into(),
     ]).into());
 }
@@ -1963,13 +1961,13 @@ fn quick_dexp_take_test() {
         parse!(parser, r#"
             print Foo[1 2];
         "#).unwrap(),
-        parse!(parser, r#"
-            print (__:
-                const _0 = 1;
-                const _1 = 2;
-                setres Foo;
-            );
-        "#).unwrap(),
+        vec![LogicLine::Other(vec![
+            Value::ReprVar("print".into()),
+            DExp::new("__".into(), vec![
+                LogicLine::SetArgs(vec!["1".into(), "2".into()].into()),
+                LogicLine::SetResultHandle("Foo".into()),
+            ].into()).into(),
+        ].into())].into(),
     );
 
 
@@ -2213,7 +2211,7 @@ fn inline_block_test() {
         "#).unwrap(),
         Expand(vec![
             InlineBlock(vec![
-                LogicLine::Other(vec!["foo".into()])
+                LogicLine::Other(vec!["foo".into()].into())
             ]).into()
         ]).into()
     );
@@ -2251,14 +2249,14 @@ fn consted_dexp() {
                             "___0".into(),
                             DExp::new_nores(vec![
                                 LogicLine::Label("x".into()),
-                                LogicLine::Other(vec!["bar".into()])
+                                LogicLine::Other(vec!["bar".into()].into())
                             ].into()).into(),
                             vec!["x".into()],
                         ).into(),
                         LogicLine::SetResultHandle("___0".into()),
                     ].into()
                 ).into()
-            ]),
+            ].into()),
         ]).into()
     );
 
@@ -3828,4 +3826,411 @@ fn string_escape_test() {
         let res = parse!(parser, &src);
         assert!(res.is_err(), "fail: {:?} -> {:?}", res, src)
     }
+}
+
+#[test]
+fn match_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Foo = (
+            inline@{
+                print @;
+            }
+        );
+        take Foo[a b c];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print a",
+            "print b",
+            "print c",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Foo = (
+            print @;
+        );
+        take Foo[a b c];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print a",
+            "print b",
+            "print c",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        take Foo[a b c];
+        print @;
+        "#).unwrap()).compile().unwrap(),
+        Vec::<&str>::new(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        match a b c {}
+        print @;
+        "#).unwrap()).compile().unwrap(),
+        Vec::<&str>::new(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        match a b c { @{} }
+        print @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print a",
+            "print b",
+            "print c",
+        ],
+    );
+
+    assert_eq!( // 作用域测试
+        CompileMeta::new().compile(parse!(parser, r#"
+        {
+            match a b c { @{} }
+        }
+        print @;
+        "#).unwrap()).compile().unwrap(),
+        Vec::<&str>::new(),
+    );
+
+    assert_eq!( // 作用域测试
+        CompileMeta::new().compile(parse!(parser, r#"
+        match a b c { @{} }
+        inline@{
+            print @;
+        }
+        print end;
+        print @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print a",
+            "print b",
+            "print c",
+            "print end",
+            "print a",
+            "print b",
+            "print c",
+        ],
+    );
+
+    assert_eq!( // 作用域测试
+        CompileMeta::new().compile(parse!(parser, r#"
+        match a b c { @{} }
+        inline 2@{
+            foo @;
+        }
+        print end;
+        print @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "foo a b",
+            "foo c",
+            "print end",
+            "print a",
+            "print b",
+            "print c",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        match a b c { __ @{} }
+        print @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print b",
+            "print c",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        match a b c {
+            X Y {}
+            @{}
+        }
+        print @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print a",
+            "print b",
+            "print c",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        match a b {
+            X Y {}
+            @{}
+        }
+        print @;
+        "#).unwrap()).compile().unwrap(),
+        Vec::<&str>::new(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        match a b {
+            X Y {}
+            @{}
+        }
+        print X Y;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print a",
+            "print b",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Foo = (
+            match @ {
+                Fst @ {
+                    print Fst;
+                    take Foo[@];
+                }
+                {
+                    print end;
+                }
+            }
+        );
+        take Foo[a b c];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print a",
+            "print b",
+            "print c",
+            "print end",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Foo = (
+            match @ {
+                @ Lst {
+                    print Lst;
+                    take Foo[@];
+                }
+                {
+                    print end;
+                }
+            }
+        );
+        take Foo[a b c];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print c",
+            "print b",
+            "print a",
+            "print end",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Foo = (
+            match @ {
+                Fst @ Lst {
+                    print Fst;
+                    print Lst;
+                    take Foo[@];
+                }
+                Mid {
+                    print Mid;
+                }
+                {
+                    print end;
+                }
+            }
+        );
+        take Foo[a b c d e];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print a",
+            "print e",
+            "print b",
+            "print d",
+            "print c",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Foo = (
+            match @ {
+                Fst @ Lst {
+                    print Fst;
+                    print Lst;
+                    take Foo[@];
+                }
+                Mid {
+                    print Mid;
+                }
+                {
+                    print end;
+                }
+            }
+        );
+        take Foo[a b c d e f];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print a",
+            "print f",
+            "print b",
+            "print e",
+            "print c",
+            "print d",
+            "print end",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Foo = ( # 循环展开版本
+            inline@{
+                match @ {
+                    [1] {
+                        print one;
+                    }
+                    [2] {
+                        print two;
+                    }
+                    N:[3 4] {
+                        print three_or_four N;
+                    }
+                    N {
+                        print other N;
+                    }
+                }
+            }
+        );
+        take Foo[1 2 3 4 5 6];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print one",
+            "print two",
+            "print three_or_four",
+            "print 3",
+            "print three_or_four",
+            "print 4",
+            "print other",
+            "print 5",
+            "print other",
+            "print 6",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Foo = ( # 右递归版本
+            match @ {
+                [1] @ {
+                    print one;
+                    take Foo[@];
+                }
+                [2] @ {
+                    print two;
+                    take Foo[@];
+                }
+                N:[3 4] @ {
+                    print three_or_four N;
+                    take Foo[@];
+                }
+                N @ {
+                    print other N;
+                    take Foo[@];
+                }
+            }
+        );
+        take Foo[1 2 3 4 5 6];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print one",
+            "print two",
+            "print three_or_four",
+            "print 3",
+            "print three_or_four",
+            "print 4",
+            "print other",
+            "print 5",
+            "print other",
+            "print 6",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Foo = ( # 左递归版本
+            match @ {
+                @ [1] {
+                    take Foo[@];
+                    print one;
+                }
+                @ [2] {
+                    take Foo[@];
+                    print two;
+                }
+                @ N:[3 4] {
+                    take Foo[@];
+                    print three_or_four N;
+                }
+                @ N {
+                    take Foo[@];
+                    print other N;
+                }
+            }
+        );
+        take Foo[1 2 3 4 5 6];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print one",
+            "print two",
+            "print three_or_four",
+            "print 3",
+            "print three_or_four",
+            "print 4",
+            "print other",
+            "print 5",
+            "print other",
+            "print 6",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Eq = ( # 引用前部匹配
+            match @ {
+                A B {
+                    match B {
+                        [A] {
+                            print 'equal' A;
+                        }
+                        __ {
+                            print not_equal A B;
+                        }
+                    }
+                }
+            }
+        );
+        take Eq[a a];
+        take Eq[a b];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print equal",
+            "print a",
+            "print not_equal",
+            "print a",
+            "print b",
+        ],
+    );
 }

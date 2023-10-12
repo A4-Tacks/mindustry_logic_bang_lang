@@ -1,0 +1,261 @@
+#**
+* 这是0.14.0增加的新功能, 此功能及其强大, 将编译期能力进行了极大的扩展,
+* 借此你甚至可以基于值编写一门LL(k)文法语言的parser与一定的代码生成
+*
+* 简单概述为凭借对句柄的模式匹配完成分支条件编译
+*
+* 同时还增加了重复块, 可以对参数进行重复
+*
+* 修改了参数方式, 由构建期展开为编号参数改为编译期展开特定语句
+*
+* ---
+*
+* 内部语句SetArgs, 它将设置参数, 其作用范围为Expand和重复块
+*
+* 扩展Other, Match和Print的参数,
+* 增加展开符`@`, 展开符将会展开为全部参数, 参数来源于SetArgs
+*
+* 可以使用重复块, 它将在一个内联块中重复给定块, 并且每次重复迭代指定个参数,
+* 此数字未指定则为1, 它不能为0, 它是构建期被指定的
+*
+* match语句
+* ===
+* 改语句由参数输入, 并在之后的块中编写多个分支.
+* 每个分支编写零至多个句柄模式, 和一个分支代码体
+*
+* 句柄模式由两部分组成: 绑定值 和 模式
+*
+* 绑定值和模式都是可选的, 模式是由方括号括起的多个值, 顺序匹配其中任意一值
+*
+* 执行到match语句时, 会先将输入参数take,
+* 然后使用得到的多个句柄, 向下对每个分支进行匹配.
+*
+* 开始匹配一个分支时, 会将该分支中所有模式中的值进行take,
+* 然后使用其句柄集合与参数进行完全匹配.
+*
+* 如果在其中使用`@`符号, 那么将会匹配零个以上参数, 并将匹配到重新设定到参数
+*
+* 成功完全匹配后, 终止向下探查分支, 并将匹配成功分支的代码体直接编译
+*
+* 如果没有匹配到任何句柄模式, 那么将不会编译任何代码体,
+* 但是参数和每个分支的模式仍被take, 所以需要注意这件事
+*#
+
+match a b c d e { @ {} } # 利用match没有作用域来人为的设置参数
+print @;
+match { @ {} }
+#* >>>
+print a
+print b
+print c
+print d
+print e
+*#
+
+
+# 块作用域
+{
+    match a b c d e { @ {} }
+    print @;
+}
+print "xxx";
+print @;
+#* >>>
+print a
+print b
+print c
+print d
+print e
+print "xxx"
+*#
+
+
+# 重复块的作用域
+{
+    match a b c d e { @ {} }
+    inline@{
+        print @;
+    }
+    print "xxx";
+    print @;
+}
+#* >>>
+print a
+print b
+print c
+print d
+print e
+print "xxx"
+print a
+print b
+print c
+print d
+print e
+*#
+# 可以看到, 重复块中最后一次设置的参数并没有影响重复块外的参数
+
+
+# 重复块迭代数
+{
+    match a b c d e { @ {} }
+    inline 2@{
+        print @;
+        print "---";
+    }
+}
+#* >>>
+print a
+print b
+print "---"
+print c
+print d
+print "---"
+print e
+print "---"
+*#
+
+
+# 利用match完成递归展开
+const Foo = (
+    match @ {
+        [end] {}
+        [endl] { print "\n"; }
+        X @ {
+            print X;
+            take Foo[@];
+        }
+    }
+);
+take Foo["Hello" "World!" endl];
+take Foo["hi" end];
+#* >>>
+print "Hello"
+print "World!"
+print "\n"
+print "hi"
+*#
+
+
+# 利用match比较句柄相等
+const Eq = (
+    match @ {
+        A B { match B {
+            [A] { print "equal" A B; }
+            __ { print "notEqual" A B; }
+        }}
+    }
+);
+take Eq[a a];
+take Eq[a b];
+#* >>>
+print "equal"
+print a
+print a
+print "notEqual"
+print a
+print b
+*#
+
+
+# 利用编译时运算完成计数
+const PrintId = (
+    take N = 0;
+    inline@{
+        print N":"@"\n";
+        take N = ($ = N+1;);
+    }
+);
+take PrintId[a b c d];
+printflush message1;
+#* >>>
+print 0
+print ":"
+print a
+print "\n"
+print 1
+print ":"
+print b
+print "\n"
+print 2
+print ":"
+print c
+print "\n"
+print 3
+print ":"
+print d
+print "\n"
+printflush message1
+*#
+# 这里利用了循环块没有作用域来完成
+
+
+const PrintId = (
+    match @ {
+        [begin] @ {
+            take PrintId[0 @];
+        }
+        N Arg @ {
+            print N":"Arg"\n";
+            take PrintId[($ = N+1;) @];
+        }
+    }
+);
+take PrintId[begin a b c d];
+printflush message1;
+#* >>>
+print 0
+print ":"
+print a
+print "\n"
+print 1
+print ":"
+print b
+print "\n"
+print 2
+print ":"
+print c
+print "\n"
+print 3
+print ":"
+print d
+print "\n"
+printflush message1
+*#
+# 这里利用了递归展开和嵌套的子作用域来完成
+
+
+# 句柄匹配的或运算
+const GetNum = (
+    match @ {
+        [one] {
+            setres 1;
+        }
+        [two] {
+            setres 2;
+        }
+        [three four] {
+            setres 3.5;
+        }
+    }
+);
+print GetNum[one];
+print GetNum[two];
+print GetNum[three];
+print GetNum[four];
+#* >>>
+print 1
+print 2
+print 3.5
+print 3.5
+*#
+# 写在同一个匹配里的多个值即为或运算
+
+
+# 记住, 它们被take
+const YES = yes;
+match yes {
+    [YES] { print "ok"; }
+}
+#* >>>
+print "ok"
+*#

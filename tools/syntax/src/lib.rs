@@ -9,7 +9,7 @@ use std::{
     process::exit,
     mem::{self, replace},
     fmt::{Display, Debug},
-    convert::identity,
+    convert::identity, borrow::Borrow, hash::Hash,
 };
 use tag_code::{
     Jump,
@@ -106,6 +106,7 @@ impl From<((Location, Location), Errors)> for Error {
 pub enum Errors {
     NotALiteralUInteger(String, ParseIntError),
     SetVarNoPatternValue(usize, usize),
+    ArgsRepeatChunkByZero,
 }
 
 /// 带有错误前缀, 并且文本为红色的eprintln
@@ -351,6 +352,7 @@ impl Value {
                             .map(|x| (x, true))
                     },
                     LogicLine::Other(args) => {
+                        let args = args.as_normal()?;
                         let Value::ReprVar(cmd) = &args[0] else {
                             return None;
                         };
@@ -664,11 +666,11 @@ impl Meta {
 
     /// 单纯的构建一个set语句
     pub fn build_set(var: Value, value: Value) -> LogicLine {
-        LogicLine::Other(vec![
+        LogicLine::Other(Args::Normal(vec![
                 Value::ReprVar("set".into()),
                 var,
                 value,
-        ])
+        ]))
     }
 }
 
@@ -1641,9 +1643,11 @@ pub struct Expand(pub Vec<LogicLine>);
 impl Compile for Expand {
     fn compile(self, meta: &mut CompileMeta) {
         meta.with_block(|this| {
-            for line in self.0 {
-                line.compile(this)
-            }
+            this.with_env_args_block(|this| {
+                for line in self.0 {
+                    line.compile(this)
+                }
+            });
         });
     }
 }
@@ -1920,25 +1924,6 @@ impl Compile for Const {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Take(pub Var, pub Value);
 impl Take {
-    /// 根据一系列构建一系列常量传参
-    pub fn build_arg_consts(values: Vec<Value>, mut f: impl FnMut(Const)) {
-        for (i, value) in values.into_iter().enumerate() {
-            let name = format!("_{}", i);
-            f(Const(name, value, Vec::with_capacity(0)))
-        }
-    }
-
-    /// 将常量传参的行构建到Expand末尾
-    pub fn build_arg_consts_to_expand(
-        values: Vec<Value>,
-        expand: &mut Vec<LogicLine>,
-    ) {
-        Self::build_arg_consts(
-            values,
-            |r#const| expand.push(r#const.into())
-        )
-    }
-
     /// 构建一个Take语句单元
     /// 可以带有参数与返回值
     ///
@@ -1949,18 +1934,18 @@ impl Take {
     /// - do_leak_res: 是否泄露绑定量
     /// - value: 被求的值
     pub fn new(
-        args: Vec<Value>,
+        args: Args,
         var: Var,
         do_leak_res: bool,
         value: Value,
     ) -> LogicLine {
-        if args.is_empty() {
+        if matches!(args, Args::Normal(ref args) if args.is_empty()) {
             Take(var, value).into()
         } else {
-            let mut len = args.len() + 1;
+            let mut len = 2;
             if do_leak_res { len += 1 }
             let mut expand = Vec::with_capacity(len);
-            Self::build_arg_consts_to_expand(args, &mut expand);
+            expand.push(LogicLine::SetArgs(args));
             if do_leak_res {
                 expand.push(Take(var.clone(), value).into());
                 expand.push(LogicLine::ConstLeak(var));
@@ -1978,6 +1963,265 @@ impl Compile for Take {
     }
 }
 
+/// 可能含有一个展开的Args
+#[derive(Debug, PartialEq, Clone)]
+pub enum Args {
+    /// 正常的参数
+    Normal(Vec<Value>),
+    /// 夹杂一个展开的参数
+    Expanded(Vec<Value>, Vec<Value>),
+}
+impl Args {
+    pub fn args<'a>(&'a self, meta: &'a mut CompileMeta) -> impl Iterator<Item = &Value> {
+        static EMPTY: &[Value] = &[];
+        match self {
+            Self::Normal(args) => args.iter().chain(EMPTY).chain(EMPTY),
+            Self::Expanded(left, right) => {
+                let expanded_args = meta.get_env_args();
+                left.iter()
+                    .chain(expanded_args)
+                    .chain(right)
+            },
+        }
+    }
+
+    pub fn into_args(self, meta: &mut CompileMeta) -> Vec<Value> {
+        match self {
+            Args::Normal(args) => args,
+            Args::Expanded(mut left, right) => {
+                let expanded_args = meta.get_env_args();
+                left.extend(expanded_args.iter().cloned().chain(right));
+                left
+            },
+        }
+    }
+
+    pub fn base_len(&self) -> usize {
+        match self {
+            Self::Normal(args) => args.len(),
+            Self::Expanded(prefix, suffix) => prefix.len() + suffix.len(),
+        }
+    }
+
+    /// Returns `true` if the args is [`Normal`].
+    ///
+    /// [`Normal`]: Args::Normal
+    #[must_use]
+    pub fn is_normal(&self) -> bool {
+        matches!(self, Self::Normal(..))
+    }
+
+    pub fn as_normal(&self) -> Option<&Vec<Value>> {
+        if let Self::Normal(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    pub fn into_normal(self) -> Result<Vec<Value>, Self> {
+        match self {
+            Self::Normal(args) => Ok(args),
+            this => Err(this),
+        }
+    }
+
+    /// Returns `true` if the args is [`Expanded`].
+    ///
+    /// [`Expanded`]: Args::Expanded
+    #[must_use]
+    pub fn is_expanded(&self) -> bool {
+        matches!(self, Self::Expanded(..))
+    }
+}
+impl Default for Args {
+    fn default() -> Self {
+        Self::Normal(vec![])
+    }
+}
+impl_enum_froms!(impl From for Args {
+    Normal => Vec<Value>;
+});
+
+/// 拿取指定个参数, 并重复块中代码
+#[derive(Debug, PartialEq, Clone)]
+pub struct ArgsRepeat {
+    count: usize,
+    block: InlineBlock,
+}
+impl ArgsRepeat {
+    pub fn new(count: usize, block: InlineBlock) -> Self {
+        Self { count, block }
+    }
+
+    pub fn count(&self) -> usize {
+        self.count
+    }
+
+    pub fn count_mut(&mut self) -> &mut usize {
+        &mut self.count
+    }
+
+    pub fn block(&self) -> &InlineBlock {
+        &self.block
+    }
+
+    pub fn block_mut(&mut self) -> &mut InlineBlock {
+        &mut self.block
+    }
+}
+impl Compile for ArgsRepeat {
+    fn compile(self, meta: &mut CompileMeta) {
+        let chunks: Vec<Vec<Value>> = meta.get_env_args().chunks(self.count)
+            .map(|chunks| chunks.iter().cloned().collect())
+            .collect();
+        for args in chunks {
+            let args = Vec::from_iter(args.iter().cloned());
+            meta.with_env_args_block(|meta| {
+                meta.set_env_args(args);
+                self.block.clone().compile(meta)
+            });
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Match {
+    args: Args,
+    cases: Vec<(MatchPat, InlineBlock)>,
+}
+impl Compile for Match {
+    fn compile(self, meta: &mut CompileMeta) {
+        let args = self.args.into_args(meta)
+            .into_iter()
+            .map(|x| x.take_handle(meta))
+            .collect::<Vec<_>>();
+        let mut iter = self.cases.into_iter();
+        loop {
+            let Some(case) = iter.next() else { break };
+            let (pat, block) = case;
+            if pat.do_pattern(&args, meta) {
+                block.compile(meta);
+                break;
+            }
+        }
+    }
+}
+impl Match {
+    pub fn new(args: Args, cases: Vec<(MatchPat, InlineBlock)>) -> Self {
+        Self { args, cases }
+    }
+
+    pub fn args(&self) -> &Args {
+        &self.args
+    }
+
+    pub fn cases(&self) -> &[(MatchPat, InlineBlock)] {
+        self.cases.as_ref()
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum MatchPat {
+    Normal(Vec<MatchPatAtom>),
+    Expanded(Vec<MatchPatAtom>, Vec<MatchPatAtom>),
+}
+impl MatchPat {
+    pub fn base_len(&self) -> usize {
+        match self {
+            Self::Normal(args) => args.len(),
+            Self::Expanded(prefix, suffix) => prefix.len() + suffix.len(),
+        }
+    }
+
+    /// 进行匹配, 如果成功则直接将量绑定
+    pub fn do_pattern(self, args: &[Var], meta: &mut CompileMeta) -> bool {
+        fn to_vars(args: Vec<MatchPatAtom>, meta: &mut CompileMeta)
+        -> Vec<(Var, Vec<Var>)> {
+            args.into_iter()
+                .map(|arg| (
+                        arg.name,
+                        arg.pattern.into_iter()
+                        .map(|pat| pat.take_handle(meta))
+                        .collect()
+                ))
+                .collect()
+        }
+        fn cmp(pats: &[(Var, Vec<Var>)], args: &[Var]) -> bool {
+            pats.iter()
+                .map(|(_, x)| &x[..])
+                .zip(args)
+                .all(|(pat, var)| {
+                    pat.is_empty()
+                        || pat.iter().any(|x| x == var)
+                })
+        }
+        fn binds(name: Var, value: &Var, meta: &mut CompileMeta) {
+            if !name.is_empty() {
+                meta.add_const_value(Const(name, value.clone().into(), vec![]));
+            }
+        }
+        match self {
+            Self::Normal(iargs) if iargs.len() == args.len() => {
+                let pats: Vec<(Var, Vec<Var>)> = to_vars(iargs, meta);
+                cmp(&pats, args).then(|| {
+                    for ((name, _), arg) in pats.into_iter().zip(args) {
+                        binds(name, arg, meta)
+                    }
+                }).is_some()
+            },
+            Self::Expanded(prefix, suffix)
+            if self.base_len() <= args.len() => {
+                let (prefix, suffix)
+                    = (to_vars(prefix, meta), to_vars(suffix, meta));
+                let tl = args.len()-suffix.len();
+                let extracted = &args[prefix.len()..tl];
+                (cmp(&prefix, args) && cmp(&suffix, &args[tl..]))
+                    .then(|| {
+                        let (a, b) = (
+                            prefix.into_iter().zip(args),
+                            suffix.into_iter().zip(&args[tl..]),
+                        );
+                        for ((name, _), arg) in a.chain(b) {
+                            binds(name, arg, meta)
+                        }
+                        meta.set_env_args(Vec::from_iter(
+                                extracted.iter().cloned().map(Into::into)))
+                    }).is_some()
+            },
+            _ => false,
+        }
+    }
+}
+impl From<Vec<MatchPatAtom>> for MatchPat {
+    fn from(value: Vec<MatchPatAtom>) -> Self {
+        Self::Normal(value)
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct MatchPatAtom {
+    name: Var,
+    pattern: Vec<Value>,
+}
+impl MatchPatAtom {
+    pub fn new(name: Var, pattern: Vec<Value>) -> Self {
+        Self { name, pattern }
+    }
+
+    pub fn new_unnamed(pattern: Vec<Value>) -> Self {
+        Self::new("".into(), pattern)
+    }
+
+    pub fn name(&self) -> &str {
+        self.name.as_ref()
+    }
+
+    pub fn pattern(&self) -> &[Value] {
+        self.pattern.as_ref()
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum LogicLine {
     Op(Op),
@@ -1985,7 +2229,7 @@ pub enum LogicLine {
     /// 否则无法将它注册到可能的`const`
     Label(Var),
     Goto(Goto),
-    Other(Vec<Value>),
+    Other(Args),
     Expand(Expand),
     InlineBlock(InlineBlock),
     Select(Select),
@@ -1998,6 +2242,9 @@ pub enum LogicLine {
     ConstLeak(Var),
     /// 将返回句柄设置为一个指定值
     SetResultHandle(Value),
+    SetArgs(Args),
+    ArgsRepeat(ArgsRepeat),
+    Match(Match),
 }
 impl Compile for LogicLine {
     fn compile(self, meta: &mut CompileMeta) {
@@ -2010,7 +2257,7 @@ impl Compile for LogicLine {
                 meta.push(data)
             },
             Self::Other(args) => {
-                let handles: Vec<String> = args
+                let handles: Vec<String> = args.into_args(meta)
                     .into_iter()
                     .map(|val| val.take_handle(meta))
                     .collect();
@@ -2020,6 +2267,15 @@ impl Compile for LogicLine {
                 let new_dexp_handle = value.take_handle(meta);
                 meta.set_dexp_handle((new_dexp_handle, false));
             },
+            Self::SetArgs(args) => {
+                let expand_args = args.into_args(meta);
+                let mut f = |r#const| meta.add_const_value(r#const);
+                for (i, value) in expand_args.clone().into_iter().enumerate() {
+                    let name = format!("_{}", i);
+                    f(Const(name, value, Vec::with_capacity(0)).into());
+                }
+                meta.set_env_args(expand_args);
+            },
             Self::Select(select) => select.compile(meta),
             Self::Expand(expand) => expand.compile(meta),
             Self::InlineBlock(block) => block.compile(meta),
@@ -2028,6 +2284,8 @@ impl Compile for LogicLine {
             Self::Const(r#const) => r#const.compile(meta),
             Self::Take(take) => take.compile(meta),
             Self::ConstLeak(r#const) => meta.add_const_value_leak(r#const),
+            Self::ArgsRepeat(args_repeat) => args_repeat.compile(meta),
+            Self::Match(r#match) => r#match.compile(meta),
             Self::Ignore => (),
         }
     }
@@ -2108,7 +2366,7 @@ impl LogicLine {
         matches!(self, Self::Other(..))
     }
 
-    pub fn as_other(&self) -> Option<&Vec<Value>> {
+    pub fn as_other(&self) -> Option<&Args> {
         if let Self::Other(v) = self {
             Some(v)
         } else {
@@ -2140,6 +2398,8 @@ impl_enum_froms!(impl From for LogicLine {
     Select => Select;
     Const => Const;
     Take => Take;
+    ArgsRepeat => ArgsRepeat;
+    Match => Match;
 });
 impl TryFrom<&TagLine> for LogicLine {
     type Error = LogicLineFromTagError;
@@ -2182,7 +2442,7 @@ impl TryFrom<&TagLine> for LogicLine {
                     _ => {
                         let mut args_value = Vec::with_capacity(args.len());
                         args_value.extend(args.into_iter().map(Into::into));
-                        Ok(Self::Other(args_value))
+                        Ok(Self::Other(Args::Normal(args_value)))
                     },
                 }
             },
@@ -2235,13 +2495,18 @@ impl ConstData {
 /// 每层Expand的环境
 #[derive(Debug, PartialEq, Clone)]
 #[derive(Default)]
+#[non_exhaustive]
 pub struct ExpandEnv {
     leak_vars: Vec<Var>,
     consts: HashMap<Var, ConstData>,
 }
 impl ExpandEnv {
     pub fn new(leak_vars: Vec<Var>, consts: HashMap<Var, ConstData>) -> Self {
-        Self { leak_vars, consts }
+        Self {
+            leak_vars,
+            consts,
+            ..Default::default()
+        }
     }
 
     pub fn leak_vars(&self) -> &[String] {
@@ -2268,6 +2533,7 @@ pub struct CompileMeta {
     tag_codes: TagCodes,
     tmp_var_count: Counter<fn(&mut usize) -> Var>,
     expand_env: Vec<ExpandEnv>,
+    env_args: Vec<Option<Vec<Value>>>,
     /// 每层DExp所使用的句柄, 末尾为当前层, 同时有一个是否为自动分配名称的标志
     dexp_result_handles: Vec<(Var, bool)>,
     tmp_tag_count: Counter<fn(&mut usize) -> Var>,
@@ -2316,6 +2582,7 @@ impl CompileMeta {
             tag_codes,
             tmp_var_count: Counter::new(Self::tmp_var_getter),
             expand_env: Vec::new(),
+            env_args: Vec::new(),
             dexp_result_handles: Vec::new(),
             tmp_tag_count: Counter::new(Self::tmp_tag_getter),
             const_expand_tag_name_map: Vec::new(),
@@ -2422,6 +2689,7 @@ impl CompileMeta {
             let ExpandEnv {
                 leak_vars: leaks,
                 consts: mut res,
+                ..
             } = this.expand_env.pop().unwrap();
 
             // do leak
@@ -2515,6 +2783,18 @@ impl CompileMeta {
             .unwrap()
             .consts
             .insert(var, ConstData::new(value, labels))
+    }
+
+    /// 从当前作用域移除一个常量到值的映射
+    pub fn remove_const_value<Q>(&mut self, query: Q) -> Option<ConstData>
+    where Var: Borrow<Q> + Eq + Hash,
+          Q: Hash + Eq,
+    {
+        self.expand_env
+            .last_mut()
+            .unwrap()
+            .consts
+            .remove(&query)
     }
 
     /// 新增一层DExp, 并且传入它使用的返回句柄
@@ -2638,6 +2918,30 @@ impl CompileMeta {
 
     pub fn const_var_namespace(&self) -> &[ExpandEnv] {
         self.expand_env.as_ref()
+    }
+
+    /// 获取最内层args, 如果不存在则返回空切片
+    pub fn get_env_args(&self) -> &[Value] {
+        static EMPTY: &[Value] = &[];
+        self.env_args.iter().map(Option::as_ref)
+            .filter_map(identity)
+            .map(Vec::as_slice)
+            .next_back()
+            .unwrap_or(EMPTY)
+    }
+
+    /// 设置最内层args, 返回旧值
+    pub fn set_env_args(&mut self, expand_args: Vec<Value>) -> Option<Vec<Value>> {
+        let args = self.env_args.last_mut().unwrap();
+        replace(args, expand_args.into())
+    }
+
+    pub fn with_env_args_block<F>(&mut self, f: F) -> Option<Vec<Value>>
+    where F: FnOnce(&mut Self)
+    {
+        self.env_args.push(None);
+        let _ = f(self);
+        self.env_args.pop().unwrap()
     }
 }
 

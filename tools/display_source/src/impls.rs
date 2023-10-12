@@ -1,12 +1,25 @@
 use syntax::*;
 use crate::{DisplaySource, DisplaySourceMeta};
 
+impl DisplaySource for str {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        meta.push(&Value::replace_ident(self))
+    }
+}
+impl DisplaySource for Var {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        self.as_str().display_source(meta)
+    }
+}
 impl DisplaySource for Value {
     fn display_source(&self, meta: &mut DisplaySourceMeta) {
-        let replace_ident = Self::replace_ident;
         match self {
-            Self::Var(s) => meta.push(&replace_ident(s)),
-            Self::ReprVar(s) => meta.push(&format!("`{}`", replace_ident(s))),
+            Self::Var(s) => s.display_source(meta),
+            Self::ReprVar(s) => {
+                meta.push("`");
+                s.display_source(meta);
+                meta.push("`");
+            },
             Self::ResultHandle => meta.push("$"),
             Self::DExp(dexp) => dexp.display_source(meta),
             Self::ValueBind(value_attr) => value_attr.display_source(meta),
@@ -24,7 +37,7 @@ impl DisplaySource for DExp {
         meta.push("(");
         let has_named_res = !self.result().is_empty();
         if has_named_res {
-            meta.push(&Value::replace_ident(self.result()));
+            self.result().display_source(meta);
             meta.push(":");
         }
         match self.lines().len() {
@@ -49,7 +62,7 @@ impl DisplaySource for ValueBind {
     fn display_source(&self, meta: &mut DisplaySourceMeta) {
         self.0.display_source(meta);
         meta.push(".");
-        meta.push(&Value::replace_ident(&self.1));
+        self.1.display_source(meta);
     }
 }
 impl DisplaySource for JumpCmp {
@@ -182,7 +195,7 @@ impl DisplaySource for Goto {
         meta.push("goto");
         meta.add_space();
         meta.push(":");
-        meta.push(&Value::replace_ident(lab));
+        lab.display_source(meta);
         meta.add_space();
         cmp.display_source(meta);
         meta.push(";");
@@ -229,7 +242,7 @@ impl DisplaySource for Const {
         meta.push("const");
         meta.add_space();
 
-        meta.push(&Value::replace_ident(&self.0));
+        self.0.display_source(meta);
         meta.add_space();
 
         meta.push("=");
@@ -240,6 +253,12 @@ impl DisplaySource for Const {
         meta.push(";");
         meta.add_space();
 
+        meta.push("# labels: [");
+        meta.display_source_iter_by_splitter(
+            |meta| meta.push(", "),
+            &self.2,
+        );
+        meta.push("]");
         let labs = self.2
             .iter()
             .map(|s| Value::replace_ident(&**s))
@@ -294,6 +313,13 @@ impl DisplaySource for LogicLine {
                 meta.push("}");
             },
             Self::Ignore => meta.push("{} # ignore line"),
+            Self::SetArgs(args) => {
+                meta.push("# setArgs");
+                meta.add_space();
+
+                args.display_source(meta);
+                meta.push(";");
+            },
             Self::NoOp => meta.push("noop;"),
             Self::Label(lab) => {
                 meta.push(":");
@@ -316,17 +342,124 @@ impl DisplaySource for LogicLine {
                 val.display_source(meta);
                 meta.push(";");
             },
+            Self::ArgsRepeat(args_repeat) => args_repeat.display_source(meta),
+            Self::Match(r#match) => r#match.display_source(meta),
             Self::Other(args) => {
-                assert_ne!(args.len(), 0);
-                let mut iter = args.iter();
-                iter.next().unwrap().display_source(meta);
-                iter.for_each(|arg| {
-                    meta.add_space();
-                    arg.display_source(meta);
-                });
+                if let Some(args) = args.as_normal() {
+                    assert_ne!(args.len(), 0);
+                }
+                args.display_source(meta);
                 meta.push(";");
             },
         }
+    }
+}
+impl DisplaySource for Args {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        match self {
+            Args::Normal(args) => {
+                meta.display_source_iter_by_splitter(
+                    DisplaySourceMeta::add_space, args);
+            },
+            Args::Expanded(prefix, suffix) => {
+                prefix.iter().for_each(|arg| {
+                    arg.display_source(meta);
+                    meta.add_space();
+                });
+
+                meta.push("@");
+
+                suffix.iter().for_each(|arg| {
+                    meta.add_space();
+                    arg.display_source(meta);
+                });
+            },
+        }
+    }
+}
+impl DisplaySource for ArgsRepeat {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        meta.push("inline");
+        meta.add_space();
+        meta.push(&self.count().to_string());
+        meta.push("@");
+        meta.push("{");
+        if !self.block().is_empty() {
+            meta.add_lf();
+            meta.do_block(|meta| {
+                self.block().display_source(meta);
+            });
+        }
+        meta.push("}");
+    }
+}
+impl DisplaySource for MatchPatAtom {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        let show_name = !self.name().is_empty();
+        let show_list = !self.pattern().is_empty();
+        if show_name {
+            meta.push(self.name());
+            if show_list { meta.push(":") }
+        }
+        if show_list {
+            meta.push("[");
+            meta.display_source_iter_by_splitter(
+                DisplaySourceMeta::add_space,
+                self.pattern()
+            );
+            meta.push("]");
+        }
+    }
+}
+impl DisplaySource for MatchPat {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        match self {
+            MatchPat::Normal(args) => {
+                meta.display_source_iter_by_splitter(
+                    DisplaySourceMeta::add_space,
+                    args,
+                )
+            },
+            MatchPat::Expanded(prefix, suffix) => {
+                for s in prefix {
+                    s.display_source(meta);
+                    meta.add_space();
+                }
+                meta.push("@");
+                for s in suffix {
+                    meta.add_space();
+                    s.display_source(meta);
+                }
+            },
+        }
+    }
+}
+impl DisplaySource for Match {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        meta.push("match");
+        meta.add_space();
+        let slen = meta.len();
+        self.args().display_source(meta);
+        if meta.len() != slen { meta.add_space(); }
+        meta.push("{");
+        if !self.cases().is_empty() {
+            meta.add_lf();
+            meta.do_block(|meta| {
+                self.cases().iter().for_each(|(pat, block)| {
+                    let slen = meta.len();
+                    pat.display_source(meta);
+                    if meta.len() != slen { meta.add_space(); }
+                    meta.push("{");
+                    if !block.is_empty() {
+                        meta.add_lf();
+                        meta.do_block(|meta| block.display_source(meta));
+                    }
+                    meta.push("}");
+                    meta.add_lf();
+                });
+            });
+        }
+        meta.push("}");
     }
 }
 
@@ -448,5 +581,119 @@ fn display_source_test() {
             .unwrap()
             .display_source_and_get(&mut meta),
         r#"`'set'` a "\n\\[[hi]\\n";"#
+    );
+    assert_eq!(
+        parse!(line_parser, r#"foo bar baz;"#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        r#"foo bar baz;"#
+    );
+    assert_eq!(
+        parse!(line_parser, r#"foo @ bar baz;"#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        r#"foo @ bar baz;"#
+    );
+    assert_eq!(
+        parse!(line_parser, r#"@ bar baz;"#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        r#"@ bar baz;"#
+    );
+    assert_eq!(
+        parse!(line_parser, r#"foo @;"#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        r#"foo @;"#
+    );
+    assert_eq!(
+        parse!(line_parser, r#"@;"#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        r#"@;"#
+    );
+    assert_eq!(
+        parse!(line_parser, r#"inline @{}"#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        r#"inline 1@{}"#
+    );
+    assert_eq!(
+        parse!(line_parser, r#"inline 23@{}"#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        r#"inline 23@{}"#
+    );
+    assert_eq!(
+        parse!(line_parser, r#"print @;"#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "inline 1@{\n    `'print'` @;\n}"
+    );
+    assert_eq!(
+        parse!(line_parser, r#"print a b @ c d;"#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "\
+        inline {\n\
+     \x20   `'print'` a;\n\
+     \x20   `'print'` b;\n\
+     \x20   inline 1@{\n\
+     \x20       `'print'` @;\n\
+     \x20   }\n\
+     \x20   `'print'` c;\n\
+     \x20   `'print'` d;\n\
+        }"
+    );
+    assert_eq!(
+        parse!(line_parser, r#"
+        match a b c @ d e f {
+            x y:[m n] [a b] {
+                foo;
+            }
+            x @ {
+                bar;
+            }
+            {}
+            @ {}
+        }
+        "#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "\
+        match a b c @ d e f {\n\
+     \x20   x y:[m n] [a b] {\n\
+     \x20       foo;\n\
+     \x20   }\n\
+     \x20   x @ {\n\
+     \x20       bar;\n\
+     \x20   }\n\
+     \x20   {}\n\
+     \x20   @ {}\n\
+        }"
+    );
+    assert_eq!(
+        parse!(line_parser, r#"
+        match a b c @ d e f {}
+        "#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "match a b c @ d e f {}"
+    );
+    assert_eq!(
+        parse!(line_parser, r#"
+        match {}
+        "#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "match {}"
+    );
+    assert_eq!(
+        parse!(line_parser, r#"
+        foo 'match';
+        "#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "foo 'match';"
     );
 }
