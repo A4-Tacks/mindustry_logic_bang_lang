@@ -28,4 +28,6 @@
 > [`value_bind.mdtlbl`](./value_bind.mdtlbl)<br/>
 > [`caller.mdtlbl`](./caller.mdtlbl)<br/>
 
-如果没有列出那请在看完上述后自行观看, 顺序可以参考文件创建顺序
+如果没有列出那请在看完上述后自行观看, 顺序可以参考文件创建顺序.
+
+同时也有一篇[参考手册](./reference.md), 可以共同观看.
