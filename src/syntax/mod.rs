@@ -2147,21 +2147,25 @@ pub struct CompileMeta {
 }
 impl Default for CompileMeta {
     fn default() -> Self {
+        Self::with_tag_codes(TagCodes::new())
+    }
+}
+impl CompileMeta {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_tag_codes(tag_codes: TagCodes) -> Self {
         Self {
             tags_map: HashMap::new(),
             tag_count: 0,
-            tag_codes: TagCodes::new(),
+            tag_codes,
             tmp_var_count: 0,
             const_var_namespace: Vec::new(),
             dexp_result_handles: Vec::new(),
             tmp_tag_count: 0,
             const_expand_tag_name_map: Vec::new(),
         }
-    }
-}
-impl CompileMeta {
-    pub fn new() -> Self {
-        Self::default()
     }
 
     /// 获取一个标记的编号, 如果不存在则将其插入并返回新分配的编号.

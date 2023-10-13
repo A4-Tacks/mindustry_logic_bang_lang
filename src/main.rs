@@ -7,7 +7,6 @@ use std::{
     process::exit,
     str::FromStr,
     collections::HashMap,
-    mem::replace,
 };
 
 use display_source::DisplaySource;
@@ -29,8 +28,8 @@ use mindustry_logic_bang_lang::{
 
 /// 带有错误前缀, 并且文本为红色的eprintln
 macro_rules! err {
-    ( $fmtter:expr $(, $args:expr)* $(,)? ) => {
-        eprintln!(concat!("\x1b[1;31m", "MainError: ", $fmtter, "\x1b[0m"), $($args),*);
+    ( $($args:tt)* ) => {
+        eprintln!("\x1b[1;31mMainError: {}\x1b[0m", format_args!($($args)*));
     };
 }
 
@@ -41,7 +40,7 @@ macro_rules! concat_lines {
 }
 
 pub const HELP_MSG: &str = concat_lines! {
-    "<MODE>";
+    "<MODE...>";
     "Author: A4-Tacks A4的钉子";
     "Version: ", env!("CARGO_PKG_VERSION");
     "https://github.com/A4-Tacks/mindustry_logic_bang_lang";
@@ -78,120 +77,134 @@ fn main() {
         err!("多余的参数: {:?}", arg);
         exit(2);
     }
-    match &*mode {
-        "c" => {
-            let ast = from_stdin_build_ast();
-            let mut meta = compile_ast(ast);
-            build_tag_down(&mut meta);
-            let logic_lines = meta.tag_codes_mut().compile().unwrap();
-            for line in logic_lines {
-                println!("{}", line);
-            }
-        },
-        "a" => {
-            let ast = from_stdin_build_ast();
-            println!("{:#?}", ast)
-        },
-        "A" => {
-            let ast = from_stdin_build_ast();
-            display_ast(&ast);
-        },
-        "t" => {
-            let ast = from_stdin_build_ast();
-            let meta = compile_ast(ast);
-            for line in meta.tag_codes().lines() {
-                println!("{}", line)
-            }
-        },
-        "T" => {
-            let ast = from_stdin_build_ast();
-            let mut meta = compile_ast(ast);
-            build_tag_down(&mut meta);
-            for line in meta.tag_codes().lines() {
-                println!("{}", line)
-            }
-        },
-        "f" => {
-            match TagCodes::from_str(&read_stdin()) {
-                Ok(lines) => {
-                    for line in lines.lines() {
-                        println!("{}", line)
-                    }
-                },
-                Err((line, e)) => {
-                    err!("line: {}, {:?}", line, e);
-                    exit(4);
-                },
-            }
-        },
-        "F" => {
-            match TagCodes::from_str(&read_stdin()) {
-                Ok(mut lines) => {
-                    lines.build_tagdown().unwrap();
-                    lines.tag_up();
-                    for line in lines.lines() {
-                        println!("{}", line)
-                    }
-                },
-                Err((line, e)) => {
-                    err!("line: {}, {:?}", line, e);
-                    exit(4);
-                },
-            }
-        },
-        "C" => {
-            let src = read_stdin();
-            let tag_codes = TagCodes::from_tag_lines(&src);
-            let mut meta = CompileMeta::new();
-            // 将我构建好的TagCodes换入并drop掉老的
-            drop(replace(meta.tag_codes_mut(), tag_codes));
-            build_tag_down(&mut meta);
-            let logic_lines = meta.tag_codes_mut().compile().unwrap();
-            for line in logic_lines {
-                println!("{}", line);
-            }
-        },
-        tag @ ("r" | "R") => {
-            match TagCodes::from_str(&read_stdin()) {
-                Ok(mut lines) => {
-                    if tag == "R" {
-                        lines.build_tagdown().unwrap();
-                        lines.tag_up();
-                    }
-                    let ast = Expand::try_from(&lines)
-                        .unwrap_or_else(|(idx, e)| {
-                            let lines_str = lines.iter()
-                                .map(|line| format!("\t{line}"))
-                                .collect::<Vec<_>>();
-                            err!(
-                                "已构建的行:\n{}\n在构建第{}行时出错: {}",
-                                lines_str.join("\n"),
-                                idx + 1,
-                                e
-                            );
-                            exit(4);
-                        });
-                    display_ast(&ast);
-                },
-                Err((line, e)) => {
-                    err!("line: {}, {:?}", line, e);
-                    exit(4);
-                },
-            }
-        },
-        mode => {
-            err!("mode {:?} no pattern", mode);
-            help();
-            exit(2)
-        },
+    let modes = Vec::from_iter(
+        mode.chars()
+            .map(|char| {
+                CompileMode::try_from(char).unwrap_or_else(|mode| {
+                    err!("mode {mode:?} no pattern");
+                    help();
+                    exit(2)
+                })
+            })
+    );
+    let mut src = read_stdin();
+    for mode in modes {
+        src = mode.compile(&src)
+    }
+    println!("{src}")
+}
+
+enum CompileMode {
+    BangToMdtLogic,
+    BangToASTDebug,
+    BangToASTDisplay,
+    BangToMdtTagCode { tag_down: bool },
+    MdtLogicToMdtTagCode { tag_down: bool },
+    MdtLogicToBang { tag_down: bool },
+    MdtTagCodeToMdtLogic,
+}
+impl CompileMode {
+    fn compile(&self, src: &str) -> String {
+        match *self {
+            Self::BangToMdtLogic => {
+                let ast = build_ast(src);
+                let mut meta = compile_ast(ast);
+                build_tag_down(&mut meta);
+                let logic_lines = meta.tag_codes_mut().compile().unwrap();
+                logic_lines.join("\n")
+            },
+            Self::BangToASTDebug => {
+                let ast = build_ast(src);
+                format!("{ast:#?}")
+            },
+            Self::BangToASTDisplay => {
+                let ast = build_ast(src);
+                display_ast(&ast)
+            },
+            Self::BangToMdtTagCode { tag_down } => {
+                let ast = build_ast(src);
+                let mut meta = compile_ast(ast);
+                if tag_down { build_tag_down(&mut meta); }
+                meta.tag_codes().to_string()
+            },
+            Self::MdtLogicToMdtTagCode { tag_down } => {
+                match TagCodes::from_str(src) {
+                    Ok(mut lines) => {
+                        if tag_down {
+                            lines.build_tagdown().unwrap();
+                            lines.tag_up();
+                        }
+                        lines.to_string()
+                    },
+                    Err((line, e)) => {
+                        err!("line: {}, {:?}", line, e);
+                        exit(4);
+                    },
+                }
+            },
+            Self::MdtLogicToBang { tag_down } => {
+                match TagCodes::from_str(src) {
+                    Ok(mut lines) => {
+                        if tag_down {
+                            lines.build_tagdown().unwrap();
+                            lines.tag_up();
+                        }
+                        let ast = Expand::try_from(&lines)
+                            .unwrap_or_else(|(idx, e)| {
+                                let lines_str = lines.iter()
+                                    .map(|line| format!("\t{line}"))
+                                    .collect::<Vec<_>>();
+                                err!(
+                                    "已构建的行:\n{}\n在构建第{}行时出错: {}",
+                                    lines_str.join("\n"),
+                                    idx + 1,
+                                    e
+                                );
+                                exit(4);
+                            });
+                        display_ast(&ast)
+                    },
+                    Err((line, e)) => {
+                        err!("line: {}, {:?}", line, e);
+                        exit(4);
+                    },
+                }
+            },
+            Self::MdtTagCodeToMdtLogic => {
+                let tag_codes = TagCodes::from_tag_lines(src);
+                let mut meta = CompileMeta::with_tag_codes(tag_codes);
+                build_tag_down(&mut meta);
+                let logic_lines = meta.tag_codes_mut().compile().unwrap();
+                logic_lines.join("\n")
+            },
+        }
+    }
+}
+impl TryFrom<char> for CompileMode {
+    type Error = char;
+
+    fn try_from(mode: char) -> Result<Self, Self::Error> {
+        Ok(match mode {
+            'c' => Self::BangToMdtLogic,
+            'a' => Self::BangToASTDebug,
+            'A' => Self::BangToASTDisplay,
+            't' => Self::BangToMdtTagCode { tag_down: false },
+            'T' => Self::BangToMdtTagCode { tag_down: true },
+            'f' => Self::MdtLogicToMdtTagCode { tag_down: false },
+            'F' => Self::MdtLogicToMdtTagCode { tag_down: true },
+            'r' => Self::MdtLogicToBang { tag_down: false },
+            'R' => Self::MdtLogicToBang { tag_down: true },
+            'C' => Self::MdtTagCodeToMdtLogic,
+            mode => return Err(mode),
+        })
     }
 }
 
-fn display_ast(ast: &Expand) {
+fn display_ast(ast: &Expand) -> String {
     let mut meta = Default::default();
     ast.display_source(&mut meta);
-    assert!(meta.pop_lf());
-    println!("{}", meta.buffer());
+    let _ = meta.pop_lf();
+    meta.buffer().into()
 }
 
 fn build_tag_down(meta: &mut CompileMeta) {
@@ -210,10 +223,6 @@ fn build_tag_down(meta: &mut CompileMeta) {
 }
 
 type ParseResult<'a> = Result<Expand, ParseError<usize, Token<'a>, Error>>;
-
-fn from_stdin_build_ast() -> Expand {
-    build_ast(&read_stdin())
-}
 
 fn build_ast(src: &str) -> Expand {
     let parser = TopLevelParser::new();

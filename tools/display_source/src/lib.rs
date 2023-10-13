@@ -78,6 +78,7 @@ impl DisplaySourceMeta {
 
     /// 尝试去掉一个换行, 返回是否成功
     /// 如果去掉了换行, 那么它会关闭缩进标志位
+    #[must_use]
     pub fn pop_lf(&mut self) -> bool {
         if self.buffer.ends_with(LF) {
             let _ch = self.buffer.pop();

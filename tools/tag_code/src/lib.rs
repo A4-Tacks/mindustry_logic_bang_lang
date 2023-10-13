@@ -869,6 +869,18 @@ impl Default for TagCodes {
         Self::new()
     }
 }
+impl Display for TagCodes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut iter = self.lines().iter();
+        if let Some(first) = iter.next() {
+            write!(f, "{first}")?;
+        }
+        for line in iter {
+            write!(f, "\n{line}")?;
+        }
+        Ok(())
+    }
+}
 
 
 fn take_jump_target(line: &str) -> String {
