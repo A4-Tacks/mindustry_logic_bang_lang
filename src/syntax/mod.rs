@@ -2121,7 +2121,6 @@ pub trait Compile {
     }
 }
 
-#[derive(Debug)]
 pub struct CompileMeta {
     /// 标记与`id`的映射关系表
     tags_map: HashMap<String, usize>,
@@ -2141,6 +2140,28 @@ pub struct CompileMeta {
     /// 所以它支持在宏A内部展开的宏B跳转到宏A内部的标记
     const_expand_tag_name_map: Vec<HashMap<Var, Var>>,
     value_binds: HashMap<(Var, Var), Var>,
+}
+impl Debug for CompileMeta {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // 为适应GitHub Rust Actions的老版本Rust, 暂时将Debug宏手动实现
+        struct DotDot;
+        impl Debug for DotDot {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "..")
+            }
+        }
+        f.debug_struct("CompileMeta")
+            .field("tags_map", &self.tags_map)
+            .field("tag_count", &self.tag_count)
+            .field("tag_codes", &self.tag_codes)
+            .field("tmp_var_count", &self.tmp_var_count.counter())
+            .field("const_var_namespace", &self.const_var_namespace)
+            .field("dexp_result_handles", &self.dexp_result_handles)
+            .field("tmp_tag_count", &self.tmp_tag_count.counter())
+            .field("const_expand_tag_name_map", &self.const_expand_tag_name_map)
+            .field("value_binds", &self.value_binds)
+            .finish()
+    }
 }
 impl Default for CompileMeta {
     fn default() -> Self {

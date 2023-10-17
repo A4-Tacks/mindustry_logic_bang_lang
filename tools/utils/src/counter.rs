@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 /// 一个负责获取结果并自增的结构
 /// # Examples
 /// ```
@@ -12,11 +14,25 @@
 /// assert_eq!(counter.get(), "__2");
 /// assert_eq!(counter.get(), "__3");
 /// ```
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub struct Counter<F, T = usize>
 {
     counter: T,
     getter: F,
+}
+impl<F, T: Debug> Debug for Counter<F, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        struct DotDot;
+        impl Debug for DotDot {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "..")
+            }
+        }
+        f.debug_struct("Counter")
+            .field("counter", &self.counter)
+            .field("getter", &DotDot)
+            .finish()
+    }
 }
 
 impl<F, R, T> Counter<F, T>
@@ -29,8 +45,14 @@ where F: FnMut(&mut T) -> R
         }
     }
 
+    /// 获取更新函数返回的值
     pub fn get(&mut self) -> R {
         (self.getter)(&mut self.counter)
+    }
+
+    /// 返回内部值
+    pub fn counter(&self) -> &T {
+        &self.counter
     }
 }
 
