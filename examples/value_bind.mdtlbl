@@ -17,9 +17,9 @@ take["jack" 18] Human = Human_new;
 print Human Human.age;
 #* >>>
 set __0 "jack"
-set ____0__bind__age 18
+set __1 18
 print __0
-print ____0__bind__age
+print __1
 *#
 # 可以看到, 我们将额外的age绑定到了我们的Human
 # 这可以用来组织一些复杂结构
@@ -46,13 +46,13 @@ take[Num1 Num2] Num3 = Complex_add;
 print Num3 "," Num3.i;
 #* >>>
 set __0 3
-set ____0__bind__i 5
-set __1 2
-set ____1__bind__i 8
-op add __2 __0 __1
-op add ____2__bind__i ____0__bind__i ____1__bind__i
-print __2
+set __1 5
+set __2 2
+set __3 8
+op add __4 __0 __2
+op add __5 __1 __3
+print __4
 print ","
-print ____2__bind__i
+print __5
 *#
 # 可以看到, 这可以使我们方便的组织数据

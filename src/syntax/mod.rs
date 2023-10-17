@@ -22,6 +22,7 @@ use display_source::{
     DisplaySourceMeta,
 };
 pub use crate::tag_code::mdt_logic_split;
+use utils::counter::Counter;
 
 
 macro_rules! impl_enum_froms {
@@ -430,16 +431,11 @@ impl TakeHandle for ValueBind {
         // 以`__{}__bind__{}`的形式组合
         let handle = self.0.take_handle(meta);
         assert!(! Value::is_string(&self.1));
-        if Value::is_string(&handle) {
-            err!(
-                "{}\nValueBind过程中, 左值句柄为字符串, ({}.{})",
-                meta.err_info().join("\n"),
-                Value::replace_ident(&handle),
-                Value::replace_ident(&self.1),
-            );
-            exit(6)
-        }
-        format!("__{}__bind__{}", handle, self.1)
+        let binded
+            = meta.get_value_binded(handle, self.1).clone();
+        // 进行常量表查询, 虽然是匿名量但是还是要有这个行为嘛
+        // 虽然之前没有
+        binded.take_handle(meta)
     }
 }
 impl DisplaySource for ValueBind {
@@ -2131,7 +2127,7 @@ pub struct CompileMeta {
     tags_map: HashMap<String, usize>,
     tag_count: usize,
     tag_codes: TagCodes,
-    tmp_var_count: usize,
+    tmp_var_count: Counter<fn(&mut usize) -> Var>,
     /// 块中常量, 且带有展开次数与内部标记
     /// 并且存储了需要泄露的常量
     ///
@@ -2139,11 +2135,12 @@ pub struct CompileMeta {
     const_var_namespace: Vec<(Vec<Var>, HashMap<Var, (Vec<Var>, Value)>)>,
     /// 每层DExp所使用的句柄, 末尾为当前层
     dexp_result_handles: Vec<Var>,
-    tmp_tag_count: usize,
+    tmp_tag_count: Counter<fn(&mut usize) -> Var>,
     /// 每层const展开的标签
     /// 一个标签从尾部上寻, 寻到就返回找到的, 没找到就返回原本的
     /// 所以它支持在宏A内部展开的宏B跳转到宏A内部的标记
     const_expand_tag_name_map: Vec<HashMap<Var, Var>>,
+    value_binds: HashMap<(Var, Var), Var>,
 }
 impl Default for CompileMeta {
     fn default() -> Self {
@@ -2160,11 +2157,12 @@ impl CompileMeta {
             tags_map: HashMap::new(),
             tag_count: 0,
             tag_codes,
-            tmp_var_count: 0,
+            tmp_var_count: Counter::new(Self::tmp_var_getter),
             const_var_namespace: Vec::new(),
             dexp_result_handles: Vec::new(),
-            tmp_tag_count: 0,
+            tmp_tag_count: Counter::new(Self::tmp_tag_getter),
             const_expand_tag_name_map: Vec::new(),
+            value_binds: HashMap::new(),
         }
     }
 
@@ -2178,17 +2176,33 @@ impl CompileMeta {
         })
     }
 
+    fn tmp_tag_getter(id: &mut usize) -> Var {
+        let old = *id;
+        *id += 1;
+        format!("__{old}")
+    }
+
     /// 获取一个临时的`tag`
     pub fn get_tmp_tag(&mut self) -> Var {
-        let id = self.tmp_tag_count;
-        self.tmp_tag_count += 1;
-        format!("__{}", id)
+        self.tmp_tag_count.get()
+    }
+
+    fn tmp_var_getter(id: &mut usize) -> Var {
+        let old = *id;
+        *id += 1;
+        format!("__{old}")
     }
 
     pub fn get_tmp_var(&mut self) -> Var {
-        let id = self.tmp_var_count;
-        self.tmp_var_count += 1;
-        format!("__{}", id)
+        self.tmp_var_count.get()
+    }
+
+    pub fn get_value_binded(&mut self, value: Var, bind: Var) -> &Var {
+        let key = (value, bind);
+        self.value_binds.entry(key)
+            .or_insert_with(|| {
+                self.tmp_var_count.get()
+            })
     }
 
     /// 向已生成代码`push`

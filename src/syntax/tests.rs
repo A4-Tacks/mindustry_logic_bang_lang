@@ -2069,16 +2069,18 @@ fn value_bind_test() {
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
                "set jack \"jack\"",
-               "set __jack__bind__age 18",
+               "set __0 18",
                "print jack",
-               "print __jack__bind__age",
+               "print __0",
     ]);
 
     let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
     print a.b.c;
+    print a.b;
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
-               "print ____a__bind__b__bind__c",
+               "print __1",
+               "print __0",
     ]);
 
 }
