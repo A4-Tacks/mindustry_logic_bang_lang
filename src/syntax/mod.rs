@@ -2583,6 +2583,55 @@ where F: FnOnce() -> Op
 {
     f().into()
 }
+pub fn op_expr_build_results(
+    meta: &mut Meta,
+    mut results: Vec<Value>,
+    mut values: Vec<OpExprInfo>,
+) -> LogicLine {
+    match (results.len(), values.len()) {
+        e @ ((0, _) | (_, 0)) => unreachable!("len by zero, {e:?}"),
+        (1, 1) => {
+            let (result, value) = (
+                results.pop().unwrap(),
+                values.pop().unwrap(),
+            );
+            value.into_logic_line(meta, result)
+        },
+        (len, 1) => {
+            let mut lines = Vec::with_capacity(len + 1);
+            let value = values.pop().unwrap();
+            let mut results = results.into_iter();
+            let first_result_handle = meta.get_tmp_var();
+            lines.push(Take(
+                first_result_handle.clone(), results.next().unwrap()
+            ).into());
+            lines.push(value.into_logic_line(
+                meta,
+                first_result_handle.clone().into()
+            ));
+            for result in results {
+                let value
+                    = OpExprInfo::Value(first_result_handle.clone().into());
+                lines.push(value.into_logic_line(meta, result.clone()))
+            }
+            assert_eq!(lines.len(), len + 1);
+            Expand(lines).into()
+        },
+        (res_len, val_len) => {
+            assert_eq!(res_len, val_len);
+
+            let mut lines = Vec::with_capacity(res_len);
+            let ziped
+                = results.into_iter().zip(values);
+
+            for (result, value) in ziped {
+                let line = value.into_logic_line(meta, result);
+                lines.push(line)
+            }
+            Expand(lines).into()
+        },
+    }
+}
 
 #[cfg(test)]
 mod tests;

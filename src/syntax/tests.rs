@@ -2221,6 +2221,20 @@ fn op_expr_test() {
         "#).unwrap(),
     );
 
+    assert_eq!(
+        parse!(parser, r#"
+        a, b, c = 1;
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            take ___0 = a;
+            ___0 = 1;
+            b = ___0;
+            c = ___0;
+        }
+        "#).unwrap(),
+    );
+
 }
 
 #[test]

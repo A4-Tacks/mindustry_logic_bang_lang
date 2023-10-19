@@ -17,6 +17,7 @@ use crate::syntax::{
     DExp,
     ValueBind,
     op_expr_build_op,
+    op_expr_build_results,
     OpExprInfo,
     JumpCmp,
     CmpTree,
@@ -58,12 +59,12 @@ MTuple<T> = Wrap<"(", T, ")">;
 MList<T> = Wrap<"[", T, "]">;
 MBlock<T> = Wrap<"{", T, "}">;
 OpenArgs<T, S> = (<T> S)*; // 零至多个有分隔后缀值
-CloseArgs<T, S> = (<T> S)* T => { // 一至多个有分隔无后缀值
+CloseArgs<T, S>: Vec<T> = OpenArgs<T, S> T => { // 一至多个有分隔无后缀值
     let (mut args, tail) = <>;
     args.push(tail);
     args
 };
-OOCArgs<T, S> = {
+OOCArgs<T, S>: Vec<T> = {
     OpenArgs<T, S>,
     CloseArgs<T, S>,
 }
@@ -319,30 +320,35 @@ Args2: Vec<Value> = {
     Value Value Value Value Value Value Value Value Value Value Value Value Value Value Value => vec![<>],
 }
 
-OpExpr: LogicLine = <OpExprDoMultiple> LEnd => {
-    let (mut results, values) = <>;
-    results.reverse();
-    assert_eq!(results.len(), values.len());
+OpExpr: LogicLine = {
+    <OpExprMultipleResult> LEnd => {
+        let (mut results, value) = <>;
+        results.reverse();
+        op_expr_build_results(meta, results, vec![value])
+    },
+    <OpExprDoMultiple> LEnd => {
+        let (mut results, values) = <>;
+        results.reverse();
+        op_expr_build_results(meta, results, values)
+    },
+}
 
-    let mut lines = Vec::with_capacity(results.len());
-
-    let ziped = results.into_iter().zip(values);
-    for (result, value) in ziped {
-        let line = value.into_logic_line(meta, result);
-        lines.push(line)
-    }
-
-    assert!(! lines.is_empty());
-    if lines.len() == 1 {
-        lines.pop().unwrap()
-    } else {
-        Expand(lines).into()
-    }
-};
+// 多个接收者的OpExpr, 例如`a, b, c = 1;`
+OpExprMultipleResult: (Vec<Value>, OpExprInfo) = {
+    <result:Value> "=" <value:OpExprBody> => {
+        (vec![result], value)
+    },
+    <result:Value> "," <body:OpExprMultipleResult> => {
+        let (mut results, value) = body;
+        results.push(result);
+        (results, value)
+    },
+}
 
 // 例如`a, b = 1, 2`返回`([b, a], [1, 2])`
 OpExprDoMultiple: (Vec<Value>, Vec<OpExprInfo>) = {
-    <result:Value> "=" <value:OpExprBody> => (vec![result], vec![value]),
+    <res1:Value> "," <res2:Value> "=" <val1:OpExprBody> "," <val2:OpExprBody>
+        => (vec![res2, res1], vec![val1, val2]),
     <result:Value> "," <mut mid:OpExprDoMultiple> "," <value:OpExprBody> => {
         let (results, values) = &mut mid;
         results.push(result);
