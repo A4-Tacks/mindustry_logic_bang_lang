@@ -89,6 +89,7 @@ hi link mdtlblIdentLabel Label
 setlocal foldmethod=syntax
 syn region mdtlblBlock start=/{/ end=/}/ transparent fold
 syn region mdtlblDExp start=/(/ end=/)/ transparent fold
+syn region mdtlblArgs start=/\[/ end=/\]/ transparent fold
 
 " Indent (缩进控制) {{{1
 
