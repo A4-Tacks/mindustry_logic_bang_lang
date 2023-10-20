@@ -66,7 +66,7 @@ hi link mdtlblOIdent Identifier
 syn match mdtlblOtherVar /'[^' \t]\+'/
 hi link mdtlblOtherVar Identifier
 
-syn match mdtlblNumber /\v<(0(x\-?[0-9a-fA-F][0-9a-fA-F_]*|b\-?[01][_01]*)|\-?[0-9][0-9_]*(\.[0-9][0-9_]*)?)>/
+syn match mdtlblNumber /\v(<0(x\-?[0-9a-fA-F][0-9a-fA-F_]*|b\-?[01][_01]*)|\-?<[0-9][0-9_]*(\.[0-9][0-9_]*)?)>/
 hi link mdtlblNumber Number
 
 syn match mdtlblBoolean /\v<true|false>/
