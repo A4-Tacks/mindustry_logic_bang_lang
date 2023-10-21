@@ -48,11 +48,8 @@ endsnippet
 snippet const "const value" w
 const ${1:NAME} = ${2:value};$0
 endsnippet
-snippet const_dexp "const DExp" w
-const ${1:NAME} = (${2});$0
-endsnippet
 snippet take "take" w
-take${1:[${2}]} ${3:${4:RES} = }${5:VALUE};
+take ${1:${2:RES} = ${3:VALUE}};
 endsnippet
 snippet argt "take arg" w
 take ${1:Arg} = _${2:0};$0
@@ -78,7 +75,7 @@ snippet print "print values;" w
 print ${1:"frog"};$0
 endsnippet
 snippet set "a = b;" w
-${1} = ${2};
+${1:\$} = ${2};
 endsnippet
 snippet read "read result cell1 0;" w
 read ${1:result} ${2:cell1} ${3:0};$0
