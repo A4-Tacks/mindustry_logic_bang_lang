@@ -1,6 +1,6 @@
 const Memory = cell1; # Read/Write默认实现的读写目标
 
-const Read = (
+const Read = (__:
     #**
     使用read读取Memory中的Index处, 读取到RES中, 这里假定传入RES不为`$`
     *#
@@ -10,8 +10,7 @@ const Read = (
 
     read $ Memory Index;
 );
-
-const Write = (
+const Write = (__:
     #**
     使用write向Memory中的Index写入Data
     获取Data时会传入Index
@@ -20,17 +19,17 @@ const Write = (
     take[Index] Data = _1; # 会传入下标, 满足一部分需求
     write Data Memory Index;
 );
-
 const SwapMem = (
     #**
     交换两个内存中两个位置的值
+    返回句柄为交换前Index1的值
     *#
     take Cell1 = _0;
     take Cell2 = _1;
     take Index1 = _2;
     take Index2 = _3;
 
-    take Tmp1 = (); # 用于交换的中间变量
+    take Tmp1 = $; # 用于交换的中间变量
     take Tmp2 = ();
 
     read Tmp1 Cell1 Index1;
@@ -39,22 +38,22 @@ const SwapMem = (
     write Tmp2 Cell1 Index1;
     write Tmp1 Cell2 Index2;
 );
-
 const Swap = (
     #**
     交换两个位置的值, 使用Read/Write
+    返回句柄为交换前Index1位置的值
     *#
     take Index1 = _0;
     take Index2 = _1;
 
-    take[Index1 ()] Num1 = Read;
+    take Res = $;
+    take[Index1 Res] Num1 = Read;
     take[Index2 ()] Num2 = Read;
 
     take[Index1 Num2] Write;
     take[Index2 Num1] Write;
 );
-
-const Reverse = (
+const Reverse = (__:
     #**
     对[Left,Right]区间的值反转, 使用Read/Write
     *#
@@ -72,8 +71,7 @@ const Reverse = (
         op J J - 1;
     }
 );
-
-const Fill = (
+const Fill = (__:
     #**
     使用Read/Write从Start到End(不包括)的区域使用Value进行填充
     这不会预先使用take对Value进行求值, 也就是说你可以使用DExp进行填充
@@ -92,8 +90,7 @@ const Fill = (
         op I I + 1;
     }
 );
-
-const Swaps = (
+const Swaps = (__:
     #**
     使用手摇算法将[LL,LR]与[RL,RR]两个区间的元素进行交换
     反转元素使用Reverse
@@ -107,8 +104,7 @@ const Swaps = (
     take[(op $ LR + 1;) (op $ RL - 1;)] Reverse;
     take[LL RR] Reverse;
 );
-
-const RWhile = (
+const RWhile = (__:
     # 使用Read/Write将[a, b]区间进行一次距离为一的向右循环
     # 并且在空出的空位写入num
     take A = _0;
@@ -128,7 +124,6 @@ const RWhile = (
     }
     take[A Num] Write;
 );
-
 const Middle = (
     #**
     获取A与B之间的中间值, 0 <= A <= B
@@ -140,9 +135,8 @@ const Middle = (
     take A = _0;
     take B = _1;
     #op $ A + (op $ B - A; op $ $ >> 1;);
-    op $ (op $ A + B;) // 2;
+    $ = (A + B) // 2;
 );
-
 const BinarySearchInsertIndex = (
     #**
     对`Start..Stop`也就是包含Start不包含Stop的区间进行二分查找
@@ -179,8 +173,7 @@ const BinarySearchInsertIndex = (
 
     # result `I`
 );
-
-const BinaryInsertSort = (
+const BinaryInsertSort = (__:
     #**
     二分插入排序算法, 在Cell中对Start..Stop范围中进行二分插入排序
     Key是用来取用于比较的key的, 如果你并不想处理那直接传入`(_0:)`即可
@@ -203,8 +196,7 @@ const BinaryInsertSort = (
         op I I + 1;
     }
 );
-
-const InsertSort = (
+const InsertSort = (__:
     #**
     插入排序算法, 在Cell中对Start..Stop范围中进行二分插入排序
     Key是用来取用于比较的key的, 如果你并不想处理那直接传入`(_0:)`即可
@@ -229,11 +221,80 @@ const InsertSort = (
         while (Tmp: $ = J; op J J - 1;) > Start {
             take[J ()] PeekNum = Read;
             take[PeekNum] KeyedPeekNum = Key;
-            goto :break1 ! KeyedPeekNum > KeyedNum;
+            break ! KeyedPeekNum > KeyedNum;
 
             take[Tmp PeekNum] Write;
-        } :break1
+        }
         take[Tmp Num] Write;
         op I I + 1;
+    }
+);
+const QUICK_SORT_USE_INSERT_SORT_LEN = 10;
+const QuickSort = (__:
+    #**
+    * 简易快速排序, LL版本.
+    * 当区间长度短于阈值时, 会采用插入排序.
+    * # params
+    * * Left: 排序区间的起始
+    * * Right: 排序区间的终止(包含在内)
+    * * Stack: 辅助栈内存
+    * * StackFloor: 辅助栈内存的最低地址
+    * * Key: 用于排序的键
+    *#
+    take Left = _0;
+    take Right = _1;
+    take Stack = _2;
+    take StackFloor = _3;
+    const Key = _4;
+
+    take StackTop = ($ = StackFloor;);
+
+    take FuncSize = 2;
+
+    const PushParam = (__:
+        take Left = _0;
+        take Right = _1;
+
+        write Left Stack StackTop;
+        write Right Stack ($ = StackTop + 1;);
+        op StackTop StackTop + FuncSize;
+    );
+    const PopParam = (__:
+        take Left = _0;
+        take Right = _1;
+
+        read Left Stack ($ = StackTop - 2;);
+        read Right Stack ($ = StackTop - 1;);
+        op StackTop StackTop - FuncSize;
+    );
+
+    take PushParam[Left Right];
+    while StackTop > StackFloor {
+        take Left = ();
+        take Right = ();
+        take PopParam[Left Right];
+        if ($ = Right - Left;) < QUICK_SORT_USE_INSERT_SORT_LEN {
+            take InsertSort[Key Left ($ = Right + 1;)];
+        } else while Left < Right {
+            take PivotI = ($ = Left + rand(Right - Left););
+            take Pivot = Swap[PivotI Right];
+            take PivotK = Key[Pivot];
+            take I = ($ = Left;);
+            take J = ($ = Left;);
+            while I < Right {
+                take Num = Read[I ()];
+                if Key[Num] < PivotK {
+                    take Write[I Read[J ()]];
+                    take Write[J Num];
+                    op J J + 1;
+                }
+                op I I + 1;
+            }
+            take Write[Right Read[J ()]];
+            take Write[J Pivot];
+
+            take PushParam[($ = J + 1;) Right];
+            Right = J - 1; # 左递归
+        }
     }
 );
