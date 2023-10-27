@@ -1,0 +1,31 @@
+#**
+* 这是0.12.8加入的功能, 可以自定义break和continue的跳出点.
+* 语法为(("break" | "continue") "!"?)+ Block
+* 其中编写break就是表示捕获break至块末尾,
+* 编写continue就是表示捕获continue至块末尾.
+*
+* 当break或者continue后方加上了叹号时, 将反转其跳转点,
+* 例如`break! { ... }`内部使用break会跳转到块首部,
+* 也就是应该continue跳转到的位置.
+*#
+
+i = 0;
+while i < 10 {
+    continue! {
+        getlink block i;
+        continue !(sensor $ block @enabled;);
+    }
+    op i i + 1;
+}
+#* >>>
+set i 0
+jump 0 greaterThanEq i 10
+getlink block i
+sensor __0 block @enabled
+jump 5 equal __0 false
+op add i i 1
+jump 2 lessThan i 10
+*#
+# 可以看到, 控制块中的continue被导向了i自加处,
+# 这样就可以在循环等结构中简单的定义break和continue的导向处了
+# 合理使用可以增加一些可读性等

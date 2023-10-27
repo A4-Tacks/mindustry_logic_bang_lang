@@ -70,7 +70,12 @@ OOCArgs<T, S>: Vec<T> = {
 }
 Span<T> = @L T @R;
 
+CtrlBreakStart: () = () => meta.add_control_break_level(None);
+CtrlContinueStart: () = () => meta.add_control_continue_level(None);
 CtrlStart: () = () => meta.add_control_level(None, None);
+
+CtrlBreakStop: Option<Var> = () => meta.pop_control_break_level();
+CtrlContinueStop: Option<Var> = () => meta.pop_control_continue_level();
 CtrlStop: (Option<Var>, Option<Var>) = () => meta.pop_control_level();
 
 pub TopLevel: Expand = CtrlStart <mut lines:Expand> <ctrl:CtrlStop> => {
@@ -594,6 +599,35 @@ SwitchCatchFlag: SwitchCatch = {
     MTuple<JumpCmp> => SwitchCatch::UserDefine(<>),
 }
 
+ControlBlock: Expand = {
+    "break" <bang:"!"?>
+    CtrlBreakStart <lines:Or<ControlBlock, BlockExpand>> <ctrl:CtrlBreakStop>
+    => {
+        let mut res = Vec::with_capacity(2);
+        if bang.is_none() {
+            res.push(lines.into());
+            meta.push_some_label_to(&mut res, ctrl);
+        } else {
+            meta.push_some_label_to(&mut res, ctrl);
+            res.push(lines.into());
+        }
+        res.into()
+    },
+    "continue" <bang:"!"?>
+    CtrlContinueStart <lines:Or<ControlBlock, BlockExpand>> <ctrl:CtrlContinueStop>
+    => {
+        let mut res = Vec::with_capacity(2);
+        if bang.is_none() {
+            meta.push_some_label_to(&mut res, ctrl);
+            res.push(lines.into());
+        } else {
+            res.push(lines.into());
+            meta.push_some_label_to(&mut res, ctrl);
+        }
+        res.into()
+    },
+}
+
 pub Control: LogicLine = {
     "goto" <Label> <AlwaysJumpCmp> LEnd => {
         Goto(<>).into()
@@ -606,6 +640,8 @@ pub Control: LogicLine = {
     "continue" <AlwaysJumpCmp> LEnd => {
         Goto(meta.get_continue().clone(), <>).into()
     },
+
+    ControlBlock => <>.into(),
 
     "skip" <cmp:JumpCmp> <body:LogicLine> => {
         let lab = meta.get_tag();

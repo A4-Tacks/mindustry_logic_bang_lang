@@ -509,15 +509,32 @@ impl Meta {
         self.defined_labels.pop().unwrap()
     }
 
+    pub fn add_control_break_level(&mut self, r#break: Option<Var>) {
+        self.break_labels.push(r#break);
+    }
+
+    pub fn add_control_continue_level(&mut self, r#continue: Option<Var>) {
+        self.continue_labels.push(r#continue);
+    }
+
     /// 添加一层用于`break`和`continue`的未使用控制层
     ///
     /// 需要在结构结束时将其销毁
     pub fn add_control_level(
-        &mut self, r#break: Option<Var>,
+        &mut self,
+        r#break: Option<Var>,
         r#continue: Option<Var>,
     ) {
-        self.break_labels.push(r#break);
-        self.continue_labels.push(r#continue);
+        self.add_control_break_level(r#break);
+        self.add_control_continue_level(r#continue);
+    }
+
+    pub fn pop_control_break_level(&mut self) -> Option<Var> {
+        self.break_labels.pop().unwrap()
+    }
+
+    pub fn pop_control_continue_level(&mut self) -> Option<Var> {
+        self.continue_labels.pop().unwrap()
     }
 
     /// 将`break`和`continue`的标签返回
@@ -525,8 +542,8 @@ impl Meta {
     /// 如果未使用那么返回的会为空
     pub fn pop_control_level(&mut self) -> (Option<Var>, Option<Var>) {
         (
-            self.break_labels.pop().unwrap(),
-            self.continue_labels.pop().unwrap(),
+            self.pop_control_break_level(),
+            self.pop_control_continue_level(),
         )
     }
 

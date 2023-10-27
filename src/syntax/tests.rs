@@ -3097,3 +3097,197 @@ fn optional_jumpcmp_test() {
     );
 
 }
+
+#[test]
+fn control_block_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        a;
+        break {
+            b;
+            break;
+            c;
+        }
+        d;
+        break;
+        "#).unwrap()).compile().unwrap(),
+        [
+            "a",
+            "b",
+            "jump 4 always 0 0",
+            "c",
+            "d",
+            "jump 0 always 0 0",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        a;
+        break! {
+            b;
+            break;
+            c;
+        }
+        d;
+        break;
+        "#).unwrap()).compile().unwrap(),
+        [
+            "a",
+            "b",
+            "jump 1 always 0 0",
+            "c",
+            "d",
+            "jump 0 always 0 0",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        a;
+        continue {
+            b;
+            continue;
+            c;
+        }
+        d;
+        continue;
+        "#).unwrap()).compile().unwrap(),
+        [
+            "a",
+            "b",
+            "jump 1 always 0 0",
+            "c",
+            "d",
+            "jump 0 always 0 0",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        a;
+        continue! {
+            b;
+            continue;
+            c;
+        }
+        d;
+        continue;
+        "#).unwrap()).compile().unwrap(),
+        [
+            "a",
+            "b",
+            "jump 4 always 0 0",
+            "c",
+            "d",
+            "jump 0 always 0 0",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        a;
+        continue {
+            b;
+            break;
+            c;
+        }
+        d;
+        continue;
+        "#).unwrap()).compile().unwrap(),
+        [
+            "a",
+            "b",
+            "jump 0 always 0 0",
+            "c",
+            "d",
+            "jump 0 always 0 0",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        a;
+        break {
+            b;
+            continue;
+            c;
+        }
+        d;
+        break;
+        "#).unwrap()).compile().unwrap(),
+        [
+            "a",
+            "b",
+            "jump 0 always 0 0",
+            "c",
+            "d",
+            "jump 0 always 0 0",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        a;
+        break continue {
+            b;
+            continue;
+            break;
+            c;
+        }
+        d;
+        "#).unwrap()).compile().unwrap(),
+        [
+            "a",
+            "b",
+            "jump 1 always 0 0",
+            "jump 5 always 0 0",
+            "c",
+            "d",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        a;
+        continue break {
+            b;
+            continue;
+            break;
+            c;
+        }
+        d;
+        "#).unwrap()).compile().unwrap(),
+        [
+            "a",
+            "b",
+            "jump 1 always 0 0",
+            "jump 5 always 0 0",
+            "c",
+            "d",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        a;
+        continue! break! {
+            b;
+            break;
+            continue;
+            c;
+        }
+        d;
+        "#).unwrap()).compile().unwrap(),
+        [
+            "a",
+            "b",
+            "jump 1 always 0 0",
+            "jump 5 always 0 0",
+            "c",
+            "d",
+        ]
+    );
+}
