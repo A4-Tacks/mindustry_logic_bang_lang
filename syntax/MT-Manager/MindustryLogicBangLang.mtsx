@@ -5,20 +5,6 @@
 	// no hidden
 	hide: false,
 	comment: { startsWith: "#", addToContains: false },
-	colors: [
-		"cRed", #ff0000, #ff0000,
-		"cBlue", #7900ff, #5463ff,
-		"cYellow", #b85c38, #ffc300,
-		"cBule2", #9adcff, #9adcff,
-		"cGreen", #00ff00, #00ff00,
-		"cDefault", #000000, #eeeeee,
-		"cL1", #a08b8a, #a08b8a,
-		"cL2", #d3816b, #d3816b,
-		"cL3", #877bad, #877bad,
-		"cL4", #6bb3b2, #6bb3b2,
-		"cL5", #c7b59d, #c7b59d,
-		"cOutPut", #a2d5ab, #a2d5ab
-	],
 	contains: [
 		{
 			// long comments
@@ -60,6 +46,7 @@
 			// control
 			match: keywordsToRegex(
 				"while gwhile do skip goto if elif else switch case"
+				"select break continue"
 			),
 			0: "keyword"
 		},
@@ -70,11 +57,26 @@
 		{
 			// other
 			match: keywordsToRegex(
-				"const take setres"
+				"const take setres inline print set"
 			),
 			0: "keyword2"
+		},
+		{
+			// operator
+			match: keywordsToRegex(
+				"abs", "acos", "add", "and", "angle", "asin", "atan", "ceil",
+				"cos", "div", "equal", "floor", "greaterThan", "greaterThanEq",
+				"idiv", "land", "len", "lessThan", "lessThanEq", "lnot", "log",
+				"max", "min", "mod", "mul", "noise", "not", "notEqual", "or",
+				"pow", "rand", "shl", "shr", "sin", "sqrt", "strictEqual",
+				"strictNotEqual", "sub", "tan", "xor",
+			),
+			0: "tagName"
+		},
+		{
+			// label
+			match: /:(?:[a-zA-Z]|[a-zA-Z_][a-zA-Z0-9_]+)\b/,
+			0: "label"
 		}
-
-		// 接下来是 MindustryLogic 原生匹配
 	]
 }
