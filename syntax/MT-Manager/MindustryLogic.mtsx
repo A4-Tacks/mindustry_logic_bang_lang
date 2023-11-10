@@ -1,0 +1,233 @@
+// Mindustry Logic 的语法高亮规则
+// repo: https://github.com/A4-Tacks/mindustry_logic_bang_lang
+{
+    name: ["MindustryLogic", ".logic"],
+    hide: false,
+    colors: [
+        "resultVar", #00C897, #00C897,
+        "envVar", #1FAB89, #1FAB89,
+        "block", #D4816B, #D4816B,
+        "control", #6BB2B2, #6BB2B2,
+        "operation", #877BAD, #877BAD,
+        "io", #A08A8A, #A08A8A,
+        "unit", #C7B59D, #C7B59D,
+        "world", #6B84D4, #6B84D4,
+    ],
+    contains: [
+        {
+            match: /(?<=\n|^)(noop)\s*(?=\n|$)/,
+            1: "control"
+        },
+        {
+            match: /(?<=\n|^)(read)\s+((?:"[^"]*"|[^"]\S*))(?:\s+(?:"[^"]*"|[^"]\S*)){2}\s*(?=\n|$)/,
+            1: "io",
+            2: "resultVar"
+        },
+        {
+            match: /(?<=\n|^)(write)(?:\s+(?:"[^"]*"|[^"]\S*)){3}\s*(?=\n|$)/,
+            1: "io"
+        },
+        {
+            match: /(?<=\n|^)(draw)\s+(c(?:lear|olor)|stroke|line(?:Rect|Poly)?|rect|poly|triangle|image)(?:\s+(?:"[^"]*"|[^"]\S*)){6}\s*(?=\n|$)/,
+            1: "io",
+            2: "io"
+        },
+        {
+            match: /(?<=\n|^)(print)\s+(?:"[^"]*"|[^"]\S*)\s*(?=\n|$)/,
+            1: "io"
+        },
+        {
+            match: /(?<=\n|^)(drawflush)\s+(?:"[^"]*"|[^"]\S*)\s*(?=\n|$)/,
+            1: "block"
+        },
+        {
+            match: /(?<=\n|^)(printflush)\s+(?:"[^"]*"|[^"]\S*)\s*(?=\n|$)/,
+            1: "block"
+        },
+        {
+            match: /(?<=\n|^)(getlink)\s+((?:"[^"]*"|[^"]\S*))\s+(?:"[^"]*"|[^"]\S*)\s*(?=\n|$)/,
+            1: "block",
+            2: "resultVar"
+        },
+        {
+            match: /(?<=\n|^)(control)\s+(enabled|shootp?|co(?:nfig|lor))(?:\s+(?:"[^"]*"|[^"]\S*)){5}\s*(?=\n|$)/,
+            1: "block",
+            2: "block"
+        },
+        {
+            match: /(?<=\n|^)(radar)((?:\s+(?:a(?:ny|lly|ttacker)|enemy|player|flying|boss|ground)){3})\s+(distance|health|shield|armor|maxHealth)(?:\s+(?:"[^"]*"|[^"]\S*)){2}\s+((?:"[^"]*"|[^"]\S*))\s*(?=\n|$)/,
+            1: "block",
+            2: "block",
+            3: "block",
+            4: "resultVar"
+        },
+        {
+            match: /(?<=\n|^)(sensor)\s+((?:"[^"]*"|[^"]\S*))(?:\s+(?:"[^"]*"|[^"]\S*)){2}\s*(?=\n|$)/,
+            1: "block",
+            2: "resultVar"
+        },
+        {
+            match: /(?<=\n|^)(set)\s+((?:"[^"]*"|[^"]\S*))\s+(?:"[^"]*"|[^"]\S*)\s*(?=\n|$)/,
+            1: "operation",
+            2: "resultVar"
+        },
+        {
+            match: /(?<=\n|^)(op)\s+(a(?:bs|cos|dd|n(?:d|gle)|sin|tan)|c(?:eil|os)|div|equal|floor|greaterThan(?:Eq)?|idiv|l(?:and|e(?:n|ssThan(?:Eq)?)|og(?:10)?)|m(?:ax|in|od|ul)|no(?:ise|t(?:Equal)?)|or|pow|rand|s(?:h(?:l|r)|in|qrt|trictEqual|ub)|tan|xor)\s+((?:"[^"]*"|[^"]\S*))\s+(?:"[^"]*"|[^"]\S*)\s+(?:"[^"]*"|[^"]\S*)\s*(?=\n|$)/,
+            1: "operation",
+            2: "operation",
+            3: "resultVar"
+        },
+        {
+            match: /(?<=\n|^)(wait)\s+(?:"[^"]*"|[^"]\S*)\s*(?=\n|$)/,
+            1: "control"
+        },
+        {
+            match: /(?<=\n|^)(stop)\s*(?=\n|$)/,
+            1: "control"
+        },
+        {
+            match: /(?<=\n|^)(lookup)\s+(item|block|unit|liquid)\s+((?:"[^"]*"|[^"]\S*))\s+(?:"[^"]*"|[^"]\S*)\s*(?=\n|$)/,
+            1: "operation",
+            2: "operation",
+            3: "resultVar"
+        },
+        {
+            match: /(?<=\n|^)(packcolor)\s+((?:"[^"]*"|[^"]\S*))(?:\s+(?:"[^"]*"|[^"]\S*)){4}\s*(?=\n|$)/,
+            1: "operation",
+            2: "resultVar"
+        },
+        {
+            match: /(?<=\n|^)(end)\s*(?=\n|$)/,
+            1: "control"
+        },
+        {
+            match: /(?<=\n|^)(jump)\s+((?:"[^"]*"|[^"]\S*))\s+(equal|notEqual|lessThan(?:Eq)?|greaterThan(?:Eq)?|strictEqual|always)(?:\s+(?:"[^"]*"|[^"]\S*)){2}\s*(?=\n|$)/,
+            1: "control",
+            2: "control",
+            3: "control"
+        },
+        {
+            match: /(?<=\n|^)(ubind)\s+(?:"[^"]*"|[^"]\S*)\s*(?=\n|$)/,
+            1: "unit"
+        },
+        {
+            match: /(?<=\n|^)(ucontrol)\s+(?:(i(?:dle|tem(?:Drop|Take))|stop|m(?:ove|ine)|a(?:pproach|utoPathfind)|pa(?:thfind|y(?:Drop|Take|Enter))|b(?:oost|uild)|targetp?|flag|unbind)(?:\s+(?:"[^"]*"|[^"]\S*)){5}|(getBlock)(?:\s+(?:"[^"]*"|[^"]\S*)){2}((?:\s+(?:"[^"]*"|[^"]\S*)){3})|(within)(?:\s+(?:"[^"]*"|[^"]\S*)){3}\s+((?:"[^"]*"|[^"]\S*))\s+(?:"[^"]*"|[^"]\S*))\s*(?=\n|$)/,
+            1: "unit",
+            2: "unit",
+            3: "unit",
+            4: "resultVar",
+            5: "unit",
+            6: "resultVar"
+        },
+        {
+            match: /(?<=\n|^)(uradar)((?:\s+(?:a(?:ny|lly|ttacker)|enemy|player|flying|boss|ground)){3})\s+(distance|health|shield|armor|maxHealth)(?:\s+(?:"[^"]*"|[^"]\S*)){2}\s+((?:"[^"]*"|[^"]\S*))\s*(?=\n|$)/,
+            1: "unit",
+            2: "block",
+            3: "block",
+            4: "resultVar"
+        },
+        {
+            match: /(?<=\n|^)(ulocate)\s+(ore|building|spawn|damaged)\s+(core|storage|generator|turret|factory|r(?:e(?:pair|actor)|ally)|battery)(?:\s+(?:"[^"]*"|[^"]\S*)){2}((?:\s+(?:"[^"]*"|[^"]\S*)){4})\s*(?=\n|$)/,
+            1: "unit",
+            2: "unit",
+            3: "unit",
+            4: "resultVar"
+        },
+        // TODO 以下世界处理器专属未完成
+        {
+            match: /(?<=\n|^)(getblock)\s+.*\s*(?=\n|$)/,
+            1: "world"
+        },
+        {
+            match: /(?<=\n|^)(setblock)\s+.*\s*(?=\n|$)/,
+            1: "world"
+        },
+        {
+            match: /(?<=\n|^)(spawn)\s+.*\s*(?=\n|$)/,
+            1: "world"
+        },
+        {
+            match: /(?<=\n|^)(status)\s+.*\s*(?=\n|$)/,
+            1: "world"
+        },
+        {
+            match: /(?<=\n|^)(spawnwave)\s+.*\s*(?=\n|$)/,
+            1: "world"
+        },
+        {
+            match: /(?<=\n|^)(setrule)\s+.*\s*(?=\n|$)/,
+            1: "world"
+        },
+        {
+            match: /(?<=\n|^)(message)\s+.*\s*(?=\n|$)/,
+            1: "world"
+        },
+        {
+            match: /(?<=\n|^)(cutscene)\s+.*\s*(?=\n|$)/,
+            1: "world"
+        },
+        {
+            match: /(?<=\n|^)(effect)\s+.*\s*(?=\n|$)/,
+            1: "world"
+        },
+        {
+            match: /(?<=\n|^)(explosion)\s+.*\s*(?=\n|$)/,
+            1: "world"
+        },
+        {
+            match: /(?<=\n|^)(setrate)\s+.*\s*(?=\n|$)/,
+            1: "world"
+        },
+        {
+            match: /(?<=\n|^)(fetch)\s+.*\s*(?=\n|$)/,
+            1: "world"
+        },
+        {
+            match: /(?<=\n|^)(sync)\s+.*\s*(?=\n|$)/,
+            1: "world"
+        },
+        {
+            match: /(?<=\n|^)(getflag)\s+.*\s*(?=\n|$)/,
+            1: "world"
+        },
+        {
+            match: /(?<=\n|^)(setflag)\s+.*\s*(?=\n|$)/,
+            1: "world"
+        },
+        {
+            match: /(?<=\n|^)(setprop)\s+.*\s*(?=\n|$)/,
+            1: "world"
+        },
+        // 可惜由于无法主动不匹配,
+        // 上方在完整匹配上色后下面这个环境变量匹配就成为了摆设
+        {
+            match: /(?<=\s|\n|^)(?:@(?:air|blockCount|c(?:o(?:lor|n(?:fig(?:ure)?|veyor)|unter)|rux|trl(?:Command|Formation|P(?:layer|rocessor)))|d(?:agger|e(?:gToRad|relict))|e|i(?:pt|temCount)|li(?:nks|quidCount)|m(?:ap(?:h|w)|inute)|pi|radToDeg|s(?:econd|harded|olid)|t(?:his(?:x|y)?|i(?:ck|me))|unit(?:Count)?|wave(?:Number|Time))|false|null|true)(?=\s|\n|$)/,
+            0: "envVar"
+        },
+        {
+            // blocks
+            match: /(?<=\s|\n|^)@(?:a(?:dditive-reconstructor|fflict|ir(?:-factory)?|r(?:c|ky(?:cite-floor|ic-(?:boulder|stone|vent|wall))|mored-(?:conveyor|duct))|tmospheric-concentrator)|b(?:a(?:rrier-projector|s(?:alt(?:-boulder)?|ic-assembler-module)|ttery(?:-large)?)|e(?:am-(?:link|node|tower)|rylli(?:c-(?:boulder|stone(?:-wall)?)|um-wall(?:-large)?))|l(?:ast-(?:d(?:oor|rill)|mixer)|uemat)|oulder|r(?:each|idge-con(?:duit|veyor))|uild-tower)|c(?:a(?:nvas|rb(?:ide-(?:crucible|wall(?:-large)?)|on-(?:boulder|stone|vent|wall)))|h(?:ar|emical-combustion-chamber)|liff(?:-crusher)?|o(?:al-centrifuge|mbustion-generator|n(?:duit|structor|tainer|veyor)|pper-wall(?:-large)?|re-(?:acropolis|bastion|citadel|foundation|nucleus|shard|zone))|r(?:ater-stone|y(?:ofluid-mixer|stal(?:-(?:blocks|cluster|floor|orbs)|line-(?:boulder|stone(?:-wall)?|vent))))|ultivator|y(?:anogen-synthesizer|clone))|d(?:a(?:cite(?:-(?:boulder|wall))?|rk(?:-metal|sand(?:-(?:tainted-water|water))?))|e(?:constructor|ep-(?:tainted-water|water)|nse-red-stone)|i(?:ff(?:erential-generator|use)|ode|rt(?:-wall)?|s(?:assembler|perse|tributor))|oor(?:-large)?|u(?:ct(?:-(?:bridge|router|unloader))?|ne-wall|o))|e(?:b7abe|lectr(?:ic-heater|olyzer)|mpty|ruption-drill|xponential-reconstructor)|f(?:erric-(?:boulder|craters|stone(?:-wall)?)|lux-reactor|or(?:ce-projector|eshadow)|use)|gr(?:a(?:phit(?:e-press|ic-wall)|ss)|ound-factory)|h(?:ail|eat-(?:r(?:e(?:actor|director)|outer)|source)|otrock|yper-processor)|i(?:ce(?:-(?:snow|wall))?|lluminator|mp(?:act-(?:drill|reactor)|ulse-pump)|n(?:cinerator|terplanetary-accelerator|verted-sorter)|tem-(?:source|void))|junction|kiln|l(?:a(?:ncer|rge-(?:constructor|logic-display|p(?:ayload-mass-driver|lasma-bore)|shield-projector)|ser-drill|unch-pad)|iquid-(?:container|junction|router|source|tank|void)|ogic-(?:display|processor)|ustre)|m(?:a(?:gmarock|lign|ss-driver)|e(?:ch(?:-(?:assembler|fabricator|refabricator)|anical-(?:drill|pump))|lt(?:down|er)|mory-(?:bank|cell)|nd(?:-projector|er)|ssage)|icro-processor|o(?:lten-slag|ss)|u(?:d|lti(?:-press|plicative-reconstructor)))|n(?:aval-factory|eoplasia-reactor)|o(?:il-extractor|ver(?:drive-(?:dome|projector)|flow-(?:duct|gate))|xidation-chamber)|p(?:a(?:rallax|yload-(?:conveyor|loader|mass-driver|router|source|unloader|void))|ebbles|hase-(?:con(?:duit|veyor)|heater|synthesizer|w(?:all(?:-large)?|eaver))|ine|la(?:s(?:ma-bore|tanium-(?:co(?:mpressor|nveyor)|wall(?:-large)?))|ted-conduit)|neumatic-drill|o(?:oled-cryofluid|wer-(?:node(?:-large)?|source|void))|rime-refabricator|u(?:l(?:se-conduit|verizer)|r-bush)|yr(?:atite-mixer|olysis-generator))|r(?:adar|e(?:d(?:-(?:diamond-wall|ice(?:-(?:boulder|wall))?|stone(?:-(?:boulder|vent|wall))?)|mat|weed)|g(?:en-projector|olith(?:-wall)?)|inforced-(?:bridge-conduit|con(?:duit|tainer)|liquid-(?:container|junction|router|tank)|message|p(?:ayload-(?:conveyor|router)|ump)|surge-wall(?:-large)?|vault)?|pair-(?:point|turret))|hyolite(?:-(?:boulder|crater|vent|wall))?|ipple|o(?:tary-pump|u(?:gh-rhyolite|ter))|tg-generator)|s(?:a(?:l(?:t(?:-wall)?|vo)|nd-(?:boulder|floor|wa(?:ll|ter)))|c(?:at(?:he(?:-missile)?|ter)|orch|rap-wall(?:-(?:gigantic|huge|large))?)|e(?:gment|parator)|h(?:al(?:e(?:-(?:boulder|wall))?|low-water)|i(?:eld(?:-projector|ed-wall)|p-(?:assembler|fabricator|refabricator))|ock(?:-mine|wave-tower)|rubs)|ilicon-(?:arc-furnace|crucible|smelter)|lag-(?:centrifuge|heater|incinerator)|m(?:all-deconstructor|ite)|now(?:-(?:boulder|pine|wall))?|o(?:lar-panel(?:-large)?|rter)|p(?:a(?:ce|wn)|ectre|ore-(?:cluster|moss|p(?:ine|ress)|wall))|t(?:eam-generator|one(?:-wall)?)|u(?:blimate|rge-(?:c(?:onveyor|rucible)|router|smelter|tower|wall(?:-large)?))|w(?:armer|itch))|t(?:a(?:inted-water|nk-(?:assembler|fabricator|refabricator)|r)|e(?:ndrils|trative-reconstructor)|h(?:ermal-generator|orium-(?:reactor|wall(?:-large)?)|ruster)|itan(?:ium-(?:conveyor|wall(?:-large)?))?|sunami|u(?:ngsten-wall(?:-large)?|rbine-condenser))|un(?:derflow-(?:duct|gate)|it-(?:cargo-(?:loader|unload-point)|repair-tower)|loader)|v(?:ault|ent-condenser|ibrant-crystal-cluster)|w(?:a(?:ter-extractor|ve)|hite-tree(?:-dead)?|orld-(?:cell|message|processor))|yellow(?:-stone(?:-(?:boulder|plates|vent|wall))?|coral))(?=\s|\n|$)/,
+            0: "envVar"
+        },
+        {
+            // items
+            match: /(?<=\s|\n|^)@(?:c(?:o(?:pper|al)|arbide)|lead|metaglass|graphite|s(?:and|crap|ilicon|urge-alloy|pore-pod)|t(?:itanium|horium|ungsten)|p(?:lastanium|hase-fabric|yratite)|b(?:last-compound|eryllium)|oxide|fissile-matter|dormant-cyst)(?=\s|\n|$)/,
+            0: "envVar"
+        },
+        {
+            // units
+            match: /(?<=\s|\n|^)@(?:d(?:agger|isrupt(?:-missile)?)|m(?:a(?:ce|nifold)|ono|e(?:ga|rui)|inke)|f(?:ortress|lare)|s(?:cepter|piroct|ei|tell)|r(?:e(?:ign|tusa|nale)|isso)|n(?:ova|avanax)|p(?:ulsar|oly|recept)|qu(?:a(?:sar|d)|ell(?:-missile)?)|v(?:ela|anquish)|c(?:o(?:rvus|nquer|llaris)|rawler|yerce|leroi)|a(?:trax|rkyid|nt(?:umbra|hicus(?:-missile)?)|egires|lpha|vert|ssembly-drone)|t(?:oxopid|ecta)|horizon|zenith|e(?:clipse|lude|voke|manate)|o(?:ct|mura|xynoe|bviate)|b(?:ryde|eta|lock)|gamma|l(?:ocus|atum)|incite)(?=\s|\n|$)/,
+            0: "envVar"
+        },
+        {
+            // liquids
+            match: /(?<=\s|\n|^)@(?:water|slag|o(?:il|zone)|c(?:ryofluid|yanogen)|n(?:eoplasm|itrogen)|arkycite|gallium|hydrogen)(?=\s|\n|$)/,
+            0: "envVar"
+        },
+        {
+            // sensor options
+            match: /(?<=\s|\n|^)@(?:ammo(?:Capacity)?|boosting|co(?:mmanded|n(?:fig|trolle(?:d|r)))|dead|e(?:fficiency|nabled)|f(?:irstItem|lag)|hea(?:lth|t)|i(?:d|temCapacity)|liquidCapacity|m(?:axHealth|in(?:e(?:X|Y)|ing))|name|p(?:ayload(?:Count|Type)|ower(?:Capacity|Net(?:Capacity|In|Out|Stored))|rogress)|r(?:ange|otation)|s(?:h(?:ield|oot(?:ing|X|Y))|ize|peed)|t(?:eam|imescale|otal(?:Items|Liquids|Power)|ype)|x|y)(?=\s|\n|$)/,
+            0: "envVar"
+        }
+    ]
+}

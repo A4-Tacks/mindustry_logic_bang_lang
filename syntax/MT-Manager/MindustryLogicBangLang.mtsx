@@ -57,7 +57,7 @@
 		{
 			// other
 			match: keywordsToRegex(
-				"const take setres inline print set"
+				"const take setres inline print set op noop"
 			),
 			0: "keyword2"
 		},
