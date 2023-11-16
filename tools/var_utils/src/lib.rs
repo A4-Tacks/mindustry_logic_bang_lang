@@ -4,9 +4,10 @@ use std::{
     thread_local,
 };
 
+/// 判断是否是一个标识符(包括数字)
 pub fn is_ident(s: &str) -> bool {
     static REGEX: &Lazy<Regex> = regex!(
-        r#"^(?:(?:[_\p{XID_Start}]\p{XID_Continue}*)|(?:@[_\p{XID_Start}][\p{XID_Continue}\-]*)|(?:0(?:x-?[\da-fA-F][_\da-fA-F]*|b-?[01][_01]*)|-?\d[_\d]*(?:\.\d[\d_]*)?))$"#
+        r#"^(?:(?:[_\p{XID_Start}]\p{XID_Continue}*)|(?:@[_\p{XID_Start}][\p{XID_Continue}\-]*)|(?:0(?:x-?[\da-fA-F][_\da-fA-F]*|b-?[01][_01]*)|-?\d[_\d]*(?:\.\d[\d_]*|e[+\-]?\d[\d_]*)?))$"#
     );
     REGEX.is_match(s)
 }

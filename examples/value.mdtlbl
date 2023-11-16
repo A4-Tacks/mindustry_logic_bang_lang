@@ -55,3 +55,6 @@ set n_bin 0b-1001_0010;
 set x 'abc"def'; # 其中的双引号会被替换为单引号
 set y `y`; # 这里`y`会被编译为y
 set z `"z"`; # 这里`"z"`会被编译为"z"
+set pown1 2e8; # 科学计数法语法, 可惜mdt并没有解析其小数形式, bang也暂时没对其扩展
+set pown2 1e+9;
+set pown3 3e-4;
