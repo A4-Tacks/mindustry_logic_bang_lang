@@ -1916,6 +1916,7 @@ fn switch_catch_test() {
 #[test]
 fn display_source_test() {
     let line_parser = LogicLineParser::new();
+    let jumpcmp_parser = JumpCmpParser::new();
 
     let mut meta = Default::default();
     assert_eq!(
@@ -1933,7 +1934,7 @@ fn display_source_test() {
         "a > 1"
     );
     assert_eq!(
-        parse!(JumpCmpParser::new(), "a < b && c < d && e < f")
+        parse!(jumpcmp_parser, "a < b && c < d && e < f")
             .unwrap()
             .display_source_and_get(&mut meta),
         "((a < b && c < d) && e < f)"
@@ -2003,6 +2004,18 @@ fn display_source_test() {
             .unwrap()
             .display_source_and_get(&mut meta),
         "'take' 'set' 'print' 'const' 'take' 'op';"
+    );
+    assert_eq!(
+        parse!(jumpcmp_parser, "({take X = N;} => X > 10 && X < 50)")
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "({take X = N;} => (X > 10 && X < 50))"
+    );
+    assert_eq!(
+        parse!(jumpcmp_parser, "({take X = A; take Y = B;} => X > 10 && Y > 20 && X < Y)")
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "({\n    take X = A;\n    take Y = B;\n} => ((X > 10 && Y > 20) && X < Y))"
     );
 }
 

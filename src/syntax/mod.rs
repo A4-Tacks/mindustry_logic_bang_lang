@@ -991,6 +991,8 @@ impl_enum_froms!(impl From for LogicLineFromTagError {
 /// 例如: `a < b && c < d || e == f`
 #[derive(Debug, PartialEq, Clone)]
 pub enum CmpTree {
+    /// 整棵条件树的依赖
+    Deps(InlineBlock, Box<Self>),
     And(Box<Self>, Box<Self>),
     Or(Box<Self>, Box<Self>),
     Atom(JumpCmp),
@@ -1007,6 +1009,8 @@ impl CmpTree {
     /// 3. `(!a || !b) && !c`
     pub fn reverse(self) -> Self {
         match self {
+            Self::Deps(deps, cmp)
+                => Self::Deps(deps, cmp.reverse().into()),
             Self::Or(a, b)
                 => Self::And(a.reverse().into(), b.reverse().into()),
             Self::And(a, b)
@@ -1024,6 +1028,12 @@ impl CmpTree {
         let do_tag_expanded = meta.get_in_const_label(do_tag);
 
         match self {
+            Deps(deps, cmp) => {
+                meta.with_block(|meta| {
+                    deps.compile(meta);
+                    cmp.build(meta, do_tag_expanded);
+                });
+            },
             Or(a, b) => {
                 a.build(meta, do_tag_expanded.clone());
                 b.build(meta, do_tag_expanded);
@@ -1090,6 +1100,24 @@ impl DisplaySource for CmpTree {
     fn display_source(&self, meta: &mut DisplaySourceMeta) {
         match self {
             Self::Atom(cmp) => cmp.display_source(meta),
+            Self::Deps(deps, cmp) => {
+                meta.push("(");
+                meta.push("{");
+                if let [line] = &deps[..] {
+                    line.display_source(meta)
+                } else {
+                    meta.do_block(|meta| {
+                        meta.add_lf();
+                        deps.display_source(meta)
+                    })
+                }
+                meta.push("}");
+                meta.add_space();
+                meta.push("=>");
+                meta.add_space();
+                cmp.display_source(meta);
+                meta.push(")");
+            },
             Self::Or(a, b) => {
                 meta.push("(");
                 a.display_source(meta);
@@ -1539,11 +1567,11 @@ impl Default for Expand {
 }
 impl Compile for Expand {
     fn compile(self, meta: &mut CompileMeta) {
-        meta.block_enter();
-        for line in self.0 {
-            line.compile(meta)
-        }
-        meta.block_exit(); // 如果要获取丢弃块中的常量映射从此处
+        meta.with_block(|this| {
+            for line in self.0 {
+                line.compile(this)
+            }
+        });
     }
 }
 impl From<Vec<LogicLine>> for Expand {
@@ -1591,6 +1619,11 @@ impl Compile for InlineBlock {
         for line in self.0 {
             line.compile(meta)
         }
+    }
+}
+impl From<Vec<LogicLine>> for InlineBlock {
+    fn from(value: Vec<LogicLine>) -> Self {
+        Self(value)
     }
 }
 impl_derefs!(impl for InlineBlock => (self: self.0): Vec<LogicLine>);
@@ -2286,32 +2319,41 @@ impl CompileMeta {
         &self.tags_map
     }
 
-    /// 进入一个子块, 创建一个新的子命名空间
-    pub fn block_enter(&mut self) {
-        self.const_var_namespace.push((Vec::new(), HashMap::new()))
-    }
-
-    /// 退出一个子块, 弹出最顶层命名空间
-    /// 如果无物可弹说明逻辑出现了问题, 所以内部处理为unwrap
-    /// 一个enter对应一个exit
-    pub fn block_exit(&mut self) -> HashMap<Var, (Vec<Var>, Value)> {
-        // this is poped block
-        let (leaks, mut res)
-            = self.const_var_namespace.pop().unwrap();
-
-        // do leak
-        for leak_const_name in leaks {
-            let value
-                = res.remove(&leak_const_name).unwrap();
-
-            // insert to prev block
-            self.const_var_namespace
-                .last_mut()
-                .unwrap()
-                .1
-                .insert(leak_const_name, value);
+    /// 进入一个拥有子命名空间的子块
+    /// 返回该子块结束后的命名空间
+    pub fn with_block(&mut self,
+        f: impl FnOnce(&mut Self),
+    ) -> HashMap<Var, (Vec<Var>, Value)> {
+        /// 进入一个子块, 创建一个新的子命名空间
+        fn block_enter(this: &mut CompileMeta) {
+            this.const_var_namespace.push((Vec::new(), HashMap::new()))
         }
-        res
+        /// 退出一个子块, 弹出最顶层命名空间
+        /// 如果无物可弹说明逻辑出现了问题, 所以内部处理为unwrap
+        /// 一个enter对应一个exit
+        fn block_exit(this: &mut CompileMeta) -> HashMap<Var, (Vec<Var>, Value)> {
+            // this is poped block
+            let (leaks, mut res)
+                = this.const_var_namespace.pop().unwrap();
+
+            // do leak
+            for leak_const_name in leaks {
+                let value
+                    = res.remove(&leak_const_name).unwrap();
+
+                // insert to prev block
+                this.const_var_namespace
+                    .last_mut()
+                    .unwrap()
+                    .1
+                    .insert(leak_const_name, value);
+            }
+            res
+        }
+
+        block_enter(self);
+        f(self);
+        block_exit(self)
     }
 
     /// 添加一个需泄露的const

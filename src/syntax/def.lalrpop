@@ -170,29 +170,36 @@ JumpCmpBody: JumpCmp = {
     <Value> => JumpCmp::bool(<>),
 }
 
-pub JumpCmp: CmpTree = CmpTree1;
+// 入口
+pub JumpCmp: CmpTree = CmpTree2;
+pub JumpCmpOnce: CmpTree = CmpTree1;
 
 // 可空的, 空时为总是的条件
 AlwaysJumpCmp: CmpTree = JumpCmp? => <>.unwrap_or(JumpCmp::Always.into());
 
-pub CmpTree1: CmpTree = {
-    <a:CmpTree1> "||" <b:CmpTree2> => CmpTree::Or(Box::new(a.into()), b.into()),
+CmpTree1: CmpTree = {
+    <deps:MBlock<LogicLine*>> "=>" <cmp:CmpTree1> => CmpTree::Deps(deps.into(), cmp.into()),
     CmpTree2,
 }
 
-pub CmpTree2: CmpTree = {
-    <a:CmpTree2> "&&" <b:CmpTree3> => CmpTree::And(Box::new(a.into()), b.into()),
+CmpTree2: CmpTree = {
+    <a:CmpTree2> "||" <b:CmpTree3> => CmpTree::Or(Box::new(a.into()), b.into()),
     CmpTree3,
 }
 
-pub CmpTree3: CmpTree = {
-    Or<"lnot", "!"> <CmpTree3> => <>.reverse(),
+CmpTree3: CmpTree = {
+    <a:CmpTree3> "&&" <b:CmpTree4> => CmpTree::And(Box::new(a.into()), b.into()),
+    CmpTree4,
+}
+
+CmpTree4: CmpTree = {
+    Or<"lnot", "!"> <CmpTree4> => <>.reverse(),
     CmpTree,
 }
 
 pub CmpTree: CmpTree = {
     JumpCmpBody => <>.into(),
-    MTuple<JumpCmp>,
+    MTuple<JumpCmpOnce>,
 }
 
 pub Op: Op = {
@@ -256,7 +263,8 @@ pub Op: Op = {
 
 Label: String = ":" <Var>;
 
-pub Expand: Expand = LogicLine* => Expand(<>);
+#[inline]
+Expand: Expand = LogicLine+? => Expand(<>.unwrap_or_default());
 pub LogicLine: LogicLine = {
     Control,
     BuiltinCommand,
