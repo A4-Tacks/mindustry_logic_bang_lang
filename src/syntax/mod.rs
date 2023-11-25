@@ -9,8 +9,8 @@ use std::{
         repeat_with,
     },
     process::exit,
-    mem::replace,
-    fmt::{Display, Debug},
+    mem::{self, replace},
+    fmt::{Display, Debug}, convert::identity,
 };
 use crate::tag_code::{
     Jump,
@@ -74,11 +74,14 @@ macro_rules! macro_if {
     };
 }
 macro_rules! do_return {
+    (let $pat:pat = $expr:expr $(=> $v:expr)?) => {
+        let $pat = $expr else { return $($v)? };
+    };
     ($e:expr $(=> $v:expr)?) => {
         if $e {
             return $($v)?
         }
-    }
+    };
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -160,6 +163,9 @@ pub enum Value {
     /// 编译时被替换为当前DExp返回句柄
     ResultHandle,
     ValueBind(ValueBind),
+    /// 一个跳转条件, 未决目标的跳转, 它会被内联
+    /// 如果它被take, 那么它将引起报错
+    Cmper(Box<CmpTree>),
 }
 impl TakeHandle for Value {
     fn take_handle(self, meta: &mut CompileMeta) -> Var {
@@ -171,6 +177,16 @@ impl TakeHandle for Value {
             Self::ResultHandle => meta.dexp_handle().clone(),
             Self::ReprVar(var) => var,
             Self::ValueBind(val_bind) => val_bind.take_handle(meta),
+            Self::Cmper(cmp) => {
+                let mut dmeta = DisplaySourceMeta::default();
+                let src = cmp.display_source_and_get(&mut dmeta);
+                err!(
+                    "{}\n最终未被展开的cmper, {}",
+                    meta.err_info().join("\n"),
+                    src,
+                );
+                exit(6);
+            }
         }
     }
 }
@@ -183,6 +199,12 @@ impl DisplaySource for Value {
             Self::ResultHandle => meta.push("$"),
             Self::DExp(dexp) => dexp.display_source(meta),
             Self::ValueBind(value_attr) => value_attr.display_source(meta),
+            Self::Cmper(cmp) => {
+                meta.push("goto");
+                meta.push("(");
+                cmp.display_source(meta);
+                meta.push(")");
+            }
         }
     }
 }
@@ -310,6 +332,8 @@ impl Deref for Value {
                 panic!("未进行AST编译, 而DExp的返回句柄是进行AST编译时已知"),
             Self::ValueBind(..) =>
                 panic!("未进行AST编译, 而ValueAttr的返回句柄是进行AST编译时已知"),
+            Self::Cmper(..) =>
+                panic!("未进行AST编译, 而Cmper不可被使用"),
         }
     }
 }
@@ -366,20 +390,19 @@ impl TakeHandle for DExp {
 
         if result.is_empty() {
             result = meta.get_tmp_var(); /* init tmp_var */
-        } else if let
-            Some((_, value))
+        } else if let Some((_, value))
                 = meta.get_const_value(&result) {
             // 对返回句柄使用常量值的处理
-            if let Some(dexp) = value.as_dexp() {
+            if !value.is_var() {
                 err!(
                     concat!(
-                        "{}\n尝试在`DExp`的返回句柄处使用值为`DExp`的const, ",
+                        "{}\n尝试在`DExp`的返回句柄处使用值不为Var的const, ",
                         "此处仅允许使用`Var`\n",
-                        "DExp: {:?}\n",
+                        "值: {:?}\n",
                         "名称: {:?}",
                     ),
                     meta.err_info().join("\n"),
-                    dexp,
+                    value.display_source_and_get(&mut DisplaySourceMeta::new()),
                     result
                 );
                 exit(5);
@@ -721,6 +744,24 @@ impl JumpCmp {
         }
     }
 
+    /// 获取两个运算成员, 如果是没有运算成员的则返回空
+    pub fn get_values_ref_mut(&mut self) -> Option<(&mut Value, &mut Value)> {
+        match self {
+            | Self::Equal(a, b)
+            | Self::NotEqual(a, b)
+            | Self::LessThan(a, b)
+            | Self::LessThanEq(a, b)
+            | Self::GreaterThan(a, b)
+            | Self::StrictEqual(a, b)
+            | Self::GreaterThanEq(a, b)
+            | Self::StrictNotEqual(a, b)
+            => Some((a, b)),
+            | Self::Always
+            | Self::NotAlways
+            => None,
+        }
+    }
+
     /// 获取需要生成的变体所对应的文本
     /// 如果是未真正对应的变体如严格不等则恐慌
     pub fn cmp_str(&self) -> &'static str {
@@ -762,8 +803,7 @@ impl JumpCmp {
     /// 即将编译时调用, 将自身转换为可以正常编译为逻辑的形式
     /// 例如`严格不等`, `永不`等变体是无法直接被编译为逻辑的
     /// 所以需要进行转换
-    pub fn do_start_compile_into(mut self) -> Self {
-        self.inline_cmp_op();
+    pub fn do_start_compile_into(self) -> Self {
         match self {
             // 转换为0永不等于0
             // 要防止0被const, 我们使用repr
@@ -807,42 +847,6 @@ impl JumpCmp {
             StrictNotEqual, "!==",
         }
     }
-
-    pub fn inline_cmp_op(&mut self) {
-        use {
-            JumpCmp as JC,
-            Value as V,
-            LogicLine as LL,
-        };
-        let (dexp, invert) = match self {
-            | JC::Equal(V::DExp(dexp), V::ReprVar(s))
-            | JC::Equal(V::ReprVar(s), V::DExp(dexp))
-            if dexp.result.is_empty() && s == FALSE_VAR
-            => {
-                (dexp.lines_mut(), true)
-            }
-            | JC::NotEqual(V::DExp(dexp), V::ReprVar(s))
-            | JC::NotEqual(V::ReprVar(s), V::DExp(dexp))
-            if dexp.result.is_empty() && s == FALSE_VAR
-            => {
-                (dexp.lines_mut(), false)
-            }
-            _ => return,
-        };
-        if dexp.0.len() != 1 { return }
-        let LL::Op(op) = dexp.0.get_mut(0).unwrap() else { return };
-        let do_reverse = |x: JC| if invert {
-            x.reverse()
-        } else {
-            x
-        };
-        // 获取some后已经不可以中途返回了,
-        // 因为根据try_into_cmp的约定, op已经被破坏, 不可再使用
-        let Some(cmp) = op.try_into_cmp() else { return };
-        *self = do_reverse(cmp);
-        self.inline_cmp_op(); // 尝试继续内联
-    }
-
 }
 impl DisplaySource for JumpCmp {
     fn display_source(&self, meta: &mut DisplaySourceMeta) {
@@ -895,6 +899,11 @@ impl FromMdtArgs for JumpCmp {
             GreaterThanEq, "greaterThanEq",
             StrictEqual, "strictEqual",
         }
+    }
+}
+impl Default for JumpCmp {
+    fn default() -> Self {
+        Self::Always
     }
 }
 
@@ -997,6 +1006,7 @@ pub enum CmpTree {
     Or(Box<Self>, Box<Self>),
     Atom(JumpCmp),
 }
+
 impl CmpTree {
     /// 反转自身条件,
     /// 使用`德•摩根定律`进行表达式变换.
@@ -1020,12 +1030,131 @@ impl CmpTree {
         }
     }
 
+    /// 尝试进行内联处理, 断言自身为Atom
+    pub fn try_inline(&mut self, meta: &mut CompileMeta) {
+        use {
+            JumpCmp as JC,
+            Value as V,
+            LogicLine as LL,
+        };
+        do_return!(let Self::Atom(this) = self);
+        fn get<'a>(meta: &'a CompileMeta, value: &'a V) -> Option<&'a str> {
+            fn f<'a>(meta: &'a CompileMeta, s: &'a Var) -> Option<&'a str> {
+                match meta.get_const_value(s) {
+                    Some((_, V::Var(s))) => Some(&**s),
+                    Some(_) => None,
+                    None => Some(&**s),
+                }
+            }
+            match value {
+                | V::Var(s)
+                => {
+                    match meta.get_const_value(s) {
+                        | Some((_, V::Var(s)))
+                        => Some(&**s),
+                        // 二级展开 A=0; B=(A:); use B;
+                        | Some((_, V::DExp(DExp { result: s, lines })))
+                        => {
+                            if lines.is_empty() {
+                                f(meta, s)
+                            } else {
+                                None
+                            }
+                        },
+                        Some(_) => None,
+                        None => Some(&**s),
+                    }
+                },
+                | V::DExp(DExp { result: s, lines })
+                => {
+                    if lines.is_empty() {
+                        f(meta, s)
+                    } else {
+                        None
+                    }
+                },
+                | V::ReprVar(s)
+                => Some(&**s),
+                | V::ResultHandle
+                => Some(&**meta.dexp_handle()),
+                | V::ValueBind(_)
+                | V::Cmper(_)
+                => None,
+            }
+        }
+        /// 是否为假, 如果为真或无效返回否
+        fn is_false(meta: &mut CompileMeta, value: &V) -> bool {
+            do_return!(let Some(value) = get(meta, value) => false);
+            value == FALSE_VAR || value == ZERO_VAR
+        }
+        fn check_inline_op(dexp: &DExp) -> bool {
+            do_return!(! (dexp.result.is_empty() && dexp.len() == 1) => false);
+            do_return!(let LL::Op(op) = &dexp[0] => false);
+            do_return!(! op.get_result().is_result_handle() => false);
+            do_return!(let Some(_) = op.get_cmper() => false);
+            true
+        }
+        let (left, right) = match this {
+            | JC::Equal(lhs, rhs)
+            | JC::NotEqual(lhs, rhs)
+            => {
+                (is_false(meta, &lhs), is_false(meta, &rhs))
+            },
+            | _ => return,
+        };
+        do_return!(left == right);
+        let cmp_rev = if let JC::Equal(..) = this {
+            |cmp: CmpTree| cmp.reverse()
+        } else {
+            identity
+        };
+        let values = this.get_values_ref_mut().unwrap();
+        let value = if left { values.1 } else { values.0 };
+        match value {
+            V::Cmper(cmper) => {
+                // (a < b) != false => a < b
+                // (a < b) == false => !(a < b)
+                let cmper: CmpTree = mem::take(&mut **cmper);
+                *self = cmp_rev(cmper)
+            }
+            V::DExp(dexp) => {
+                do_return!(! check_inline_op(dexp));
+                let LL::Op(op) = dexp.pop().unwrap() else { unreachable!() };
+                let cmper = op.get_cmper().unwrap();
+                let info = op.into_info();
+                let cmp = cmper(info.arg1, info.arg2.unwrap());
+                *self = cmp_rev(cmp.into())
+
+            }
+            V::Var(name) => {
+                match meta.get_const_value(name) {
+                    Some((_, V::DExp(dexp))) => {
+                        do_return!(! check_inline_op(dexp));
+                        let op = dexp[0].as_op().unwrap().clone();
+                        let cmper = op.get_cmper().unwrap();
+                        let info = op.into_info();
+                        let cmp = cmper(info.arg1, info.arg2.unwrap());
+                        *self = cmp_rev(cmp.into())
+                    }
+                    Some((_, V::Cmper(cmper))) => {
+                        *self = cmp_rev((&**cmper).clone())
+                    }
+                    Some(_) | None => return,
+                }
+            }
+            _ => return,
+        }
+        self.try_inline(meta)
+
+    }
+
     /// 构建条件树为goto
-    pub fn build(self, meta: &mut CompileMeta, do_tag: Var) {
+    pub fn build(mut self, meta: &mut CompileMeta, do_tag: Var) {
         use CmpTree::*;
 
         // 获取如果在常量展开内则被重命名后的标签
         let do_tag_expanded = meta.get_in_const_label(do_tag);
+        self.try_inline(meta);
 
         match self {
             Deps(deps, cmp) => {
@@ -1091,6 +1220,11 @@ impl CmpTree {
         }
 
         root.into()
+    }
+}
+impl Default for CmpTree {
+    fn default() -> Self {
+        Self::Atom(Default::default())
     }
 }
 impl_enum_froms!(impl From for CmpTree {
@@ -1359,21 +1493,6 @@ impl Op {
             NotEqual: NotEqual,
             StrictEqual: StrictEqual,
         ]
-    }
-
-    /// 尝试将自身内联为一个比较, 如果返回非空, 则self不可再被使用
-    /// 考虑到短路会改变副作用条件
-    /// 所以不再内联为逻辑与和逻辑或,仅内联顶层比较
-    ///
-    /// 需要返回句柄为返回句柄替换符
-    pub fn try_into_cmp(&mut self) -> Option<JumpCmp> {
-        fn get(value: &mut Value) -> Value {
-            replace(value, Value::ResultHandle)
-        }
-        let cmper = self.get_cmper()?;
-        let info = self.get_info_mut();
-        do_return!(! info.result.is_result_handle() => None);
-        cmper(get(info.arg1), get(info.arg2.unwrap())).into()
     }
 }
 impl Compile for Op {
@@ -2374,6 +2493,7 @@ impl CompileMeta {
             .find_map(|(_, namespace)| {
                 namespace.get(name)
             })
+            .map(|x| { assert!(! x.1.is_repr_var()); x })
     }
 
     /// 获取一个常量到值的使用次数与映射与其内部标记的可变引用,
@@ -2386,6 +2506,7 @@ impl CompileMeta {
             .find_map(|(_, namespace)| {
                 namespace.get_mut(name)
             })
+            .map(|x| { assert!(! x.1.is_repr_var()); x })
     }
 
     /// 新增一个常量到值的映射, 如果当前作用域已有此映射则返回旧的值并插入新值

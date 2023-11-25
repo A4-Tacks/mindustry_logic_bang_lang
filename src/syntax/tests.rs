@@ -2372,38 +2372,6 @@ fn consted_dexp() {
 }
 
 #[test]
-fn op_into_cmp_test() {
-    assert_eq!(
-        Op::Add("a".into(), "b".into(), "c".into()).try_into_cmp(),
-        None,
-    );
-    assert_eq!(
-        Op::Add(Value::ResultHandle, "b".into(), "c".into()).try_into_cmp(),
-        None,
-    );
-    assert_eq!(
-        Op::Land("a".into(), "b".into(), "c".into()).try_into_cmp(),
-        None,
-    );
-    assert_eq!(
-        Op::Land(Value::ResultHandle, "b".into(), "c".into()).try_into_cmp(),
-        None,
-    );
-    assert_eq!(
-        Op::LessThan("a".into(), "b".into(), "c".into()).try_into_cmp(),
-        None,
-    );
-    assert_eq!(
-        Op::LessThan(Value::ResultHandle, "b".into(), "c".into()).try_into_cmp(),
-        Some(JumpCmp::LessThan("b".into(), "c".into())),
-    );
-    assert_eq!(
-        Op::StrictEqual(Value::ResultHandle, "b".into(), "c".into()).try_into_cmp(),
-        Some(JumpCmp::StrictEqual("b".into(), "c".into())),
-    );
-}
-
-#[test]
 fn inline_cmp_op_test() {
     let parser = TopLevelParser::new();
 
@@ -2531,6 +2499,109 @@ fn inline_cmp_op_test() {
         "#).unwrap()).compile().unwrap(),
         CompileMeta::new().compile(parse!(parser, r#"
         :0 goto :0 a < b;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    // 强化内联
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = false;
+        do {} while (op $ a < b;) != F;
+        do {} while (op $ a < b;) == F;
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {} while a < b;
+        do {} while !a < b;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = 0;
+        do {} while (op $ a < b;) != F;
+        do {} while (op $ a < b;) == F;
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {} while a < b;
+        do {} while !a < b;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = 0;
+        const Op = (op $ a < b;);
+        do {} while Op != F;
+        do {} while Op == F;
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {} while a < b;
+        do {} while !a < b;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Op = (op $ a < b;);
+        do {} while Op != (0:);
+        do {} while Op == (0:);
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {} while a < b;
+        do {} while !a < b;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = (0:);
+        const Op = (op $ a < b;);
+        do {} while Op != F;
+        do {} while Op == F;
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {} while a < b;
+        do {} while !a < b;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = (false:);
+        const Op = (op $ a < b;);
+        do {} while Op != F;
+        do {} while Op == F;
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {} while a < b;
+        do {} while !a < b;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = 0;
+        const Op = (op $ (op $ a < b;) != F;);
+        do {} while Op != F;
+        do {} while Op == F;
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {} while a < b;
+        do {} while !a < b;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = 0;
+        const Op = (op $ (op $ a < b;) == F;);
+        do {} while Op != F;
+        do {} while Op == F;
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {} while !a < b;
+        do {} while a < b;
         "#).unwrap()).compile().unwrap(),
     );
 
@@ -3388,4 +3459,88 @@ fn number_test() {
             src
         );
     }
+}
+
+#[test]
+fn cmper_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Cmp = goto(_0 < _1);
+        do {} while ({const _0 = a; const _1 = b;} => Cmp);
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {} while a < b;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Cmp = goto(_0 < _1);
+        do {} while !({const _0 = a; const _1 = b;} => Cmp);
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {} while !a < b;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Cmp = goto(_0 < _1);
+        do {} while ({const _0 = a; const _1 = b;} => !Cmp);
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {} while !a < b;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Cmp = goto(!_0 < _1);
+        do {} while ({const _0 = a; const _1 = b;} => Cmp);
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {} while !a < b;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Cmp = goto(!_0 < _1);
+        do {} while ({const _0 = a; const _1 = b;} => !Cmp);
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {} while a < b;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Cmp = goto(_0 < _1);
+        do {} while !(x && ({const _0 = a; const _1 = b;} => Cmp));
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {} while !(x && a < b);
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {} while !(x && ({const _0 = a; const _1 = b;} => goto(_0 < _1)));
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {} while !(x && a < b);
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {} while !(x && ({const _0 = a; const _1 = b;} => !goto(_0 < _1)));
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {} while !(x && !a < b);
+        "#).unwrap()).compile().unwrap(),
+    );
+
 }

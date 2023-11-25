@@ -1,0 +1,37 @@
+#**
+* 这是0.13.0版本添加的语法, 可以将JumpCmp放入Value而在goto被展开使用
+*
+* 语法为goto关键字加上圆括号, 圆括号内是条件
+*
+* 当它被take而不是被goto内联展开, 将产生编译时报错
+*#
+
+const Foo = (
+    take A = _0;
+    take B = _1;
+    const Cmp = _2;
+
+    if A != B
+    && ({take _0 = A; take _1 = B;} => Cmp)
+    {
+        $ = A;
+    } else {
+        $ = B;
+    }
+);
+
+take Res = Foo[2 3 goto(_0 < _1 && _1 > 10)];
+
+#* >>>
+jump 3 equal 2 3
+jump 3 greaterThanEq 2 3
+jump 5 greaterThan 3 10
+set __0 3
+jump 0 always 0 0
+set __0 2
+*#
+# 可以看到, 非常完美, 并没有因为注入比较产生多余的比较
+
+
+# 因为有圆括号, 不必担心冲突, 所以我们可以直接这么写
+const Cmp = goto({noop;} => a < b);

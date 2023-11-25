@@ -24,6 +24,7 @@
 > [`shell_sort.mdtlbl`](./shell_sort.mdtlbl)<br/>
 > [`switch_catch.mdtlbl`](./switch_catch.mdtlbl)<br/>
 > [`take2.mdtlbl`](./take2.mdtlbl)<br/>
+> [`cmper.mdtlbl`](./cmper.mdtlbl)<br/>
 > [`setres.mdtlbl`](./setres.mdtlbl)<br/>
 > [`consted_dexp.mdtlbl`](./consted_dexp.mdtlbl)<br/>
 > [`quick_dexp_take.mdtlbl`](./quick_dexp_take.mdtlbl)<br/>

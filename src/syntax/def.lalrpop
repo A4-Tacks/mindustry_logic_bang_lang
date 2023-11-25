@@ -134,6 +134,7 @@ pub Value: Value = {
             LogicLine::SetResultHandle(tmp_name.into()),
         ].into()).into()
     },
+    "goto" <MTuple<JumpCmpOnce>> => Value::Cmper(<>.into()),
 }
 
 pub LiteralUInt: usize = <l:@L> <num:Number> <r:@R> =>? {
