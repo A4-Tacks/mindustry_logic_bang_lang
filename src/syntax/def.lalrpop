@@ -573,10 +573,23 @@ OpExprAtom: OpExprInfo = {
 
 // 开始一个const, 开启了必须负责清理
 ConstStart: () = () => meta.add_label_scope();
+ConstStop: Vec<Var> = () => meta.pop_label_scope();
 
 pub BuiltinCommand: LogicLine = {
-    "const" <var:Var> "=" ConstStart <value:Value> LEnd
-        => Const(var, value, meta.pop_label_scope()).into(),
+    "const" <mut values:(<Var> "=" ConstStart <Value> <ConstStop>)+> LEnd
+    => {
+        if values.len() == 1 {
+            let (var, value, labels) = values.pop().unwrap();
+            Const(var, value, labels).into()
+        } else {
+            let mut res = Vec::with_capacity(values.len());
+            for (var, value, labels) in values {
+                let r#const = Const(var, value, labels);
+                res.push(r#const.into());
+            }
+            InlineBlock(res).into()
+        }
+    },
 
     // 如果后方是一个Var则直接将常量映射到后方的值
     // 如果后方是一个DExp则将其计算然后将常量映射到计算出的句柄
@@ -590,6 +603,21 @@ pub BuiltinCommand: LogicLine = {
             do_leak_res,
             value
         )
+    },
+
+    // 两个以上take
+    "take"
+    <first:(<(<Var> "=")?> <Value>)>
+    <nexts:(<(<Var> "=")?> <Value>)+>
+    LEnd => {
+        let mut lines = Vec::with_capacity(1 + nexts.len());
+        let iter = [first].into_iter().chain(nexts);
+        for (res, value) in iter {
+            let res = res.unwrap_or_else(|| "__".into());
+            let take = Take(res, value);
+            lines.push(take.into())
+        }
+        InlineBlock(lines).into()
     },
 
     "setres" <Value> LEnd => LogicLine::SetResultHandle(<>),

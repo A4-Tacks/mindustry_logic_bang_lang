@@ -3544,3 +3544,53 @@ fn cmper_test() {
     );
 
 }
+
+#[test]
+fn mul_takes_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        parse!(parser, r#"
+        take A=B C=D E=F G=I;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take A = B;
+            take C = D;
+            take E = F;
+            take G = I;
+        }
+        "#).unwrap(),
+    );
+}
+
+#[test]
+fn mul_consts_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        parse!(parser, r#"
+        const A=B C=D E=F G=I;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            const A = B;
+            const C = D;
+            const E = F;
+            const G = I;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!( // label
+        parse!(parser, r#"
+        const A=(:m goto :m;) C=(if x {});
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            const A = (:m goto :m;);
+            const C = (if x {});
+        }
+        "#).unwrap(),
+    );
+}
