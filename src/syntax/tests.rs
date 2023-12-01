@@ -428,18 +428,18 @@ fn switch_test() {
     assert_eq!(lines, [
         "op mul __0 2 2",
         "op add @counter @counter __0",
-        "noop",
+        "jump 4 always 0 0",
         "noop",
         "print 1",
-        "noop",
+        "jump 6 always 0 0",
         "print 2",
         "print 4",
-        "noop",
+        "jump 10 always 0 0",
         "noop",
         "print 2",
         "print 4",
         "print 5",
-        "noop",
+        "jump 0 always 0 0"
     ]);
 
     let ast = parse!(parser, r#"
@@ -1557,14 +1557,14 @@ fn select_test() {
     }
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
-               "op mul __0 1 2",
-               "op add @counter @counter __0",
-               "print 0",
-               "noop",
-               "print 1",
-               "print \" is one!\"",
-               "print 2",
-               "noop",
+        "op mul __0 1 2",
+        "op add @counter @counter __0",
+        "print 0",
+        "jump 4 always 0 0",
+        "print 1",
+        "print \" is one!\"",
+        "print 2",
+        "jump 0 always 0 0",
     ]);
 
     let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
@@ -1575,23 +1575,42 @@ fn select_test() {
     }
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
-               "op add @counter @counter x",
-               "print 0",
-               "print 1",
-               "print 2",
+        "op add @counter @counter x",
+        "print 0",
+        "print 1",
+        "print 2",
     ]);
 
     let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
     select (y: op $ x + 2;) {}
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
-               "op add y x 2",
+        "op add y x 2",
     ]);
 
     let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
     select x {}
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, Vec::<&str>::new());
+
+    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+    select m {
+        print 0;
+        print 1 " is one!" ", one!!";
+        print 2;
+    }
+    "#).unwrap()).compile().unwrap();
+    assert_eq!(logic_lines, vec![ // 跳转表式, 因为这样更省行数
+        "op add @counter @counter m",
+        "jump 4 always 0 0",
+        "jump 5 always 0 0",
+        "jump 8 always 0 0",
+        "print 0",
+        "print 1",
+        "print \" is one!\"",
+        "print \", one!!\"",
+        "print 2",
+    ]);
 
 }
 
@@ -1905,10 +1924,10 @@ fn switch_catch_test() {
         stop;
     }
     select tmp {
-        goto :mis _;
-        noop;
-        goto :mis _;
-        noop;
+        goto :mis;
+        {}
+        goto :mis;
+        {}
     }
     "#).unwrap()).compile().unwrap());
 }

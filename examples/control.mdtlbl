@@ -123,11 +123,11 @@ select x {
 op mul __0 x 2
 op add @counter @counter __0
 print 0
-noop
+jump 4 always 0 0
 print 1
 print "is one!"
 print 2
-noop
+jump 0 always 0 0
 *#
 # select是原始版本, 没有switch那么多的功能,
 # 但是相比switch的好处是不用编写case, 直接跳转到指定行

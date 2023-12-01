@@ -23,26 +23,24 @@ switch i {
 printflush message1;
 #* 以上代码会生成如下结构:
 set i 4
-op mul __0 i 3
-op add @counter @counter __0
-noop
-noop
-noop
+op add @counter @counter i
+jump 8 always 0 0
+jump 8 always 0 0
+jump 11 always 0 0
+jump 14 always 0 0
+jump 16 always 0 0
+jump 18 always 0 0
 print "1 or 2\n"
 print "foo"
-jump 21 always 0 0
+jump 19 always 0 0
 print "1 or 2\n"
 print "foo"
-jump 21 always 0 0
+jump 19 always 0 0
 print "3\n"
-jump 21 always 0 0
-noop
+jump 19 always 0 0
 print "4\n"
 print "穿透到5\n"
-noop
 print "5\n"
-noop
-noop
 printflush message1
 *#
 # 可以看到, 我们在case尾部不跳出, 我们就会进入到下一个case.

@@ -1768,19 +1768,107 @@ impl Compile for Select {
                     .count()
             }).collect();
         let max_len = lens.iter().copied().max().unwrap_or_default();
+        let target = self.0;
 
+        if let 0 | 1 = cases.len() {
+            Take("__".into(), target).compile(meta);
+            if let Some(case) = cases.pop() {
+                meta.tag_codes_mut().extend(case)
+            }
+            assert!(cases.is_empty(), "{}", cases.len());
+            return
+        }
+
+        let simple_select_len = match max_len {
+            0 => 0,
+            1 => cases.len() + 1,
+            n => n * cases.len() + 2,
+        };
+        let goto_table_select_len = match max_len {
+            0 => 0,
+            _ => cases.len() + 1 + cases.iter().map(Vec::len).sum::<usize>(),
+        };
+
+        #[cfg(debug_assertions)]
+        let old_tag_codes_len = meta.tag_codes.count_no_tag();
+        if simple_select_len <= goto_table_select_len {
+            Self::build_simple_select(target, max_len, meta, lens, cases);
+            #[cfg(debug_assertions)]
+            assert_eq!(
+                meta.tag_codes.count_no_tag(),
+                old_tag_codes_len + simple_select_len,
+                "预期长度公式错误\n{}",
+                meta.tag_codes,
+            );
+        } else {
+            Self::build_goto_table_select(target, max_len, meta, lens, cases);
+            #[cfg(debug_assertions)]
+            assert_eq!(
+                meta.tag_codes.count_no_tag(),
+                old_tag_codes_len + goto_table_select_len,
+                "预期长度公式错误\n{}",
+                meta.tag_codes,
+            );
+        }
+    }
+}
+
+impl Select {
+    fn build_goto_table_select(
+        target: Value,
+        max_len: usize,
+        meta: &mut CompileMeta,
+        lens: Vec<usize>,
+        cases: Vec<Vec<TagLine>>,
+    ) {
+        let counter = Value::ReprVar(COUNTER.into());
+
+        if max_len == 0 {
+            return Self::build_simple_select(target, max_len, meta, lens, cases)
+        }
+
+        Op::Add(
+            counter.clone(),
+            counter,
+            target
+        ).compile(meta);
+
+        let tmp_tags: Vec<Var>
+            = repeat_with(|| meta.get_tmp_tag())
+            .take(cases.len())
+            .collect();
+        tmp_tags.iter()
+            .cloned()
+            .map(|tag| Goto(tag, CmpTree::default()))
+            .for_each(|goto| goto.compile(meta));
+
+        let mut tags_iter = tmp_tags.into_iter();
+        for case in cases {
+            let tag = tags_iter.next().unwrap();
+            LogicLine::Label(tag).compile(meta);
+            meta.tag_codes.lines_mut().extend(case);
+        }
+    }
+
+    fn build_simple_select(
+        target: Value,
+        max_len: usize,
+        meta: &mut CompileMeta,
+        lens: Vec<usize>,
+        mut cases: Vec<Vec<TagLine>>,
+    ) {
         let counter = Value::ReprVar(COUNTER.into());
 
         // build head
         let head = match max_len {
             0 => {          // no op
-                Take("__".into(), self.0).compile_take(meta)
+                Take("__".into(), target).compile_take(meta)
             },
             1 => {          // no mul
                 Op::Add(
                     counter.clone(),
                     counter,
-                    self.0
+                    target
                 ).compile_take(meta)
             },
             // normal
@@ -1788,7 +1876,7 @@ impl Compile for Select {
                 let tmp_var = meta.get_tmp_var();
                 let mut head = Op::Mul(
                     tmp_var.clone().into(),
-                    self.0,
+                    target,
                     Value::ReprVar(max_len.to_string())
                 ).compile_take(meta);
                 let head_1 = Op::Add(
@@ -1803,10 +1891,21 @@ impl Compile for Select {
 
         // 填补不够长的`case`
         for (len, case) in zip(lens, &mut cases) {
-            case.extend(
-                repeat_with(Default::default)
-                .take(max_len - len)
-            )
+            match max_len - len {
+                0 => continue,
+                insert_counts => {
+                    let end_tag = meta.get_tmp_tag();
+                    let end_tag = meta.get_tag(end_tag);
+                    case.push(TagLine::Jump(
+                            tag_code::Jump::new_always(end_tag).into()
+                    ));
+                    case.extend(
+                        repeat_with(Default::default)
+                        .take(insert_counts - 1)
+                    );
+                    case.push(TagLine::TagDown(end_tag));
+                },
+            }
         }
 
         let lines = meta.tag_codes.lines_mut();
@@ -2281,6 +2380,7 @@ pub trait Compile {
     ///
     /// 使用时需要考虑其副作用, 例如`compile`并不止做了`push`至尾部,
     /// 它还可能做了其他事
+    #[must_use]
     fn compile_take(self, meta: &mut CompileMeta) -> Vec<TagLine>
     where Self: Sized
     {
