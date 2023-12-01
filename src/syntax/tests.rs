@@ -3594,3 +3594,76 @@ fn mul_consts_test() {
         "#).unwrap(),
     );
 }
+
+#[test]
+fn switch_ignored_id_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        parse!(parser, r#"
+        switch x {
+            case: foo;
+            case: bar;
+            case: baz;
+        }
+        "#).unwrap(),
+        parse!(parser, r#"
+        switch x {
+            case 0: foo;
+            case 1: bar;
+            case 2: baz;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        switch x {
+            case 1: foo;
+            case: bar;
+            case: baz;
+        }
+        "#).unwrap(),
+        parse!(parser, r#"
+        switch x {
+            case 1: foo;
+            case 2: bar;
+            case 3: baz;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        switch x {
+            case: foo;
+            case 2: bar;
+            case: baz;
+        }
+        "#).unwrap(),
+        parse!(parser, r#"
+        switch x {
+            case 0: foo;
+            case 2: bar;
+            case 3: baz;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        switch x {
+            case 0 2 4: foo;
+            case: bar;
+            case: baz;
+        }
+        "#).unwrap(),
+        parse!(parser, r#"
+        switch x {
+            case 0 2 4: foo;
+            case 5: bar;
+            case 6: baz;
+        }
+        "#).unwrap(),
+    );
+}

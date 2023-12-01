@@ -1,10 +1,17 @@
+#**
+* 一种在常量时间内直接跳转至第不小于零的整数代码段的分支选择方式
+*
+* case后面接的是id, 表明了第几段代码, 可以写多个
+* 如果不写的话, 则为上一段代码的id+1, 没有上一段代码的话则为0
+*#
+
 i = 4;
 switch i {
     case 1 2:
         print "1 or 2\n";
         print "foo";
         break;
-    case 3:
+    case: # 省略
         print "3\n";
         break;
     case 5:

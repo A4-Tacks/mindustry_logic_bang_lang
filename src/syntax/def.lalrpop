@@ -759,7 +759,7 @@ pub Control: LogicLine = {
         )*>
         <( // cases
             "case"
-            <LiteralUInt+>
+            <LiteralUInt*>
             ":"
             <Expand>
         )+>
@@ -769,17 +769,23 @@ pub Control: LogicLine = {
         let (append, catchs, cases) = cases;
         let catchs_is_empty = catchs.is_empty();
 
+        let mut next_case_num = 0;
         let case_num_max = cases
             .iter()
             .map(
-                |(nums, _)| *nums
-                    .iter()
-                    .max()
-                    .unwrap()
+                |(nums, _)| {
+                    let num = nums
+                        .iter()
+                        .max()
+                        .copied()
+                        .unwrap_or(next_case_num);
+                    next_case_num = num + 1;
+                    num
+                }
             )
             .max()
             .unwrap();
-        let mut cases_res = Vec::with_capacity(case_num_max);
+        let mut cases_res = Vec::with_capacity(case_num_max + 1);
 
         // 用于填充填充case的行, 如果有追加在末尾的行则将其封装并替换填充
         let mut fill_line = append
@@ -835,18 +841,22 @@ pub Control: LogicLine = {
             catch_lines.push(Expand(out_block).into())
         }
 
-        for (nums, mut expand) in cases {
+        let mut next_ignored_num = 0;
+        for (mut nums, mut expand) in cases {
             if let Some(append) = &append {
                 expand.push(append.clone())
             }
+            if nums.is_empty() { nums.push(next_ignored_num) }
             for num in nums {
                 for _ in cases_res.len()..=num {
                     cases_res.push(fill_line.clone())
                 }
-                cases_res[num] = expand.clone().into()
+                cases_res[num] = expand.clone().into();
+                next_ignored_num = num + 1;
             }
         }
         debug_assert_eq!(cases_res.len(), case_num_max + 1);
+        debug_assert_eq!(cases_res.len(), cases_res.capacity());
 
         let (break_lab, continue_lab) = ctrl;
         if catchs_is_empty {
