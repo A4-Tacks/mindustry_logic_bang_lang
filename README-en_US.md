@@ -110,7 +110,7 @@ compilation target language is the `LogicLang` in game [`Mindustry`]
 # This is an example of the code and compilation output
 **BangLang Source Code**:
 ```
-id count = 0 0;
+id, count = 0;
 
 while id < @unitCount {
     lookup unit unit_type id;
@@ -125,16 +125,16 @@ while id < @unitCount {
         while Bind != first {
             # if the first unit dies, restart this type of counting
             goto :restart (sensor $ first @dead;);
-            op icount icount + 1;
+            icount = icount + 1;
         }
         # Accumulate the number of units to the total number of units
-        op count count + icount;
+        count = count + icount;
 
         # Print units with units count not equal to zero
         print unit_type ": " icount "\n";
     }
 
-    op id id + 1; # add units type id
+    id = id + 1; # add units type id
 }
 
 print "unit total: " count;
@@ -145,7 +145,7 @@ printflush message1;
 
 ```
 set id 0
-set count 0
+set count id
 jump 22 greaterThanEq id @unitCount
 lookup unit unit_type id
 ubind unit_type

@@ -104,9 +104,9 @@ const GetTarget = (
             while i < links {
                 # 链接了一个分类器和多个目标
                 getlink Return i;
-                goto :bk1 (sensor $ Return my_item;) < (sensor $ Return @itemCapacity;);
+                break (sensor $ Return my_item;) < (sensor $ Return @itemCapacity;);
                 op i i + 1;
-            } :bk1
+            }
         }
         take[Return] BuildXY;
     } else ulocate building core false 0 $.x $.y 0 $;

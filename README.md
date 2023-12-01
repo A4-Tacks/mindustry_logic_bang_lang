@@ -88,7 +88,7 @@ English README, please click on [**README-en_US.md**](./README-en_US.md)
 # 这是一份示例的代码及编译结果
 **Bang语言代码**:
 ```
-id count = 0 0;
+id, count = 0;
 
 while id < @unitCount {
     lookup unit unit_type id;
@@ -103,15 +103,15 @@ while id < @unitCount {
         while Bind != first {
             # 若头单位死亡, 则重新统计该类单位
             goto :restart (sensor $ first @dead;);
-            op icount icount + 1;
+            icount = icount + 1;
         }
-        op count count + icount; # 将该单位数累加到总单位数
+        count = count + icount; # 将该单位数累加到总单位数
 
         # 打印每种存在的单位
         print unit_type ": " icount "\n";
     }
 
-    op id id + 1; # 推进单位id
+    id = id + 1; # 推进单位id
 }
 
 print "unit total: " count;
@@ -120,7 +120,7 @@ printflush message1;
 **以上代码将被编译为**
 ```
 set id 0
-set count 0
+set count id
 jump 22 greaterThanEq id @unitCount
 lookup unit unit_type id
 ubind unit_type

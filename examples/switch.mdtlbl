@@ -3,21 +3,17 @@ switch i {
     case 1 2:
         print "1 or 2\n";
         print "foo";
-        goto :switch_end _;
+        break;
     case 3:
         print "3\n";
-        goto :switch_end _;
+        break;
     case 5:
         print "5\n";
     case 4:
         print "4\n";
         print "穿透到5\n";
-} :switch_end
+}
 printflush message1;
-# 注意: 不要在最后一行留一个标签, 因为标签是向下标记的.
-# 你在最后一个非空语句使用标签会往不存在的语句进行一个标记, 这会造成越界访问
-# 虽然有断言阻止, 但是也不好报错.
-# 避免这种行为即可
 #* 以上代码会生成如下结构:
 set i 4
 op mul __0 i 3

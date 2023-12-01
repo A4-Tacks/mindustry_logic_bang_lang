@@ -8,17 +8,17 @@ do { # 按钮弹起时等待按钮被按下
 } while (sensor $ switch1 @enabled;);
 
 read length cell1 0; # 被排序的数组长
-set i 1;
+i = 1;
 while i < length {
     read num bank1 i;
-    set j i;
-    while (j: set c j; op j j - 1;) >= 0 {
+    j = i;
+    while (j: c = j; j = j - 1;) >= 0 {
         read num_1 bank1 j;
-        goto :break1 num_1 <= num;
+        break num_1 <= num;
         write num_1 bank1 c;
-    } :break1 # 跳出循环用的标记
+    }
     write num bank1 c;
-    op i i + 1;
+    i = i + 1;
 }
 control enabled switch1 true 0 0 0;
 

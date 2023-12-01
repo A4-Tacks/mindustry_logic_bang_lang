@@ -8,11 +8,11 @@
 *#
 
 switch 1 {
-    goto :end _;
+    break;
 case 0: print 0;
 case 1: print 1;
 case 2: print 2;
-} :end
+}
 end;
 
 #* 以上代码会被编译为
@@ -27,5 +27,5 @@ jump 8 always 0 0
 end
 *#
 
-# 从以上代码可以看到, goto到end呗加入到了每一行的后面
+# 从以上代码可以看到, break加入到了每一行的后面
 # 这是一个实用的功能
