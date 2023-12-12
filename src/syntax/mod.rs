@@ -2271,23 +2271,27 @@ impl DisplaySource for LogicLine {
         match self {
             Self::Expand(expand) => {
                 meta.push("{");
-                meta.add_lf();
-                meta.do_block(|meta| {
-                    expand.display_source(meta);
-                });
+                if !expand.is_empty() {
+                    meta.add_lf();
+                    meta.do_block(|meta| {
+                        expand.display_source(meta);
+                    });
+                }
                 meta.push("}");
             },
             Self::InlineBlock(block) => {
                 meta.push("inline");
                 meta.add_space();
                 meta.push("{");
-                meta.add_lf();
-                meta.do_block(|meta| {
-                    block.display_source(meta);
-                });
+                if !block.is_empty() {
+                    meta.add_lf();
+                    meta.do_block(|meta| {
+                        block.display_source(meta);
+                    });
+                }
                 meta.push("}");
             },
-            Self::Ignore => meta.push("# ignore line"),
+            Self::Ignore => meta.push("{} # ignore line"),
             Self::NoOp => meta.push("noop;"),
             Self::Label(lab) => {
                 meta.push(":");
