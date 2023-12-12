@@ -785,7 +785,6 @@ pub Control: LogicLine = {
             )
             .max()
             .unwrap();
-        let mut cases_res = Vec::with_capacity(case_num_max + 1);
 
         // 用于填充填充case的行, 如果有追加在末尾的行则将其封装并替换填充
         let mut fill_line = append
@@ -841,6 +840,9 @@ pub Control: LogicLine = {
             catch_lines.push(Expand(out_block).into())
         }
 
+        let mut cases_res = Vec::with_capacity(case_num_max + 1);
+        let mut cases_res_isline = vec![false; case_num_max + 1];
+
         let mut next_ignored_num = 0;
         for (mut nums, mut expand) in cases {
             if let Some(append) = &append {
@@ -849,10 +851,20 @@ pub Control: LogicLine = {
             if nums.is_empty() { nums.push(next_ignored_num) }
             for num in nums {
                 for _ in cases_res.len()..=num {
-                    cases_res.push(fill_line.clone())
+                    cases_res.push(LogicLine::Ignore);
                 }
                 cases_res[num] = expand.clone().into();
+                cases_res_isline[num] = true;
                 next_ignored_num = num + 1;
+            }
+        }
+        // 将填充行填入填充case
+        let mut iter = cases_res_isline.into_iter().enumerate().peekable();
+        while let Some((idx, is_line)) = iter.next() {
+            if is_line { continue }
+            match iter.peek() {
+                Some((_, true)) => cases_res[idx] = fill_line.clone(),
+                _ => (),
             }
         }
         debug_assert_eq!(cases_res.len(), case_num_max + 1);

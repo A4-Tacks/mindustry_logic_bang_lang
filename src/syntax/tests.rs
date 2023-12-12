@@ -3686,3 +3686,33 @@ fn switch_ignored_id_test() {
         "#).unwrap(),
     );
 }
+
+#[test]
+fn switch_append_tail_once_test() {
+    let parser = TopLevelParser::new();
+
+    // switch填充行仅最后一个进行填充
+
+    assert_eq!(
+        parse!(parser, r#"
+        switch x {
+            break;
+            case 6:
+                foo;
+            case 3:
+                bar;
+        }
+        "#).unwrap(),
+        parse!(parser, r#"
+        select x {
+            print; # ignore
+            print;
+            { break; } # switch的封装以限制作用域
+            { bar; break; }
+            print;
+            { break; }
+            { foo; break; }
+        }
+        "#).unwrap(),
+    );
+}
