@@ -618,6 +618,7 @@ impl TagCodes {
                     // :b
                     // :b
                     // ```
+                    self.lines = lines;
                     return Err((i, tag));
                 }
                 map_stack.push(tag);
@@ -633,6 +634,7 @@ impl TagCodes {
             if let &mut Some(tag) = tag {
                 if tag_alias_map.get(&tag).is_some() {
                     // 映射到的目标是重复的
+                    self.lines = lines;
                     return Err((i, tag));
                 }
                 tag_alias_map.insert(tag, tag); // 将自己插入

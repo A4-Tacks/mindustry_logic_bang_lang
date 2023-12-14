@@ -22,7 +22,7 @@ use mindustry_logic_bang_lang::{
         Expand,
         Meta
     },
-    syntax::def::TopLevelParser,
+    syntax::{def::TopLevelParser, line_first_add},
     tag_code::TagCodes,
 };
 
@@ -208,18 +208,26 @@ fn display_ast(ast: &Expand) -> String {
 }
 
 fn build_tag_down(meta: &mut CompileMeta) {
-    let tag_codes = meta.tag_codes_mut();
-    tag_codes.build_tagdown()
-        .unwrap_or_else(|(_line, tag)| {
-            let (tag_str, _id) = meta.tags_map()
-                .iter()
-                .filter(|&(_k, v)| *v == tag)
-                .take(1)
-                .last()
-                .unwrap();
-            err!("重复的标记: {:?}", tag_str);
-            exit(4)
-        })
+    let result = meta.tag_codes_mut().build_tagdown();
+    result.unwrap_or_else(|(_line, tag)| {
+        let (tag_str, _id) = meta.tags_map()
+            .iter()
+            .filter(|&(_k, v)| *v == tag)
+            .take(1)
+            .last()
+            .unwrap();
+        let mut tags_map = meta.debug_tags_map();
+        let mut tag_codes = meta.tag_codes().iter().map(ToString::to_string).collect();
+        line_first_add(&mut tags_map, "\t");
+        line_first_add(&mut tag_codes, "\t");
+        err!(
+            "TagCode:\n{}\nTagsMap:\n{}\n重复的标记: {:?}",
+            tag_codes.join("\n"),
+            tags_map.join("\n"),
+            tag_str,
+        );
+        exit(4)
+    })
 }
 
 type ParseResult<'a> = Result<Expand, ParseError<usize, Token<'a>, Error>>;

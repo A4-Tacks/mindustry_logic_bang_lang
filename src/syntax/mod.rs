@@ -3,7 +3,7 @@ pub mod def;
 use std::{
     ops::Deref,
     num::ParseIntError,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     iter::{
         zip,
         repeat_with,
@@ -475,7 +475,7 @@ pub struct Meta {
     tmp_var_count: usize,
     tag_number: usize,
     /// 被跳转的label
-    defined_labels: Vec<Vec<Var>>,
+    defined_labels: Vec<HashSet<Var>>,
     break_labels: Vec<Option<Var>>,
     continue_labels: Vec<Option<Var>>,
 }
@@ -484,7 +484,7 @@ impl Default for Meta {
         Self {
             tmp_var_count: 0,
             tag_number: 0,
-            defined_labels: vec![Vec::new()],
+            defined_labels: vec![HashSet::new()],
             break_labels: Vec::new(),
             continue_labels: Vec::new(),
         }
@@ -509,26 +509,26 @@ impl Meta {
     pub fn get_tag(&mut self) -> String {
         let tag = self.tag_number;
         self.tag_number += 1;
-        format!("___{}", tag)
+        self.add_defined_label(format!("___{}", tag))
     }
 
     /// 添加一个被跳转的label到当前作用域
     /// 使用克隆的形式
     pub fn add_defined_label(&mut self, label: Var) -> Var {
         // 至少有一个基层定义域
-        self.defined_labels.last_mut().unwrap().push(label.clone());
+        self.defined_labels.last_mut().unwrap().insert(label.clone());
         label
     }
 
     /// 添加一个标签作用域,
     /// 用于const定义起始
     pub fn add_label_scope(&mut self) {
-        self.defined_labels.push(Vec::new())
+        self.defined_labels.push(HashSet::new())
     }
 
     /// 弹出一个标签作用域,
     /// 用于const定义完成收集信息
-    pub fn pop_label_scope(&mut self) -> Vec<Var> {
+    pub fn pop_label_scope(&mut self) -> HashSet<Var> {
         self.defined_labels.pop().unwrap()
     }
 
@@ -2729,13 +2729,14 @@ impl CompileMeta {
             = self.get_const_value(name).unwrap();
         let mut labels_map = HashMap::with_capacity(labels.len());
         for (tmp_tag, label) in zip(tmp_tags, labels.iter().cloned()) {
-            let maped_label = format!(
-                "{}_const_{}_{}",
-                tmp_tag,
-                &name,
-                &label
-            );
-            labels_map.insert(label, maped_label);
+            labels_map.entry(label).or_insert_with_key(|label| {
+                format!(
+                    "{}_const_{}_{}",
+                    tmp_tag,
+                    &name,
+                    &label
+                )
+            });
         }
         let res = value.clone();
         self.const_expand_tag_name_map.push(labels_map);

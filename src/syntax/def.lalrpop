@@ -126,9 +126,9 @@ pub Value: Value = {
     },
     <value:Value> "." <attr:NoStringVar> => ValueBind(value.into(), attr).into(),
     // consted-dexp
-    "const" ConstStart <DExp> => {
+    "const" ConstStart <dexp:DExp> <labels:ConstStop> => {
         let tmp_name = meta.get_tmp_var();
-        let dexp_const = Const(tmp_name.clone(), <>.into(), meta.pop_label_scope());
+        let dexp_const = Const(tmp_name.clone(), dexp.into(), labels);
         DExp::new("__".into(), vec![
             dexp_const.into(),
             LogicLine::SetResultHandle(tmp_name.into()),
@@ -573,7 +573,7 @@ OpExprAtom: OpExprInfo = {
 
 // 开始一个const, 开启了必须负责清理
 ConstStart: () = () => meta.add_label_scope();
-ConstStop: Vec<Var> = () => meta.pop_label_scope();
+ConstStop: Vec<Var> = () => Vec::from_iter(meta.pop_label_scope());
 
 pub BuiltinCommand: LogicLine = {
     "const" <mut values:(<Var> "=" ConstStart <Value> <ConstStop>)+> LEnd
