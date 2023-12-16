@@ -344,7 +344,7 @@ fn goto_compile_test() {
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
                "op strictEqual __0 a b",
-               "jump 2 equal __0 false",
+               "jump 2 equal __0 0",
                "end",
     ]);
 
@@ -357,7 +357,7 @@ fn goto_compile_test() {
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
                "op strictEqual __0 a b",
-               "jump 2 equal __0 false",
+               "jump 2 equal __0 0",
                "end",
     ]);
 
@@ -558,7 +558,7 @@ fn compile_test() {
 #[test]
 fn compile_take_test() {
     let parser = LogicLineParser::new();
-    let ast = parse!(parser, "op x (op $ 1 + 2;) + 3;").unwrap();
+    let ast = parse!(parser, "op x ({}op $ 1 + 2;) + 3;").unwrap();
     let mut meta = CompileMeta::new();
     meta.push(TagLine::Line("noop".to_string().into()));
     assert_eq!(
@@ -823,7 +823,7 @@ fn const_expand_label_rename_test() {
                 i = C;
                 goto :next _; # 测试往外跳
             );
-            const C = (op $ 1 + 1;);
+            const C = ({}op $ 1 + 1;);
             take __ = B;
             print "skiped";
             :next
@@ -1051,7 +1051,7 @@ fn sets_test() {
     let parser = TopLevelParser::new();
 
     let ast = parse!(parser, r#"
-    a b c = 1 2 (op $ 2 + 1;);
+    a b c = 1 2 ({}op $ 2 + 1;);
     "#).unwrap();
     let meta = CompileMeta::new();
     let mut tag_codes = meta.compile(ast);
@@ -1268,8 +1268,8 @@ fn cmptree_test() {
     end;
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
-               "jump 2 equal a false",
-               "jump 3 notEqual b false",
+               "jump 2 equal a 0",
+               "jump 3 notEqual b 0",
                "foo",
                "end",
     ]);
@@ -1281,9 +1281,9 @@ fn cmptree_test() {
     end;
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
-               "jump 2 notEqual a false",
-               "jump 3 equal b false",
-               "jump 4 notEqual c false",
+               "jump 2 notEqual a 0",
+               "jump 3 equal b 0",
+               "jump 4 notEqual c 0",
                "foo",
                "end",
     ]);
@@ -1295,10 +1295,10 @@ fn cmptree_test() {
     end;
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
-               "jump 2 notEqual a false",
-               "jump 4 equal b false",
-               "jump 5 notEqual c false",
-               "jump 5 notEqual d false",
+               "jump 2 notEqual a 0",
+               "jump 4 equal b 0",
+               "jump 5 notEqual c 0",
+               "jump 5 notEqual d 0",
                "foo",
                "end",
     ]);
@@ -1310,11 +1310,11 @@ fn cmptree_test() {
     end;
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
-               "jump 6 notEqual a false",
-               "jump 6 notEqual b false",
-               "jump 6 notEqual c false",
-               "jump 6 notEqual d false",
-               "jump 6 notEqual e false",
+               "jump 6 notEqual a 0",
+               "jump 6 notEqual b 0",
+               "jump 6 notEqual c 0",
+               "jump 6 notEqual d 0",
+               "jump 6 notEqual e 0",
                "foo",
                "end",
     ]);
@@ -1326,11 +1326,11 @@ fn cmptree_test() {
     end;
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
-               "jump 5 equal a false",
-               "jump 5 equal b false",
-               "jump 5 equal c false",
-               "jump 5 equal d false",
-               "jump 6 notEqual e false",
+               "jump 5 equal a 0",
+               "jump 5 equal b 0",
+               "jump 5 equal c 0",
+               "jump 5 equal d 0",
+               "jump 6 notEqual e 0",
                "foo",
                "end",
     ]);
@@ -1342,11 +1342,11 @@ fn cmptree_test() {
     end;
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
-               "jump 5 equal a false",
-               "jump 5 equal b false",
-               "jump 5 equal c false",
-               "jump 5 equal d false",
-               "jump 6 notEqual e false",
+               "jump 5 equal a 0",
+               "jump 5 equal b 0",
+               "jump 5 equal c 0",
+               "jump 5 equal d 0",
+               "jump 6 notEqual e 0",
                "foo",
                "end",
     ]);
@@ -1358,11 +1358,11 @@ fn cmptree_test() {
     end;
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
-               "jump 5 equal a false",
-               "jump 5 equal b false",
-               "jump 5 equal c false",
-               "jump 5 equal d false",
-               "jump 6 notEqual e false",
+               "jump 5 equal a 0",
+               "jump 5 equal b 0",
+               "jump 5 equal c 0",
+               "jump 5 equal d 0",
+               "jump 6 notEqual e 0",
                "foo",
                "end",
     ]);
@@ -1374,9 +1374,9 @@ fn cmptree_test() {
     end;
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
-               "jump 3 equal a false",
+               "jump 3 equal a 0",
                "op land __0 b c",
-               "jump 4 notEqual __0 false",
+               "jump 4 notEqual __0 0",
                "foo",
                "end",
     ]);
@@ -1388,10 +1388,10 @@ fn cmptree_test() {
     end;
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
-               "jump 2 equal a false",
-               "jump 5 notEqual b false",
-               "jump 4 equal c false",
-               "jump 5 notEqual d false",
+               "jump 2 equal a 0",
+               "jump 5 notEqual b 0",
+               "jump 4 equal c 0",
+               "jump 5 notEqual d 0",
                "foo",
                "end",
     ]);
@@ -1403,10 +1403,10 @@ fn cmptree_test() {
     end;
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
-               "jump 2 notEqual a false",
-               "jump 5 notEqual b false",
-               "jump 4 equal c false",
-               "jump 5 notEqual d false",
+               "jump 2 notEqual a 0",
+               "jump 5 notEqual b 0",
+               "jump 4 equal c 0",
+               "jump 5 notEqual d 0",
                "foo",
                "end",
     ]);
@@ -1418,10 +1418,10 @@ fn cmptree_test() {
     end;
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
-               "jump 2 equal a false",
-               "jump 5 notEqual b false",
-               "jump 5 equal c false",
-               "jump 5 equal d false",
+               "jump 2 equal a 0",
+               "jump 5 notEqual b 0",
+               "jump 5 equal c 0",
+               "jump 5 equal d 0",
                "foo",
                "end",
     ]);
@@ -1433,11 +1433,11 @@ fn cmptree_test() {
     end;
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
-               "jump 3 equal a false",
-               "jump 3 equal b false",
-               "jump 6 notEqual c false",
-               "jump 5 equal d false",
-               "jump 6 notEqual e false",
+               "jump 3 equal a 0",
+               "jump 3 equal b 0",
+               "jump 6 notEqual c 0",
+               "jump 5 equal d 0",
+               "jump 6 notEqual e 0",
                "foo",
                "end",
     ]);
@@ -1449,11 +1449,11 @@ fn cmptree_test() {
     end;
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
-               "jump 2 equal a false",
-               "jump 6 notEqual b false",
-               "jump 6 notEqual c false",
-               "jump 5 equal d false",
-               "jump 6 notEqual e false",
+               "jump 2 equal a 0",
+               "jump 6 notEqual b 0",
+               "jump 6 notEqual c 0",
+               "jump 5 equal d 0",
+               "jump 6 notEqual e 0",
                "foo",
                "end",
     ]);
@@ -1465,11 +1465,11 @@ fn cmptree_test() {
     end;
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
-               "jump 2 equal a false",
-               "jump 6 notEqual b false",
-               "jump 6 notEqual c false",
-               "jump 5 equal d false",
-               "jump 6 notEqual e false",
+               "jump 2 equal a 0",
+               "jump 6 notEqual b 0",
+               "jump 6 notEqual c 0",
+               "jump 5 equal d 0",
+               "jump 6 notEqual e 0",
                "foo",
                "end",
     ]);
@@ -1481,11 +1481,11 @@ fn cmptree_test() {
     end;
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
-               "jump 3 equal a false",
-               "jump 6 notEqual b false",
-               "jump 6 notEqual c false",
-               "jump 5 equal d false",
-               "jump 6 notEqual e false",
+               "jump 3 equal a 0",
+               "jump 6 notEqual b 0",
+               "jump 6 notEqual c 0",
+               "jump 5 equal d 0",
+               "jump 6 notEqual e 0",
                "foo",
                "end",
     ]);
@@ -1498,9 +1498,9 @@ fn cmptree_test() {
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
                "op add __0 a 2",
-               "jump 4 equal __0 false",
+               "jump 4 equal __0 0",
                "op add __1 b 2",
-               "jump 5 notEqual __1 false",
+               "jump 5 notEqual __1 0",
                "foo",
                "end",
     ]);
@@ -3714,5 +3714,139 @@ fn switch_append_tail_once_test() {
             { foo; break; }
         }
         "#).unwrap(),
+    );
+}
+
+#[test]
+fn const_expr_eval_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print 1.00;
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        print 1;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        take N = (op $ (op $ (op $ 1 + 2;) + 3;) + 4;);
+        print N;
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        print `10`;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        take N = ($ = 1 + 2 + 3 + 4;);
+        print N;
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        print `10`;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        take N = ($ = 1 << 10;);
+        print N;
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        take N = 1024;
+        print N;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        take N = ($ = 1.0 == 1;);
+        print N;
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        take N = 1;
+        print N;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        take N = (m: $ = 1.0 == 1;);
+        print N;
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        m = 1.0 == 1;
+        print m;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print ($ = (set $ ($ = 1 + 1;);););
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        print 2;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!( // 非匿名句柄不优化
+        CompileMeta::new().compile(parse!(parser, r#"
+        print (x: $ = 1 + 1;);
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        op x 1 + 1;
+        print x;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print ($ = log(0););
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        print null;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print ($ = acos(0.5););
+        print ($ = cos(60););
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        print 60.00000000000001;
+        print 0.5000000000000001;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print ($ = -3 // 2;);
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        print -2;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print ($ = -2 - 3;);
+        print ($ = max(3, 5););
+        print ($ = min(0, -2););
+        print ($ = min(null, -2););
+        print ($ = abs(null););
+        print ($ = null;);
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        print -5;
+        print 5;
+        print -2;
+        print -2;
+        print 0;
+        print null;
+        "#).unwrap()).compile().unwrap(),
     );
 }

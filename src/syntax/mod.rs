@@ -21,6 +21,7 @@ use display_source::{
     DisplaySource,
     DisplaySourceMeta,
 };
+use var_utils::AsVarType;
 pub use crate::tag_code::mdt_logic_split;
 use utils::counter::Counter;
 
@@ -171,6 +172,15 @@ impl TakeHandle for Value {
     fn take_handle(self, meta: &mut CompileMeta) -> Var {
         // 改为使用空字符串代表空返回字符串
         // 如果空的返回字符串被编译将会被编译为tmp_var
+        if let Some(num) = self.try_eval_const_num(meta) {
+            return match num.classify() {
+                std::num::FpCategory::Nan => "null".into(),
+                std::num::FpCategory::Infinite
+                if num.is_sign_negative() => (i64::MIN+1).to_string(),
+                std::num::FpCategory::Infinite => i64::MAX.to_string(),
+                _ => num.to_string(),
+            }
+        }
         match self {
             Self::Var(var) => var.take_handle(meta),
             Self::DExp(dexp) => dexp.take_handle(meta),
@@ -320,6 +330,55 @@ impl Value {
     pub fn is_result_handle(&self) -> bool {
         matches!(self, Self::ResultHandle)
     }
+
+    pub fn as_result_handle(&self) -> Option<()> {
+        if let Self::ResultHandle = self {
+            ().into()
+        } else {
+            None
+        }
+    }
+
+    /// 尝试解析为一个常量数字
+    pub fn try_eval_const_num(&self, meta: &CompileMeta) -> Option<f64> {
+        fn num(s: &str) -> Option<f64> {
+            s.as_var_type().as_number().copied()
+        }
+        match self {
+            Self::ReprVar(var) => num(var),
+            Self::Var(name) => {
+                match meta.get_const_value(name) {
+                    Some((_, Self::Var(var))) => num(var),
+                    Some((_, Self::ReprVar(repr_var))) => {
+                        unreachable!("被const的reprvar {:?}", repr_var)
+                    },
+                    Some((_, x @ Self::DExp(_))) => x.try_eval_const_num(meta),
+                    Some(_) => None?,
+                    None => num(name),
+                }
+            },
+            Self::DExp(dexp) if dexp.len() == 1 && dexp.result.is_empty() => {
+                let logic_line = &dexp.first().unwrap();
+                match logic_line {
+                    LogicLine::Op(op) => op.try_eval_const_num(meta),
+                    LogicLine::Other(args) => {
+                        let Value::ReprVar(cmd) = &args[0] else {
+                            return None;
+                        };
+                        match &**cmd {
+                            "set"
+                            if args.len() == 3
+                            && args[1].is_result_handle()
+                            => args[2].try_eval_const_num(meta),
+                            _ => None,
+                        }
+                    },
+                    _ => None,
+                }
+            },
+            _ => None,
+        }
+    }
 }
 impl Deref for Value {
     type Target = str;
@@ -388,7 +447,8 @@ impl TakeHandle for DExp {
     fn take_handle(self, meta: &mut CompileMeta) -> Var {
         let DExp { mut result, lines } = self;
 
-        if result.is_empty() {
+        let dexp_res_is_alloced = result.is_empty();
+        if dexp_res_is_alloced {
             result = meta.get_tmp_var(); /* init tmp_var */
         } else if let Some((_, value))
                 = meta.get_const_value(&result) {
@@ -411,9 +471,9 @@ impl TakeHandle for DExp {
             result = value.as_var().unwrap().clone()
         }
         assert!(! result.is_empty());
-        meta.push_dexp_handle(result);
+        meta.push_dexp_handle((result, dexp_res_is_alloced));
         lines.compile(meta);
-        let result = meta.pop_dexp_handle();
+        let (result, _) = meta.pop_dexp_handle();
         result
     }
 }
@@ -1494,6 +1554,80 @@ impl Op {
             StrictEqual: StrictEqual,
         ]
     }
+
+    /// 在输出值为返回句柄替换符时, 尝试编译期计算它
+    pub fn try_eval_const_num(&self, meta: &CompileMeta) -> Option<f64> {
+        use std::num::FpCategory as FpC;
+        fn conv(n: f64) -> Option<f64> {
+            match n.classify() {
+                FpC::Nan => 0.0.into(),
+                FpC::Infinite => None,
+                _ => n.into(),
+            }
+        }
+        fn bool_as(x: bool) -> f64 {
+            if x { 1. } else { 0. }
+        }
+        let OpInfo { result, arg1, arg2, .. } = self.get_info();
+        result.as_result_handle()?;
+        let (a, b) = (
+            arg1.try_eval_const_num(meta)?,
+            match arg2 {
+                Some(value) => value.try_eval_const_num(meta)?,
+                None => 0.0,
+            },
+        );
+        let (a, b) = (conv(a)?, conv(b)?);
+        match self {
+            Op::Add(..) => a + b,
+            Op::Sub(..) => a - b,
+            Op::Mul(..) => a * b,
+            Op::Div(..) | Op::Idiv(..) | Op::Mod(..)
+                if matches!(b.classify(), FpC::Zero | FpC::Subnormal) => f64::NAN,
+            Op::Div(..) => a / b,
+            Op::Idiv(..) => (a / b).floor(),
+            Op::Mod(..) => a % b,
+            Op::Pow(..) => a.powf(b),
+            Op::Abs(..) => a.abs(),
+            Op::Log(..) | Op::Log10(..) if a <= 0. => f64::NAN,
+            Op::Log(..) => a.ln(),
+            Op::Log10(..) => a.log10(),
+            Op::Floor(..) => a.floor(),
+            Op::Ceil(..) => a.ceil(),
+            Op::Sqrt(..) => a.sqrt(),
+            Op::Sin(..) => a.to_radians().sin(),
+            Op::Cos(..) => a.to_radians().cos(),
+            Op::Tan(..) => a.to_radians().tan(),
+            Op::Asin(..) => a.asin().to_degrees(),
+            Op::Acos(..) => a.acos().to_degrees(),
+            Op::Atan(..) => a.atan().to_degrees(),
+
+            Op::Equal(..) => bool_as(a == b),
+            Op::NotEqual(..) => bool_as(a != b),
+            Op::Land(..) => bool_as(a != 0. && b != 0.),
+            Op::LessThan(..) => bool_as(a < b),
+            Op::LessThanEq(..) => bool_as(a <= b),
+            Op::GreaterThan(..) => bool_as(a > b),
+            Op::GreaterThanEq(..) => bool_as(a >= b),
+
+            Op::Shl(..) => ((a as i64) << b as i64) as f64,
+            Op::Shr(..) => ((a as i64) >> b as i64) as f64,
+            Op::Or(..) => ((a as i64) | b as i64) as f64,
+            Op::And(..) => ((a as i64) & b as i64) as f64,
+            Op::Xor(..) => ((a as i64) ^ b as i64) as f64,
+            Op::Not(..) => !(a as i64) as f64,
+
+            Op::Max(..) => a.max(b),
+            Op::Min(..) => a.min(b),
+
+            // Not Impl
+            | Op::StrictEqual(..)
+            | Op::Angle(..)
+            | Op::Len(..)
+            | Op::Noise(..)
+            | Op::Rand(..) => None?,
+        }.into()
+    }
 }
 impl Compile for Op {
     fn compile(self, meta: &mut CompileMeta) {
@@ -2143,7 +2277,7 @@ impl Compile for LogicLine {
             },
             Self::SetResultHandle(value) => {
                 let new_dexp_handle = value.take_handle(meta);
-                meta.set_dexp_handle(new_dexp_handle);
+                meta.set_dexp_handle((new_dexp_handle, false));
             },
             Self::Select(select) => select.compile(meta),
             Self::Expand(expand) => expand.compile(meta),
@@ -2405,8 +2539,8 @@ pub struct CompileMeta {
     ///
     /// `Vec<(leaks, HashMap<name, (Vec<Label>, Value)>)>`
     const_var_namespace: Vec<(Vec<Var>, HashMap<Var, (Vec<Var>, Value)>)>,
-    /// 每层DExp所使用的句柄, 末尾为当前层
-    dexp_result_handles: Vec<Var>,
+    /// 每层DExp所使用的句柄, 末尾为当前层, 同时有一个是否为自动分配名称的标志
+    dexp_result_handles: Vec<(Var, bool)>,
     tmp_tag_count: Counter<fn(&mut usize) -> Var>,
     /// 每层const展开的标签
     /// 一个标签从尾部上寻, 寻到就返回找到的, 没找到就返回原本的
@@ -2653,12 +2787,12 @@ impl CompileMeta {
     }
 
     /// 新增一层DExp, 并且传入它使用的返回句柄
-    pub fn push_dexp_handle(&mut self, handle: Var) {
+    pub fn push_dexp_handle(&mut self, handle: (Var, bool)) {
         self.dexp_result_handles.push(handle)
     }
 
     /// 如果弹无可弹, 说明逻辑出现了问题
-    pub fn pop_dexp_handle(&mut self) -> Var {
+    pub fn pop_dexp_handle(&mut self) -> (Var, bool) {
         self.dexp_result_handles.pop().unwrap()
     }
 
@@ -2680,17 +2814,26 @@ impl CompileMeta {
             .collect()
     }
 
+    /// 尝试获取当前DExp返回句柄, 没有DExp的话返回空
+    pub fn try_get_dexp_handle(&self) -> Option<&Var> {
+        self.dexp_result_handles.last().map(|(var, _)| var)
+    }
+
     /// 获取当前DExp返回句柄
     pub fn dexp_handle(&self) -> &Var {
-        self.dexp_result_handles
-            .last()
+        self.try_get_dexp_handle()
             .unwrap_or_else(
                 || self.do_out_of_dexp_err("`DExpHandle` (`$`)"))
     }
 
+    /// 获取该DExp是否为自动分配的
+    pub fn try_get_dexp_is_alloced(&self) -> Option<bool> {
+        self.dexp_result_handles.last().map(|&(_, x)| x)
+    }
+
     /// 将当前DExp返回句柄替换为新的
     /// 并将旧的句柄返回
-    pub fn set_dexp_handle(&mut self, new_dexp_handle: Var) -> Var {
+    pub fn set_dexp_handle(&mut self, new_dexp_handle: (Var, bool)) -> (Var, bool) {
         if let Some(ref_) = self.dexp_result_handles.last_mut() {
             replace(ref_, new_dexp_handle)
         } else {

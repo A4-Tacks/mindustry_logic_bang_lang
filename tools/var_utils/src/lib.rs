@@ -2,6 +2,7 @@ use lazy_regex::{regex,Lazy,Regex};
 use std::{
     collections::HashSet,
     thread_local,
+    num::IntErrorKind,
 };
 
 /// 判断是否是一个标识符(包括数字)
@@ -28,13 +29,130 @@ pub const VAR_KEYWORDS: &[&str] = {&[
 pub fn is_ident_keyword(s: &str) -> bool {
     thread_local! {
         static VAR_KEYWORDS_SET: HashSet<&'static str>
-            = HashSet::from_iter(VAR_KEYWORDS.into_iter().copied());
+            = HashSet::from_iter(VAR_KEYWORDS.iter().copied());
     }
     VAR_KEYWORDS_SET.with(|var_keywords| {
         var_keywords.get(s).is_some()
     })
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub enum VarType<'a> {
+    Var(&'a str),
+    String(&'a str),
+    Number(f64),
+}
+
+impl<'a> VarType<'a> {
+    /// Returns `true` if the var type is [`Number`].
+    ///
+    /// [`Number`]: VarType::Number
+    #[must_use]
+    pub fn is_number(&self) -> bool {
+        matches!(self, Self::Number(..))
+    }
+
+    pub fn as_number(&self) -> Option<&f64> {
+        if let Self::Number(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    /// Returns `true` if the var type is [`String`].
+    ///
+    /// [`String`]: VarType::String
+    #[must_use]
+    pub fn is_string(&self) -> bool {
+        matches!(self, Self::String(..))
+    }
+
+    pub fn as_string(&self) -> Option<&&'a str> {
+        if let Self::String(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    /// Returns `true` if the var type is [`Var`].
+    ///
+    /// [`Var`]: VarType::Var
+    #[must_use]
+    pub fn is_var(&self) -> bool {
+        matches!(self, Self::Var(..))
+    }
+
+    pub fn as_var(&self) -> Option<&&'a str> {
+        if let Self::Var(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+}
+
+pub trait AsVarType {
+    fn as_var_type(&self) -> VarType<'_>;
+}
+impl AsVarType for str {
+    fn as_var_type(&self) -> VarType<'_> {
+        fn as_string(s: &str) -> Option<&str> {
+            if s.len() < 2 { return None; }
+            if !(s.starts_with('"') && s.ends_with('"')) { return None; }
+            Some(&s[1..s.len()-1])
+        }
+        fn as_number(s: &str) -> Option<f64> {
+            static NUM_REGEX: &Lazy<Regex> = regex!(
+                r"^-?(?:\d+(?:e[+\-]?\d+|\.\d*)?|\d*(?:\.\d+)?)$"
+            );
+            static HEX_REGEX: &Lazy<Regex> = regex!(
+                r"^0x-?[0-9A-Fa-f]+$"
+            );
+            static BIN_REGEX: &Lazy<Regex> = regex!(
+                r"^0b-?[01]+$"
+            );
+            fn parse_radix(src: &str, radix: u32) -> Option<f64> {
+                match i64::from_str_radix(src, radix) {
+                    Ok(x) => Some(x as f64),
+                    Err(e) => {
+                        match e.kind() {
+                            | IntErrorKind::PosOverflow
+                            | IntErrorKind::NegOverflow
+                            => None,
+                            _ => unreachable!("parse hex err: {e}, ({src:?})"),
+                        }
+                    },
+                }
+            }
+            if NUM_REGEX.is_match(s) {
+                Some(s.parse().unwrap())
+            } else if HEX_REGEX.is_match(s) {
+                parse_radix(&s[2..], 16)
+            } else if BIN_REGEX.is_match(s) {
+                parse_radix(&s[2..], 2)
+            } else {
+                None
+            }
+        }
+        match self {
+            "null"  => return VarType::Number(f64::NAN.into()),
+            "true"  => return VarType::Number(1.0.into()),
+            "false" => return VarType::Number(0.0.into()),
+            _ => (),
+        }
+        if let Some(str) = as_string(self) {
+            return VarType::String(str);
+        }
+        if let Some(num) = as_number(self) {
+            if num <= i64::MAX as f64 && num >= (i64::MIN + 1) as f64 {
+                return VarType::Number(num);
+            }
+        }
+        VarType::Var(self)
+    }
+}
 
 #[cfg(test)]
 mod tests;

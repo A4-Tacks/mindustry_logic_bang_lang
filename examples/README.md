@@ -19,6 +19,7 @@
 > [`const.mdtlbl`](./const.mdtlbl)<br/>
 > [`inline_block.mdtlbl`](./inline_block.mdtlbl)<br/>
 > [`take.mdtlbl`](./take.mdtlbl)<br/>
+> [`compiling_eval`](./compiling_eval.mdtlbl)<br/>
 > [`cmp_deps.mdtlbl`](./cmp_deps.mdtlbl)<br/>
 > [`switch_append.mdtlbl`](./switch_append.mdtlbl)<br/>
 > [`shell_sort.mdtlbl`](./shell_sort.mdtlbl)<br/>

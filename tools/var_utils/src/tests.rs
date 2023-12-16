@@ -69,3 +69,50 @@ fn test() {
         assert!(! is_ident(str), "err: is_ident({str:?}) == false assert failed.");
     }
 }
+
+#[test]
+fn float_parser_test() {
+    let src = [
+        "1.2",
+        "0",
+        "0.",
+        ".0",
+        "00.",
+        ".00",
+        ".01",
+        "1e3",
+        "1e03",
+        "01e+3",
+        "01e+03",
+        "1e-3",
+        "001e-3",
+        "001e-03",
+        "100000",
+        "123.456",
+        "000123.456",
+        "1234567891011",
+        "-2",
+        "-2.3",
+        "-234.345",
+        "-234.",
+        "-.345",
+        "-2e12",
+        "null",
+        "true",
+        "false",
+    ];
+    for src in src {
+        let r#type = src.as_var_type();
+        assert!(matches!(r#type, VarType::Number(_)), "{:?}", r#type);
+    }
+}
+
+#[test]
+fn mod_op_test() {
+    assert_eq!(2.0 % 2.0, 0.0);
+    assert_eq!(1.0 % 2.0, 1.0);
+    assert_eq!(3.0 % 2.0, 1.0);
+
+    assert_eq!(-0.2 % 1.0, -0.2); // 这是必要的防御, 在python, 它为0.8
+    assert_eq!(-0.2 % 2.0, -0.2);
+}
