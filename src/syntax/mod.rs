@@ -170,9 +170,8 @@ pub enum Value {
 }
 impl TakeHandle for Value {
     fn take_handle(self, meta: &mut CompileMeta) -> Var {
-        // 改为使用空字符串代表空返回字符串
-        // 如果空的返回字符串被编译将会被编译为tmp_var
-        if let Some(num) = self.try_eval_const_num(meta) {
+        if let Some((num, true)) = self.try_eval_const_num(meta) {
+            // 仅对复杂数据也就是有效运算后的数据
             return match num.classify() {
                 std::num::FpCategory::Nan => "null".into(),
                 std::num::FpCategory::Infinite
@@ -181,6 +180,8 @@ impl TakeHandle for Value {
                 _ => num.to_string(),
             }
         }
+        // 改为使用空字符串代表空返回字符串
+        // 如果空的返回字符串被编译将会被编译为tmp_var
         match self {
             Self::Var(var) => var.take_handle(meta),
             Self::DExp(dexp) => dexp.take_handle(meta),
@@ -340,27 +341,32 @@ impl Value {
     }
 
     /// 尝试解析为一个常量数字
-    pub fn try_eval_const_num(&self, meta: &CompileMeta) -> Option<f64> {
-        fn num(s: &str) -> Option<f64> {
-            s.as_var_type().as_number().copied()
+    ///
+    /// 如果直接得到结果例如直接编写一个数字, 那么复杂标志为假
+    pub fn try_eval_const_num(&self, meta: &CompileMeta) -> Option<(f64, bool)> {
+        fn num(s: &str, complex: bool) -> Option<(f64, bool)> {
+            s.as_var_type().as_number().map(|&x| (x, complex))
         }
         match self {
-            Self::ReprVar(var) => num(var),
+            Self::ReprVar(var) => num(var, false),
             Self::Var(name) => {
                 match meta.get_const_value(name) {
-                    Some((_, Self::Var(var))) => num(var),
+                    Some((_, Self::Var(var))) => num(var, false),
                     Some((_, Self::ReprVar(repr_var))) => {
                         unreachable!("被const的reprvar {:?}", repr_var)
                     },
                     Some((_, x @ Self::DExp(_))) => x.try_eval_const_num(meta),
                     Some(_) => None?,
-                    None => num(name),
+                    None => num(name, false),
                 }
             },
             Self::DExp(dexp) if dexp.len() == 1 && dexp.result.is_empty() => {
                 let logic_line = &dexp.first().unwrap();
                 match logic_line {
-                    LogicLine::Op(op) => op.try_eval_const_num(meta),
+                    LogicLine::Op(op) => {
+                        op.try_eval_const_num(meta)
+                            .map(|x| (x, true))
+                    },
                     LogicLine::Other(args) => {
                         let Value::ReprVar(cmd) = &args[0] else {
                             return None;
@@ -369,7 +375,7 @@ impl Value {
                             "set"
                             if args.len() == 3
                             && args[1].is_result_handle()
-                            => args[2].try_eval_const_num(meta),
+                            => (args[2].try_eval_const_num(meta)?.0, true).into(),
                             _ => None,
                         }
                     },
@@ -1571,9 +1577,9 @@ impl Op {
         let OpInfo { result, arg1, arg2, .. } = self.get_info();
         result.as_result_handle()?;
         let (a, b) = (
-            arg1.try_eval_const_num(meta)?,
+            arg1.try_eval_const_num(meta)?.0,
             match arg2 {
-                Some(value) => value.try_eval_const_num(meta)?,
+                Some(value) => value.try_eval_const_num(meta)?.0,
                 None => 0.0,
             },
         );
