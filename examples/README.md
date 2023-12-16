@@ -22,7 +22,6 @@
 > [`compiling_eval.mdtlbl`](./compiling_eval.mdtlbl)<br/>
 > [`cmp_deps.mdtlbl`](./cmp_deps.mdtlbl)<br/>
 > [`switch_append.mdtlbl`](./switch_append.mdtlbl)<br/>
-> [`shell_sort.mdtlbl`](./shell_sort.mdtlbl)<br/>
 > [`switch_catch.mdtlbl`](./switch_catch.mdtlbl)<br/>
 > [`take2.mdtlbl`](./take2.mdtlbl)<br/>
 > [`mul_takes_and_consts.mdtlbl`](./mul_takes_and_consts.mdtlbl)<br/>
