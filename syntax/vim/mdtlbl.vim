@@ -44,7 +44,7 @@ hi link mdtlblCmpTreeOper Operator
 
 " 注释 {{{1
 syn region mdtlblComment start=/#/ end=/$/
-syn region mdtlblLongComment start=/#\*/ end=/\*#/
+syn region mdtlblLongComment start=/#\*/ end=/\*#/ fold
 hi link mdtlblComment Comment
 hi link mdtlblLongComment Comment
 
