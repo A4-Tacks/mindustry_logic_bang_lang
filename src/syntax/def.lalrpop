@@ -747,7 +747,7 @@ pub Control: LogicLine = {
     "switch" <value:Value>
     CtrlStart
     <cases:MBlock<(
-        <LogicLine?> // append line
+        <LogicLine*> // append line
         <( // catch 拦截
             "case"
             <SwitchCatchFlag+> // 捕获模式, 至少有一个
@@ -766,7 +766,7 @@ pub Control: LogicLine = {
     )>>
     <ctrl:CtrlStop>
     => {
-        let (append, catchs, cases) = cases;
+        let (mut append, catchs, cases) = cases;
         let catchs_is_empty = catchs.is_empty();
 
         let mut next_case_num = 0;
@@ -787,10 +787,17 @@ pub Control: LogicLine = {
             .unwrap();
 
         // 用于填充填充case的行, 如果有追加在末尾的行则将其封装并替换填充
-        let mut fill_line = append
-            .as_ref()
-            .map(|line| Expand(vec![line.clone()]).into())
-            .unwrap_or(LogicLine::Ignore);
+        let (mut fill_line, append) = match &append[..] {
+            [] => (LogicLine::Ignore, None),
+            [_] => (
+                Expand(vec![append.last().unwrap().clone()]).into(),
+                append.pop().unwrap().into(),
+            ),
+            [..] => (
+                Expand(append.clone()).into(),
+                Some(Expand(append).into()),
+            ),
+        };
 
         // 用于添加到头部的捕获块
         let mut catch_lines = Vec::new();

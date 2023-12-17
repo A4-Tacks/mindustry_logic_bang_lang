@@ -488,6 +488,29 @@ fn switch_test() {
             ])
         ).into()
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+            switch 1 {
+            print end;
+            print end1;
+            case 0: print 0;
+            }
+        "#).unwrap(),
+        Select(
+            "1".into(),
+            Expand(vec![
+                Expand(vec![
+                        LogicLine::Other(vec![Value::ReprVar("print".into()), "0".into()]),
+                        Expand(vec![
+                            LogicLine::Other(vec![Value::ReprVar("print".into()), "end".into()]),
+                            LogicLine::Other(vec![Value::ReprVar("print".into()), "end1".into()]),
+                        ]).into(),
+                ]).into(),
+            ])
+        ).into()
+    );
+
 }
 
 #[test]
