@@ -1,7 +1,7 @@
 " Vim syntax file
 " Language:		mindustry_logic_bang_lang (mdtlbl)
 " Maintainer:		A4-Tacks <wdsjxhno1001@163.com>
-" Last Change:		2023-12-18
+" Last Change:		2023-12-19
 " URL:		https://github.com/A4-Tacks/mindustry_logic_bang_lang
 
 " 已加载高亮时就退出
@@ -54,19 +54,25 @@ setlocal formatoptions+=rq
 
 
 " 值(Var) {{{1
-syn match mdtlblSpecialChar /\\n/ contained
+syn match mdtlblStringFailedEscape /\\./ contained
+hi link mdtlblStringFailedEscape Error
+
+syn match mdtlblStringColor /\[\v%(#\x{6,8}|%(c%(lear|yan|oral)|b%(l%(ack|ue)|r%(own|ick))|white|li%(ghtgray|me)|g%(r%(ay|een)|old%(enrod)?)|darkgray|navy|r%(oyal|ed)|s%(late|ky|carlet|almon)|t%(eal|an)|acid|forest|o%(live|range)|yellow|p%(ink|urple)|ma%(genta|roon)|violet))\]/ contained
+hi link mdtlblStringColor Include
+
+syn match mdtlblSpecialChar /^ *\\ \|\\\%([n\\[]\|$\)/ contained
 hi link mdtlblSpecialChar SpecialChar
 
-syn region mdtlblString start=/"/ end=/"/ contains=mdtlblSpecialChar
+syn region mdtlblString start=/"/ end=/"/ contains=mdtlblSpecialChar,mdtlblStringFailedEscape,mdtlblStringColor
 hi link mdtlblString String
 
-syn match mdtlblOIdent /@\I\i*\(-\i*\)*/
+syn match mdtlblOIdent /@\I\i*\%(-\i*\)*/
 hi link mdtlblOIdent Identifier
 
 syn match mdtlblOtherVar /'[^' \t]\+'/
 hi link mdtlblOtherVar Identifier
 
-syn match mdtlblNumber /\v(<0(x\-?[0-9a-fA-F][0-9a-fA-F_]*|b\-?[01][_01]*)|\-?<\d[0-9_]*(\.\d[0-9_]*|e[+\-]?\d[0-9_]*)?)>/
+syn match mdtlblNumber /\v(<0%(x\-?[0-9a-fA-F][0-9a-fA-F_]*|b\-?[01][_01]*)|\-?<\d[0-9_]*%(\.\d[0-9_]*|e[+\-]?\d[0-9_]*)?)>/
 hi link mdtlblNumber Number
 
 syn match mdtlblBoolean /\v<true|false>/
@@ -80,7 +86,7 @@ hi link mdtlblResultHandle Identifier
 
 
 " Label {{{1
-syn match mdtlblDefineResultHandle /\((\(\s\|\n\)*\)\@<=\I\i*:/
+syn match mdtlblDefineResultHandle /\%((\%(\s\|#\*.*\*#\|\%(#[^*].*\|#\)\=\n\)*\)\@<=\I\i*:/
 hi link mdtlblDefineResultHandle Identifier
 
 syn match mdtlblIdentLabel /:\I\i*/
@@ -117,7 +123,7 @@ function! GetMdtlblIndent()
 
     let diff = 0
 
-    if preline =~# '\([({\[:]\|\<\(else\)\>\)$'
+    if preline =~# '\([({[:]\|\<\(else\)\>\)$'
         let diff += 1
     endif
 

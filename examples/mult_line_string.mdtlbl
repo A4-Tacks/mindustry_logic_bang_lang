@@ -1,0 +1,38 @@
+#**
+* 这是0.13.9的字符串新语法, 可以使多行字符串更加好用
+*
+* 可以使用反斜杠转义行尾的换行符,
+* 然后字符串将会由这个换行符忽略至下一行第一个非空白字符或者一个反斜杠转义的空格
+*
+* 会很好的处理对左方括号的转义和对反斜杠自身的转义
+*
+* 注意: `"[]"`作用为清除颜色,
+* 本编译器为了当反斜杠和n紧贴时不产生新行将在中间插入此符号,
+* 所以如 `"[red]foo\\nbar"` 这样的字符串, `bar`将会被清除颜色
+*#
+
+{
+    set x "\
+    This is a mult line string!\
+    ";
+    set y "\
+    foo\
+    \ bar\
+    ";
+    set z "\
+    line1\n\
+    line2\n\
+    ";
+    set a "back slash: \\\nnormal: \\n";
+    set b "\
+    [red]\[red]\n\
+    [yellow]\[yellow]\n\
+    ";
+}
+#* >>>
+set x "This is a mult line string!"
+set y "foo bar"
+set z "line1\nline2\n"
+set a "back slash: \\nnormal: \[]n"
+set b "[red][[red]\n[yellow][[yellow]\n"
+*#

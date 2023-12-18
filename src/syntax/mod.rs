@@ -21,7 +21,7 @@ use display_source::{
     DisplaySource,
     DisplaySourceMeta,
 };
-use var_utils::AsVarType;
+use var_utils::{AsVarType,string_unescape};
 pub use crate::tag_code::mdt_logic_split;
 use utils::counter::Counter;
 
@@ -301,7 +301,11 @@ impl Value {
     /// 返回被规范化的标识符
     pub fn replace_ident(s: &str) -> String {
         if Self::no_use_repr_var(s) {
-            s.into()
+            if Self::is_string(s) {
+                string_unescape(s)
+            } else {
+                s.into()
+            }
         } else {
             let var = s.replace('\'', "\"");
             format!("'{}'", var)

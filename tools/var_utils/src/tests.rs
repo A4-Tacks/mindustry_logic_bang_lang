@@ -116,3 +116,45 @@ fn mod_op_test() {
     assert_eq!(-0.2 % 1.0, -0.2); // 这是必要的防御, 在python, 它为0.8
     assert_eq!(-0.2 % 2.0, -0.2);
 }
+
+#[test]
+fn string_escape_test() {
+    let strs = [
+        ("a", r"a"),
+        ("a\nb", r"a\nb"),
+        ("a\r\nb", r"a\nb"),
+        ("a\r\r\nb\r", r"a\nb"),
+        ("a\\\n     b", r"ab"),
+        ("a\\\n    \\ b", r"a b"),
+        ("a\\\n   \\  b", r"a  b"),
+        ("a\\\n\\\n   \\  b", r"a  b"),
+        ("a\\\n\\\r\n   \\  b", r"a  b"),
+        ("a\\\n\\\r\n   \\ \\\\ b", r"a \ b"),
+        ("a\\\n\n b", r"a\n b"),
+        ("a\\\\b", r"a\b"),
+        ("a\\\\n", r"a\[]n"),
+        ("a\\[red]b", r"a[[red]b"),
+        ("你好", r"你好"),
+    ];
+    for (src, dst) in strs {
+        assert_eq!(string_escape(src), dst);
+    }
+}
+
+#[test]
+fn string_unescape_test() {
+    let strs = [
+        (r"a", r"a"),
+        (r"a\nb", r"a\nb"),
+        (r"a\r\nb", r"a\\r\nb"),
+        (r"a \ b", r"a \\ b"),
+        (r"a \[] b", r"a \\ b"),
+        (r"a \[red] b", r"a \\[red] b"),
+        (r"a \\[red] b", r"a \\\\[red] b"),
+        (r"a [[red] b", r"a [[red] b"),
+        (r"你好", r"你好"),
+    ];
+    for (src, dst) in strs {
+        assert_eq!(string_unescape(src), dst);
+    }
+}

@@ -154,5 +154,71 @@ impl AsVarType for str {
     }
 }
 
+/// 处理字符串中的转义字符
+///
+/// 例如 `"\r"` -> `""`
+/// 例如 `"a\\\\b"` -> `"a\\b"`
+/// 例如换行 `"\n"`|`"\r\n"` -> `"\\n"`
+/// 例如 `"a\\\n    \ b"` -> `"a b"`
+pub fn string_escape(s: &str) -> String {
+    let mut iter = s.chars()
+        .filter(|&ch| ch != '\r')
+        .peekable();
+    let mut res = String::with_capacity(s.len() + (s.len() >> 4));
+    while let Some(ch) = iter.next() {
+        match ch {
+            '\n' => res.push_str("\\n"),
+            '\\' if iter.peek() == Some(&' ') => {
+                res.push(iter.next().unwrap());
+            },
+            '\\' if iter.peek() == Some(&'\\') => {
+                iter.next().unwrap();
+                res.push('\\');
+                if iter.peek() == Some(&'n') {
+                    res.push_str("[]")
+                }
+            },
+            '\\' if iter.peek() == Some(&'[') => {
+                iter.next().unwrap();
+                res.push_str(r"[[");
+            },
+            '\\' if iter.peek() == Some(&'\n') => {
+                iter.next().unwrap();
+                let mut f = ||
+                    iter.next_if(|&ch| matches!(ch, ' ' | '\t'))
+                    .is_some();
+                while f() {}
+            },
+            ch => res.push(ch),
+        }
+    }
+    res.shrink_to_fit();
+    res
+}
+
+pub fn string_unescape(s: &str) -> String {
+    let mut iter = s.chars().peekable();
+    let mut res = String::with_capacity(s.len() + (s.len() >> 4));
+    while let Some(ch) = iter.next() {
+        match ch {
+            // `\[]` -> `\\`, `\[` -> `\\[`
+            '\\' if iter.peek() == Some(&'[') => {
+                iter.next().unwrap();
+                res.push_str(r"\\");
+                if iter.peek() == Some(&']') {
+                    iter.next().unwrap();
+                } else {
+                    res.push('[');
+                }
+            },
+            '\\' if iter.peek() == Some(&'n') => res.push('\\'),
+            '\\' => res.push_str(r"\\"),
+            ch => res.push(ch),
+        }
+    }
+    res.shrink_to_fit();
+    res
+}
+
 #[cfg(test)]
 mod tests;

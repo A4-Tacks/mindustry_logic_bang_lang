@@ -5,6 +5,7 @@
 
 ## 以下是推荐的阅读顺序 The following is the recommended reading order
 > [`value.mdtlbl`](./value.mdtlbl)<br/>
+> [`mult_line_string.mdtlbl`](./mult_line_string.mdtlbl)<br/>
 > [`dexp.mdtlbl`](./dexp.mdtlbl)<br/>
 > [`print.mdtlbl`](./print.mdtlbl)<br/>
 > [`sets.mdtlbl`](./sets.mdtlbl)<br/>

@@ -2059,6 +2059,12 @@ fn display_source_test() {
             .display_source_and_get(&mut meta),
         "({\n    take X = A;\n    take Y = B;\n} => ((X > 10 && Y > 20) && X < Y))"
     );
+    assert_eq!(
+        parse!(line_parser, r#"set a "\n\\\[hi]\\n";"#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        r#"`'set'` a "\n\\[[hi]\\n";"#
+    );
 }
 
 #[test]
@@ -3885,4 +3891,53 @@ fn const_expr_eval_test() {
         print null;
         "#).unwrap()).compile().unwrap(),
     );
+}
+
+#[test]
+fn string_escape_test() {
+    let parser = VarParser::new();
+
+    let true_case = [
+        ("\n", r"\n"),
+        ("\r\n", r"\n"),
+        ("\r\nab", r"\nab"),
+        ("ab\ncd", r"ab\ncd"),
+        ("ab  \ncd", r"ab  \ncd"),
+        ("ab  \n  cd", r"ab  \n  cd"),
+        ("ab  \\\ncd", r"ab  cd"),
+        ("ab\\\n  cd", r"abcd"),
+        ("ab\\\n \\ cd", r"ab cd"),
+        ("ab\\\r\n \\ cd", r"ab cd"),
+        ("ab\\\n \\  cd", r"ab  cd"),
+        ("ab\\\n\\ cd", r"ab cd"),
+        ("ab\\\n\n\\ cd", r"ab\n cd"),
+        ("ab\\\n\\\n\\ cd", r"ab cd"),
+        ("\nab", r"\nab"),
+        ("\\\nab", r"ab"),
+        ("a\\\\b", r"a\b"),
+        ("m\\\\n", r"m\[]n"),
+        ("[red]\\[red]", r"[red][[red]"),
+        ("你好", r"你好"),
+    ];
+    let false_case = [
+        "a\rb",
+        "a\n\rb",
+        "a\n\\ b",
+        r"ab\r",
+        r"ab\t",
+        r"ab\\\",
+        r"\ ab",
+        r" \ ab",
+        r" \  ab",
+        r"a\bb",
+    ];
+    let quoted = |s| format!("\"{s}\"");
+    for (src, dst) in true_case {
+        assert_eq!(parse!(parser, &quoted(src)), Ok(quoted(dst)));
+    }
+    for src in false_case {
+        let src = quoted(src);
+        let res = parse!(parser, &src);
+        assert!(res.is_err(), "fail: {:?} -> {:?}", res, src)
+    }
 }

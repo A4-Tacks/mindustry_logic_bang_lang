@@ -33,6 +33,7 @@ use crate::syntax::{
     ZERO_VAR,
     FALSE_VAR,
 };
+use ::var_utils::string_escape;
 
 grammar(meta: &mut Meta);
 
@@ -85,7 +86,7 @@ pub TopLevel: Expand = CtrlStart <mut lines:Expand> <ctrl:CtrlStop> => {
     lines
 };
 
-pub String: Var = r#""[^"]*""# => <>.lines().collect::<Vec<_>>().join("\\n");
+pub String: Var = r#""(?:\\\r?\n\s*(?:\\ )?|\r?\n|\\[n\\\[]|[^"\r\n\\])*""# => string_escape(<>);
 pub Ident: Var = r"[_\p{XID_Start}]\p{XID_Continue}*" => <>.into();
 pub OIdent: Var = r"@[_\p{XID_Start}][\p{XID_Continue}\-]*" => <>.into(); // `@abc-def`这种
 pub Number: Var = r"(?:0(?:x-?[\da-fA-F][_\da-fA-F]*|b-?[01][_01]*)|-?\d[_\d]*(?:\.\d[\d_]*|e[+\-]?\d[\d_]*)?)"
