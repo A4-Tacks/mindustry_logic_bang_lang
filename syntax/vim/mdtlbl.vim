@@ -1,7 +1,7 @@
 " Vim syntax file
 " Language:		mindustry_logic_bang_lang (mdtlbl)
 " Maintainer:		A4-Tacks <wdsjxhno1001@163.com>
-" Last Change:		2023-8-24
+" Last Change:		2023-12-18
 " URL:		https://github.com/A4-Tacks/mindustry_logic_bang_lang
 
 " 已加载高亮时就退出
@@ -43,7 +43,7 @@ syn match mdtlblCmpTreeOper /&&\|||\|!/
 hi link mdtlblCmpTreeOper Operator
 
 " 注释 {{{1
-syn region mdtlblComment start=/#/ end=/$/
+syn region mdtlblComment start=/#/ end=/$/ oneline
 syn region mdtlblLongComment start=/#\*/ end=/\*#/ fold
 hi link mdtlblComment Comment
 hi link mdtlblLongComment Comment
@@ -55,10 +55,10 @@ setlocal formatoptions+=rq
 
 " 值(Var) {{{1
 syn match mdtlblSpecialChar /\\n/ contained
-hi link mdtlblString String
+hi link mdtlblSpecialChar SpecialChar
 
 syn region mdtlblString start=/"/ end=/"/ contains=mdtlblSpecialChar
-hi link mdtlblSpecialChar SpecialChar
+hi link mdtlblString String
 
 syn match mdtlblOIdent /@\I\i*\(-\i*\)*/
 hi link mdtlblOIdent Identifier
@@ -80,7 +80,7 @@ hi link mdtlblResultHandle Identifier
 
 
 " Label {{{1
-syn match mdtlblDefineResultHandle /\I\i*:/
+syn match mdtlblDefineResultHandle /\((\(\s\|\n\)*\)\@<=\I\i*:/
 hi link mdtlblDefineResultHandle Identifier
 
 syn match mdtlblIdentLabel /:\I\i*/
