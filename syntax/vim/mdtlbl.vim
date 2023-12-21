@@ -1,7 +1,7 @@
 " Vim syntax file
 " Language:		mindustry_logic_bang_lang (mdtlbl)
 " Maintainer:		A4-Tacks <wdsjxhno1001@163.com>
-" Last Change:		2023-12-19
+" Last Change:		2023-12-21
 " URL:		https://github.com/A4-Tacks/mindustry_logic_bang_lang
 
 " 已加载高亮时就退出
@@ -18,7 +18,6 @@ endif
 " debug clear {{{1
 "syn clear
 
-
 " 大小写敏感 {{{1
 syn case match
 
@@ -28,7 +27,6 @@ syn keyword mdtlblKeyword
             \ const take setres select
             \ inline
             \ op set noop print
-hi link mdtlblKeyword Keyword
 
 syn keyword mdtlblOpFunKeyword
             \ add sub mul div idiv mod pow
@@ -37,60 +35,42 @@ syn keyword mdtlblOpFunKeyword
             \ min angle len noise not abs log
             \ floor ceil sqrt rand sin cos tan
             \ asin acos atan lnot
-hi link mdtlblOpFunKeyword Operator
 
 syn match mdtlblCmpTreeOper /&&\|||\|!/
-hi link mdtlblCmpTreeOper Operator
 
 " 注释 {{{1
 syn region mdtlblComment start=/#/ end=/$/ oneline
 syn region mdtlblLongComment start=/#\*/ end=/\*#/ fold
-hi link mdtlblComment Comment
-hi link mdtlblLongComment Comment
 
 setlocal comments=s:#*,mb:*,ex:*#,:#
 setlocal commentstring=#%s
 setlocal formatoptions+=rq
 
-
 " 值(Var) {{{1
 syn match mdtlblStringFailedEscape /\\./ contained
-hi link mdtlblStringFailedEscape Error
 
 syn match mdtlblStringColor /\[\v%(#\x{6,8}|%(c%(lear|yan|oral)|b%(l%(ack|ue)|r%(own|ick))|white|li%(ghtgray|me)|g%(r%(ay|een)|old%(enrod)?)|darkgray|navy|r%(oyal|ed)|s%(late|ky|carlet|almon)|t%(eal|an)|acid|forest|o%(live|range)|yellow|p%(ink|urple)|ma%(genta|roon)|violet))\]/ contained
-hi link mdtlblStringColor Include
 
 syn match mdtlblSpecialChar /^ *\\ \|\\\%([n\\[]\|$\)/ contained
-hi link mdtlblSpecialChar SpecialChar
 
 syn region mdtlblString start=/"/ end=/"/ contains=mdtlblSpecialChar,mdtlblStringFailedEscape,mdtlblStringColor
-hi link mdtlblString String
 
 syn match mdtlblOIdent /@\I\i*\%(-\i*\)*/
-hi link mdtlblOIdent Identifier
 
 syn match mdtlblOtherVar /'[^' \t]\+'/
-hi link mdtlblOtherVar Identifier
 
 syn match mdtlblNumber /\v(<0%(x\-?[0-9a-fA-F][0-9a-fA-F_]*|b\-?[01][_01]*)|\-?<\d[0-9_]*%(\.\d[0-9_]*|e[+\-]?\d[0-9_]*)?)>/
-hi link mdtlblNumber Number
 
 syn match mdtlblBoolean /\v<true|false>/
-hi link mdtlblBoolean Boolean
 
 syn match mdtlblNull /\<null\>/
-hi link mdtlblNull Boolean
 
 syn match mdtlblResultHandle /\$/
-hi link mdtlblResultHandle Identifier
-
 
 " Label {{{1
 syn match mdtlblDefineResultHandle /\%((\%(\s\|#\*.*\*#\|\%(#[^*].*\|#\)\=\n\)*\)\@<=\I\i*:/
-hi link mdtlblDefineResultHandle Identifier
 
 syn match mdtlblIdentLabel /:\I\i*/
-hi link mdtlblIdentLabel Label
 
 setlocal foldmethod=syntax
 syn region mdtlblBlock start=/{/ end=/}/ transparent fold
@@ -111,7 +91,7 @@ function! <SID>lineFilter(line)
     return trim(substitute(line, regex_b, '_', 'g'))
 endfunction
 
-function! GetMdtlblIndent()
+function! <SID>getMdtlblIndent()
     if v:lnum <= 1 | return 0 | endif
     let lnum = v:lnum
     let pnum = prevnonblank(lnum - 1)
@@ -138,11 +118,28 @@ function! GetMdtlblIndent()
     return indent(pnum) + diff * &shiftwidth
 endfunction
 
-setlocal indentexpr=GetMdtlblIndent()
+setlocal indentexpr=<SID>getMdtlblIndent()
 setlocal indentkeys+==case
 setlocal indentkeys+==}
 setlocal indentkeys+==)
 setlocal indentkeys+==:
 
-" END {{{1
+" END And Color Links {{{1
+hi def link mdtlblKeyword Keyword
+hi def link mdtlblOpFunKeyword Operator
+hi def link mdtlblCmpTreeOper Operator
+hi def link mdtlblComment Comment
+hi def link mdtlblLongComment Comment
+hi def link mdtlblStringFailedEscape Error
+hi def link mdtlblStringColor Include
+hi def link mdtlblSpecialChar SpecialChar
+hi def link mdtlblString String
+hi def link mdtlblOIdent Identifier
+hi def link mdtlblOtherVar Identifier
+hi def link mdtlblNumber Number
+hi def link mdtlblBoolean Boolean
+hi def link mdtlblNull Boolean
+hi def link mdtlblResultHandle Identifier
+hi def link mdtlblDefineResultHandle Identifier
+hi def link mdtlblIdentLabel Label
 " }}}1
