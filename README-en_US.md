@@ -213,12 +213,18 @@ Provided basic support for some editors
   This is a cross platform editor,
   Provided syntax support for Bang language by [westernat] in this editor
 
+- [**BlocklyEditor**]\:
+  This is a graphical code editor framework that implements an editor for Bang language.
+
+  Having two branches in Chinese and English
+
 `LSP` is currently not implemented and there is no need to implement it. The logic language is so messy, and this function cannot be used much
 
 [**Vim**]: https://github.com/vim/vim
 [**MT-Manager**]: https://mt2.cn/
 [**VSCode**]: https://code.visualstudio.com/
 [westernat]: https://github.com/westernat
+[**BlocklyEditor**]: https://github.com/A4-Tacks/blockly_for_mindustry_logic_bang_lang
 
 # Performance
 Even if you input thousands of lines of code,

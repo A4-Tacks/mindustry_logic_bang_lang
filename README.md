@@ -181,12 +181,18 @@ cargo install --path . # 执行这个你可以在你的shell中直接使用它(�
   这是一个跨平台的编辑器,
   由 [westernat] 提供了它对Bang语言的语法支持
 
+- [**BlocklyEditor**]\:
+  这是一个图形化代码编辑器框架, 使用此框架实现了一个关于Bang语言的编辑器
+
+  具有中文及英文两个分支
+
 `LSP` 目前暂无实现, 也没啥必要实现, 逻辑语言这乱的, 这功能也没法用啥
 
 [**Vim**]: https://github.com/vim/vim
 [**MT-Manager**]: https://mt2.cn/
 [**VSCode**]: https://code.visualstudio.com/
 [westernat]: https://github.com/westernat
+[**BlocklyEditor**]: https://github.com/A4-Tacks/blockly_for_mindustry_logic_bang_lang
 
 
 # 性能
