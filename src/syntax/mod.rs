@@ -396,7 +396,7 @@ impl Deref for Value {
     fn deref(&self) -> &Self::Target {
         match self {
             Self::Var(ref s) | Self::ReprVar(ref s) => s,
-            Self::DExp(DExp { result, .. }) => &result,
+            Self::DExp(DExp { result, .. }) => result,
             Self::ResultHandle =>
                 panic!("未进行AST编译, 而DExp的返回句柄是进行AST编译时已知"),
             Self::ValueBind(..) =>
@@ -939,7 +939,7 @@ impl FromMdtArgs for JumpCmp {
     fn from_mdt_args(args: &[&str]) -> Result<Self, Self::Err> {
         let &[oper, a, b] = args else {
             return Err(JumpCmpRParseError::ArgsCountError(
-                args.into_iter().cloned().map(Into::into).collect()
+                args.iter().cloned().map(Into::into).collect()
             ).into());
         };
 
@@ -1168,7 +1168,7 @@ impl CmpTree {
             | JC::Equal(lhs, rhs)
             | JC::NotEqual(lhs, rhs)
             => {
-                (is_false(meta, &lhs), is_false(meta, &rhs))
+                (is_false(meta, lhs), is_false(meta, rhs))
             },
             | _ => return,
         };
@@ -1207,7 +1207,7 @@ impl CmpTree {
                         *self = cmp_rev(cmp.into())
                     }
                     Some((_, V::Cmper(cmper))) => {
-                        *self = cmp_rev((&**cmper).clone())
+                        *self = cmp_rev((**cmper).clone())
                     }
                     Some(_) | None => return,
                 }
@@ -1716,7 +1716,7 @@ impl FromMdtArgs for Op {
     fn from_mdt_args(args: &[&str]) -> Result<Self, Self::Err> {
         let &[oper, res, a, b] = args else {
             return Err(OpRParseError::ArgsCountError(
-                args.into_iter().cloned().map(Into::into).collect()
+                args.iter().cloned().map(Into::into).collect()
             ));
         };
 
@@ -2158,7 +2158,7 @@ impl DisplaySource for Const {
 
         let labs = self.2
             .iter()
-            .map(|s| Value::replace_ident(&*s))
+            .map(|s| Value::replace_ident(&**s))
             .fold(
                 Vec::with_capacity(self.2.len()),
                 |mut labs, s| {

@@ -275,7 +275,7 @@ fn get_locations<const N: usize>(src: &str, indexs: [usize; N]) -> [[usize; 2]; 
     res
 }
 
-fn unwrap_parse_err<'a>(result: ParseResult<'a>, src: &str) -> Expand {
+fn unwrap_parse_err(result: ParseResult<'_>, src: &str) -> Expand {
     match result {
         Ok(ast) => ast,
         Err(e) => {
