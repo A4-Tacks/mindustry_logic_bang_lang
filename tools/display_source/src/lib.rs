@@ -21,7 +21,7 @@ impl PartialEq<&str> for DisplaySourceMeta {
 }
 impl PartialEq<str> for DisplaySourceMeta {
     fn eq(&self, other: &str) -> bool {
-        let s: &str = &*self;
+        let s: &str = &**self;
         s == other
     }
 }

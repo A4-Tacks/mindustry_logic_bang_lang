@@ -330,11 +330,15 @@ impl Value {
             Self::ReprVar(var) => num(var, false),
             Self::Var(name) => {
                 match meta.get_const_value(name) {
-                    Some((_, Self::Var(var))) => num(var, false),
-                    Some((_, Self::ReprVar(repr_var))) => {
+                    Some(ConstData { value: Self::Var(var), .. }) => {
+                        num(var, false)
+                    },
+                    Some(ConstData { value: Self::ReprVar(repr_var), .. }) => {
                         unreachable!("被const的reprvar {:?}", repr_var)
                     },
-                    Some((_, x @ Self::DExp(_))) => x.try_eval_const_num(meta),
+                    Some(ConstData { value: x @ Self::DExp(_), .. }) => {
+                        x.try_eval_const_num(meta)
+                    },
                     Some(_) => None?,
                     None => num(name, false),
                 }
@@ -435,7 +439,7 @@ impl TakeHandle for DExp {
         let dexp_res_is_alloced = result.is_empty();
         if dexp_res_is_alloced {
             result = meta.get_tmp_var(); /* init tmp_var */
-        } else if let Some((_, value))
+        } else if let Some(ConstData { value, .. })
                 = meta.get_const_value(&result) {
             // 对返回句柄使用常量值的处理
             if !value.is_var() {
@@ -1003,7 +1007,6 @@ pub enum CmpTree {
     Or(Box<Self>, Box<Self>),
     Atom(JumpCmp),
 }
-
 impl CmpTree {
     /// 反转自身条件,
     /// 使用`德•摩根定律`进行表达式变换.
@@ -1038,7 +1041,7 @@ impl CmpTree {
         fn get<'a>(meta: &'a CompileMeta, value: &'a V) -> Option<&'a str> {
             fn f<'a>(meta: &'a CompileMeta, s: &'a Var) -> Option<&'a str> {
                 match meta.get_const_value(s) {
-                    Some((_, V::Var(s))) => Some(&**s),
+                    Some(ConstData { value: V::Var(s), .. }) => Some(&**s),
                     Some(_) => None,
                     None => Some(&**s),
                 }
@@ -1047,11 +1050,16 @@ impl CmpTree {
                 | V::Var(s)
                 => {
                     match meta.get_const_value(s) {
-                        | Some((_, V::Var(s)))
+                        | Some(ConstData { value: V::Var(s), .. })
                         => Some(&**s),
                         // 二级展开 A=0; B=(A:); use B;
-                        | Some((_, V::DExp(DExp { result: s, lines })))
-                        => {
+                        | Some(ConstData {
+                            value: V::DExp(DExp {
+                                result: s,
+                                lines
+                            }),
+                            ..
+                        }) => {
                             if lines.is_empty() {
                                 f(meta, s)
                             } else {
@@ -1125,7 +1133,7 @@ impl CmpTree {
             }
             V::Var(name) => {
                 match meta.get_const_value(name) {
-                    Some((_, V::DExp(dexp))) => {
+                    Some(ConstData { value: V::DExp(dexp), .. }) => {
                         do_return!(! check_inline_op(dexp));
                         let op = dexp[0].as_op().unwrap().clone();
                         let cmper = op.get_cmper().unwrap();
@@ -1133,7 +1141,7 @@ impl CmpTree {
                         let cmp = cmper(info.arg1, info.arg2.unwrap());
                         *self = cmp_rev(cmp.into())
                     }
-                    Some((_, V::Cmper(cmper))) => {
+                    Some(ConstData { value: V::Cmper(cmper), .. }) => {
                         *self = cmp_rev((**cmper).clone())
                     }
                     Some(_) | None => return,
@@ -1628,12 +1636,8 @@ impl Compile for Goto {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+#[derive(Default)]
 pub struct Expand(pub Vec<LogicLine>);
-impl Default for Expand {
-    fn default() -> Self {
-        Self(Default::default())
-    }
-}
 impl Compile for Expand {
     fn compile(self, meta: &mut CompileMeta) {
         meta.with_block(|this| {
@@ -1990,6 +1994,7 @@ pub enum LogicLine {
     Ignore,
     Const(Const),
     Take(Take),
+    /// 将指定const在块末尾进行泄漏
     ConstLeak(Var),
     /// 将返回句柄设置为一个指定值
     SetResultHandle(Value),
@@ -2203,17 +2208,66 @@ pub trait Compile {
     }
 }
 
+/// 一个常量映射的数据
+#[derive(Debug, PartialEq, Clone)]
+pub struct ConstData {
+    value: Value,
+    labels: Vec<Var>,
+}
+impl ConstData {
+    pub fn new(value: Value, labels: Vec<Var>) -> Self {
+        Self { value, labels }
+    }
+
+    pub fn new_nolabel(value: Value) -> Self {
+        Self::new(value, vec![])
+    }
+
+    pub fn value(&self) -> &Value {
+        &self.value
+    }
+
+    pub fn labels(&self) -> &[String] {
+        self.labels.as_ref()
+    }
+}
+
+/// 每层Expand的环境
+#[derive(Debug, PartialEq, Clone)]
+#[derive(Default)]
+pub struct ExpandEnv {
+    leak_vars: Vec<Var>,
+    consts: HashMap<Var, ConstData>,
+}
+impl ExpandEnv {
+    pub fn new(leak_vars: Vec<Var>, consts: HashMap<Var, ConstData>) -> Self {
+        Self { leak_vars, consts }
+    }
+
+    pub fn leak_vars(&self) -> &[String] {
+        self.leak_vars.as_ref()
+    }
+
+    pub fn consts(&self) -> &HashMap<Var, ConstData> {
+        &self.consts
+    }
+
+    pub fn consts_mut(&mut self) -> &mut HashMap<Var, ConstData> {
+        &mut self.consts
+    }
+
+    pub fn leak_vars_mut(&mut self) -> &mut Vec<Var> {
+        &mut self.leak_vars
+    }
+}
+
 pub struct CompileMeta {
     /// 标记与`id`的映射关系表
     tags_map: HashMap<String, usize>,
     tag_count: usize,
     tag_codes: TagCodes,
     tmp_var_count: Counter<fn(&mut usize) -> Var>,
-    /// 块中常量, 且带有展开次数与内部标记
-    /// 并且存储了需要泄露的常量
-    ///
-    /// `Vec<(leaks, HashMap<name, (Vec<Label>, Value)>)>`
-    const_var_namespace: Vec<(Vec<Var>, HashMap<Var, (Vec<Var>, Value)>)>,
+    expand_env: Vec<ExpandEnv>,
     /// 每层DExp所使用的句柄, 末尾为当前层, 同时有一个是否为自动分配名称的标志
     dexp_result_handles: Vec<(Var, bool)>,
     tmp_tag_count: Counter<fn(&mut usize) -> Var>,
@@ -2237,7 +2291,7 @@ impl Debug for CompileMeta {
             .field("tag_count", &self.tag_count)
             .field("tag_codes", &self.tag_codes)
             .field("tmp_var_count", &self.tmp_var_count.counter())
-            .field("const_var_namespace", &self.const_var_namespace)
+            .field("const_var_namespace", &self.expand_env)
             .field("dexp_result_handles", &self.dexp_result_handles)
             .field("tmp_tag_count", &self.tmp_tag_count.counter())
             .field("const_expand_tag_name_map", &self.const_expand_tag_name_map)
@@ -2261,7 +2315,7 @@ impl CompileMeta {
             tag_count: 0,
             tag_codes,
             tmp_var_count: Counter::new(Self::tmp_var_getter),
-            const_var_namespace: Vec::new(),
+            expand_env: Vec::new(),
             dexp_result_handles: Vec::new(),
             tmp_tag_count: Counter::new(Self::tmp_tag_getter),
             const_expand_tag_name_map: Vec::new(),
@@ -2355,18 +2409,20 @@ impl CompileMeta {
     /// 返回该子块结束后的命名空间
     pub fn with_block(&mut self,
         f: impl FnOnce(&mut Self),
-    ) -> HashMap<Var, (Vec<Var>, Value)> {
+    ) -> HashMap<Var, ConstData> {
         /// 进入一个子块, 创建一个新的子命名空间
         fn block_enter(this: &mut CompileMeta) {
-            this.const_var_namespace.push((Vec::new(), HashMap::new()))
+            this.expand_env.push(ExpandEnv::default())
         }
         /// 退出一个子块, 弹出最顶层命名空间
         /// 如果无物可弹说明逻辑出现了问题, 所以内部处理为unwrap
         /// 一个enter对应一个exit
-        fn block_exit(this: &mut CompileMeta) -> HashMap<Var, (Vec<Var>, Value)> {
+        fn block_exit(this: &mut CompileMeta) -> HashMap<Var, ConstData> {
             // this is poped block
-            let (leaks, mut res)
-                = this.const_var_namespace.pop().unwrap();
+            let ExpandEnv {
+                leak_vars: leaks,
+                consts: mut res,
+            } = this.expand_env.pop().unwrap();
 
             // do leak
             for leak_const_name in leaks {
@@ -2374,10 +2430,10 @@ impl CompileMeta {
                     = res.remove(&leak_const_name).unwrap();
 
                 // insert to prev block
-                this.const_var_namespace
+                this.expand_env
                     .last_mut()
                     .unwrap()
-                    .1
+                    .consts
                     .insert(leak_const_name, value);
             }
             res
@@ -2390,49 +2446,49 @@ impl CompileMeta {
 
     /// 添加一个需泄露的const
     pub fn add_const_value_leak(&mut self, name: Var) {
-        self.const_var_namespace
+        self.expand_env
             .last_mut()
             .unwrap()
-            .0
+            .leak_vars
             .push(name)
     }
 
     /// 获取一个常量到值的使用次数与映射与其内部标记的引用,
     /// 从当前作用域往顶层作用域一层层找, 都没找到就返回空
-    pub fn get_const_value(&self, name: &Var) -> Option<&(Vec<Var>, Value)> {
-        self.const_var_namespace
+    pub fn get_const_value(&self, name: &Var) -> Option<&ConstData> {
+        self.expand_env
             .iter()
             .rev()
-            .find_map(|(_, namespace)| {
-                namespace.get(name)
+            .find_map(|env| {
+                env.consts().get(name)
             })
-            .map(|x| { assert!(! x.1.is_repr_var()); x })
+            .map(|x| { assert!(! x.value().is_repr_var()); x })
     }
 
     /// 获取一个常量到值的使用次数与映射与其内部标记的可变引用,
     /// 从当前作用域往顶层作用域一层层找, 都没找到就返回空
     pub fn get_const_value_mut(&mut self, name: &Var)
-    -> Option<&mut (Vec<Var>, Value)> {
-        self.const_var_namespace
+    -> Option<&mut ConstData> {
+        self.expand_env
             .iter_mut()
             .rev()
-            .find_map(|(_, namespace)| {
-                namespace.get_mut(name)
+            .find_map(|env| {
+                env.consts_mut().get_mut(name)
             })
-            .map(|x| { assert!(! x.1.is_repr_var()); x })
+            .map(|x| { assert!(! x.value().is_repr_var()); x })
     }
 
     /// 新增一个常量到值的映射, 如果当前作用域已有此映射则返回旧的值并插入新值
     pub fn add_const_value(&mut self, Const(var, mut value, mut labels): Const)
-    -> Option<(Vec<Var>, Value)> {
+    -> Option<ConstData> {
         if let Some(var_1) = value.as_var() {
             // 如果const的映射目标值是一个var
-            if let Some((labels_1, value_1))
+            if let Some(ConstData { value: v1, labels: l1 })
                 = self.get_const_value(var_1).cloned() {
                     // 且它是一个常量, 则将它直接克隆过来.
                     // 防止直接映射到另一常量,
                     // 但是另一常量被覆盖导致这在覆盖之前映射的常量结果也发生改变
-                    (labels, value) = (labels_1, value_1)
+                    (labels, value) = (l1, v1)
                 }
         }
 
@@ -2454,11 +2510,11 @@ impl CompileMeta {
             value => value,
         };
 
-        self.const_var_namespace
+        self.expand_env
             .last_mut()
             .unwrap()
-            .1
-            .insert(var, (labels, value))
+            .consts
+            .insert(var, ConstData::new(value, labels))
     }
 
     /// 新增一层DExp, 并且传入它使用的返回句柄
@@ -2538,12 +2594,12 @@ impl CompileMeta {
     /// 这个函数会直接调用获取函数将标记映射完毕, 然后返回其值
     /// 如果不是一个宏则直接返回None, 也不会进入无需清理
     pub fn const_expand_enter(&mut self, name: &Var) -> Option<Value> {
-        let label_count = self.get_const_value(name)?.0.len();
+        let label_count = self.get_const_value(name)?.labels().len();
         let mut tmp_tags = Vec::with_capacity(label_count);
         tmp_tags.extend(repeat_with(|| self.get_tmp_tag())
                         .take(label_count));
 
-        let (labels, value)
+        let ConstData { value, labels }
             = self.get_const_value(name).unwrap();
         let mut labels_map = HashMap::with_capacity(labels.len());
         for (tmp_tag, label) in zip(tmp_tags, labels.iter().cloned()) {
@@ -2578,6 +2634,10 @@ impl CompileMeta {
         res.push("已生成代码:".into());
         res.extend(tag_lines);
         res
+    }
+
+    pub fn const_var_namespace(&self) -> &[ExpandEnv] {
+        self.expand_env.as_ref()
     }
 }
 
