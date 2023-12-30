@@ -41,7 +41,7 @@ syn keyword mdtlblOpFunKeyword
 syn match mdtlblCmpTreeOper /&&\|||\|!/
 
 " 注释 {{{1
-syn region mdtlblComment start=/#/ end=/$/ oneline
+syn region mdtlblComment start=/#[^*]\=/ end=/$/ oneline
 syn region mdtlblLongComment start=/#\*/ end=/\*#/ fold
 
 setlocal comments=s:#*,mb:*,ex:*#,:#
@@ -78,7 +78,7 @@ syn region mdtlblArgs matchgroup=mdtlblArgsBracket start=/\[/ end=/\]/ transpare
 function! <SID>lineFilter(line)
     " 过滤掉注释与字符串与原始标识符
     let regex_a = ''
-                \. '#\*.\{-0,}\*#'
+                \. '#\*.\{-}\*#'
                 \. '\|#.*$'
     let regex_b = '@\I\i*\(-\i*\)*'
                 \. '\|' . "'[^' \\t]*'"
@@ -117,6 +117,7 @@ endfunction
 setlocal indentexpr=<SID>getMdtlblIndent()
 setlocal indentkeys+==case
 setlocal indentkeys+==}
+setlocal indentkeys+==]
 setlocal indentkeys+==)
 setlocal indentkeys+==:
 
