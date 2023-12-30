@@ -10,21 +10,22 @@ use std::{
 };
 
 use display_source::DisplaySource;
-use lalrpop_util::{
-    lexer::Token,
-    ParseError
+use syntax::{
+    CompileMeta,
+    Error,
+    Errors,
+    Expand,
+    Meta,
+    line_first_add,
 };
-use mindustry_logic_bang_lang::{
-    syntax::{
-        CompileMeta,
-        Error,
-        Errors,
-        Expand,
-        Meta
+use parser::{
+    TopLevelParser,
+    lalrpop_util::{
+        lexer::Token,
+        ParseError
     },
-    syntax::{def::TopLevelParser, line_first_add},
-    tag_code::TagCodes,
 };
+use tag_code::TagCodes;
 
 /// 带有错误前缀, 并且文本为红色的eprintln
 macro_rules! err {

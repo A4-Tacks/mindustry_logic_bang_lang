@@ -101,6 +101,10 @@ dependencies = [
 [[package]]
 name = "display_source"
 version = "0.3.2"
+dependencies = [
+ "parser",
+ "syntax",
+]
 
 [[package]]
 name = "either"
@@ -291,11 +295,9 @@ name = "mindustry_logic_bang_lang"
 version = "0.13.9"
 dependencies = [
  "display_source",
- "lalrpop",
- "lalrpop-util",
+ "parser",
+ "syntax",
  "tag_code",
- "utils",
- "var_utils",
 ]
 
 [[package]]
@@ -331,6 +333,17 @@ dependencies = [
  "redox_syscall 0.3.5",
  "smallvec",
  "windows-targets",
+]
+
+[[package]]
+name = "parser"
+version = "0.1.0"
+dependencies = [
+ "lalrpop",
+ "lalrpop-util",
+ "syntax",
+ "tag_code",
+ "var_utils",
 ]
 
 [[package]]
@@ -499,6 +512,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "syntax"
+version = "0.1.0"
+dependencies = [
+ "tag_code",
+ "utils",
+ "var_utils",
 ]
 
 [[package]]

@@ -1,4 +1,5 @@
 use std::ops::Deref;
+pub mod impls;
 
 pub const LF: char = '\n';
 
@@ -170,9 +171,9 @@ mod tests {
         assert_eq!(meta, "    abcd\nx");
         meta.add_lf();
         assert_eq!(meta, "    abcd\nx\n");
-        meta.pop_lf();
+        let _ = meta.pop_lf();
         assert_eq!(meta, "    abcd\nx");
-        meta.pop_lf();
+        let _ = meta.pop_lf();
         assert_eq!(meta, "    abcd\nx");
     }
 }

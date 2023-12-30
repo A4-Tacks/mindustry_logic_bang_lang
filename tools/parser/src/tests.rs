@@ -1,7 +1,7 @@
 use std::str::FromStr;
-
 use super::*;
-use crate::syntax::def::*;
+use syntax::*;
+use tag_code::*;
 
 /// 快捷的创建一个新的`Meta`并且`parse`
 macro_rules! parse {
@@ -591,8 +591,8 @@ fn compile_take_test() {
             TagLine::Line("op add x __0 3".to_string().into()),
         ]
     );
-    assert_eq!(meta.tag_codes.len(), 1);
-    assert_eq!(meta.tag_codes.lines(), &vec![TagLine::Line("noop".to_string().into())]);
+    assert_eq!(meta.tag_codes().len(), 1);
+    assert_eq!(meta.tag_codes().lines(), &vec![TagLine::Line("noop".to_string().into())]);
 }
 
 #[test]
@@ -1953,118 +1953,6 @@ fn switch_catch_test() {
         {}
     }
     "#).unwrap()).compile().unwrap());
-}
-
-#[test]
-fn display_source_test() {
-    let line_parser = LogicLineParser::new();
-    let jumpcmp_parser = JumpCmpParser::new();
-
-    let mut meta = Default::default();
-    assert_eq!(
-        parse!(
-            line_parser,
-            r#"'abc' 'abc"def' "str" "str'str" 'no_str' '2';"#
-        )
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        r#"abc 'abc"def' "str" "str'str" no_str 2;"#
-    );
-    assert_eq!(
-        JumpCmp::GreaterThan("a".into(), "1".into())
-            .display_source_and_get(&mut meta),
-        "a > 1"
-    );
-    assert_eq!(
-        parse!(jumpcmp_parser, "a < b && c < d && e < f")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "((a < b && c < d) && e < f)"
-    );
-    assert_eq!(
-        parse!(line_parser, "{foo;}")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "{\n    foo;\n}"
-    );
-    assert_eq!(
-        parse!(line_parser, "print ($ = x;);")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "`'print'` (`'set'` $ x;);"
-    );
-    assert_eq!(
-        parse!(line_parser, "print (res: $ = x;);")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "`'print'` (res: `'set'` $ x;);"
-    );
-    assert_eq!(
-        parse!(line_parser, "print (noop;$ = x;);")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "`'print'` (\n    noop;\n    `'set'` $ x;\n);"
-    );
-    assert_eq!(
-        parse!(line_parser, "print (res: noop;$ = x;);")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "`'print'` (res:\n    noop;\n    `'set'` $ x;\n);"
-    );
-    assert_eq!(
-        parse!(line_parser, "print a.b.c;")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "`'print'` a.b.c;"
-    );
-    assert_eq!(
-        parse!(line_parser, "op add a b c;")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "op a b + c;"
-    );
-    assert_eq!(
-        parse!(line_parser, "op x noise a b;")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "op x noise a b;"
-    );
-    assert_eq!(
-        parse!(line_parser, "foo 1 0b1111_0000 0x8f_ee abc 你我他 _x @a-b;")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "foo 1 0b11110000 0x8fee abc 你我他 _x @a-b;"
-    );
-    assert_eq!(
-        parse!(line_parser, "'take' '1._2' '0b_11_00' '-0b1111_0000' '-0x8f' 'a-bc';")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "'take' '1._2' '0b_11_00' '-0b1111_0000' '-0x8f' 'a-bc';"
-    );
-    assert_eq!(
-        parse!(line_parser, "'take' 'set' 'print' 'const' 'take' 'op';")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "'take' 'set' 'print' 'const' 'take' 'op';"
-    );
-    assert_eq!(
-        parse!(jumpcmp_parser, "({take X = N;} => X > 10 && X < 50)")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "({take X = N;} => (X > 10 && X < 50))"
-    );
-    assert_eq!(
-        parse!(jumpcmp_parser, "({take X = A; take Y = B;} => X > 10 && Y > 20 && X < Y)")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "({\n    take X = A;\n    take Y = B;\n} => ((X > 10 && Y > 20) && X < Y))"
-    );
-    assert_eq!(
-        parse!(line_parser, r#"set a "\n\\\[hi]\\n";"#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        r#"`'set'` a "\n\\[[hi]\\n";"#
-    );
 }
 
 #[test]

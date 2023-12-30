@@ -1,5 +1,3 @@
-pub mod def;
-
 use std::{
     ops::Deref,
     num::ParseIntError,
@@ -10,19 +8,16 @@ use std::{
     },
     process::exit,
     mem::{self, replace},
-    fmt::{Display, Debug}, convert::identity,
+    fmt::{Display, Debug},
+    convert::identity,
 };
-use crate::tag_code::{
+use tag_code::{
     Jump,
     TagCodes,
     TagLine
 };
-use display_source::{
-    DisplaySource,
-    DisplaySourceMeta,
-};
 use var_utils::{AsVarType,string_unescape};
-pub use crate::tag_code::mdt_logic_split;
+use tag_code::mdt_logic_split;
 use utils::counter::Counter;
 
 
@@ -189,32 +184,12 @@ impl TakeHandle for Value {
             Self::ReprVar(var) => var,
             Self::ValueBind(val_bind) => val_bind.take_handle(meta),
             Self::Cmper(cmp) => {
-                let mut dmeta = DisplaySourceMeta::default();
-                let src = cmp.display_source_and_get(&mut dmeta);
                 err!(
-                    "{}\n最终未被展开的cmper, {}",
+                    "{}\n最终未被展开的cmper, {:#?}",
                     meta.err_info().join("\n"),
-                    src,
+                    cmp,
                 );
                 exit(6);
-            }
-        }
-    }
-}
-impl DisplaySource for Value {
-    fn display_source(&self, meta: &mut DisplaySourceMeta) {
-        let replace_ident = Self::replace_ident;
-        match self {
-            Self::Var(s) => meta.push(&replace_ident(s)),
-            Self::ReprVar(s) => meta.push(&format!("`{}`", replace_ident(s))),
-            Self::ResultHandle => meta.push("$"),
-            Self::DExp(dexp) => dexp.display_source(meta),
-            Self::ValueBind(value_attr) => value_attr.display_source(meta),
-            Self::Cmper(cmp) => {
-                meta.push("goto");
-                meta.push("(");
-                cmp.display_source(meta);
-                meta.push(")");
             }
         }
     }
@@ -468,11 +443,11 @@ impl TakeHandle for DExp {
                     concat!(
                         "{}\n尝试在`DExp`的返回句柄处使用值不为Var的const, ",
                         "此处仅允许使用`Var`\n",
-                        "值: {:?}\n",
+                        "值: {:#?}\n",
                         "名称: {:?}",
                     ),
                     meta.err_info().join("\n"),
-                    value.display_source_and_get(&mut DisplaySourceMeta::new()),
+                    value,
                     result
                 );
                 exit(5);
@@ -485,32 +460,6 @@ impl TakeHandle for DExp {
         lines.compile(meta);
         let (result, _) = meta.pop_dexp_handle();
         result
-    }
-}
-impl DisplaySource for DExp {
-    fn display_source(&self, meta: &mut DisplaySourceMeta) {
-        meta.push("(");
-        let has_named_res = !self.result.is_empty();
-        if has_named_res {
-            meta.push(&Value::replace_ident(&self.result));
-            meta.push(":");
-        }
-        match self.lines.len() {
-            0 => (),
-            1 => {
-                if has_named_res {
-                    meta.add_space();
-                }
-                self.lines[0].display_source(meta);
-            },
-            _ => {
-                meta.add_lf();
-                meta.do_block(|meta| {
-                    self.lines.display_source(meta);
-                });
-            }
-        }
-        meta.push(")");
     }
 }
 impl_derefs!(impl for DExp => (self: self.lines): Expand);
@@ -529,13 +478,6 @@ impl TakeHandle for ValueBind {
         // 进行常量表查询, 虽然是匿名量但是还是要有这个行为嘛
         // 虽然之前没有
         binded.take_handle(meta)
-    }
-}
-impl DisplaySource for ValueBind {
-    fn display_source(&self, meta: &mut DisplaySourceMeta) {
-        self.0.display_source(meta);
-        meta.push(".");
-        meta.push(&Value::replace_ident(&self.1));
     }
 }
 
@@ -918,18 +860,23 @@ impl JumpCmp {
         }
     }
 }
-impl DisplaySource for JumpCmp {
-    fn display_source(&self, meta: &mut DisplaySourceMeta) {
-        if let Self::Always | Self::NotAlways = self {
-            meta.push(self.get_symbol_cmp_str())
-        } else {
-            let sym = self.get_symbol_cmp_str();
-            let (a, b) = self.get_values_ref().unwrap();
-            a.display_source(meta);
-            meta.add_space();
-            meta.push(sym);
-            meta.add_space();
-            b.display_source(meta);
+impl Display for JumpCmpRParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use JumpCmpRParseError::*;
+
+        match self {
+            ArgsCountError(args) => write!(
+                f,
+                "参数数量错误, 预期3个参数, 得到{}个参数: {:?}",
+                args.len(),
+                args
+            ),
+            UnknownComparer(oper, [a, b]) => write!(
+                f,
+                "未知的比较符: {:?}, 参数为: {:?}",
+                oper,
+                (a, b)
+            ),
         }
     }
 }
@@ -982,26 +929,6 @@ impl Default for JumpCmp {
 pub enum JumpCmpRParseError {
     ArgsCountError(Vec<String>),
     UnknownComparer(String, [String; 2]),
-}
-impl Display for JumpCmpRParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use JumpCmpRParseError::*;
-
-        match self {
-            ArgsCountError(args) => write!(
-                f,
-                "参数数量错误, 预期3个参数, 得到{}个参数: {:?}",
-                args.len(),
-                args
-            ),
-            UnknownComparer(oper, [a, b]) => write!(
-                f,
-                "未知的比较符: {:?}, 参数为: {:?}",
-                oper,
-                (a, b)
-            ),
-        }
-    }
 }
 
 /// Op语法树从字符串生成时的错误
@@ -1300,49 +1227,6 @@ impl Default for CmpTree {
 impl_enum_froms!(impl From for CmpTree {
     Atom => JumpCmp;
 });
-impl DisplaySource for CmpTree {
-    fn display_source(&self, meta: &mut DisplaySourceMeta) {
-        match self {
-            Self::Atom(cmp) => cmp.display_source(meta),
-            Self::Deps(deps, cmp) => {
-                meta.push("(");
-                meta.push("{");
-                if let [line] = &deps[..] {
-                    line.display_source(meta)
-                } else {
-                    meta.do_block(|meta| {
-                        meta.add_lf();
-                        deps.display_source(meta)
-                    })
-                }
-                meta.push("}");
-                meta.add_space();
-                meta.push("=>");
-                meta.add_space();
-                cmp.display_source(meta);
-                meta.push(")");
-            },
-            Self::Or(a, b) => {
-                meta.push("(");
-                a.display_source(meta);
-                meta.add_space();
-                meta.push("||");
-                meta.add_space();
-                b.display_source(meta);
-                meta.push(")");
-            },
-            Self::And(a, b) => {
-                meta.push("(");
-                a.display_source(meta);
-                meta.add_space();
-                meta.push("&&");
-                meta.add_space();
-                b.display_source(meta);
-                meta.push(")");
-            }
-        }
-    }
-}
 
 /// 用于承载Op信息的容器
 pub struct OpInfo<Arg> {
@@ -1645,71 +1529,6 @@ impl Compile for Op {
         meta.tag_codes.push(args.join(" ").into())
     }
 }
-impl DisplaySource for Op {
-    fn display_source(&self, meta: &mut DisplaySourceMeta) {
-        macro_rules! build_match {
-            {
-                op1: [ $( $oper1:ident ),* $(,)?  ]
-                op2: [ $( $oper2:ident ),* $(,)?  ]
-                op2l: [ $( $oper2l:ident ),* $(,)?  ]
-            } => {
-                match self {
-                    $(
-                        Self::$oper1(_, a) => {
-                            meta.push(self.oper_symbol_str());
-                            meta.add_space();
-
-                            a.display_source(meta);
-                        },
-                    )*
-                    $(
-                        Self::$oper2(_, a, b) => {
-                            a.display_source(meta);
-                            meta.add_space();
-
-                            meta.push(self.oper_symbol_str());
-                            meta.add_space();
-
-                            b.display_source(meta);
-                        },
-                    )*
-                    $(
-                        Self::$oper2l(_, a, b) => {
-                            meta.push(self.oper_symbol_str());
-                            meta.add_space();
-
-                            a.display_source(meta);
-                            meta.add_space();
-
-                            b.display_source(meta);
-                        },
-                    )*
-                }
-            };
-        }
-        meta.push("op");
-        meta.add_space();
-        self.get_info().result.display_source(meta);
-        meta.add_space();
-
-        build_match! {
-            op1: [
-                Not, Abs, Log, Log10, Floor, Ceil, Sqrt,
-                Rand, Sin, Cos, Tan, Asin, Acos, Atan,
-            ]
-            op2: [
-                Add, Sub, Mul, Div, Idiv,
-                Mod, Pow, Equal, NotEqual, Land,
-                LessThan, LessThanEq, GreaterThan, GreaterThanEq, StrictEqual,
-                Shl, Shr, Or, And, Xor,
-            ]
-            op2l: [
-                Max, Min, Angle, Len, Noise,
-            ]
-        };
-        meta.push(";");
-    }
-}
 impl FromMdtArgs for Op {
     type Err = OpRParseError;
 
@@ -1807,19 +1626,6 @@ impl Compile for Goto {
         self.1.build(meta, self.0)
     }
 }
-impl DisplaySource for Goto {
-    fn display_source(&self, meta: &mut DisplaySourceMeta) {
-        let Self(lab, cmp) = self;
-
-        meta.push("goto");
-        meta.add_space();
-        meta.push(":");
-        meta.push(&Value::replace_ident(lab));
-        meta.add_space();
-        cmp.display_source(meta);
-        meta.push(";");
-    }
-}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Expand(pub Vec<LogicLine>);
@@ -1842,16 +1648,6 @@ impl From<Vec<LogicLine>> for Expand {
         Self(value)
     }
 }
-impl DisplaySource for Expand {
-    fn display_source(&self, meta: &mut DisplaySourceMeta) {
-        self.0
-            .iter()
-            .for_each(|line| {
-                line.display_source(meta);
-                meta.add_lf();
-            })
-    }
-}
 impl TryFrom<&TagCodes> for Expand {
     type Error = (usize, LogicLineFromTagError);
 
@@ -1867,16 +1663,6 @@ impl_derefs!(impl for Expand => (self: self.0): Vec<LogicLine>);
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct InlineBlock(pub Vec<LogicLine>);
-impl DisplaySource for InlineBlock {
-    fn display_source(&self, meta: &mut DisplaySourceMeta) {
-        self.0
-            .iter()
-            .for_each(|line| {
-                line.display_source(meta);
-                meta.add_lf();
-            })
-    }
-}
 impl Compile for InlineBlock {
     fn compile(self, meta: &mut CompileMeta) {
         for line in self.0 {
@@ -2057,22 +1843,6 @@ impl Select {
         lines.extend(cases.into_iter().flatten());
     }
 }
-impl DisplaySource for Select {
-    fn display_source(&self, meta: &mut DisplaySourceMeta) {
-        meta.push("select");
-        meta.add_space();
-
-        self.0.display_source(meta);
-        meta.add_space();
-
-        meta.push("{");
-        meta.add_lf();
-        meta.do_block(|meta| {
-            self.1.display_source(meta);
-        });
-        meta.push("}");
-    }
-}
 
 /// 用于switch捕获器捕获目标的枚举
 pub enum SwitchCatch {
@@ -2140,35 +1910,6 @@ impl Compile for Const {
         meta.add_const_value(self);
     }
 }
-impl DisplaySource for Const {
-    fn display_source(&self, meta: &mut DisplaySourceMeta) {
-        meta.push("const");
-        meta.add_space();
-
-        meta.push(&Value::replace_ident(&self.0));
-        meta.add_space();
-
-        meta.push("=");
-        meta.add_space();
-
-        self.1.display_source(meta);
-
-        meta.push(";");
-        meta.add_space();
-
-        let labs = self.2
-            .iter()
-            .map(|s| Value::replace_ident(&**s))
-            .fold(
-                Vec::with_capacity(self.2.len()),
-                |mut labs, s| {
-                    labs.push(s);
-                    labs
-                }
-            );
-        meta.push(&format!("# labels: [{}]", labs.join(", ")));
-    }
-}
 
 /// 在此处计算后方的值, 并将句柄赋给前方值
 /// 如果后方不是一个DExp, 而是Var, 那么自然等价于一个常量定义
@@ -2230,21 +1971,6 @@ impl Take {
 impl Compile for Take {
     fn compile(self, meta: &mut CompileMeta) {
         Const::new(self.0, self.1.take_handle(meta).into()).compile(meta)
-    }
-}
-impl DisplaySource for Take {
-    fn display_source(&self, meta: &mut DisplaySourceMeta) {
-        meta.push("take");
-        meta.add_space();
-
-        meta.push(&Value::replace_ident(&self.0));
-        meta.add_space();
-
-        meta.push("=");
-        meta.add_space();
-
-        self.1.display_source(meta);
-        meta.push(";");
     }
 }
 
@@ -2410,67 +2136,6 @@ impl_enum_froms!(impl From for LogicLine {
     Const => Const;
     Take => Take;
 });
-impl DisplaySource for LogicLine {
-    fn display_source(&self, meta: &mut DisplaySourceMeta) {
-        match self {
-            Self::Expand(expand) => {
-                meta.push("{");
-                if !expand.is_empty() {
-                    meta.add_lf();
-                    meta.do_block(|meta| {
-                        expand.display_source(meta);
-                    });
-                }
-                meta.push("}");
-            },
-            Self::InlineBlock(block) => {
-                meta.push("inline");
-                meta.add_space();
-                meta.push("{");
-                if !block.is_empty() {
-                    meta.add_lf();
-                    meta.do_block(|meta| {
-                        block.display_source(meta);
-                    });
-                }
-                meta.push("}");
-            },
-            Self::Ignore => meta.push("{} # ignore line"),
-            Self::NoOp => meta.push("noop;"),
-            Self::Label(lab) => {
-                meta.push(":");
-                meta.push(&Value::replace_ident(lab))
-            },
-            Self::Goto(goto) => goto.display_source(meta),
-            Self::Op(op) => op.display_source(meta),
-            Self::Select(select) => select.display_source(meta),
-            Self::Take(take) => take.display_source(meta),
-            Self::Const(r#const) => r#const.display_source(meta),
-            Self::ConstLeak(var) => {
-                meta.push("# constleak");
-                meta.add_space();
-                meta.push(&Value::replace_ident(var));
-                meta.push(";");
-            },
-            Self::SetResultHandle(val) => {
-                meta.push("setres");
-                meta.add_space();
-                val.display_source(meta);
-                meta.push(";");
-            },
-            Self::Other(args) => {
-                assert_ne!(args.len(), 0);
-                let mut iter = args.iter();
-                iter.next().unwrap().display_source(meta);
-                iter.for_each(|arg| {
-                    meta.add_space();
-                    arg.display_source(meta);
-                });
-                meta.push(";");
-            },
-        }
-    }
-}
 impl TryFrom<&TagLine> for LogicLine {
     type Error = LogicLineFromTagError;
 
@@ -3070,6 +2735,3 @@ pub fn op_expr_build_results(
         },
     }
 }
-
-#[cfg(test)]
-mod tests;

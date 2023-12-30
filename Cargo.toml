@@ -10,24 +10,21 @@ keywords = ["compiler", "lang", "mindustry"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[build-dependencies]
-lalrpop = "0.20.0"
-
+[workspace]
+members = [
+    "./tools/display_source",
+    "./tools/parser",
+    "./tools/syntax",
+    "./tools/tag_code",
+    "./tools/utils",
+    "./tools/var_utils",
+]
 
 [dependencies]
 tag_code = { path = "./tools/tag_code", version = "*" }
 display_source = { path = "./tools/display_source", version = "*" }
-var_utils = { path = "./tools/var_utils", version = "*"}
-utils = { path = "./tools/utils", version = "*" }
-
-[dependencies.lalrpop-util]
-version = "0.20.0"
-
-features = [
-    "unicode",
-    "regex",
-    "lexer"
-]
+parser = { path = "./tools/parser", version = "*" }
+syntax = { path = "./tools/syntax", version = "*" }
 
 [profile.release]
 strip = true

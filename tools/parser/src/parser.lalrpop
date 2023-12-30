@@ -4,7 +4,7 @@
 #![allow(clippy::needless_lifetimes)]
 #![allow(clippy::deprecated_cfg_attr)]
 
-use crate::syntax::{
+use ::syntax::{
     Errors,
     Error,
     Op,

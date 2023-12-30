@@ -1,0 +1,11 @@
+[package]
+name = "syntax"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tag_code = { path = "../tag_code", version = "*" }
+var_utils = { path = "../var_utils", version = "*"}
+utils = { path = "../utils", version = "*" }
