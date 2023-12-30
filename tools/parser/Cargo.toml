@@ -23,6 +23,3 @@ features = [
 
 [dev-dependencies]
 tag_code = { path = "../tag_code", version = "*" }
-
-[profile.release]
-lto = true
