@@ -259,17 +259,6 @@ impl DisplaySource for Const {
             &self.2,
         );
         meta.push("]");
-        let labs = self.2
-            .iter()
-            .map(|s| Value::replace_ident(&**s))
-            .fold(
-                Vec::with_capacity(self.2.len()),
-                |mut labs, s| {
-                    labs.push(s);
-                    labs
-                }
-            );
-        meta.push(&format!("# labels: [{}]", labs.join(", ")));
     }
 }
 impl DisplaySource for Take {

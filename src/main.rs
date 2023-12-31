@@ -350,9 +350,15 @@ fn unwrap_parse_err(result: ParseResult<'_>, src: &str) -> Expand {
                                 val_count,
                             );
                         },
+                        Errors::ArgsRepeatChunkByZero => {
+                            err!(
+                                "{}重复块的迭代数不能为0",
+                                head,
+                            );
+                        },
                         #[allow(unreachable_patterns)]
                         e => {
-                            err!("未被枚举的错误: {:?}", e);
+                            err!("{}未被枚举的错误: {:?}", head, e);
                         },
                     }
                 },
