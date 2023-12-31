@@ -259,3 +259,27 @@ match yes {
 #* >>>
 print "ok"
 *#
+
+
+# 将匹配值绑定
+const Foo = (
+    match @ {
+        X:[a b c] {
+            print "yes!"X;
+        }
+        X {
+            print "no."X;
+        }
+    }
+);
+take Foo[a];
+take Foo[b];
+take Foo[d];
+#* >>>
+print "yes!"
+print a
+print "yes!"
+print b
+print "no."
+print d
+*#
