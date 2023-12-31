@@ -27,7 +27,9 @@ compilation target language is the `LogicLang` in game [`Mindustry`]
    which can achieve zero overhead code reuse.<br/>
    This language is designed as a zero cost language,
    where you can accomplish many things without any cost,
-   rather than making a trade-off between writing efficiency and running efficiency
+   rather than making a trade-off between programming efficiency and running efficiency
+
+   And it can achieve great flexibility by utilizing handle pattern matching, conditional compilation, and macro repetition
 
    ---
    In `LogicLang`,
@@ -87,7 +89,7 @@ compilation target language is the `LogicLang` in game [`Mindustry`]
    And in [`examples/std/`], there are some well written `const-DExp`,
    It can help you know how to write `const-DExp` in a standardized manner
 
-   [examples]: ./examples/
+   [examples]: ./examples/README.md
    [`examples/std/`]: ./examples/std/
 
 6. ### **Special Statements**
@@ -174,7 +176,7 @@ printflush message1
 # Project Build
 Building this project will be relatively slow due to the following reasons:
 1. Compile using `rustc`, which is slightly slower compared to `gcc` and `clang`
-2. Using the large syntax analysis framework 'lalrpop', which generates nearly 400000 lines of code and works together with 'rustc' to make compilation slower
+2. Using the large syntax analysis framework 'lalrpop', which generates over 400000 lines of code and works together with 'rustc' to make compilation slower
 
 You can first check the Releases to see if there is a built program,
 and if it does not exist or cannot be used, try building it yourself

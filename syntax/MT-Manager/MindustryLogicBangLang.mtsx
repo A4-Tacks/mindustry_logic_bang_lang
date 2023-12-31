@@ -72,9 +72,9 @@
 			match: /\$/
 			0: "keyword2"
 		}
-		{ // other
+		{ // other keywords
 			match: keywordsToRegex(
-				"const take setres inline print set op noop"
+				"const take match setres inline print set op noop"
 			)
 			0: "keyword2"
 		}

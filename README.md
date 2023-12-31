@@ -23,6 +23,8 @@ English README, please click on [**README-en_US.md**](./README-en_US.md)
    它的行为可以类似于宏, 并完成零开销的代码复用.<br/>
    这门语言被设计为零开销语言, 你可以零开销的完成很多事, 而不是在编写效率与运行效率之间进行取舍.
 
+   并且可以利用句柄模式匹配条件编译和宏重复等获得极大的灵活度
+
    ---
    在`逻辑语言`中, 代码复用也不是很强, 如果手动将其封装为一个函数, 则要接受:
    1. 设置返回地址
@@ -67,7 +69,7 @@ English README, please click on [**README-en_US.md**](./README-en_US.md)
    并且在[`examples/std/`]中, 有着一些编写好的`const-DExp`,
    可以让你知道怎样规范的编写`const-DExp`.
 
-   [示例]: ./examples/
+   [示例]: ./examples/README.md
    [`examples/std/`]: ./examples/std/
 
 6. ### **特殊语句**
@@ -149,7 +151,7 @@ printflush message1
 # 项目构建
 构建这个项目将会比较慢, 原因如下:
 1. 使用`rustc`进行编译, 而它略慢, 相对于`gcc` `clang`
-2. 使用了大型语法分析框架`lalrpop`, 它会生成近四十万行代码, 再叠加上`rustc`编译更慢
+2. 使用了大型语法分析框架`lalrpop`, 它会生成四十多万行代码, 再叠加上`rustc`编译更慢
 
 你可以先翻一翻Releases, 看一看有没有已构建的程序, 如果没有或无法使用再尝试自己构建.
 
