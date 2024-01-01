@@ -1,7 +1,8 @@
+#![cfg(test)]
 use std::str::FromStr;
-use super::*;
-use syntax::*;
-use tag_code::*;
+use ::parser::*;
+use ::syntax::*;
+use ::tag_code::*;
 
 /// 快捷的创建一个新的`Meta`并且`parse`
 macro_rules! parse {

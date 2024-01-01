@@ -14,6 +14,7 @@ keywords = ["compiler", "lang", "mindustry"]
 members = [
     "./tools/display_source",
     "./tools/parser",
+    "./tools/parser/tests",
     "./tools/syntax",
     "./tools/tag_code",
     "./tools/utils",

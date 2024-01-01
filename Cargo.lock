@@ -347,6 +347,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "parser-tests"
+version = "0.1.0"
+dependencies = [
+ "parser",
+ "syntax",
+ "tag_code",
+]
+
+[[package]]
 name = "petgraph"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
