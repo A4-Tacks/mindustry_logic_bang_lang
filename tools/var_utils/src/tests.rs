@@ -50,6 +50,7 @@ fn test() {
             }
             false {
                 "+",
+                "-",
                 "0xg",
                 "0x_2",
                 "0b3",
@@ -104,6 +105,19 @@ fn float_parser_test() {
     for src in src {
         let r#type = src.as_var_type();
         assert!(matches!(r#type, VarType::Number(_)), "{:?}", r#type);
+    }
+
+    let bad_src = [
+        "-",
+        "-.",
+        ".",
+        "1.2e3",
+        "e3",
+        "-e3",
+    ];
+    for src in bad_src {
+        let r#type = src.as_var_type();
+        assert!(!matches!(r#type, VarType::Number(_)), "{:?}", r#type);
     }
 }
 

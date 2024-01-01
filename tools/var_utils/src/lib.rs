@@ -105,7 +105,7 @@ impl AsVarType for str {
         }
         fn as_number(s: &str) -> Option<f64> {
             static NUM_REGEX: &Lazy<Regex> = regex!(
-                r"^-?(?:\d+(?:e[+\-]?\d+|\.\d*)?|\d*(?:\.\d+)?)$"
+                r"^-?(?:\d+(?:e[+\-]?\d+|\.\d*)?|\d*\.\d+)$"
             );
             static HEX_REGEX: &Lazy<Regex> = regex!(
                 r"^0x-?[0-9A-Fa-f]+$"
@@ -127,7 +127,11 @@ impl AsVarType for str {
                 }
             }
             if NUM_REGEX.is_match(s) {
-                Some(s.parse().unwrap())
+                let res = match s.parse() {
+                    Ok(n) => n,
+                    Err(e) => panic!("{}, ({:?})", e, s),
+                };
+                Some(res)
             } else if HEX_REGEX.is_match(s) {
                 parse_radix(&s[2..], 16)
             } else if BIN_REGEX.is_match(s) {
