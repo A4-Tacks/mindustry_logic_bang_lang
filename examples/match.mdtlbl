@@ -287,6 +287,44 @@ print d
 *#
 
 
+# 和编译期运算结合使用
+const ForLoop = (
+    take I=_0 Stop=_1;
+    const F = _2;
+    match ($ = I<Stop;) {
+        [1] {
+            take F[I Stop];
+            take ForLoop[($ = I+1;) Stop F];
+        }
+    }
+);
+take ForLoop[0 10 (
+    print _0"\n";
+)];
+#* >>>
+print 0
+print "\n"
+print 1
+print "\n"
+print 2
+print "\n"
+print 3
+print "\n"
+print 4
+print "\n"
+print 5
+print "\n"
+print 6
+print "\n"
+print 7
+print "\n"
+print 8
+print "\n"
+print 9
+print "\n"
+*#
+
+
 # 坑点排除, 空参数
 const Foo = (
     match @ {
