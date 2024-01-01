@@ -266,7 +266,7 @@ impl DisplaySource for Take {
         meta.push("take");
         meta.add_space();
 
-        meta.push(&Value::replace_ident(&self.0));
+        self.0.display_source(meta);
         meta.add_space();
 
         meta.push("=");
@@ -274,6 +274,14 @@ impl DisplaySource for Take {
 
         self.1.display_source(meta);
         meta.push(";");
+    }
+}
+impl DisplaySource for ConstKey {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        match self {
+            Self::Var(var) => var.display_source(meta),
+            Self::ValueBind(vbind) => vbind.display_source(meta),
+        }
     }
 }
 impl DisplaySource for LogicLine {

@@ -28,6 +28,7 @@ use ::syntax::{
     Select,
     Const,
     Take,
+    ConstKey,
     LogicLine,
     Args,
     ArgsRepeat,
@@ -117,9 +118,12 @@ pub Var: Var = {
     NoStringVar,
 }
 
-pub Value: Value = {
-    Var => <>.into(),
-    DExp => <>.into(),
+ValueBind: ValueBind = <value:NonDExpValue> "." <attr:NoStringVar> => {
+    ValueBind(value.into(), attr)
+};
+
+NonDExpValue: Value = {
+    <v:Var> => v.into(),
     "`" <Var> "`" => ReprVar(<>), // 原始值
     "$" => ResultHandle,
     <name:Var> <args:MList<Args?>> => {
@@ -129,17 +133,22 @@ pub Value: Value = {
             LogicLine::SetResultHandle(name.into()),
         ].into()).into()
     },
-    <value:Value> "." <attr:NoStringVar> => ValueBind(value.into(), attr).into(),
+    ValueBind => <>.into(),
+    "goto" <MTuple<JumpCmpOnce>> => Value::Cmper(<>.into()),
+}
+
+pub Value: Value = {
+    NonDExpValue,
+    DExp => <>.into(),
     // consted-dexp
     "const" ConstStart <dexp:DExp> <labels:ConstStop> => {
         let tmp_name = meta.get_tmp_var();
-        let dexp_const = Const(tmp_name.clone(), dexp.into(), labels);
+        let dexp_const = Const(tmp_name.clone().into(), dexp.into(), labels);
         DExp::new("__".into(), vec![
             dexp_const.into(),
             LogicLine::SetResultHandle(tmp_name.into()),
         ].into()).into()
     },
-    "goto" <MTuple<JumpCmpOnce>> => Value::Cmper(<>.into()),
 }
 
 pub LiteralUInt: usize = <l:@L> <num:Number> <r:@R> =>? {
@@ -647,12 +656,17 @@ OpExprAtom: OpExprInfo = {
     OpExprCallOp,
 }
 
+ConstKey: ConstKey = {
+    ValueBind => <>.into(),
+    Var => <>.into(),
+}
+
 // 开始一个const, 开启了必须负责清理
 ConstStart: () = () => meta.add_label_scope();
 ConstStop: Vec<Var> = () => Vec::from_iter(meta.pop_label_scope());
 
 pub BuiltinCommand: LogicLine = {
-    "const" <mut values:(<Var> "=" ConstStart <Value> <ConstStop>)+> LEnd
+    "const" <mut values:(<ConstKey> "=" ConstStart <Value> <ConstStop>)+> LEnd
     => {
         if values.len() == 1 {
             let (var, value, labels) = values.pop().unwrap();
@@ -667,28 +681,27 @@ pub BuiltinCommand: LogicLine = {
         }
     },
 
-    // 如果后方是一个Var则直接将常量映射到后方的值
-    // 如果后方是一个DExp则将其计算然后将常量映射到计算出的句柄
-    // 此处默认句柄使用Value
-    "take" <args:MList<Args?>?> <var:(<Var> "=")?> <value:Value> LEnd => {
+    "take" <args:MList<Args?>> <var:(<Var> "=")?> <value:Value> LEnd => {
         let do_leak_res = var.is_some();
 
         Take::new(
-            args.flatten().unwrap_or_default(),
+            args.unwrap_or_default(),
             var.unwrap_or_else(|| String::from("__")),
             do_leak_res,
             value
         )
     },
 
-    // 两个以上take
     "take"
-    <first:(<(<Var> "=")?> <Value>)>
-    <nexts:(<(<Var> "=")?> <Value>)+>
+    <mut takes:(<(<ConstKey> "=")?> <Value>)+>
     LEnd => {
-        let mut lines = Vec::with_capacity(1 + nexts.len());
-        let iter = [first].into_iter().chain(nexts);
-        for (res, value) in iter {
+        if takes.len() == 1 {
+            let (res, value) = takes.pop().unwrap();
+            let res = res.unwrap_or_else(|| "__".into());
+            return Take(res, value).into();
+        }
+        let mut lines = Vec::with_capacity(takes.len());
+        for (res, value) in takes.into_iter() {
             let res = res.unwrap_or_else(|| "__".into());
             let take = Take(res, value);
             lines.push(take.into())
@@ -912,7 +925,7 @@ pub Control: LogicLine = {
                 out_block.insert(
                     0,
                     Const::new(
-                        name,
+                        name.into(),
                         value_handle.as_str().into()
                     ).into()
                 )

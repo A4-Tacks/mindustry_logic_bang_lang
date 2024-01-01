@@ -476,7 +476,6 @@ impl_derefs!(impl for DExp => (self: self.lines): Expand);
 pub struct ValueBind(pub Box<Value>, pub Var);
 impl TakeHandle for ValueBind {
     fn take_handle(self, meta: &mut CompileMeta) -> Var {
-        // 以`__{}__bind__{}`的形式组合
         let handle = self.0.take_handle(meta);
         assert!(! Value::is_string(&self.1));
         let binded
@@ -1903,11 +1902,72 @@ impl SwitchCatch {
     }
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub enum ConstKey {
+    Var(Var),
+    ValueBind(ValueBind),
+}
+
+impl ConstKey {
+    /// Returns `true` if the const key is [`Var`].
+    ///
+    /// [`Var`]: ConstKey::Var
+    #[must_use]
+    pub fn is_var(&self) -> bool {
+        matches!(self, Self::Var(..))
+    }
+
+    pub fn as_var(&self) -> Option<&Var> {
+        if let Self::Var(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    /// Returns `true` if the const key is [`ValueBind`].
+    ///
+    /// [`ValueBind`]: ConstKey::ValueBind
+    #[must_use]
+    pub fn is_value_bind(&self) -> bool {
+        matches!(self, Self::ValueBind(..))
+    }
+
+    pub fn as_value_bind(&self) -> Option<&ValueBind> {
+        if let Self::ValueBind(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+}
+impl From<ConstKey> for Value {
+    fn from(value: ConstKey) -> Self {
+        match value {
+            ConstKey::Var(var) => var.into(),
+            ConstKey::ValueBind(vb) => vb.into(),
+        }
+    }
+}
+impl TakeHandle for ConstKey {
+    fn take_handle(self, meta: &mut CompileMeta) -> Var {
+        match self {
+            Self::Var(var) => var,
+            Self::ValueBind(vb) => vb.take_handle(meta),
+        }
+    }
+}
+impl_enum_froms!(impl From for ConstKey {
+    Var => &str;
+    Var => Var;
+    ValueBind => ValueBind;
+});
+
 /// 在块作用域将Var常量为后方值, 之后使用Var时都会被替换为后方值
 #[derive(Debug, PartialEq, Clone)]
-pub struct Const(pub Var, pub Value, pub Vec<Var>);
+pub struct Const(pub ConstKey, pub Value, pub Vec<Var>);
 impl Const {
-    pub fn new(var: Var, value: Value) -> Self {
+    pub fn new(var: ConstKey, value: Value) -> Self {
         Self(var, value, Default::default())
     }
 }
@@ -1922,8 +1982,10 @@ impl Compile for Const {
 /// 在此处计算后方的值, 并将句柄赋给前方值
 /// 如果后方不是一个DExp, 而是Var, 那么自然等价于一个常量定义
 #[derive(Debug, PartialEq, Clone)]
-pub struct Take(pub Var, pub Value);
+pub struct Take(pub ConstKey, pub Value);
 impl Take {
+    /// 过时的API
+    ///
     /// 构建一个Take语句单元
     /// 可以带有参数与返回值
     ///
@@ -1940,17 +2002,17 @@ impl Take {
         value: Value,
     ) -> LogicLine {
         if matches!(args, Args::Normal(ref args) if args.is_empty()) {
-            Take(var, value).into()
+            Take(var.into(), value).into()
         } else {
             let mut len = 2;
             if do_leak_res { len += 1 }
             let mut expand = Vec::with_capacity(len);
             expand.push(LogicLine::SetArgs(args));
             if do_leak_res {
-                expand.push(Take(var.clone(), value).into());
+                expand.push(Take(var.clone().into(), value).into());
                 expand.push(LogicLine::ConstLeak(var));
             } else {
-                expand.push(Take(var, value).into())
+                expand.push(Take(var.into(), value).into())
             }
             debug_assert_eq!(expand.len(), len);
             Expand(expand).into()
@@ -2158,7 +2220,7 @@ impl MatchPat {
         }
         fn binds(name: Var, value: &Var, meta: &mut CompileMeta) {
             if !name.is_empty() {
-                meta.add_const_value(Const(name, value.clone().into(), vec![]));
+                meta.add_const_value(Const(name.into(), value.clone().into(), vec![]));
             }
         }
         match self {
@@ -2272,7 +2334,7 @@ impl Compile for LogicLine {
                 let mut f = |r#const| meta.add_const_value(r#const);
                 for (i, value) in expand_args.clone().into_iter().enumerate() {
                     let name = format!("_{}", i);
-                    f(Const(name, value, Vec::with_capacity(0)).into());
+                    f(Const(name.into(), value, Vec::with_capacity(0)).into());
                 }
                 meta.set_env_args(expand_args);
             },
@@ -2542,6 +2604,8 @@ pub struct CompileMeta {
     /// 所以它支持在宏A内部展开的宏B跳转到宏A内部的标记
     const_expand_tag_name_map: Vec<HashMap<Var, Var>>,
     value_binds: HashMap<(Var, Var), Var>,
+    /// 值绑定全局常量表, 只有值绑定在使用它
+    value_bind_global_consts: HashMap<Var, ConstData>,
 }
 impl Debug for CompileMeta {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -2562,6 +2626,7 @@ impl Debug for CompileMeta {
             .field("tmp_tag_count", &self.tmp_tag_count.counter())
             .field("const_expand_tag_name_map", &self.const_expand_tag_name_map)
             .field("value_binds", &self.value_binds)
+            .field("..", &DotDot)
             .finish()
     }
 }
@@ -2587,6 +2652,7 @@ impl CompileMeta {
             tmp_tag_count: Counter::new(Self::tmp_tag_getter),
             const_expand_tag_name_map: Vec::new(),
             value_binds: HashMap::new(),
+            value_bind_global_consts: HashMap::new(),
         }
     }
 
@@ -2731,6 +2797,7 @@ impl CompileMeta {
                 env.consts().get(name)
             })
             .map(|x| { assert!(! x.value().is_repr_var()); x })
+            .or_else(|| self.value_bind_global_consts.get(name))
     }
 
     /// 获取一个常量到值的使用次数与映射与其内部标记的可变引用,
@@ -2744,6 +2811,7 @@ impl CompileMeta {
                 env.consts_mut().get_mut(name)
             })
             .map(|x| { assert!(! x.value().is_repr_var()); x })
+            .or_else(|| self.value_bind_global_consts.get_mut(name))
     }
 
     /// 新增一个常量到值的映射, 如果当前作用域已有此映射则返回旧的值并插入新值
@@ -2778,11 +2846,22 @@ impl CompileMeta {
             value => value,
         };
 
-        self.expand_env
-            .last_mut()
-            .unwrap()
-            .consts
-            .insert(var, ConstData::new(value, labels))
+        match &var {
+            ConstKey::Var(_) => {
+                let var = var.take_handle(self);
+
+                self.expand_env
+                    .last_mut()
+                    .unwrap()
+                    .consts
+                    .insert(var, ConstData::new(value, labels))
+            },
+            ConstKey::ValueBind(_) => {
+                let var = var.take_handle(self);
+                self.value_bind_global_consts
+                    .insert(var, ConstData::new(value, labels))
+            },
+        }
     }
 
     /// 从当前作用域移除一个常量到值的映射
@@ -2996,7 +3075,7 @@ impl OpExprInfo {
                 let (true_lab, skip_lab)
                     = (meta.get_tag(), meta.get_tag());
                 DExp::new_nores(vec![
-                    Take(child_result, Value::ResultHandle).into(),
+                    Take(child_result.into(), Value::ResultHandle).into(),
                     Goto(true_lab.clone(), cmp).into(),
                     false_line,
                     Goto(skip_lab.clone(), JumpCmp::Always.into()).into(),
@@ -3027,7 +3106,7 @@ impl OpExprInfo {
                 let (true_lab, skip_lab)
                     = (meta.get_tag(), meta.get_tag());
                 Expand(vec![
-                    Take(child_result, result).into(),
+                    Take(child_result.into(), result).into(),
                     Goto(true_lab.clone(), cmp).into(),
                     false_line,
                     Goto(skip_lab.clone(), JumpCmp::Always.into()).into(),
@@ -3070,7 +3149,7 @@ pub fn op_expr_build_results(
             let mut results = results.into_iter();
             let first_result_handle = meta.get_tmp_var();
             lines.push(Take(
-                first_result_handle.clone(), results.next().unwrap()
+                first_result_handle.clone().into(), results.next().unwrap()
             ).into());
             lines.push(value.into_logic_line(
                 meta,

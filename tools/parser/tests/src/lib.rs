@@ -970,7 +970,7 @@ fn const_value_leak_test() {
 }
 
 #[test]
-fn take_test2() {
+fn take2_test() {
     let parser = LogicLineParser::new();
 
     let ast = parse!(parser, "take X;").unwrap();
@@ -4232,6 +4232,53 @@ fn match_test() {
             "print not_equal",
             "print a",
             "print b",
+        ],
+    );
+}
+
+#[test]
+fn value_bind_of_constkey_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        take X = ();
+        take X.Y = 2;
+        print X.Y;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 2",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        take X = ();
+        {
+            take X.Y = 2; # to global
+        }
+        print X.Y;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 2",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        take X = ();
+        {
+            const X.Y = (
+                :x
+                goto :x;
+            );
+        }
+        take X.Y;
+        take X.Y;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "jump 0 always 0 0",
+            "jump 1 always 0 0",
         ],
     );
 }
