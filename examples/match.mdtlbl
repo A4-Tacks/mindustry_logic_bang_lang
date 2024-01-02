@@ -18,6 +18,8 @@
 * 可以使用重复块, 它将在一个内联块中重复给定块, 并且每次重复迭代指定个参数,
 * 此数字未指定则为1, 它不能为0, 它是构建期被指定的
 *
+* 需要注意的是, 在这里`Foo`和`Foo[]`有了区别, `Foo`并不会传进空的参数表
+*
 * match语句
 * ===
 * 改语句由参数输入, 并在之后的块中编写多个分支.
@@ -283,3 +285,32 @@ print b
 print "no."
 print d
 *#
+
+
+# 坑点排除, 空参数
+const Foo = (
+    match @ {
+        {
+            print "empty";
+        }
+        @ {
+            take N = 0;
+            inline@{
+                take N = ($ = N+1;);
+            }
+            print N;
+        }
+    }
+);
+match a b c { @ {} }
+print "a";
+take Foo;
+print "b";
+take Foo[];
+#*
+print "a"
+print 3
+print "b"
+print "empty"
+*#
+# 在这里, `Foo`和`Foo[]`的作用已经不同了

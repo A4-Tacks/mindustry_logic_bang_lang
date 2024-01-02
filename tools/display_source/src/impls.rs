@@ -21,6 +21,7 @@ impl DisplaySource for Value {
                 meta.push("`");
             },
             Self::ResultHandle => meta.push("$"),
+            Self::Binder => meta.push(".."),
             Self::DExp(dexp) => dexp.display_source(meta),
             Self::ValueBind(value_attr) => value_attr.display_source(meta),
             Self::Cmper(cmp) => {

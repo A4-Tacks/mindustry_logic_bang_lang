@@ -31,6 +31,7 @@
 > [`consted_dexp.mdtlbl`](./consted_dexp.mdtlbl)<br/>
 > [`quick_dexp_take.mdtlbl`](./quick_dexp_take.mdtlbl)<br/>
 > [`value_bind.mdtlbl`](./value_bind.mdtlbl)<br/>
+> [`dexp_binder.mdtlbl`](./dexp_binder.mdtlbl)<br/>
 > [`caller.mdtlbl`](./caller.mdtlbl)<br/>
 > [`match.mdtlbl`](./match.mdtlbl)<br/>
 

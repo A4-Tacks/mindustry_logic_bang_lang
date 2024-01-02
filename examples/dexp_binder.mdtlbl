@@ -1,0 +1,38 @@
+#**
+* 这是0.14.4所添加的新语法, 将会尝试给每个const记录其绑定者,
+* 然后可以通过`..`来引用
+*
+* 正如ValueBind那章所说, 不要轻易给容易混淆的非匿名量绑定
+*
+* 这有什么用呢? 这可以模拟'类型方法' '类型成员'等
+*#
+
+# 以下一个二维向量的例子
+const Vec2 = (
+    take $.X=_0 $.Y=_1;
+    const $.Add = (
+        take Rhs = _0;
+        take ...X=...X ...Y=...Y; # take
+        # 为了'简单'的常量求值, 需要先take变成支持的格式
+        take X=...X Y=...Y;
+        take RX=Rhs.X RY=Rhs.Y;
+        # 需要绑定, 不然只是局部作用域并不是全局作用域
+        take ...X = ($ = X + RX;);
+        take ...Y = ($ = Y + RY;);
+    );
+    const $.Print = (
+        print ...X","...Y;
+    );
+);
+
+take V1 = Vec2[2 3];
+take V2 = Vec2[3 4];
+take V1.Add[V2];
+take V1.Print;
+printflush message1;
+#*
+print 5
+print ","
+print 7
+printflush message1
+*#

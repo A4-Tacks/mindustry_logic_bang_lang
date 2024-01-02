@@ -1,5 +1,4 @@
 use std::{
-    ops::Deref,
     num::ParseIntError,
     collections::{HashMap, HashSet},
     iter::{
@@ -163,6 +162,8 @@ pub enum Value {
     /// 一个跳转条件, 未决目标的跳转, 它会被内联
     /// 如果它被take, 那么它将引起报错
     Cmper(Box<CmpTree>),
+    /// 本层应该指向的绑定者, 也就是ValueBind的被绑定的值
+    Binder,
 }
 impl TakeHandle for Value {
     fn take_handle(self, meta: &mut CompileMeta) -> Var {
@@ -184,6 +185,10 @@ impl TakeHandle for Value {
             Self::ResultHandle => meta.dexp_handle().clone(),
             Self::ReprVar(var) => var,
             Self::ValueBind(val_bind) => val_bind.take_handle(meta),
+            Self::Binder => {
+                meta.get_dexp_expand_binder().cloned()
+                    .unwrap_or_else(|| "__".into())
+            },
             Self::Cmper(cmp) => {
                 err!(
                     "{}\n最终未被展开的cmper, {:#?}",
@@ -367,23 +372,12 @@ impl Value {
                     _ => None,
                 }
             },
-            _ => None,
-        }
-    }
-}
-impl Deref for Value {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        match self {
-            Self::Var(ref s) | Self::ReprVar(ref s) => s,
-            Self::DExp(DExp { result, .. }) => result,
-            Self::ResultHandle =>
-                panic!("未进行AST编译, 而DExp的返回句柄是进行AST编译时已知"),
-            Self::ValueBind(..) =>
-                panic!("未进行AST编译, 而ValueAttr的返回句柄是进行AST编译时已知"),
-            Self::Cmper(..) =>
-                panic!("未进行AST编译, 而Cmper不可被使用"),
+            Value::Binder => num(meta.get_dexp_expand_binder()?, true),
+            // NOTE: 故意的不实现, 常量求值应该'简单'
+            Value::ValueBind(ValueBind(..)) => None,
+            // NOTE: 这不能实现, 否则可能牵扯一些不希望的作用域问题
+            Value::ResultHandle => None,
+            Value::DExp(_) | Value::Cmper(_) => None,
         }
     }
 }
@@ -462,9 +456,9 @@ impl TakeHandle for DExp {
             result = value.as_var().unwrap().clone()
         }
         assert!(! result.is_empty());
-        meta.push_dexp_handle((result, dexp_res_is_alloced));
+        meta.push_dexp_handle(result);
         lines.compile(meta);
-        let (result, _) = meta.pop_dexp_handle();
+        let result = meta.pop_dexp_handle();
         result
     }
 }
@@ -480,8 +474,7 @@ impl TakeHandle for ValueBind {
         assert!(! Value::is_string(&self.1));
         let binded
             = meta.get_value_binded(handle, self.1).clone();
-        // 进行常量表查询, 虽然是匿名量但是还是要有这个行为嘛
-        // 虽然之前没有
+        // 进行常量表查询
         binded.take_handle(meta)
     }
 }
@@ -1083,6 +1076,8 @@ impl CmpTree {
                 => Some(&**s),
                 | V::ResultHandle
                 => Some(&**meta.dexp_handle()),
+                | V::Binder
+                => Some(meta.get_dexp_expand_binder().map(|s| &**s).unwrap_or("__")),
                 | V::ValueBind(_)
                 | V::Cmper(_)
                 => None,
@@ -2327,7 +2322,7 @@ impl Compile for LogicLine {
             },
             Self::SetResultHandle(value) => {
                 let new_dexp_handle = value.take_handle(meta);
-                meta.set_dexp_handle((new_dexp_handle, false));
+                meta.set_dexp_handle(new_dexp_handle);
             },
             Self::SetArgs(args) => {
                 let expand_args = args.into_args(meta);
@@ -2535,14 +2530,20 @@ pub trait Compile {
 pub struct ConstData {
     value: Value,
     labels: Vec<Var>,
+    binder: Option<Var>,
 }
 impl ConstData {
     pub fn new(value: Value, labels: Vec<Var>) -> Self {
-        Self { value, labels }
+        Self { value, labels, binder: None }
     }
 
     pub fn new_nolabel(value: Value) -> Self {
         Self::new(value, vec![])
+    }
+
+    pub fn set_binder(mut self, binder: Var) -> Self {
+        self.binder = binder.into();
+        self
     }
 
     pub fn value(&self) -> &Value {
@@ -2551,6 +2552,14 @@ impl ConstData {
 
     pub fn labels(&self) -> &[String] {
         self.labels.as_ref()
+    }
+
+    pub fn binder(&self) -> Option<&String> {
+        self.binder.as_ref()
+    }
+
+    pub fn binder_mut(&mut self) -> &mut Option<Var> {
+        &mut self.binder
     }
 }
 
@@ -2597,7 +2606,8 @@ pub struct CompileMeta {
     expand_env: Vec<ExpandEnv>,
     env_args: Vec<Option<Vec<Value>>>,
     /// 每层DExp所使用的句柄, 末尾为当前层, 同时有一个是否为自动分配名称的标志
-    dexp_result_handles: Vec<(Var, bool)>,
+    dexp_result_handles: Vec<Var>,
+    dexp_expand_binders: Vec<Option<Var>>,
     tmp_tag_count: Counter<fn(&mut usize) -> Var>,
     /// 每层const展开的标签
     /// 一个标签从尾部上寻, 寻到就返回找到的, 没找到就返回原本的
@@ -2649,6 +2659,7 @@ impl CompileMeta {
             expand_env: Vec::new(),
             env_args: Vec::new(),
             dexp_result_handles: Vec::new(),
+            dexp_expand_binders: Vec::new(),
             tmp_tag_count: Counter::new(Self::tmp_tag_getter),
             const_expand_tag_name_map: Vec::new(),
             value_binds: HashMap::new(),
@@ -2687,6 +2698,7 @@ impl CompileMeta {
         self.tmp_var_count.get()
     }
 
+    /// 获取绑定值, 如果绑定关系不存在则自动插入
     pub fn get_value_binded(&mut self, value: Var, bind: Var) -> &Var {
         let key = (value, bind);
         self.value_binds.entry(key)
@@ -2819,7 +2831,7 @@ impl CompileMeta {
     -> Option<ConstData> {
         if let Some(var_1) = value.as_var() {
             // 如果const的映射目标值是一个var
-            if let Some(ConstData { value: v1, labels: l1 })
+            if let Some(ConstData { value: v1, labels: l1, .. })
                 = self.get_const_value(var_1).cloned() {
                     // 且它是一个常量, 则将它直接克隆过来.
                     // 防止直接映射到另一常量,
@@ -2846,7 +2858,7 @@ impl CompileMeta {
             value => value,
         };
 
-        match &var {
+        match var {
             ConstKey::Var(_) => {
                 let var = var.take_handle(self);
 
@@ -2856,10 +2868,15 @@ impl CompileMeta {
                     .consts
                     .insert(var, ConstData::new(value, labels))
             },
-            ConstKey::ValueBind(_) => {
-                let var = var.take_handle(self);
+            ConstKey::ValueBind(ValueBind(binder, name)) => {
+                assert!(! Value::is_string(&name));
+                let binder_handle = binder.take_handle(self);
+                let data = ConstData::new(value, labels)
+                    .set_binder(binder_handle.clone());
+                let binded = self.get_value_binded(
+                    binder_handle, name).clone();
                 self.value_bind_global_consts
-                    .insert(var, ConstData::new(value, labels))
+                    .insert(binded, data)
             },
         }
     }
@@ -2877,12 +2894,12 @@ impl CompileMeta {
     }
 
     /// 新增一层DExp, 并且传入它使用的返回句柄
-    pub fn push_dexp_handle(&mut self, handle: (Var, bool)) {
+    pub fn push_dexp_handle(&mut self, handle: Var) {
         self.dexp_result_handles.push(handle)
     }
 
     /// 如果弹无可弹, 说明逻辑出现了问题
-    pub fn pop_dexp_handle(&mut self) -> (Var, bool) {
+    pub fn pop_dexp_handle(&mut self) -> Var {
         self.dexp_result_handles.pop().unwrap()
     }
 
@@ -2906,7 +2923,7 @@ impl CompileMeta {
 
     /// 尝试获取当前DExp返回句柄, 没有DExp的话返回空
     pub fn try_get_dexp_handle(&self) -> Option<&Var> {
-        self.dexp_result_handles.last().map(|(var, _)| var)
+        self.dexp_result_handles.last()
     }
 
     /// 获取当前DExp返回句柄
@@ -2916,14 +2933,9 @@ impl CompileMeta {
                 || self.do_out_of_dexp_err("`DExpHandle` (`$`)"))
     }
 
-    /// 获取该DExp是否为自动分配的
-    pub fn try_get_dexp_is_alloced(&self) -> Option<bool> {
-        self.dexp_result_handles.last().map(|&(_, x)| x)
-    }
-
     /// 将当前DExp返回句柄替换为新的
     /// 并将旧的句柄返回
-    pub fn set_dexp_handle(&mut self, new_dexp_handle: (Var, bool)) -> (Var, bool) {
+    pub fn set_dexp_handle(&mut self, new_dexp_handle: Var) -> Var {
         if let Some(ref_) = self.dexp_result_handles.last_mut() {
             replace(ref_, new_dexp_handle)
         } else {
@@ -2958,7 +2970,7 @@ impl CompileMeta {
         tmp_tags.extend(repeat_with(|| self.get_tmp_tag())
                         .take(label_count));
 
-        let ConstData { value, labels }
+        let ConstData { value, labels, binder }
             = self.get_const_value(name).unwrap();
         let mut labels_map = HashMap::with_capacity(labels.len());
         for (tmp_tag, label) in zip(tmp_tags, labels.iter().cloned()) {
@@ -2972,12 +2984,23 @@ impl CompileMeta {
             });
         }
         let res = value.clone();
+        self.dexp_expand_binders.push(binder.clone());
         self.const_expand_tag_name_map.push(labels_map);
         res.into()
     }
 
-    pub fn const_expand_exit(&mut self) -> HashMap<Var, Var> {
-        self.const_expand_tag_name_map.pop().unwrap()
+    pub fn const_expand_exit(&mut self) -> (HashMap<Var, Var>, Option<Var>) {
+        (
+            self.const_expand_tag_name_map.pop().unwrap(),
+            self.dexp_expand_binders.pop().unwrap(),
+        )
+    }
+
+    pub fn get_dexp_expand_binder(&self) -> Option<&Var> {
+        self.dexp_expand_binders.iter()
+            .map(Option::as_ref)
+            .filter_map(identity)
+            .next_back()
     }
 
     pub fn err_info(&self) -> Vec<String> {

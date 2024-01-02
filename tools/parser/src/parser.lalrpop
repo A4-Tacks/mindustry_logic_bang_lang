@@ -126,15 +126,16 @@ NonDExpValue: Value = {
     <v:Var> => v.into(),
     "`" <Var> "`" => ReprVar(<>), // 原始值
     "$" => ResultHandle,
-    <name:Var> <args:MList<Args?>> => {
+    <name:NonDExpValue> <args:MList<Args?>> => {
         // QuickDExpTake
         DExp::new("__".into(), vec![
             LogicLine::SetArgs(args.unwrap_or_default()),
-            LogicLine::SetResultHandle(name.into()),
+            LogicLine::SetResultHandle(name),
         ].into()).into()
     },
     ValueBind => <>.into(),
     "goto" <MTuple<JumpCmpOnce>> => Value::Cmper(<>.into()),
+    ".." => Value::Binder,
 }
 
 pub Value: Value = {

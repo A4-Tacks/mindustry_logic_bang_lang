@@ -3762,6 +3762,39 @@ fn const_expr_eval_test() {
 
     assert_eq!(
         CompileMeta::new().compile(parse!(parser, r#"
+        const N=($ = -3 // 2;);
+        const N1=($ = -N;);
+        print N1;
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        print 2;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const N=($ = -3 // 2;);
+        take N1=($ = -N;);
+        print N1;
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        print 2;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const N=($ = -3 // 2;);
+        take N=($ = -N;);
+        print N;
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        print 2;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
         print ($ = -2 - 3;);
         print ($ = max(3, 5););
         print ($ = min(0, -2););
@@ -4279,6 +4312,177 @@ fn value_bind_of_constkey_test() {
         vec![
             "jump 0 always 0 0",
             "jump 1 always 0 0",
+        ],
+    );
+}
+
+#[test]
+fn dexp_expand_binder_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print ..;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print __",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const X.Y = (
+            print ..;
+        );
+        take X.Y;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print X",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const X.Y = (
+            const Foo = (
+                print ..;
+            );
+            take Foo;
+        );
+        take X.Y;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print X",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const X.Y = (
+            const Foo.Bar = (
+                print ..;
+            );
+            take Foo.Bar;
+        );
+        take X.Y;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print Foo",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const X.Y = (
+            const Foo.Bar = (
+                print ..;
+            );
+            const F = Foo.Bar;
+            take F;
+        );
+        take X.Y;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print Foo",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Box = (
+            $.val = _0;
+            const $.Add = (
+                ...val = ...val + _0.val;
+            );
+        );
+        take N = Box[2];
+        take N1 = Box[3];
+        take N.Add[N1];
+        print ..;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "set __1 2",
+            "set __4 3",
+            "op add __1 __1 __4",
+            "print __",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Box = (
+            $.val = _0;
+            const $.Add = (
+                const Self = ..;
+                Self.val = Self.val + _0.val;
+            );
+        );
+        take N = Box[2];
+        take N1 = Box[3];
+        take N.Add[N1];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "set __1 2",
+            "set __4 3",
+            "op add __1 __1 __4",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Box = (
+            $.val = _0;
+            const $.Add = (
+                take Self = ..;
+                Self.val = Self.val + _0.val;
+            );
+        );
+        take N = Box[2];
+        take N1 = Box[3];
+        take N.Add[N1];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "set __1 2",
+            "set __4 3",
+            "op add __1 __1 __4",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        take a.B = 1;
+        take a.B = 2;
+        print a.B;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 2",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        take a.N = 1;
+        take b.N = 2;
+        # 故意不实现的常量求值
+        take X = ($ = a.N + b.N;);
+        print X;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "op add __2 1 2",
+            "print __2",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        take a.N = 1;
+        take b.N = 2;
+        take A=a.N B=b.N;
+        take X = ($ = A + B;);
+        print X;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 3",
         ],
     );
 }
