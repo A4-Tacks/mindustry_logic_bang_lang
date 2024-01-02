@@ -29,7 +29,8 @@ compilation target language is the `LogicLang` in game [`Mindustry`]
    where you can accomplish many things without any cost,
    rather than making a trade-off between programming efficiency and running efficiency
 
-   And it can achieve great flexibility by utilizing handle pattern matching, conditional compilation, and macro repetition
+   And it can achieve great flexibility by utilizing handle pattern matching, conditional compilation, and macro repetition.
+   It can also be combined with binding leakage and compiling calculation to achieve similar effects to structure methods, combining types, etc
 
    ---
    In `LogicLang`,
