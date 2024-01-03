@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::{ops::Deref, mem};
 pub mod impls;
 
 pub const LF: char = '\n';
@@ -7,6 +7,8 @@ pub const LF: char = '\n';
 #[derive(Debug, Clone, PartialEq)]
 pub struct DisplaySourceMeta {
     indent_str: String,
+    /// 被加入到缩进后内容前的东西
+    insert_first_str: String,
     indent_level: usize,
     /// 缩进标志位
     /// 启用时, 接下来会加入缩进
@@ -36,6 +38,7 @@ impl Default for DisplaySourceMeta {
     fn default() -> Self {
         Self {
             indent_str: "    ".into(),
+            insert_first_str: "".into(),
             indent_level: 0,
             do_indent_flag: true,
             space_str: " ".into(),
@@ -55,6 +58,18 @@ impl DisplaySourceMeta {
         self.indent_level += 1;
         f(self);
         self.indent_level -= 1;
+    }
+
+    /// 将块内使用给定字串插入到软行首
+    pub fn do_insert_first(
+        &mut self,
+        mut s: String,
+        f: impl FnOnce(&mut Self),
+    ) -> String {
+        mem::swap(&mut s, &mut self.insert_first_str);
+        f(self);
+        mem::swap(&mut s, &mut self.insert_first_str);
+        s
     }
 
     /// 添加字符串到缓冲区
@@ -100,7 +115,8 @@ impl DisplaySourceMeta {
     /// 直接加入缩进
     fn push_indent(&mut self) {
         let indent = self.indent_str.repeat(self.indent_level);
-        self.buffer.push_str(&indent)
+        self.buffer.push_str(&indent);
+        self.buffer.push_str(&self.insert_first_str);
     }
 
     /// 关闭缩进标志位

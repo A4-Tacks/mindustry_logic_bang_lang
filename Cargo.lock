@@ -100,7 +100,7 @@ dependencies = [
 
 [[package]]
 name = "display_source"
-version = "0.3.6"
+version = "0.3.7"
 dependencies = [
  "parser",
  "syntax",

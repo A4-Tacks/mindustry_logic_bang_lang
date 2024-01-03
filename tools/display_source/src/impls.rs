@@ -312,11 +312,13 @@ impl DisplaySource for LogicLine {
             },
             Self::Ignore => meta.push("{} # ignore line"),
             Self::SetArgs(args) => {
-                meta.push("# setArgs");
-                meta.add_space();
+                meta.do_insert_first("# ".into(), |meta| {
+                    meta.push("setArgs");
+                    meta.add_space();
 
-                args.display_source(meta);
-                meta.push(";");
+                    args.display_source(meta);
+                    meta.push(";");
+                });
             },
             Self::NoOp => meta.push("noop;"),
             Self::Label(lab) => {
