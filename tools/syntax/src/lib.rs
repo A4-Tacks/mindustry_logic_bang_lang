@@ -133,13 +133,7 @@ impl TakeHandle for Var {
     fn take_handle(self, meta: &mut CompileMeta) -> Var {
         if let Some(value) = meta.const_expand_enter(&self) {
             // 是一个常量
-            let res = if let Value::Var(var) = value {
-                // 只进行单步常量追溯
-                // 因为常量定义时已经完成了原有的多步
-                var
-            } else {
-                value.take_handle(meta)
-            };
+            let res = value.take_handle_with_consted(meta);
             meta.const_expand_exit();
             res
         } else {
@@ -165,8 +159,8 @@ pub enum Value {
     /// 本层应该指向的绑定者, 也就是ValueBind的被绑定的值
     Binder,
 }
-impl TakeHandle for Value {
-    fn take_handle(self, meta: &mut CompileMeta) -> Var {
+impl Value {
+    pub fn try_eval_const_num_to_var(&self, meta: &CompileMeta) -> Option<Var> {
         if let Some((num, true)) = self.try_eval_const_num(meta) {
             // 仅对复杂数据也就是有效运算后的数据
             return match num.classify() {
@@ -175,7 +169,27 @@ impl TakeHandle for Value {
                 if num.is_sign_negative() => (i64::MIN+1).to_string(),
                 std::num::FpCategory::Infinite => i64::MAX.to_string(),
                 _ => num.to_string(),
-            }
+            }.into()
+        } else {
+            None
+        }
+    }
+
+    /// 编译并拿取句柄, 但是是在被const的值的情况下
+    pub fn take_handle_with_consted(self, meta: &mut CompileMeta) -> Var {
+        if let Some(var) = self.try_eval_const_num_to_var(meta) {
+            return var;
+        }
+        match self {
+            Self::Var(var) => var,
+            other => other.take_handle(meta),
+        }
+    }
+}
+impl TakeHandle for Value {
+    fn take_handle(self, meta: &mut CompileMeta) -> Var {
+        if let Some(var) = self.try_eval_const_num_to_var(meta) {
+            return var;
         }
         // 改为使用空字符串代表空返回字符串
         // 如果空的返回字符串被编译将会被编译为tmp_var
@@ -1965,11 +1979,31 @@ impl Const {
     pub fn new(var: ConstKey, value: Value) -> Self {
         Self(var, value, Default::default())
     }
+
+    /// 在const编译前对右部分进行处理
+    pub fn run_value(&mut self, meta: &mut CompileMeta) {
+        let value = &mut self.1;
+        match value {
+            Value::ReprVar(var) => {
+                let var = mem::take(var);
+                *value = Value::Var(var)
+            },
+            Value::Var(var) => {
+                if let Some(data) = meta.get_const_value(var) {
+                    let ConstData { value, labels, .. } = data;
+                    self.1 = value.clone();
+                    self.2 = labels.clone();
+                }
+            },
+            _ => (),
+        }
+    }
 }
 impl Compile for Const {
-    fn compile(self, meta: &mut CompileMeta) {
+    fn compile(mut self, meta: &mut CompileMeta) {
         // 对同作用域定义过的常量形成覆盖
         // 如果要进行警告或者将信息传出则在此处理
+        self.run_value(meta);
         meta.add_const_value(self);
     }
 }
@@ -2016,7 +2050,8 @@ impl Take {
 }
 impl Compile for Take {
     fn compile(self, meta: &mut CompileMeta) {
-        Const::new(self.0, self.1.take_handle(meta).into()).compile(meta)
+        let r#const = Const::new(self.0, self.1.take_handle(meta).into());
+        meta.add_const_value(r#const);
     }
 }
 
@@ -2029,26 +2064,66 @@ pub enum Args {
     Expanded(Vec<Value>, Vec<Value>),
 }
 impl Args {
-    pub fn args<'a>(&'a self, meta: &'a mut CompileMeta) -> impl Iterator<Item = &Value> {
-        static EMPTY: &[Value] = &[];
+    /// 获取参数引用
+    pub fn get_value_args<'a>(&'a self, meta: &'a CompileMeta) -> Vec<&'a Value> {
         match self {
-            Self::Normal(args) => args.iter().chain(EMPTY).chain(EMPTY),
+            Self::Normal(args) => args.iter().collect(),
             Self::Expanded(left, right) => {
-                let expanded_args = meta.get_env_args();
                 left.iter()
-                    .chain(expanded_args)
+                    .chain(meta.get_env_args().iter()
+                        .map(|var| meta.get_const_value(var)
+                            .unwrap()
+                            .value()))
                     .chain(right)
+                    .collect()
             },
         }
     }
 
-    pub fn into_args(self, meta: &mut CompileMeta) -> Vec<Value> {
+    /// 获取值
+    pub fn into_value_args(self, meta: &CompileMeta) -> Vec<Value> {
         match self {
-            Args::Normal(args) => args,
-            Args::Expanded(mut left, right) => {
-                let expanded_args = meta.get_env_args();
-                left.extend(expanded_args.iter().cloned().chain(right));
-                left
+            Self::Normal(args) => args,
+            Self::Expanded(left, right) => {
+                left.into_iter()
+                    .chain(meta.get_env_args().iter()
+                        .map(|var| meta.get_const_value(var)
+                            .unwrap()
+                            .value()
+                            .clone()))
+                    .chain(right)
+                    .collect()
+            },
+        }
+    }
+
+    /// 获取句柄, 但是假定环境中的args已经const过了
+    ///
+    /// 这不包括左部分和右部分
+    pub fn into_args_handle(self, meta: &mut CompileMeta) -> Vec<Var> {
+        match self {
+            Args::Normal(args) => {
+                args.into_iter()
+                    .map(|value| value.take_handle(meta))
+                    .collect()
+            },
+            Args::Expanded(left, right) => {
+                let expanded_args: Vec<Var>
+                    = meta.get_env_args().iter().cloned().collect();
+                let capacity = left.len() + expanded_args.len() + right.len();
+                let mut res = Vec::with_capacity(capacity);
+                for value in left {
+                    res.push(value.take_handle(meta))
+                }
+                for var in expanded_args {
+                    res.push(meta.get_const_value(&var).unwrap()
+                        .value().clone()
+                        .take_handle_with_consted(meta))
+                }
+                for value in right {
+                    res.push(value.take_handle(meta))
+                }
+                res
             },
         }
     }
@@ -2130,7 +2205,11 @@ impl ArgsRepeat {
 impl Compile for ArgsRepeat {
     fn compile(self, meta: &mut CompileMeta) {
         let chunks: Vec<Vec<Value>> = meta.get_env_args().chunks(self.count)
-            .map(|chunks| chunks.iter().cloned().collect())
+            .map(|chunks| chunks.iter()
+                .map(|var| meta.get_const_value(var)
+                    .unwrap()
+                    .value())
+                .cloned().collect())
             .collect();
         for args in chunks {
             let args = Vec::from_iter(args.iter().cloned());
@@ -2149,10 +2228,7 @@ pub struct Match {
 }
 impl Compile for Match {
     fn compile(self, meta: &mut CompileMeta) {
-        let args = self.args.into_args(meta)
-            .into_iter()
-            .map(|x| x.take_handle(meta))
-            .collect::<Vec<_>>();
+        let args = self.args.into_args_handle(meta);
         let mut iter = self.cases.into_iter();
         loop {
             let Some(case) = iter.next() else { break };
@@ -2314,24 +2390,21 @@ impl Compile for LogicLine {
                 meta.push(data)
             },
             Self::Other(args) => {
-                let handles: Vec<String> = args.into_args(meta)
-                    .into_iter()
-                    .map(|val| val.take_handle(meta))
-                    .collect();
-                meta.push(TagLine::Line(handles.join(" ").into()))
+                let handles: Vec<String> = args.into_args_handle(meta);
+                meta.push(TagLine::Line(handles.join(" ").into()));
             },
             Self::SetResultHandle(value) => {
                 let new_dexp_handle = value.take_handle(meta);
                 meta.set_dexp_handle(new_dexp_handle);
             },
             Self::SetArgs(args) => {
-                let expand_args = args.into_args(meta);
-                let mut f = |r#const| meta.add_const_value(r#const);
-                for (i, value) in expand_args.clone().into_iter().enumerate() {
+                let expand_args = args.into_value_args(meta);
+                meta.set_env_args(expand_args.clone());
+                let mut f = |r#const: Const| r#const.compile(meta);
+                for (i, value) in expand_args.into_iter().enumerate() {
                     let name = format!("_{}", i);
                     f(Const(name.into(), value, Vec::with_capacity(0)).into());
                 }
-                meta.set_env_args(expand_args);
             },
             Self::Select(select) => select.compile(meta),
             Self::Expand(expand) => expand.compile(meta),
@@ -2604,7 +2677,7 @@ pub struct CompileMeta {
     tag_codes: TagCodes,
     tmp_var_count: Counter<fn(&mut usize) -> Var>,
     expand_env: Vec<ExpandEnv>,
-    env_args: Vec<Option<Vec<Value>>>,
+    env_args: Vec<Option<Vec<Var>>>,
     /// 每层DExp所使用的句柄, 末尾为当前层, 同时有一个是否为自动分配名称的标志
     dexp_result_handles: Vec<Var>,
     dexp_expand_binders: Vec<Option<Var>>,
@@ -2827,37 +2900,8 @@ impl CompileMeta {
     }
 
     /// 新增一个常量到值的映射, 如果当前作用域已有此映射则返回旧的值并插入新值
-    pub fn add_const_value(&mut self, Const(var, mut value, mut labels): Const)
+    pub fn add_const_value(&mut self, Const(var, value, labels): Const)
     -> Option<ConstData> {
-        if let Some(var_1) = value.as_var() {
-            // 如果const的映射目标值是一个var
-            if let Some(ConstData { value: v1, labels: l1, .. })
-                = self.get_const_value(var_1).cloned() {
-                    // 且它是一个常量, 则将它直接克隆过来.
-                    // 防止直接映射到另一常量,
-                    // 但是另一常量被覆盖导致这在覆盖之前映射的常量结果也发生改变
-                    (labels, value) = (l1, v1)
-                }
-        }
-
-        // 当后方为原始值时, 直接转换为普通Var
-        // 因为常量替换之后进行一次, 并不是之前的链式替换
-        // 所以替换过去一个原始值没有意义
-        // 所以常量定义时会去除后方的原始值
-        //
-        // 去除了原始值后, 我们也可以将其用在DExp返回句柄处防止被替换了
-        // 因为常量替换只进行一次
-        // 而我们已经进行了一次了
-        // 例如
-        // ```
-        // const X = `X`;
-        // print (X:);
-        // ```
-        value = match value {
-            Value::ReprVar(value) => value.into(),
-            value => value,
-        };
-
         match var {
             ConstKey::Var(_) => {
                 let var = var.take_handle(self);
@@ -3022,23 +3066,30 @@ impl CompileMeta {
         self.expand_env.as_ref()
     }
 
-    /// 获取最内层args, 如果不存在则返回空切片
-    pub fn get_env_args(&self) -> &[Value] {
-        static EMPTY: &[Value] = &[];
+    /// 获取最内层args的每个句柄, 如果不存在则返回空切片
+    pub fn get_env_args(&self) -> &[Var] {
         self.env_args.iter().map(Option::as_ref)
             .filter_map(identity)
             .map(Vec::as_slice)
             .next_back()
-            .unwrap_or(EMPTY)
+            .unwrap_or(&[])
     }
 
     /// 设置最内层args, 返回旧值
-    pub fn set_env_args(&mut self, expand_args: Vec<Value>) -> Option<Vec<Value>> {
+    pub fn set_env_args(&mut self, expand_args: Vec<Value>) -> Option<Vec<Var>> {
+        let vars: Vec<Var> = expand_args.into_iter()
+            .map(|value| {
+                let var_key = self.get_tmp_var();
+                let key = ConstKey::Var(var_key.clone());
+                Const::new(key, value).compile(self);
+                var_key
+            })
+            .collect();
         let args = self.env_args.last_mut().unwrap();
-        replace(args, expand_args.into())
+        replace(args, vars.into())
     }
 
-    pub fn with_env_args_block<F>(&mut self, f: F) -> Option<Vec<Value>>
+    pub fn with_env_args_block<F>(&mut self, f: F) -> Option<Vec<Var>>
     where F: FnOnce(&mut Self)
     {
         self.env_args.push(None);

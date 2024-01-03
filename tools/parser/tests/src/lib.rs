@@ -750,6 +750,52 @@ fn take_test() {
                "read m cell1 0",
                "print m",
     ]);
+
+    let src = r#"
+    take X = 2;
+    take Y = `X`;
+    const Z = `X`;
+    print Y Z;
+    "#;
+    let ast = parse!(parser, src).unwrap();
+    let meta = CompileMeta::new();
+    let mut tag_codes = meta.compile(ast);
+    let logic_lines = tag_codes.compile().unwrap();
+    assert_eq!(logic_lines, vec![
+               "print X",
+               "print X",
+    ]);
+
+    let src = r#"
+    take X = 2;
+    take Y = X;
+    const Z = X;
+    print Y Z;
+    "#;
+    let ast = parse!(parser, src).unwrap();
+    let meta = CompileMeta::new();
+    let mut tag_codes = meta.compile(ast);
+    let logic_lines = tag_codes.compile().unwrap();
+    assert_eq!(logic_lines, vec![
+               "print 2",
+               "print 2",
+    ]);
+
+    let src = r#"
+    const 2 = 3;
+    take X = `2`;
+    take Y = X;
+    const Z = X;
+    print Y Z;
+    "#;
+    let ast = parse!(parser, src).unwrap();
+    let meta = CompileMeta::new();
+    let mut tag_codes = meta.compile(ast);
+    let logic_lines = tag_codes.compile().unwrap();
+    assert_eq!(logic_lines, vec![
+               "print 2",
+               "print 2",
+    ]);
 }
 
 #[test]
@@ -1019,12 +1065,12 @@ fn take_args_test() {
                "print 1",
                "print 2",
                "print 3",
-               "set __0 3",
+               "set __3 3",
                "print 4",
                "print 5",
                "print 6",
-               "set __1 3",
-               "print __1",
+               "set __7 3",
+               "print __7",
     ]);
 
     let ast = parse!(parser, r#"
@@ -1981,8 +2027,8 @@ fn quick_dexp_take_test() {
     print Add[1 2];
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
-               "op add __0 1 2",
-               "print __0",
+               "op add __2 1 2",
+               "print __2",
     ]);
 
     let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
@@ -2000,8 +2046,8 @@ fn quick_dexp_take_test() {
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
                "print enter",
-               "op add __0 1 2",
-               "print __0",
+               "op add __3 1 2",
+               "print __3",
     ]);
 
 }
@@ -4267,6 +4313,104 @@ fn match_test() {
             "print b",
         ],
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Foo = (
+            # 验证滞后const,
+            # 对于args应该在传参时就进行const而不是使用时才进行处理
+            # 所以应该得到两个5而不是一个5一个10
+            take X = 10;
+
+            take A = _0;
+            match @ { B {} }
+            print A B;
+        );
+        const X = 5;
+        take Foo[X];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 5",
+            "print 5",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        # 验证其并不会连锁追溯
+        const Foo = (
+            take A = _0;
+            print _0 A;
+        );
+        const X = 2;
+        const Y = `X`;
+        print Y;
+        take Foo[Y];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print X",
+            "print X",
+            "print X",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        # 验证其并不会连锁追溯
+        const Foo = (
+            take A = _0;
+            print A;
+            match @ { B {} }
+            print A B;
+        );
+        const X = 2;
+        const Y = `X`;
+        print Y;
+        take Foo[Y];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print X",
+            "print X",
+            "print X",
+            "print X",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        # 验证其并不会连锁追溯
+        const X = 2;
+        match `X` {
+            Y:[`X`] {
+                print Y;
+            }
+            Y {
+                print "fail" Y;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print X",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const 3 = 0;
+        const X = 2;
+        const Y = `3`;
+        match X Y 4 {
+            A:[`2`] B:[`3`] C:[4] {
+                print A B C;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 2",
+            "print 3",
+            "print 4",
+        ],
+    );
 }
 
 #[test]
@@ -4401,9 +4545,9 @@ fn dexp_expand_binder_test() {
         print ..;
         "#).unwrap()).compile().unwrap(),
         vec![
-            "set __1 2",
-            "set __4 3",
-            "op add __1 __1 __4",
+            "set __2 2",
+            "set __6 3",
+            "op add __2 __2 __6",
             "print __",
         ],
     );
@@ -4422,9 +4566,9 @@ fn dexp_expand_binder_test() {
         take N.Add[N1];
         "#).unwrap()).compile().unwrap(),
         vec![
-            "set __1 2",
-            "set __4 3",
-            "op add __1 __1 __4",
+            "set __2 2",
+            "set __6 3",
+            "op add __2 __2 __6",
         ],
     );
 
@@ -4442,9 +4586,9 @@ fn dexp_expand_binder_test() {
         take N.Add[N1];
         "#).unwrap()).compile().unwrap(),
         vec![
-            "set __1 2",
-            "set __4 3",
-            "op add __1 __1 __4",
+            "set __2 2",
+            "set __6 3",
+            "op add __2 __2 __6",
         ],
     );
 
