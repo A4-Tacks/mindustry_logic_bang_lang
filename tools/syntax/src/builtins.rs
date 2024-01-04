@@ -2,12 +2,17 @@ use std::process;
 
 use crate::*;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub struct BuiltinFunc {
     name: &'static str,
     func: fn(&Self, &mut CompileMeta) -> Var,
 }
-
+impl PartialEq for BuiltinFunc {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.func as usize == other.func as usize
+    }
+}
 impl BuiltinFunc {
     pub fn name(&self) -> &str {
         self.name
