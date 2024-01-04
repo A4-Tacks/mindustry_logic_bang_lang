@@ -1,3 +1,5 @@
+mod builtins;
+
 use std::{
     num::ParseIntError,
     collections::{HashMap, HashSet},
@@ -10,6 +12,7 @@ use std::{
     fmt::{Display, Debug},
     convert::identity, borrow::Borrow, hash::Hash,
 };
+use builtins::{BuiltinFunc, build_builtins};
 use tag_code::{
     Jump,
     TagCodes,
@@ -158,6 +161,7 @@ pub enum Value {
     Cmper(Box<CmpTree>),
     /// 本层应该指向的绑定者, 也就是ValueBind的被绑定的值
     Binder,
+    BuiltinFunc(BuiltinFunc),
 }
 impl Value {
     pub fn try_eval_const_num_to_var(&self, meta: &CompileMeta) -> Option<Var> {
@@ -211,6 +215,7 @@ impl TakeHandle for Value {
                 );
                 exit(6);
             }
+            Self::BuiltinFunc(func) => func.call(meta),
         }
     }
 }
@@ -391,7 +396,7 @@ impl Value {
             Value::ValueBind(ValueBind(..)) => None,
             // NOTE: 这不能实现, 否则可能牵扯一些不希望的作用域问题
             Value::ResultHandle => None,
-            Value::DExp(_) | Value::Cmper(_) => None,
+            Value::BuiltinFunc(_) | Value::DExp(_) | Value::Cmper(_) => None,
         }
     }
 }
@@ -400,6 +405,7 @@ impl_enum_froms!(impl From for Value {
     Var => &str;
     DExp => DExp;
     ValueBind => ValueBind;
+    BuiltinFunc => BuiltinFunc;
 });
 
 /// 带返回值的表达式
@@ -1094,6 +1100,7 @@ impl CmpTree {
                 => Some(meta.get_dexp_expand_binder().map(|s| &**s).unwrap_or("__")),
                 | V::ValueBind(_)
                 | V::Cmper(_)
+                | V::BuiltinFunc(_)
                 => None,
             }
         }
@@ -1916,7 +1923,6 @@ pub enum ConstKey {
     Var(Var),
     ValueBind(ValueBind),
 }
-
 impl ConstKey {
     /// Returns `true` if the const key is [`Var`].
     ///
@@ -1968,6 +1974,7 @@ impl TakeHandle for ConstKey {
 }
 impl_enum_froms!(impl From for ConstKey {
     Var => &str;
+    Var => &String;
     Var => Var;
     ValueBind => ValueBind;
 });
@@ -2689,6 +2696,7 @@ pub struct CompileMeta {
     value_binds: HashMap<(Var, Var), Var>,
     /// 值绑定全局常量表, 只有值绑定在使用它
     value_bind_global_consts: HashMap<Var, ConstData>,
+    last_builtin_exit_code: u8,
 }
 impl Debug for CompileMeta {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -2724,7 +2732,7 @@ impl CompileMeta {
     }
 
     pub fn with_tag_codes(tag_codes: TagCodes) -> Self {
-        Self {
+        let mut meta = Self {
             tags_map: HashMap::new(),
             tag_count: 0,
             tag_codes,
@@ -2737,7 +2745,23 @@ impl CompileMeta {
             const_expand_tag_name_map: Vec::new(),
             value_binds: HashMap::new(),
             value_bind_global_consts: HashMap::new(),
+            last_builtin_exit_code: 0,
+        };
+        let builtin = String::from("Builtin");
+        for builtin_func in build_builtins() {
+            let handle = format!("__{builtin}__{}", builtin_func.name());
+            let key = (builtin.clone(), builtin_func.name().into());
+            meta.value_binds.insert(key, handle);
+            meta.add_const_value(Const(
+                ConstKey::ValueBind(ValueBind(
+                    Box::new(builtin.clone().into()),
+                    builtin_func.name().into()
+                )),
+                builtin_func.into(),
+                vec![],
+            ));
         }
+        meta
     }
 
     /// 获取一个标记的编号, 如果不存在则将其插入并返回新分配的编号.
@@ -2851,7 +2875,7 @@ impl CompileMeta {
                 // insert to prev block
                 this.expand_env
                     .last_mut()
-                    .unwrap()
+                    .expect("常量泄露击穿")
                     .consts
                     .insert(leak_const_name, value);
             }
@@ -3095,6 +3119,24 @@ impl CompileMeta {
         self.env_args.push(None);
         let _ = f(self);
         self.env_args.pop().unwrap()
+    }
+
+    pub fn log_info(&mut self, s: impl std::fmt::Display) {
+        eprintln!("\x1b[1m[I] {}\x1b[0m", s.to_string()
+            .trim_end().replace('\n', "\n    "))
+    }
+
+    pub fn log_err(&mut self, s: impl std::fmt::Display) {
+        eprintln!("\x1b[1;91m[E] {}\x1b[0m", s.to_string()
+            .trim_end().replace('\n', "\n    "))
+    }
+
+    pub fn last_builtin_exit_code(&self) -> u8 {
+        self.last_builtin_exit_code
+    }
+
+    pub fn set_last_builtin_exit_code(&mut self, new_code: u8) -> u8 {
+        replace(&mut self.last_builtin_exit_code, new_code)
     }
 }
 

@@ -29,7 +29,13 @@ impl DisplaySource for Value {
                 meta.push("(");
                 cmp.display_source(meta);
                 meta.push(")");
-            }
+            },
+            Self::BuiltinFunc(builtin_func) => {
+                meta.push("(#*");
+                meta.push("BuiltinFunc: ");
+                meta.push(builtin_func.name());
+                meta.push("*#)");
+            },
         }
     }
 }

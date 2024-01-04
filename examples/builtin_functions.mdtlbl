@@ -1,0 +1,46 @@
+#**
+* 这是0.14.6添加的新功能, 在初始化时会增加一系列绑定,
+* 其中绑定到的值类型为内置的函数.
+*
+* 以下为这些函数的作用和参数清单
+*
+* * `Type[var]`: 获取右侧量的类型
+* * `Stringify[var]`: 将传入的Var全部转换成字符串格式的Var
+* * `Concat[a b]`: 将传入的两个字符串连接
+* * `Info[var]`: 以info级日志形式将传入Var输出
+* * `Err[var]`: 以err级日志形式将传入Var输出
+* * `Unbind[var]`: 传入一个值绑定, 返回绑定者
+* * `Const[name value]`: 动态目标的进行一个const, 并泄露到上层
+* * `Binder[name value]`: 传入一个值绑定, 将其被绑定值const给给定名称
+* * `Debug[value]`: 以debug形式将传入值输出到日志
+* * `Exit[code]`: 直接使编译器以给定的退出码值退出
+* * `Status[]`: 获取上一个内置函数的退出代码, 通常情况下, 零代表正常, 非零即异常
+*#
+
+print Builtin.Type[x];
+print Builtin.Type[2];
+print Builtin.Type[()];
+print Builtin.Type[x.y];
+print Builtin.Type[..];
+print Builtin.Type[$];
+#* >>>
+print var
+print var
+print dexp
+print valuebind
+print binder
+print resulthandle
+*#
+
+
+take Builtin.Info["This is a info"];
+take Builtin.Err["This is a err"];
+
+
+const Name = `X`;
+const Value = (m:);
+take Builtin.Const[Name Value];
+print X;
+#* >>>
+print m
+*#

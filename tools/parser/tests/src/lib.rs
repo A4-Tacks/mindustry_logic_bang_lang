@@ -4630,3 +4630,157 @@ fn dexp_expand_binder_test() {
         ],
     );
 }
+
+#[test]
+fn builtin_func_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print Builtin.Type[x];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print var",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print Builtin.Stringify[2];
+        print Builtin.Stringify[x];
+        print Builtin.Stringify["x"];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print "2""#,
+            r#"print "x""#,
+            r#"print "x""#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print Builtin.Concat["abc" "def"];
+        print Builtin.Status;
+        print Builtin.Concat["abc" def];
+        print Builtin.Status;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print "abcdef""#,
+            r#"print 0"#,
+            r#"print __"#,
+            r#"print 2"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print Builtin.Type[()];
+        print Builtin.Type[`m`];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print dexp",
+            "print var",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const A = ();
+        const B = `emmm`;
+        const C = A.B;
+        const D = $;
+        const E = ..;
+        print Builtin.Type[A];
+        print Builtin.Type[B];
+        print Builtin.Type[C];
+        print Builtin.Type[D];
+        print Builtin.Type[E];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print dexp",
+            "print var",
+            "print valuebind",
+            "print resulthandle",
+            "print binder",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const A.B = 2;
+        print Builtin.Type[A.B];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print valuebind",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const A = x;
+        print Builtin.Info[A];
+        print Builtin.Info[y];
+        print Builtin.Err[A];
+        print Builtin.Err[y];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print x",
+            "print y",
+            "print x",
+            "print y",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const A = x.y;
+        print Builtin.Unbind[A];
+        print Builtin.Unbind[x.y];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print y",
+            "print y",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        {
+            const Name = `X`;
+            const Value = (h:);
+            take Builtin.Const[Name Value];
+            print X;
+        }
+
+        {
+            { # 击穿
+                const Name = `Y`;
+                const Value = (i:);
+                match Name Value { @ {} }
+                take Builtin.Const;
+            }
+            print Y;
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print h",
+            "print i",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Value = (x:);
+        const Binded = Value.x;
+        print Builtin.Type[Binded];
+        take Builtin.Binder[Res Binded];
+        print Builtin.Type[Res];
+        print Res;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print valuebind",
+            "print dexp",
+            "print x",
+        ],
+    );
+}
