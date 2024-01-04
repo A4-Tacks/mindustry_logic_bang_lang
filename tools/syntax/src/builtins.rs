@@ -2,10 +2,25 @@ use std::process;
 
 use crate::*;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct BuiltinFunc {
     name: &'static str,
     func: fn(&Self, &mut CompileMeta) -> Var,
+}
+impl Debug for BuiltinFunc {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        struct DotDot;
+        impl Debug for DotDot {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>)
+            -> std::fmt::Result {
+                write!(f, "..")
+            }
+        }
+        f.debug_struct(stringify!(BuiltinFunc))
+            .field("name", &self.name)
+            .field("func", &DotDot)
+            .finish()
+    }
 }
 impl PartialEq for BuiltinFunc {
     fn eq(&self, other: &Self) -> bool {
