@@ -3099,6 +3099,15 @@ impl CompileMeta {
             .unwrap_or(&[])
     }
 
+    /// 获取次内层args的每个句柄
+    pub fn get_env_second_args(&self) -> &[Var] {
+        self.env_args.iter().map(Option::as_ref)
+            .filter_map(identity)
+            .map(Vec::as_slice)
+            .nth_back(1)
+            .unwrap_or(&[])
+    }
+
     /// 设置最内层args, 返回旧值
     pub fn set_env_args(&mut self, expand_args: Vec<Value>) -> Option<Vec<Var>> {
         let vars: Vec<Var> = expand_args.into_iter()
@@ -3111,6 +3120,31 @@ impl CompileMeta {
             .collect();
         let args = self.env_args.last_mut().unwrap();
         replace(args, vars.into())
+    }
+
+    /// 设置次内层args, 返回旧值
+    pub fn set_env_second_args(&mut self, expand_args: Vec<Value>) -> Option<Vec<Var>> {
+        let vars: Vec<Var> = expand_args.into_iter()
+            .map(|value| {
+                let var_key = self.get_tmp_var();
+                self.add_const_value_leak(var_key.clone());
+                let key = ConstKey::Var(var_key.clone());
+                Const::new(key, value).compile(self);
+                var_key
+            })
+            .collect();
+        let args = self.env_args.iter_mut()
+            .nth_back(1).expect("尝试设置次内层参数时产生了击穿");
+        replace(args, vars.into())
+    }
+
+    /// 切片次内层args
+    pub fn slice_env_second_args(&mut self, (start, end): (usize, usize)) {
+        let args = self.get_env_second_args();
+        let len = args.len();
+        let range = start.min(len)..end.min(len);
+        let args = args[range].iter().cloned().map(Value::Var).collect();
+        self.set_env_second_args(args);
     }
 
     pub fn with_env_args_block<F>(&mut self, f: F) -> Option<Vec<Var>>

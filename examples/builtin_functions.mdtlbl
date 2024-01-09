@@ -15,6 +15,9 @@
 * * `Debug[value]`: 以debug形式将传入值输出到日志
 * * `Exit[code]`: 直接使编译器以给定的退出码值退出
 * * `Status[]`: 获取上一个内置函数的退出代码, 通常情况下, 零代表正常, 非零即异常
+* * `ArgsLen[]`: 获取上层有效参数表长度
+* * `SliceArgs[start end]`: 将参数切分, 但不take
+* * `ArgsHandle[idx]`: 拿到指定下标的参数的const句柄, 配合Const内置函数转移其值
 *#
 
 print Builtin.Type[x];

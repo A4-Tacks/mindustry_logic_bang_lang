@@ -4783,4 +4783,51 @@ fn builtin_func_test() {
             "print x",
         ],
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Foo = (
+            take Builtin.SliceArgs[1 4];
+            print @;
+        );
+        take Foo[0 1 2 3 4 5];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 1",
+            "print 2",
+            "print 3",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Foo = (
+            print Builtin.ArgsLen[];
+        );
+        print Builtin.ArgsLen[];
+        match a b { @ {} }
+        take Foo[0 1 2 3 4 5];
+        print Builtin.ArgsLen[];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 0",
+            "print 6",
+            "print 2",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Foo = (
+            take Handle = Builtin.ArgsHandle[1];
+            take Builtin.Const[Value Handle];
+            print Handle Value;
+        );
+        take Foo[0 1 2 3 4 5];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print __1",
+            "print 1",
+        ],
+    );
 }

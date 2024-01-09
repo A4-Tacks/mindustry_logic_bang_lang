@@ -251,5 +251,36 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
             meta.log_info(format!("Value Debug:\n{:#?}", value));
             Ok("__".into())
         }
+
+        fn args_len:ArgsLen(meta) [] {
+            Ok(meta.get_env_second_args().len().to_string())
+        }
+
+        fn slice_args:SliceArgs(meta) [s:start e:end] {
+            check_type!("var" Value::Var(start) = start.value() => {
+                check_type!("var" Value::Var(end) = end.value() => {
+                    let Ok(start) = start.parse::<usize>() else {
+                        return Err((2, format!("Invalid start value: {start}")))
+                    };
+                    let Ok(end) = end.parse::<usize>() else {
+                        return Err((2, format!("Invalid end value: {end}")))
+                    };
+                    meta.slice_env_second_args((start, end));
+                    Ok("__".into())
+                })
+            })
+        }
+
+        fn args_handle:ArgsHandle(meta) [i:idx] {
+            check_type!("var" Value::Var(idx) = idx.value() => {
+                let Ok(idx) = idx.parse::<usize>() else {
+                    return Err((2, format!("Invalid index value: {idx}")))
+                };
+                Ok(meta.get_env_second_args()
+                    .get(idx)
+                    .cloned()
+                    .unwrap_or_else(|| "__".into()))
+            })
+        }
     }
 }
