@@ -4411,6 +4411,68 @@ fn match_test() {
             "print 4",
         ],
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        # 关于二次追溯
+        {
+            const X = 2;
+            const Y = `X`;
+            const F = (
+                print _0 @;
+            );
+            take F[Y];
+        }
+        {
+            const X = 2;
+            const F = (
+                const Y = `X`;
+                print _0 @;
+            );
+            take F[Y];
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print X",
+            "print X",
+            "print Y",
+            "print Y",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        # 关于二次追溯
+        {
+            const X = 2;
+            const Y = `X`;
+            const F = (
+                print _0;
+                match @ {
+                    V { print V; }
+                }
+            );
+            take F[Y];
+        }
+        {
+            const X = 2;
+            const F = (
+                const Y = `X`;
+                print _0;
+                match @ {
+                    V { print V; }
+                }
+            );
+            take F[Y];
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print X",
+            "print X",
+            "print Y",
+            "print Y",
+        ],
+    );
 }
 
 #[test]

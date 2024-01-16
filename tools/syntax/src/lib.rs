@@ -127,9 +127,13 @@ pub const FALSE_VAR: &str = "false";
 pub const ZERO_VAR: &str = "0";
 pub const UNUSED_VAR: &str = "0";
 
-pub trait TakeHandle {
+pub trait TakeHandle: Sized {
     /// 编译依赖并返回句柄
     fn take_handle(self, meta: &mut CompileMeta) -> Var;
+    /// 编译并拿取句柄, 但是是在被const的值的情况下
+    fn take_handle_with_consted(self, meta: &mut CompileMeta) -> Var {
+        self.take_handle(meta)
+    }
 }
 
 impl TakeHandle for Var {
@@ -142,6 +146,9 @@ impl TakeHandle for Var {
         } else {
             self
         }
+    }
+    fn take_handle_with_consted(self, _meta: &mut CompileMeta) -> Var {
+        self
     }
 }
 
@@ -178,17 +185,6 @@ impl Value {
             None
         }
     }
-
-    /// 编译并拿取句柄, 但是是在被const的值的情况下
-    pub fn take_handle_with_consted(self, meta: &mut CompileMeta) -> Var {
-        if let Some(var) = self.try_eval_const_num_to_var(meta) {
-            return var;
-        }
-        match self {
-            Self::Var(var) => var,
-            other => other.take_handle(meta),
-        }
-    }
 }
 impl TakeHandle for Value {
     fn take_handle(self, meta: &mut CompileMeta) -> Var {
@@ -216,6 +212,18 @@ impl TakeHandle for Value {
                 exit(6);
             }
             Self::BuiltinFunc(func) => func.call(meta),
+        }
+    }
+    fn take_handle_with_consted(self, meta: &mut CompileMeta) -> Var {
+        if let Some(var) = self.try_eval_const_num_to_var(meta) {
+            return var;
+        }
+        match self {
+            Self::Var(var) => var,
+            Self::ReprVar(var) => {
+                panic!("Fail const reprvar {}, meta: {:#?}", var, meta);
+            },
+            other => other.take_handle(meta),
         }
     }
 }
@@ -2079,33 +2087,13 @@ pub enum Args {
     Expanded(Vec<Value>, Vec<Value>),
 }
 impl Args {
-    /// 获取参数引用
-    pub fn get_value_args<'a>(&'a self, meta: &'a CompileMeta) -> Vec<&'a Value> {
-        match self {
-            Self::Normal(args) => args.iter().collect(),
-            Self::Expanded(left, right) => {
-                left.iter()
-                    .chain(meta.get_env_args().iter()
-                        .map(|var| meta.get_const_value(var)
-                            .unwrap()
-                            .value()))
-                    .chain(right)
-                    .collect()
-            },
-        }
-    }
-
     /// 获取值
     pub fn into_value_args(self, meta: &CompileMeta) -> Vec<Value> {
         match self {
             Self::Normal(args) => args,
             Self::Expanded(left, right) => {
                 left.into_iter()
-                    .chain(meta.get_env_args().iter()
-                        .map(|var| meta.get_const_value(var)
-                            .unwrap()
-                            .value()
-                            .clone()))
+                    .chain(meta.get_env_args().iter().cloned().map(Into::into))
                     .chain(right)
                     .collect()
             },
@@ -2115,7 +2103,7 @@ impl Args {
     /// 获取句柄, 但是假定环境中的args已经const过了
     ///
     /// 这不包括左部分和右部分
-    pub fn into_args_handle(self, meta: &mut CompileMeta) -> Vec<Var> {
+    pub fn into_taked_args_handle(self, meta: &mut CompileMeta) -> Vec<Var> {
         match self {
             Args::Normal(args) => {
                 args.into_iter()
@@ -2166,7 +2154,7 @@ impl Args {
         }
     }
 
-    pub fn into_normal(self) -> Result<Vec<Value>, Self> {
+    pub fn try_into_normal(self) -> Result<Vec<Value>, Self> {
         match self {
             Self::Normal(args) => Ok(args),
             this => Err(this),
@@ -2219,12 +2207,12 @@ impl ArgsRepeat {
 }
 impl Compile for ArgsRepeat {
     fn compile(self, meta: &mut CompileMeta) {
-        let chunks: Vec<Vec<Value>> = meta.get_env_args().chunks(self.count)
+        let chunks: Vec<Vec<Value>> = meta.get_env_args()
+            .chunks(self.count)
             .map(|chunks| chunks.iter()
-                .map(|var| meta.get_const_value(var)
-                    .unwrap()
-                    .value())
-                .cloned().collect())
+                .cloned()
+                .map(Into::into)
+                .collect())
             .collect();
         for args in chunks {
             let args = Vec::from_iter(args.iter().cloned());
@@ -2243,7 +2231,7 @@ pub struct Match {
 }
 impl Compile for Match {
     fn compile(self, meta: &mut CompileMeta) {
-        let args = self.args.into_args_handle(meta);
+        let args = self.args.into_taked_args_handle(meta);
         let mut iter = self.cases.into_iter();
         loop {
             let Some(case) = iter.next() else { break };
@@ -2405,7 +2393,7 @@ impl Compile for LogicLine {
                 meta.push(data)
             },
             Self::Other(args) => {
-                let handles: Vec<String> = args.into_args_handle(meta);
+                let handles: Vec<String> = args.into_taked_args_handle(meta);
                 meta.push(TagLine::Line(handles.join(" ").into()));
             },
             Self::SetResultHandle(value) => {
@@ -2413,13 +2401,24 @@ impl Compile for LogicLine {
                 meta.set_dexp_handle(new_dexp_handle);
             },
             Self::SetArgs(args) => {
-                let expand_args = args.into_value_args(meta);
-                meta.set_env_args(expand_args.clone());
-                let mut f = |r#const: Const| r#const.compile(meta);
-                for (i, value) in expand_args.into_iter().enumerate() {
-                    let name = format!("_{}", i);
-                    f(Const(name.into(), value, Vec::with_capacity(0)).into());
+                fn iarg(i: usize) -> Var {
+                    format!("_{i}")
                 }
+                let expand_args = args.into_value_args(meta);
+                let len = expand_args.len();
+                let mut f = |r#const: Const| r#const.compile(meta);
+                let iter = expand_args.into_iter().enumerate();
+                for (i, value) in iter {
+                    f(Const(
+                            iarg(i).into(),
+                            value.into(),
+                            Vec::with_capacity(0),
+                    ).into());
+                }
+                meta.set_env_args((0..len)
+                    .map(iarg)
+                    .map(Into::into)
+                    .collect());
             },
             Self::Select(select) => select.compile(meta),
             Self::Expand(expand) => expand.compile(meta),
@@ -3141,6 +3140,8 @@ impl CompileMeta {
     }
 
     /// 设置最内层args, 返回旧值
+    ///
+    /// 这将进行const的追溯
     pub fn set_env_args(&mut self, expand_args: Vec<Value>) -> Option<Vec<Var>> {
         let vars: Vec<Var> = expand_args.into_iter()
             .map(|value| {
