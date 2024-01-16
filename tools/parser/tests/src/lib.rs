@@ -4461,7 +4461,7 @@ fn value_bind_of_constkey_test() {
 }
 
 #[test]
-fn dexp_expand_binder_test() {
+fn const_value_expand_binder_test() {
     let parser = TopLevelParser::new();
 
     assert_eq!(
@@ -4627,6 +4627,52 @@ fn dexp_expand_binder_test() {
         "#).unwrap()).compile().unwrap(),
         vec![
             "print 3",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const a.X = (
+            print ..;
+        );
+        const b.X = a.X;
+        take a.X;
+        take b.X;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print a",
+            "print a",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const A = a;
+        const A.X = (
+            print ..;
+        );
+        take A.X;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print a",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const a.X = (
+            print ..;
+        );
+        take Handle = Builtin.BindHandle2[`a` `X`];
+        take Builtin.Const[`Handle` Handle];
+        const b.X = Handle;
+        take a.X;
+        const a.X = 2;
+        take b.X;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print a",
+            "print a",
         ],
     );
 }

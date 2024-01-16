@@ -488,14 +488,16 @@ impl_derefs!(impl for DExp => (self: self.lines): Expand);
 /// 可完成如属性调用的功能
 #[derive(Debug, PartialEq, Clone)]
 pub struct ValueBind(pub Box<Value>, pub Var);
+impl ValueBind {
+    pub fn take_unfollow_handle(self, meta: &mut CompileMeta) -> Var {
+        let handle = self.0.take_handle(meta);
+        meta.get_value_binded(handle, self.1).clone()
+    }
+}
 impl TakeHandle for ValueBind {
     fn take_handle(self, meta: &mut CompileMeta) -> Var {
-        let handle = self.0.take_handle(meta);
-        assert!(! Value::is_string(&self.1));
-        let binded
-            = meta.get_value_binded(handle, self.1).clone();
-        // 进行常量表查询
-        binded.take_handle(meta)
+        self.take_unfollow_handle(meta)
+            .take_handle(meta)  // 进行通常是全局表的常量表查询
     }
 }
 
@@ -1987,8 +1989,8 @@ impl Const {
         Self(var, value, Default::default())
     }
 
-    /// 在const编译前对右部分进行处理
-    pub fn run_value(&mut self, meta: &mut CompileMeta) {
+    /// 在const编译前对右部分进行处理, 如果目标有的话, 返回绑定者
+    pub fn run_value(&mut self, meta: &mut CompileMeta) -> Option<Var> {
         let value = &mut self.1;
         match value {
             Value::ReprVar(var) => {
@@ -1997,21 +1999,27 @@ impl Const {
             },
             Value::Var(var) => {
                 if let Some(data) = meta.get_const_value(var) {
-                    let ConstData { value, labels, .. } = data;
+                    let ConstData {
+                        value,
+                        labels,
+                        binder,
+                    } = data;
                     self.1 = value.clone();
                     self.2 = labels.clone();
+                    return binder.as_ref().cloned();
                 }
             },
             _ => (),
         }
+        None
     }
 }
 impl Compile for Const {
     fn compile(mut self, meta: &mut CompileMeta) {
         // 对同作用域定义过的常量形成覆盖
         // 如果要进行警告或者将信息传出则在此处理
-        self.run_value(meta);
-        meta.add_const_value(self);
+        let extra_binder = self.run_value(meta);
+        meta.add_const_value_with_extra_binder(self, extra_binder);
     }
 }
 
@@ -2712,11 +2720,15 @@ impl Debug for CompileMeta {
             .field("tag_count", &self.tag_count)
             .field("tag_codes", &self.tag_codes)
             .field("tmp_var_count", &self.tmp_var_count.counter())
-            .field("const_var_namespace", &self.expand_env)
+            .field("expand_env", &self.expand_env)
+            .field("env_args", &self.env_args)
             .field("dexp_result_handles", &self.dexp_result_handles)
+            .field("dexp_expand_binders", &self.dexp_expand_binders)
             .field("tmp_tag_count", &self.tmp_tag_count.counter())
             .field("const_expand_tag_name_map", &self.const_expand_tag_name_map)
             .field("value_binds", &self.value_binds)
+            .field("value_bind_global_consts", &self.value_bind_global_consts)
+            .field("last_builtin_exit_code", &self.last_builtin_exit_code)
             .field("..", &DotDot)
             .finish()
     }
@@ -2924,23 +2936,43 @@ impl CompileMeta {
     }
 
     /// 新增一个常量到值的映射, 如果当前作用域已有此映射则返回旧的值并插入新值
-    pub fn add_const_value(&mut self, Const(var, value, labels): Const)
+    pub fn add_const_value(&mut self, r#const: Const)
     -> Option<ConstData> {
+        self.add_const_value_with_extra_binder(r#const, None)
+    }
+
+    /// 新增一个常量到值的映射, 如果当前作用域已有此映射则返回旧的值并插入新值
+    ///
+    /// 如果扩展绑定者存在的话, 忽略键中的绑定者而采用扩展绑定者
+    pub fn add_const_value_with_extra_binder(
+        &mut self,
+        Const(var, value, labels): Const,
+        extra_binder: Option<Var>,
+    ) -> Option<ConstData> {
         match var {
             ConstKey::Var(_) => {
                 let var = var.take_handle(self);
 
+                let mut data = ConstData::new(value, labels);
+                if let Some(extra_binder) = extra_binder {
+                    data = data.set_binder(extra_binder)
+                }
                 self.expand_env
                     .last_mut()
                     .unwrap()
                     .consts
-                    .insert(var, ConstData::new(value, labels))
+                    .insert(var, data)
             },
             ConstKey::ValueBind(ValueBind(binder, name)) => {
-                assert!(! Value::is_string(&name));
                 let binder_handle = binder.take_handle(self);
+                let binder
+                    = if let Some(extra_binder) = extra_binder {
+                        extra_binder
+                    } else {
+                        binder_handle.clone()
+                    };
                 let data = ConstData::new(value, labels)
-                    .set_binder(binder_handle.clone());
+                    .set_binder(binder);
                 let binded = self.get_value_binded(
                     binder_handle, name).clone();
                 self.value_bind_global_consts

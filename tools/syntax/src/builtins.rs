@@ -231,6 +231,23 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
             })
         }
 
+        fn bind_handle:BindHandle(meta) [v:value] {
+            check_type!("valuebind" Value::ValueBind(bind) = value.value() => {
+                let handle = bind.clone().take_unfollow_handle(meta);
+                Ok(handle)
+            })
+        }
+
+        fn bind_handle2:BindHandle2(meta) [b:binder n:name] {
+            check_type!("var" Value::Var(name) = name.value() => {
+                let bind = ValueBind(
+                    binder.value().clone().into(),
+                    name.clone(),
+                );
+                Ok(bind.take_unfollow_handle(meta))
+            })
+        }
+
         fn exit:Exit(meta) [n:code] {
             check_type!("var" Value::Var(code) = code.value() => {
                 let num_code = match code.parse() {
@@ -281,6 +298,12 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
                     .cloned()
                     .unwrap_or_else(|| "__".into()))
             })
+        }
+
+        fn meta_dbg:MetaDebug(meta) [] {
+            let msg = format!("{:#?}", meta);
+            meta.log_info(msg);
+            Ok("__".into())
         }
     }
 }
