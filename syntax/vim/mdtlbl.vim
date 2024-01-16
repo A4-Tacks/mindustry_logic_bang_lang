@@ -50,7 +50,7 @@ setlocal commentstring=#%s
 setlocal formatoptions+=rq
 
 " 值(Var) {{{1
-syn match mdtlblStringFailedEscape /\\./ contained
+syn match mdtlblStringFailedEscape /\\\%("\@=\|.\)/ contained
 syn match mdtlblStringColor /\[\v%(#\x{6,8}|%(c%(lear|yan|oral)|b%(l%(ack|ue)|r%(own|ick))|white|li%(ghtgray|me)|g%(r%(ay|een)|old%(enrod)?)|darkgray|navy|r%(oyal|ed)|s%(late|ky|carlet|almon)|t%(eal|an)|acid|forest|o%(live|range)|yellow|p%(ink|urple)|ma%(genta|roon)|violet))\]/ contained
 syn match mdtlblSpecialChar /^ *\\ \|\\\%([n\\[]\|$\)/ contained
 syn region mdtlblString start=/"/ end=/"/ contains=mdtlblSpecialChar,mdtlblStringFailedEscape,mdtlblStringColor
