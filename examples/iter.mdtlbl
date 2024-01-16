@@ -1,0 +1,97 @@
+#**
+* 一个简单的内存和迭代器结构示例
+*#
+
+const Memory = (
+    take $.Mem = _0;
+    take $.Beg = _1;
+    take $.Len = _2;
+    match $.Beg {
+        [0] {
+            const $.Index = (setres _0;);
+        }
+        __ {
+            const $.Index = (
+                take Idx = _0;
+                take Beg = ...Beg;
+                setres ($ = Beg + Idx;);
+            );
+        }
+    }
+    const $.IndexTo = (
+        take Target = _0;
+        take Idx = _1;
+        take Beg = ...Beg;
+        Target = Beg + Idx;
+    );
+    const $.Read = (
+        take Idx = _0;
+        read $ ...Mem ...Index[Idx];
+    );
+    const $.Write = (
+        take Idx = _0;
+        take Data = _1;
+        write Data ...Mem ...Index[Idx];
+    );
+    const $.Iter = (
+        take $.Mem = ..;
+
+        take Beg = ...Beg;
+
+        match ...Beg {
+            [0] {
+                take $.End = ...Len;
+            }
+            Beg {
+                take Len = ...Len;
+                take $.End = ($ = Len + Beg;);
+            }
+        }
+        take I = $.i;
+        take ...IndexTo[I 0];
+        const $.Get = (
+            read $ ...Mem.Mem ...i;
+        );
+        const $.Run = (
+            const F = _0;
+
+            take Binder = ..;
+            take I = ...i;
+            take Get = Builtin.BindHandle2[`Binder` `Get`];
+            take Builtin.Const[`Get` Get];
+            take F[I Get];
+        );
+        const $.Next = (
+            const F = _0;
+
+            take I = ...i;
+            if I < ...End {
+                take ...Run[F];
+                op I I + 1;
+            }
+        );
+        const $.ForEach = (
+            const F = _0;
+
+            take I = ...i;
+            while I < ...End {
+                take ...Run[F];
+                op I I + 1;
+            }
+        );
+    );
+);
+
+take Mem = Memory[cell1 16 16];
+take Iter = Mem.Iter[];
+take Iter.Next[(
+    print "first: "_1"\n";
+)];
+take Iter.ForEach[(
+    const f.F = (
+        print "i: "_0", val: "_1"\n";
+    );
+    take f.F[_0 _1];
+)];
+print "Idx10: "Iter.Mem.Read[10];
+printflush message1;
