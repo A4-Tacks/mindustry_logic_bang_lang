@@ -4473,6 +4473,41 @@ fn match_test() {
             "print Y",
         ],
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        # 关于参数展开在match和repeat中对绑定者的丢失
+        const a.F = (nouse:
+            print ..;
+        );
+        const Do = (
+            const F = _0;
+
+            take Res = $;
+            const Res.F1 = (
+                match @ {
+                    V {
+                        print V;
+                    }
+                }
+                print @;
+                print _0;
+            );
+            take Res.F1[F];
+        );
+        take F = Builtin.BindHandle2[`a` `F`];
+        take Builtin.Const[`F` F];
+        take Do[F];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print a",
+            "print nouse",
+            "print a",
+            "print nouse",
+            "print a",
+            "print nouse",
+        ],
+    );
 }
 
 #[test]

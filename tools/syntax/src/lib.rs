@@ -2113,20 +2113,12 @@ impl Args {
             Args::Expanded(left, right) => {
                 let expanded_args: Vec<Var>
                     = meta.get_env_args().iter().cloned().collect();
-                let capacity = left.len() + expanded_args.len() + right.len();
-                let mut res = Vec::with_capacity(capacity);
-                for value in left {
-                    res.push(value.take_handle(meta))
-                }
-                for var in expanded_args {
-                    res.push(meta.get_const_value(&var).unwrap()
-                        .value().clone()
-                        .take_handle_with_consted(meta))
-                }
-                for value in right {
-                    res.push(value.take_handle(meta))
-                }
-                res
+                left.into_iter()
+                    .chain(expanded_args.into_iter()
+                        .map(Value::Var))
+                    .chain(right)
+                    .map(|value| value.take_handle(meta))
+                    .collect()
             },
         }
     }
