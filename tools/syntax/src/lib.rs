@@ -2692,6 +2692,8 @@ pub struct CompileMeta {
     /// 一个标签从尾部上寻, 寻到就返回找到的, 没找到就返回原本的
     /// 所以它支持在宏A内部展开的宏B跳转到宏A内部的标记
     const_expand_tag_name_map: Vec<HashMap<Var, Var>>,
+    const_expand_names: Vec<Var>,
+    const_expand_max_depth: usize,
     value_binds: HashMap<(Var, Var), Var>,
     /// 值绑定全局常量表, 只有值绑定在使用它
     value_bind_global_consts: HashMap<Var, ConstData>,
@@ -2746,6 +2748,8 @@ impl CompileMeta {
             dexp_expand_binders: Vec::new(),
             tmp_tag_count: Counter::new(Self::tmp_tag_getter),
             const_expand_tag_name_map: Vec::new(),
+            const_expand_names: Vec::new(),
+            const_expand_max_depth: 500,
             value_binds: HashMap::new(),
             value_bind_global_consts: HashMap::new(),
             last_builtin_exit_code: 0,
@@ -3057,6 +3061,19 @@ impl CompileMeta {
     /// 如果不是一个宏则直接返回None, 也不会进入无需清理
     pub fn const_expand_enter(&mut self, name: &Var) -> Option<Value> {
         let label_count = self.get_const_value(name)?.labels().len();
+        if self.const_expand_names.len() >= self.const_expand_max_depth {
+            self.log_err(format!(
+                    "Stack Expand:\n{}",
+                    self.debug_expand_stack()
+                        .collect::<Vec<_>>()
+                        .join(", "),
+            ));
+            err!(
+                "Maximum recursion depth exceeded ({})",
+                self.const_expand_max_depth,
+            );
+            exit(6)
+        }
         let mut tmp_tags = Vec::with_capacity(label_count);
         tmp_tags.extend(repeat_with(|| self.get_tmp_tag())
                         .take(label_count));
@@ -3077,11 +3094,14 @@ impl CompileMeta {
         let res = value.clone();
         self.dexp_expand_binders.push(binder.clone());
         self.const_expand_tag_name_map.push(labels_map);
+        self.const_expand_names.push(name.clone());
         res.into()
     }
 
-    pub fn const_expand_exit(&mut self) -> (HashMap<Var, Var>, Option<Var>) {
+    pub fn const_expand_exit(&mut self)
+    -> (Var, HashMap<Var, Var>, Option<Var>) {
         (
+            self.const_expand_names.pop().unwrap(),
             self.const_expand_tag_name_map.pop().unwrap(),
             self.dexp_expand_binders.pop().unwrap(),
         )
@@ -3190,12 +3210,40 @@ impl CompileMeta {
             .trim_end().replace('\n', "\n    "))
     }
 
+    pub fn debug_expand_stack(&self) -> impl Iterator<Item = String> + '_ {
+        self.const_expand_names().iter()
+            .zip(&self.dexp_expand_binders)
+            .map(|x| match x {
+                (name, Some(binder)) => format!("{name} ..{binder}"),
+                (name, None) => name.into(),
+            })
+    }
+
+    pub fn log_expand_stack(&mut self) {
+        let names = self.debug_expand_stack()
+            .collect::<Vec<_>>()
+            .join("\n");
+        self.log_info(format!("Expand Stack:\n{names}"))
+    }
+
     pub fn last_builtin_exit_code(&self) -> u8 {
         self.last_builtin_exit_code
     }
 
     pub fn set_last_builtin_exit_code(&mut self, new_code: u8) -> u8 {
         replace(&mut self.last_builtin_exit_code, new_code)
+    }
+
+    pub fn const_expand_names(&self) -> &[String] {
+        self.const_expand_names.as_ref()
+    }
+
+    pub fn const_expand_max_depth(&self) -> usize {
+        self.const_expand_max_depth
+    }
+
+    pub fn set_const_expand_max_depth(&mut self, const_expand_max_depth: usize) {
+        self.const_expand_max_depth = const_expand_max_depth;
     }
 }
 

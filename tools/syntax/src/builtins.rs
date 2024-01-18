@@ -305,5 +305,27 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
             meta.log_info(msg);
             Ok("__".into())
         }
+
+        fn max_expand_depth:MaxExpandDepth(meta) [] {
+            Ok(meta.const_expand_max_depth().to_string())
+        }
+
+        fn set_max_expand_depth:SetMaxExpandDepth(meta) [d:depth] {
+            check_type!("var" Value::Var(depth) = depth.value() => {
+                let depth: usize = match depth.parse() {
+                    Ok(n) => n,
+                    Err(e) => {
+                        return Err((2, e.to_string()))
+                    },
+                };
+                meta.set_const_expand_max_depth(depth);
+                Ok("__".into())
+            })
+        }
+
+        fn expand_stack:ExpandStack(meta) [] {
+            meta.log_expand_stack();
+            Ok("__".into())
+        }
     }
 }
