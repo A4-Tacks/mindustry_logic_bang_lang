@@ -7,6 +7,7 @@ use std::{
     process::exit,
     str::FromStr,
     collections::HashMap,
+    ops::Deref, fmt::Display,
 };
 
 use display_source::DisplaySource;
@@ -29,9 +30,14 @@ use tag_code::TagCodes;
 
 /// 带有错误前缀, 并且文本为红色的eprintln
 macro_rules! err {
-    ( $($args:tt)* ) => {
-        eprintln!("\x1b[1;31mMainError: {}\x1b[0m", format_args!($($args)*));
-    };
+    ( $($args:tt)* ) => {{
+        let str = format!($($args)*);
+        let mut iter = str.lines();
+        eprintln!("\x1b[1;31mMainError: {}\x1b[0m", iter.next().unwrap());
+        for line in iter {
+            eprintln!("    \x1b[1;31m{}\x1b[0m", line);
+        }
+    }};
 }
 
 macro_rules! concat_lines {
@@ -61,6 +67,8 @@ pub const HELP_MSG: &str = concat_lines! {
     "output to stdout";
     "error to stderr";
 };
+
+const MAX_INVALID_TOKEN_VIEW: usize = 5;
 
 fn help() {
     eprint!("{} {}", args().next().unwrap(), HELP_MSG);
@@ -152,11 +160,14 @@ impl CompileMode {
                         }
                         let ast = Expand::try_from(&lines)
                             .unwrap_or_else(|(idx, e)| {
-                                let lines_str = lines.iter()
-                                    .map(|line| format!("\t{line}"))
+                                let mut lines_str = lines.iter()
+                                    .map(ToString::to_string)
                                     .collect::<Vec<_>>();
+                                line_first_add(&mut lines_str, "    ");
                                 err!(
-                                    "已构建的行:\n{}\n在构建第{}行时出错: {}",
+                                    "在构建第{}行时出错: {}\n\
+                                    已构建的行:\n\
+                                    {}",
                                     lines_str.join("\n"),
                                     idx + 1,
                                     e
@@ -219,10 +230,14 @@ fn build_tag_down(meta: &mut CompileMeta) {
             .unwrap();
         let mut tags_map = meta.debug_tags_map();
         let mut tag_codes = meta.tag_codes().iter().map(ToString::to_string).collect();
-        line_first_add(&mut tags_map, "\t");
-        line_first_add(&mut tag_codes, "\t");
+        line_first_add(&mut tags_map, "    ");
+        line_first_add(&mut tag_codes, "    ");
         err!(
-            "TagCode:\n{}\nTagsMap:\n{}\n重复的标记: {:?}",
+            "重复的标记: {:?}\n\
+            TagCode:\n\
+            {}\n\
+            TagsMap:\n\
+            {}",
             tag_codes.join("\n"),
             tags_map.join("\n"),
             tag_str,
@@ -239,13 +254,16 @@ fn build_ast(src: &str) -> Expand {
     unwrap_parse_err(parser.parse(&mut meta, src), src)
 }
 
+fn read_stdin_unwrapper(e: impl Display) -> ! {
+    err!("read from stdin error: {}", e);
+    exit(3)
+}
+
 fn read_stdin() -> String {
     let mut buf = String::new();
     let _byte_count = stdin()
-        .read_to_string(&mut buf).unwrap_or_else(|e| {
-            err!("read from stdin error: {}", e);
-            exit(3)
-        });
+        .read_to_string(&mut buf)
+        .unwrap_or_else(|e| read_stdin_unwrapper(e));
     buf
 }
 
@@ -260,12 +278,17 @@ fn get_locations<const N: usize>(src: &str, indexs: [usize; N]) -> [[usize; 2]; 
     }
     let mut res = [[0, 0]; N];
     let [mut line, mut column] = [1, 1];
+    macro_rules! set {
+        ($i:expr) => {
+            if let Some(idxs) = index_maps.get(&$i) {
+                for &idx in idxs {
+                    res[idx] = [line, column]
+                }
+            };
+        };
+    }
     for (i, ch) in src.char_indices() {
-        if let Some(idxs) = index_maps.get(&i) {
-            for &idx in idxs {
-                res[idx] = [line, column]
-            }
-        }
+        set!(i);
         if ch == CR {
             line += 1;
             column = 1;
@@ -273,6 +296,7 @@ fn get_locations<const N: usize>(src: &str, indexs: [usize; N]) -> [[usize; 2]; 
             column += 1;
         }
     }
+    set!(src.len());
     res
 }
 
@@ -280,6 +304,11 @@ fn unwrap_parse_err(result: ParseResult<'_>, src: &str) -> Expand {
     match result {
         Ok(ast) => ast,
         Err(e) => {
+            fn fmt_token<'a>(i: impl IntoIterator<Item = &'a str>)
+            -> impl Iterator<Item = &'a str> {
+                i.into_iter()
+                    .map(|s| get_token_name(s).unwrap_or(s))
+            }
             match e {
                 ParseError::UnrecognizedToken {
                     token: (start, token, end),
@@ -287,25 +316,33 @@ fn unwrap_parse_err(result: ParseResult<'_>, src: &str) -> Expand {
                 } => {
                     let [start, end] = get_locations(src, [start, end]);
                     err!(
-                        "在位置: {:?} 至 {:?} 处找到未知的令牌: {:?}, 预期: [{}]",
+                        "在位置 {:?} 至 {:?} 处找到不应出现的令牌: {:?}\n\
+                        预期: [{}]",
                         start, end,
                         token.1,
-                        expected.join(", "),
+                        fmt_token(expected.iter().map(Deref::deref))
+                            .collect::<Vec<_>>()
+                            .join(", "),
                     );
                 },
                 ParseError::ExtraToken { token: (start, token, end) } => {
                     let [start, end] = get_locations(src, [start, end]);
                     err!(
-                        "在位置: {:?} 至 {:?} 处找到多余的令牌: {:?}",
+                        "在位置 {:?} 至 {:?} 处找到多余的令牌: {:?}",
                         start, end,
-                        token.1,
+                        fmt_token(Some(token.1)).next().unwrap(),
                     );
                 },
                 ParseError::InvalidToken { location } => {
-                    let [start] = get_locations(src, [location]);
+                    let [loc] = get_locations(src, [location]);
+                    let view = &src[
+                        location
+                            ..src.len().min(location+MAX_INVALID_TOKEN_VIEW)
+                    ];
                     err!(
-                        "在位置: {:?} 处找到无效的令牌",
-                        start,
+                        "在位置 {:?} 处找到无效的令牌: {:?}",
+                        loc,
+                        view.trim_end(),
                     );
                 },
                 ParseError::UnrecognizedEof {
@@ -314,9 +351,12 @@ fn unwrap_parse_err(result: ParseResult<'_>, src: &str) -> Expand {
                 } => {
                     let [start] = get_locations(src, [location]);
                     err!(
-                        "在位置: {:?} 处找到未结束的令牌, 预期: [{}]",
+                        "在位置 {:?} 处意外的结束\n\
+                        预期: [{}]",
                         start,
-                        expected.join(", "),
+                        fmt_token(expected.iter().map(Deref::deref))
+                            .collect::<Vec<_>>()
+                            .join(", "),
                     );
                 },
                 ParseError::User {
@@ -328,37 +368,35 @@ fn unwrap_parse_err(result: ParseResult<'_>, src: &str) -> Expand {
                 } => {
                     let [start, end]
                         = get_locations(src, [start, end]);
-                    let head = format!(
-                        "在 {:?} 至 {:?} 处的错误: ",
+                    let out = |msg| err!(
+                        "在位置 {:?} 至 {:?} 处的错误:\n{}",
                         start,
-                        end
+                        end,
+                        msg
                     );
                     match err {
                         Errors::NotALiteralUInteger(str, err) => {
-                            err!(
-                                "{}{:?} 不是一个有效的无符号整数, 错误: {}",
-                                head,
+                            out(format_args!(
+                                "{:?} 不是一个有效的无符号整数, 错误: {}",
                                 str,
                                 err,
-                            );
+                            ));
                         },
                         Errors::SetVarNoPatternValue(var_count, val_count) => {
-                            err!(
-                                "{}sets两侧值数量不匹配, {} != {}",
-                                head,
+                            out(format_args!(
+                                "sets两侧值数量不匹配, {} != {}",
                                 var_count,
                                 val_count,
-                            );
+                            ));
                         },
                         Errors::ArgsRepeatChunkByZero => {
-                            err!(
-                                "{}重复块的迭代数不能为0",
-                                head,
-                            );
+                            out(format_args!(
+                                "重复块的迭代数不能为0",
+                            ));
                         },
                         #[allow(unreachable_patterns)]
                         e => {
-                            err!("{}未被枚举的错误: {:?}", head, e);
+                            out(format_args!("未被枚举的错误: {:?}", e));
                         },
                     }
                 },
@@ -370,4 +408,20 @@ fn unwrap_parse_err(result: ParseResult<'_>, src: &str) -> Expand {
 
 fn compile_ast(ast: Expand) -> CompileMeta {
     CompileMeta::new().compile_res_self(ast)
+}
+
+fn get_token_name(s: &str) -> Option<&'static str> {
+    match s {
+        r###"r#"[_\\p{XID_Start}]\\p{XID_Continue}*"#"###
+            => "Identify",
+        r###"r#"@[_\\p{XID_Start}][\\p{XID_Continue}\\-]*"#"###
+            => "OIdentify",
+        r###"r#"(?:0(?:x-?[\\da-fA-F][_\\da-fA-F]*|b-?[01][_01]*)|-?\\d[_\\d]*(?:\\.\\d[\\d_]*|e[+\\-]?\\d[\\d_]*)?)"#"###
+            => "Number",
+        r###"r#"\"(?:\\\\\\r?\\n\\s*(?:\\\\ )?|\\r?\\n|\\\\[n\\\\\\[]|[^\"\\r\\n\\\\])*\""#"###
+            => "String",
+        r###"r#"'[^'\\s]+'"#"###
+            => "OtherVariable",
+        _ => return None,
+    }.into()
 }
