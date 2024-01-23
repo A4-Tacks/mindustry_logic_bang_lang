@@ -457,43 +457,35 @@ OpExprDoMultiple: (Vec<Value>, Vec<OpExprInfo>) = {
     },
 }
 
-OpExprBody: OpExprInfo = OpExprBody12;
+OpExprBody: OpExprInfo = OpExprBody13;
 
-OpExprBody12: OpExprInfo = {
-    "if" <cmp:JumpCmp> "?" <a:OpExprBody12> ":" <b:OpExprBody12> => {
+OpExprBody13: OpExprInfo = {
+    "if" <cmp:JumpCmp> "?" <a:OpExprBody13> ":" <b:OpExprBody13> => {
         OpExprInfo::new_if_else(meta, cmp, a, b)
     },
+    OpExprBody12,
+}
+
+OpExprBody12: OpExprInfo = {
+    <a:OpExprBody12> "||" <b:OpExprBody11> => op_expr_build_op(
+        || Op::Add(ResultHandle, a.into_value(meta), b.into_value(meta))),
     OpExprBody11,
 }
 
 OpExprBody11: OpExprInfo = {
-    <a:OpExprBody11> "||" <b:OpExprBody10> => op_expr_build_op(
-        || Op::Add(ResultHandle, a.into_value(meta), b.into_value(meta))),
+    <a:OpExprBody11> "&&" <b:OpExprBody10> => op_expr_build_op(
+        || Op::Land(ResultHandle, a.into_value(meta), b.into_value(meta))),
     OpExprBody10,
 }
 
 OpExprBody10: OpExprInfo = {
-    <a:OpExprBody10> "&&" <b:OpExprBody9> => op_expr_build_op(
-        || Op::Land(ResultHandle, a.into_value(meta), b.into_value(meta))),
-    OpExprBody9,
-}
-
-OpExprBody9: OpExprInfo = {
-    <a:OpExprBody9> "==" <b:OpExprBody8> => op_expr_build_op(
+    <a:OpExprBody9> "==" <b:OpExprBody9> => op_expr_build_op(
         || Op::Equal(ResultHandle, a.into_value(meta), b.into_value(meta))),
-    <a:OpExprBody9> "!=" <b:OpExprBody8> => op_expr_build_op(
+    <a:OpExprBody9> "!=" <b:OpExprBody9> => op_expr_build_op(
         || Op::NotEqual(ResultHandle, a.into_value(meta), b.into_value(meta))),
-    <a:OpExprBody9> "<" <b:OpExprBody8> => op_expr_build_op(
-        || Op::LessThan(ResultHandle, a.into_value(meta), b.into_value(meta))),
-    <a:OpExprBody9> ">" <b:OpExprBody8> => op_expr_build_op(
-        || Op::GreaterThan(ResultHandle, a.into_value(meta), b.into_value(meta))),
-    <a:OpExprBody9> "<=" <b:OpExprBody8> => op_expr_build_op(
-        || Op::LessThanEq(ResultHandle, a.into_value(meta), b.into_value(meta))),
-    <a:OpExprBody9> ">=" <b:OpExprBody8> => op_expr_build_op(
-        || Op::GreaterThanEq(ResultHandle, a.into_value(meta), b.into_value(meta))),
-    <a:OpExprBody9> "===" <b:OpExprBody8> => op_expr_build_op(
+    <a:OpExprBody9> "===" <b:OpExprBody9> => op_expr_build_op(
         || Op::StrictEqual(ResultHandle, a.into_value(meta), b.into_value(meta))),
-    <a:OpExprBody9> "!==" <b:OpExprBody8> =>
+    <a:OpExprBody9> "!==" <b:OpExprBody9> =>
         op_expr_build_op(|| Op::Equal(
             ResultHandle,
             DExp::new_nores(vec![
@@ -501,6 +493,17 @@ OpExprBody9: OpExprInfo = {
             ].into()).into(),
             ReprVar(FALSE_VAR.into())
         )),
+    OpExprBody9,
+}
+OpExprBody9: OpExprInfo = {
+    <a:OpExprBody8> "<" <b:OpExprBody8> => op_expr_build_op(
+        || Op::LessThan(ResultHandle, a.into_value(meta), b.into_value(meta))),
+    <a:OpExprBody8> ">" <b:OpExprBody8> => op_expr_build_op(
+        || Op::GreaterThan(ResultHandle, a.into_value(meta), b.into_value(meta))),
+    <a:OpExprBody8> "<=" <b:OpExprBody8> => op_expr_build_op(
+        || Op::LessThanEq(ResultHandle, a.into_value(meta), b.into_value(meta))),
+    <a:OpExprBody8> ">=" <b:OpExprBody8> => op_expr_build_op(
+        || Op::GreaterThanEq(ResultHandle, a.into_value(meta), b.into_value(meta))),
     OpExprBody8,
 }
 

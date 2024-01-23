@@ -2229,6 +2229,47 @@ fn op_expr_test() {
         "#).unwrap(),
     );
 
+    assert_eq!(
+        parse!(parser, r#"
+        x = a < b == c > d;
+        x = a < b != c > d;
+        x = a < b === c > d;
+        x = a < b !== c > d;
+        "#).unwrap(),
+        parse!(parser, r#"
+        op x (op $ a < b;) == (op $ c > d;);
+        op x (op $ a < b;) != (op $ c > d;);
+        op x (op $ a < b;) === (op $ c > d;);
+        op x (op $ a < b;) !== (op $ c > d;);
+        "#).unwrap(),
+    );
+
+    assert!(
+        parse!(parser, r#"
+        x = a == b == c;
+        "#).is_err(),
+    );
+
+    assert!(
+        parse!(parser, r#"
+        x = a < b < c;
+        "#).is_err(),
+    );
+
+    assert!(
+        parse!(parser, r#"
+        x = a === b === c;
+        "#).is_err(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = (a < b) < c;
+        "#).unwrap(),
+        parse!(parser, r#"
+        op x (op $ a < b;) < c;
+        "#).unwrap(),
+    );
 }
 
 #[test]
