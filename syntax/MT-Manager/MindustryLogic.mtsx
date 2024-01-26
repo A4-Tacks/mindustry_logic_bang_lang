@@ -14,12 +14,16 @@
         "world", #6B84D4, #6B84D4
     ]
     defines: [
-        "bg": /(?<=\n|^)/
+        "bg": /(?<=(?:\n|^)\s*)/
         "ed": /(?:\s*(?=\n|$))/
         "string": /(?:"[^"\n]*(?:"|/+include("ed")+/))/
         "val": /(?:/+include("string")+/|[^"\s]+)/
     ]
     contains: [
+        {
+            match: include("bg")+include("val")+/:/+include("ed")
+            0: "label"
+        }
         {
             match: include("bg")+/(noop)/+include("ed")
             1: "control"
