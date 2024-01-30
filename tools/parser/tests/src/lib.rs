@@ -3898,6 +3898,23 @@ fn const_expr_eval_test() {
         print null;
         "#).unwrap()).compile().unwrap(),
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print ($ = 999999+0;);
+        print ($ = 999999+1;);
+        print ($ = -999999 - 0;);
+        print ($ = -999999 - 1;);
+        print ($ = 1 - 1;);
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        print 999999;
+        print 0xF4240;
+        print -999999;
+        print 0x-F4240;
+        print 0;
+        "#).unwrap()).compile().unwrap(),
+    );
 }
 
 #[test]

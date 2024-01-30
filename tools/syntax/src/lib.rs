@@ -173,13 +173,30 @@ pub enum Value {
 impl Value {
     pub fn try_eval_const_num_to_var(&self, meta: &CompileMeta) -> Option<Var> {
         if let Some((num, true)) = self.try_eval_const_num(meta) {
+            use std::num::FpCategory as FpC;
             // 仅对复杂数据也就是有效运算后的数据
             return match num.classify() {
-                std::num::FpCategory::Nan => "null".into(),
-                std::num::FpCategory::Infinite
+                FpC::Nan => "null".into(),
+                FpC::Infinite
                 if num.is_sign_negative() => (i64::MIN+1).to_string(),
-                std::num::FpCategory::Infinite => i64::MAX.to_string(),
-                _ => num.to_string(),
+                FpC::Infinite => i64::MAX.to_string(),
+                _ => loop {
+                    let n = num.round() - num;
+                    if let FpC::Zero | FpC::Subnormal = n.classify() {
+                        let rng = i64::MIN as f64..=i64::MAX as f64;
+                        let v = 999999;
+                        if rng.contains(&num) && !(-v..=v).contains(&(num as i64)) {
+                            let num = num.round() as i64;
+                            break if !num.is_negative() {
+                                format!("0x{num:X}")
+                            } else {
+                                let num = -num;
+                                format!("0x-{num:X}")
+                            }
+                        }
+                    }
+                    break num.to_string()
+                },
             }.into()
         } else {
             None
