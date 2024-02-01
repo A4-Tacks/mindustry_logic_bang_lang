@@ -36,11 +36,11 @@
 			"patterns": [
 				{
 					"name": "keyword.control.mdtlbl",
-					"match": "\\b(if|elif|else|do|while|for|take|goto|switch|case|skip|gwhile|setres|select)\\b"
+					"match": "\\b(if|elif|else|do|while|for|take|goto|switch|case|skip|gwhile|setres|select|match|break|continue)\\b"
 				},
 				{
 					"name": "storage.modifier.mdtlbl",
-					"match": "\\bconst\\b"
+					"match": "\\b(const|set|inline)\\b"
 				},
 				{
 					"name": "entity.name.function.mdtlbl",
@@ -48,7 +48,7 @@
 				},
 				{
 					"name": "storage.modifier.mdtlbl",
-					"match": "\\b(equal|notEqual|lessThan|lessThanEq|greaterThan|greaterThanEq|strictEqual|always|lnot|add|sub|mul|div|idiv|mod|pow|shl|shr|or|and|xor|max|min|angle|len|noise|not|abs|log|log10|floor|ceil|sqrt|rand|sin|cos|tan|asin|acos|atan)\\b"
+					"match": "\\b(equal|notEqual|strictNotEqual|lessThan|lessThanEq|greaterThan|greaterThanEq|strictEqual|always|lnot|add|sub|mul|div|idiv|mod|pow|shl|shr|or|and|land|xor|max|min|angle|len|noise|not|abs|log|log10|floor|ceil|sqrt|rand|sin|cos|tan|asin|acos|atan)\\b"
 				},
 				{
 					"match": "(!|&&|\\|\\|)",
@@ -79,6 +79,9 @@
 				},
 				{
 					"include": "#qstring-double"
+				},
+				{
+					"include": "#qstring-format"
 				}
 			]
 		},
@@ -96,6 +99,16 @@
 			"name": "string.quoted.single.mdtlbl",
 			"begin": "'",
 			"end": "'",
+			"captures": {
+				"0": {
+					"name": "punctuation.definition.string.mdtlbl"
+				}
+			}
+		},
+		"qstring-format": {
+			"name": "string.quoted.format.mdtlbl",
+			"begin": "`",
+			"end": "`",
 			"captures": {
 				"0": {
 					"name": "punctuation.definition.string.mdtlbl"

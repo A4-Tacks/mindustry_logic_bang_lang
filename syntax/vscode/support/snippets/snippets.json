@@ -77,19 +77,21 @@
         ],
         "description": "else line"
     },
+    "inline { ... }": {
+        "prefix": "inline_block",
+        "body": [
+            "inline {",
+            "\t$0",
+            "}"
+        ],
+        "description": "inline { ... }"
+    },
     "const value": {
         "prefix": "const",
         "body": [
             "const ${1:NAME} = ${2:value};$0"
         ],
         "description": "const value"
-    },
-    "const DExp": {
-        "prefix": "const_dexp",
-        "body": [
-            "const ${1:NAME} = (${2});$0"
-        ],
-        "description": "const DExp"
     },
     "take": {
         "prefix": "take",
@@ -184,6 +186,20 @@
         ],
         "description": "set DExp result handle"
     },
+    "break top-level loop": {
+        "prefix": "break",
+        "body": [
+            "break$1;$0"
+        ],
+        "description": "break top-level loop"
+    },
+    "continue top-level loop": {
+        "prefix": "continue",
+        "body": [
+            "continue$1;$0"
+        ],
+        "description": "continue top-level loop"
+    },
     "use take define tmp var": {
         "prefix": "tmpvar",
         "body": [
@@ -272,6 +288,13 @@
         ],
         "description": "block | unit | item | liquid"
     },
+    "sleep sec": {
+        "prefix": "sleep",
+        "body": [
+            "wait ${1:0.5};$0"
+        ],
+        "description": "wait sec"
+    },
     "wait sec": {
         "prefix": "wait",
         "body": [
@@ -292,5 +315,14 @@
             "sensor ${1:result} ${2:block1} ${3:@${4:copper}};$0"
         ],
         "description": "sensor"
+    },
+    "match args... { (pattern body)... }": {
+        "prefix": "match",
+        "body": [
+            "match $1 {",
+            "\t$0",
+            "}"
+        ],
+        "description": "match args... { (pattern body)... }"
     }
 }
