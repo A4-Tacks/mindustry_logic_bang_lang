@@ -13,61 +13,63 @@
         "unit",         #C7B59D, #C7B59D
         "world",        #6B84D4, #6B84D4
     ]
+    comment: {startsWith: "#"}
     defines: [
-        "bg": /(?<=(?:\n|^)\s*)/
-        "ed": /(?:\s*(?=\n|$))/
+        "ws": /[ \t]/
+        "bg": /(?:(?:[\n;]|^)/+include("ws")+/*)/
+        "ed": /(?:/+include("ws")+/*(?=;|(?:#[^\n]*)?(?:\n|$)))/
         "string": /(?:"[^"\n]*(?:"|/+include("ed")+/))/
-        "val": /(?:/+include("string")+/|[^"\s]+)/
+        "val": /(?:/+include("string")+/|(?:(?!/+include("ws")+/)[^"#;\n])+)/
     ]
     contains: [
         {
-            match: include("bg")+include("val")+/:/+include("ed")
-            0: "label"
+            match: include("bg")+/(/+include("val")+/:)/+include("ed")
+            1: "label"
         }
         {
             match: include("bg")+/(noop)/+include("ed")
             1: "control"
         }
         {
-            match: include("bg")+/(read)\s+(/+include("val")+/)(?:\s+/+include("val")+/){2}/+include("ed")
+            match: include("bg")+/(read)/+include("ws")+/+(/+include("val")+/)(?:/+include("ws")+/+/+include("val")+/){2}/+include("ed")
             1: "io"
             2: "resultVar"
         }
         {
-            match: include("bg")+/(write)(?:\s+/+include("val")+/){3}/+include("ed")
+            match: include("bg")+/(write)(?:/+include("ws")+/+/+include("val")+/){3}/+include("ed")
             1: "io"
         }
         {
-            match: include("bg")+/(draw)\s+(?:(c(?:lear|ol(?:or)?)|stroke|line(?:Rect|Poly)?|rect|poly|triangle|image)|(/+include("val")+/))(?:\s+/+include("val")+/){6}/+include("ed")
+            match: include("bg")+/(draw)/+include("ws")+/+(?:(c(?:lear|ol(?:or)?)|stroke|line(?:Rect|Poly)?|rect|poly|triangle|image)|(/+include("val")+/))(?:/+include("ws")+/+/+include("val")+/){6}/+include("ed")
             1: "io"
             2: "io"
             3: "error"
         }
         {
-            match: include("bg")+/(print)\s+/+include("val")+include("ed")
+            match: include("bg")+/(print)/+include("ws")+/+/+include("val")+include("ed")
             1: "io"
         }
         {
-            match: include("bg")+/(drawflush)\s+/+include("val")+include("ed")
+            match: include("bg")+/(drawflush)/+include("ws")+/+/+include("val")+include("ed")
             1: "block"
         }
         {
-            match: include("bg")+/(printflush)\s+/+include("val")+include("ed")
+            match: include("bg")+/(printflush)/+include("ws")+/+/+include("val")+include("ed")
             1: "block"
         }
         {
-            match: include("bg")+/(getlink)\s+(/+include("val")+/)\s+/+include("val")+include("ed")
+            match: include("bg")+/(getlink)/+include("ws")+/+(/+include("val")+/)/+include("ws")+/+/+include("val")+include("ed")
             1: "block"
             2: "resultVar"
         }
         {
-            match: include("bg")+/(control)\s+(?:(enabled|shootp?|co(?:nfig|lor))|(/+include("val")+/))(?:\s+/+include("val")+/){5}/+include("ed")
+            match: include("bg")+/(control)/+include("ws")+/+(?:(enabled|shootp?|co(?:nfig|lor))|(/+include("val")+/))(?:/+include("ws")+/+/+include("val")+/){5}/+include("ed")
             1: "block"
             2: "block"
             3: "error"
         }
         {
-            match: include("bg")+/(radar)(?:(?:\s+(?:(a(?:ny|lly|ttacker)|enemy|player|flying|boss|ground)|(/+include("val")+/))){3})\s+(?:(distance|health|shield|armor|maxHealth)|(/+include("val")+/))(?:\s+/+include("val")+/){2}\s+(/+include("val")+/)/+include("ed")
+            match: include("bg")+/(radar)(?:(?:/+include("ws")+/+(?:(a(?:ny|lly|ttacker)|enemy|player|flying|boss|ground)|(/+include("val")+/))){3})/+include("ws")+/+(?:(distance|health|shield|armor|maxHealth)|(/+include("val")+/))(?:/+include("ws")+/+/+include("val")+/){2}/+include("ws")+/+(/+include("val")+/)/+include("ed")
             recordAllGroups: true
             1: "block"
             2: "block"
@@ -77,24 +79,24 @@
             6: "resultVar"
         }
         {
-            match: include("bg")+/(sensor)\s+(/+include("val")+/)(?:\s+/+include("val")+/){2}/+include("ed")
+            match: include("bg")+/(sensor)/+include("ws")+/+(/+include("val")+/)(?:/+include("ws")+/+/+include("val")+/){2}/+include("ed")
             1: "block"
             2: "resultVar"
         }
         {
-            match: include("bg")+/(set)\s+(/+include("val")+/)\s+/+include("val")+include("ed")
+            match: include("bg")+/(set)/+include("ws")+/+(/+include("val")+/)/+include("ws")+/+/+include("val")+include("ed")
             1: "operation"
             2: "resultVar"
         }
         {
-            match: include("bg")+/(op)\s+(?:(a(?:bs|cos|dd|n(?:d|gle(?:Diff)?)|sin|tan)|c(?:eil|os)|div|equal|floor|greaterThan(?:Eq)?|idiv|l(?:and|e(?:n|ssThan(?:Eq)?)|og(?:10)?)|m(?:ax|in|od|ul)|no(?:ise|t(?:Equal)?)|or|pow|rand|s(?:h(?:l|r)|in|qrt|trictEqual|ub)|tan|xor)|(/+include("val")+/))\s+(/+include("val")+/)\s+/+include("val")+/\s+/+include("val")+include("ed")
+            match: include("bg")+/(op)/+include("ws")+/+(?:(a(?:bs|cos|dd|n(?:d|gle(?:Diff)?)|sin|tan)|c(?:eil|os)|div|equal|floor|greaterThan(?:Eq)?|idiv|l(?:and|e(?:n|ssThan(?:Eq)?)|og(?:10)?)|m(?:ax|in|od|ul)|no(?:ise|t(?:Equal)?)|or|pow|rand|s(?:h(?:l|r)|in|qrt|trictEqual|ub)|tan|xor)|(/+include("val")+/))/+include("ws")+/+(/+include("val")+/)/+include("ws")+/+/+include("val")+include("ws")+/+/+include("val")+include("ed")
             1: "operation"
             2: "operation"
             3: "error"
             4: "resultVar"
         }
         {
-            match: include("bg")+/(wait)\s+/+include("val")+include("ed")
+            match: include("bg")+/(wait)/+include("ws")+/+/+include("val")+include("ed")
             1: "control"
         }
         {
@@ -102,14 +104,14 @@
             1: "control"
         }
         {
-            match: include("bg")+/(lookup)\s+(?:(item|block|unit|liquid)|(/+include("val")+/))\s+(/+include("val")+/)\s+/+include("val")+include("ed")
+            match: include("bg")+/(lookup)/+include("ws")+/+(?:(item|block|unit|liquid)|(/+include("val")+/))/+include("ws")+/+(/+include("val")+/)/+include("ws")+/+/+include("val")+include("ed")
             1: "operation"
             2: "operation"
             3: "error"
             4: "resultVar"
         }
         {
-            match: include("bg")+/(packcolor)\s+(/+include("val")+/)(?:\s+/+include("val")+/){4}/+include("ed")
+            match: include("bg")+/(packcolor)/+include("ws")+/+(/+include("val")+/)(?:/+include("ws")+/+/+include("val")+/){4}/+include("ed")
             1: "operation"
             2: "resultVar"
         }
@@ -118,18 +120,18 @@
             1: "control"
         }
         {
-            match: include("bg")+/(jump)\s+(/+include("val")+/)\s+(?:(equal|notEqual|lessThan(?:Eq)?|greaterThan(?:Eq)?|strictEqual|always)|(/+include("val")+/))(?:\s+/+include("val")+/){2}/+include("ed")
+            match: include("bg")+/(jump)/+include("ws")+/+(/+include("val")+/)/+include("ws")+/+(?:(equal|notEqual|lessThan(?:Eq)?|greaterThan(?:Eq)?|strictEqual|always)|(/+include("val")+/))(?:/+include("ws")+/+/+include("val")+/){2}/+include("ed")
             1: "control"
             2: "control"
             3: "control"
             4: "error"
         }
         {
-            match: include("bg")+/(ubind)\s+/+include("val")+include("ed")
+            match: include("bg")+/(ubind)/+include("ws")+/+/+include("val")+include("ed")
             1: "unit"
         }
         {
-            match: include("bg")+/(ucontrol)\s+(?:(getBlock)(?:\s+/+include("val")+/){2}((?:\s+/+include("val")+/){3})|(within)(?:\s+/+include("val")+/){3}\s+(/+include("val")+/)\s+/+include("val")+/|(i(?:dle|tem(?:Drop|Take))|stop|m(?:ove|ine)|a(?:pproach|utoPathfind)|pa(?:thfind|y(?:Drop|Take|Enter))|b(?:oost|uild)|targetp?|flag|unbind)(?:\s+/+include("val")+/){5}|(/+include("val")+/)(?:\s+/+include("val")+/){5})/+include("ed")
+            match: include("bg")+/(ucontrol)/+include("ws")+/+(?:(getBlock)(?:/+include("ws")+/+/+include("val")+/){2}((?:/+include("ws")+/+/+include("val")+/){3})|(within)(?:/+include("ws")+/+/+include("val")+/){3}/+include("ws")+/+(/+include("val")+/)/+include("ws")+/+/+include("val")+/|(i(?:dle|tem(?:Drop|Take))|stop|m(?:ove|ine)|a(?:pproach|utoPathfind)|pa(?:thfind|y(?:Drop|Take|Enter))|b(?:oost|uild)|targetp?|flag|unbind)(?:/+include("ws")+/+/+include("val")+/){5}|(/+include("val")+/)(?:/+include("ws")+/+/+include("val")+/){5})/+include("ed")
             1: "unit"
             2: "unit"
             3: "resultVar"
@@ -139,7 +141,7 @@
             7: "error"
         }
         {
-            match: include("bg")+/(uradar)(?:(?:\s+(?:(a(?:ny|lly|ttacker)|enemy|player|flying|boss|ground)|(/+include("val")+/))){3})\s+(?:(distance|health|shield|armor|maxHealth)|(/+include("val")+/))(?:\s+/+include("val")+/){2}\s+(/+include("val")+/)/+include("ed")
+            match: include("bg")+/(uradar)(?:(?:/+include("ws")+/+(?:(a(?:ny|lly|ttacker)|enemy|player|flying|boss|ground)|(/+include("val")+/))){3})/+include("ws")+/+(?:(distance|health|shield|armor|maxHealth)|(/+include("val")+/))(?:/+include("ws")+/+/+include("val")+/){2}/+include("ws")+/+(/+include("val")+/)/+include("ed")
             recordAllGroups: true
             1: "unit"
             2: "block"
@@ -149,7 +151,7 @@
             6: "resultVar"
         }
         {
-            match: include("bg")+/(ulocate)\s+(?:(ore)\s+(?:(core|storage|generator|turret|factory|r(?:e(?:pair|actor)|ally)|battery)|(/+include("val")+/))(?:\s+/+include("val")+/){2}((?:\s+/+include("val")+/){3})\s+/+include("val")+/|(building|spawn|damaged)\s+(?:(core|storage|generator|turret|factory|r(?:e(?:pair|actor)|ally)|battery)|(/+include("val")+/))(?:\s+/+include("val")+/){2}((?:\s+/+include("val")+/){4})|(/+include("val")+/)\s+(?:(core|storage|generator|turret|factory|r(?:e(?:pair|actor)|ally)|battery)|(/+include("val")+/))(?:\s+/+include("val")+/){6})/+include("ed")
+            match: include("bg")+/(ulocate)/+include("ws")+/+(?:(ore)/+include("ws")+/+(?:(core|storage|generator|turret|factory|r(?:e(?:pair|actor)|ally)|battery)|(/+include("val")+/))(?:/+include("ws")+/+/+include("val")+/){2}((?:/+include("ws")+/+/+include("val")+/){3})/+include("ws")+/+/+include("val")+/|(building|spawn|damaged)/+include("ws")+/+(?:(core|storage|generator|turret|factory|r(?:e(?:pair|actor)|ally)|battery)|(/+include("val")+/))(?:/+include("ws")+/+/+include("val")+/){2}((?:/+include("ws")+/+/+include("val")+/){4})|(/+include("val")+/)/+include("ws")+/+(?:(core|storage|generator|turret|factory|r(?:e(?:pair|actor)|ally)|battery)|(/+include("val")+/))(?:/+include("ws")+/+/+include("val")+/){6})/+include("ed")
             1: "unit"
             2: "unit"
             3: "unit"
@@ -165,67 +167,67 @@
         }
         // TODO 以下世界处理器专属未完成
         {
-            match: include("bg")+/(getblock)\s+.*/+include("ed")
+            match: include("bg")+/(getblock)/+include("ws")+/+.*/+include("ed")
             1: "world"
         }
         {
-            match: include("bg")+/(setblock)\s+.*/+include("ed")
+            match: include("bg")+/(setblock)/+include("ws")+/+.*/+include("ed")
             1: "world"
         }
         {
-            match: include("bg")+/(spawn)\s+.*/+include("ed")
+            match: include("bg")+/(spawn)/+include("ws")+/+.*/+include("ed")
             1: "world"
         }
         {
-            match: include("bg")+/(status)\s+.*/+include("ed")
+            match: include("bg")+/(status)/+include("ws")+/+.*/+include("ed")
             1: "world"
         }
         {
-            match: include("bg")+/(spawnwave)\s+.*/+include("ed")
+            match: include("bg")+/(spawnwave)/+include("ws")+/+.*/+include("ed")
             1: "world"
         }
         {
-            match: include("bg")+/(setrule)\s+.*/+include("ed")
+            match: include("bg")+/(setrule)/+include("ws")+/+.*/+include("ed")
             1: "world"
         }
         {
-            match: include("bg")+/(message)\s+.*/+include("ed")
+            match: include("bg")+/(message)/+include("ws")+/+.*/+include("ed")
             1: "world"
         }
         {
-            match: include("bg")+/(cutscene)\s+.*/+include("ed")
+            match: include("bg")+/(cutscene)/+include("ws")+/+.*/+include("ed")
             1: "world"
         }
         {
-            match: include("bg")+/(effect)\s+.*/+include("ed")
+            match: include("bg")+/(effect)/+include("ws")+/+.*/+include("ed")
             1: "world"
         }
         {
-            match: include("bg")+/(explosion)\s+.*/+include("ed")
+            match: include("bg")+/(explosion)/+include("ws")+/+.*/+include("ed")
             1: "world"
         }
         {
-            match: include("bg")+/(setrate)\s+.*/+include("ed")
+            match: include("bg")+/(setrate)/+include("ws")+/+.*/+include("ed")
             1: "world"
         }
         {
-            match: include("bg")+/(fetch)\s+.*/+include("ed")
+            match: include("bg")+/(fetch)/+include("ws")+/+.*/+include("ed")
             1: "world"
         }
         {
-            match: include("bg")+/(sync)\s+.*/+include("ed")
+            match: include("bg")+/(sync)/+include("ws")+/+.*/+include("ed")
             1: "world"
         }
         {
-            match: include("bg")+/(getflag)\s+.*/+include("ed")
+            match: include("bg")+/(getflag)/+include("ws")+/+.*/+include("ed")
             1: "world"
         }
         {
-            match: include("bg")+/(setflag)\s+.*/+include("ed")
+            match: include("bg")+/(setflag)/+include("ws")+/+.*/+include("ed")
             1: "world"
         }
         {
-            match: include("bg")+/(setprop)\s+.*/+include("ed")
+            match: include("bg")+/(setprop)/+include("ws")+/+.*/+include("ed")
             1: "world"
         }
     ]
