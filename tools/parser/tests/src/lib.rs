@@ -2270,6 +2270,39 @@ fn op_expr_test() {
         op x (op $ a < b;) < c;
         "#).unwrap(),
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x += 2;
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            take ___0 = x;
+            op ___0 ___0 + 2;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x += y*z;
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            take ___0 = x;
+            op ___0 ___0 + (op $ y * z;);
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = y--2;
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = y - -2;
+        "#).unwrap(),
+    );
 }
 
 #[test]

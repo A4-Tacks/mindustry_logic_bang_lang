@@ -431,6 +431,23 @@ OpExpr: LogicLine = {
         results.reverse();
         op_expr_build_results(meta, results, values)
     },
+    <IOpExpr> LEnd => <>.into(),
+}
+
+IOpExpr: Expand = {
+    <v:Value> "+="  <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Add (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
+    <v:Value> "-="  <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Sub (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
+    <v:Value> "*="  <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Mul (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
+    <v:Value> "/="  <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Div (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
+    <v:Value> "//=" <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Idiv(tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
+    <v:Value> "%="  <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Mod (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
+    <v:Value> "**=" <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Pow (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
+    <v:Value> "&&=" <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Land(tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
+    <v:Value> "<<=" <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Shl (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
+    <v:Value> ">>=" <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Shr (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
+    <v:Value> "|="  <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Or  (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
+    <v:Value> "&="  <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::And (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
+    <v:Value> "^="  <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Xor (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
 }
 
 // 多个接收者的OpExpr, 例如`a, b, c = 1;`
