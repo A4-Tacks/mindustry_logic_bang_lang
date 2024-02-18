@@ -929,7 +929,7 @@ pub fn mdt_logic_split(s: &str) -> Result<Vec<&str>, usize> {
         debug_assert!(! s1.chars().next().unwrap().is_whitespace());
         if s1.starts_with('"') {
             // string
-            if let Some(mut idx) = s1.trim_start_matches('"').find('"') {
+            if let Some(mut idx) = s1.strip_prefix('"').unwrap().find('"') {
                 idx += '"'.len_utf8();
                 res.push(&s1[..=idx]);
                 s1 = &s1[idx..];
@@ -1518,6 +1518,7 @@ mod tests {
             (r#"    "你好"  "#,             &["\"你好\""]),
             (r#"甲乙"丙丁"  "#,             &["甲乙", "\"丙丁\""]),
             (r#"张三 李四"#,                &["张三", "李四"]),
+            (r#"    ""  "#,                 &["\"\""]),
         ];
         for &(src, args) in datas {
             assert_eq!(&mdt_logic_split(src).unwrap(), args);

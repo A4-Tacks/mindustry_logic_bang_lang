@@ -1,0 +1,387 @@
+use core::fmt;
+
+use lazy_regex::regex_is_match;
+use var_utils::{AsVarType, VarType};
+
+use crate::{Var, Source};
+
+macro_rules! color_str {
+    ($fnum:literal $($num:literal)* : $str:literal) => {
+        concat!(
+            "\x1b[",
+            stringify!($fnum),
+            $(";", stringify!($num), )*
+            "m",
+            $str,
+            "\x1b[0m",
+        )
+    };
+}
+macro_rules! make_lints {
+    {
+        $lint_vis:vis fn $lint_name:ident<$lifetime:lifetime>($src:ident, $line:ident) -> $res_ty:ty;
+        let $lints:ident;
+        $(
+            $(|)? $($prefix:literal)|+ ($argc:literal) $body:block
+        )*
+    } => {
+        $lint_vis fn $lint_name<$lifetime>(
+            $src: &$lifetime $crate::Source<$lifetime>,
+            $line: &$lifetime $crate::Line<$lifetime>,
+        ) -> Vec<$res_ty> {
+            let mut $lints = Vec::<$res_ty>::new();
+            match $line.args() {
+                $(
+                    [$crate::Var { value: $($prefix)|+, .. }, ..] => {
+                        $lints.extend(check_argc($src, $line, $argc));
+                        $body
+                    },
+                )*
+                [] => unreachable!(),
+                [_, ..] => (),
+            }
+            $lints
+        }
+    };
+}
+
+fn check_assigh_var<'a>(
+    src: &'a crate::Source<'a>,
+    line: &'a crate::Line<'a>,
+    var: &'a Var<'a>,
+) -> Option<Lint<'a>> {
+    match var.as_var_type() {
+        VarType::String(_) | VarType::Number(_) => {
+            Lint::new(var, WarningLint::AssignLiteral).into()
+        },
+        VarType::Var(_) => check_var(src, line, var),
+    }
+}
+fn check_var<'a>(
+    _src: &'a crate::Source<'a>,
+    _line: &'a crate::Line<'a>,
+    var: &'a Var<'a>,
+) -> Option<Lint<'a>> {
+    match var.value() {
+        "__" => Lint::new(
+            var,
+            WarningLint::UsedDoubleUnderline).into(),
+        s if regex_is_match!(r"^_\d+$", s) => Lint::new(
+            var,
+            WarningLint::UsedRawArgs).into(),
+        s if !s.is_empty() && s.chars().next().unwrap().is_uppercase() => {
+            Lint::new(
+                var,
+                WarningLint::SuspectedConstant
+            ).into()
+        },
+        _ => None,
+    }
+}
+fn check_vars<'a>(
+    src: &'a crate::Source<'a>,
+    line: &'a crate::Line<'a>,
+    vars: impl IntoIterator<Item = &'a Var<'a>> + 'a,
+) -> impl Iterator<Item = Lint<'a>> + 'a {
+    vars.into_iter()
+        .filter_map(|var| check_var(src, line, var))
+}
+fn check_argc<'a>(
+    _src: &'a crate::Source<'a>,
+    line: &'a crate::Line<'a>,
+    expected: usize,
+) -> Option<Lint<'a>> {
+    let len = line.args().len() - 1;
+    if len == expected {
+        return None;
+    }
+    Lint::new(
+        line.args().first().unwrap(),
+        WarningLint::ArgsCountNotMatch {
+            expected,
+            found: len,
+        }
+    ).into()
+}
+
+const OP_METHODS: &[&str] = &[
+    "add", "sub", "mul", "div", "idiv", "mod",
+    "pow", "equal", "notEqual", "land", "lessThan", "lessThanEq",
+    "greaterThan", "greaterThanEq", "strictEqual", "shl", "shr", "or",
+    "and", "xor", "not", "max", "min", "angle",
+    "angleDiff", "len", "noise", "abs", "log", "log10",
+    "floor", "ceil", "sqrt", "rand", "sin", "cos",
+    "tan", "asin", "acos", "atan",
+];
+const UNIT_CONTROL_METHODS: &[&str] = &[
+    "idle", "stop", "move", "approach", "pathfind",
+    "autoPathfind", "boost", "target", "targetp", "itemDrop",
+    "itemTake", "payDrop", "payTake", "payEnter", "mine",
+    "flag", "build", "getBlock", "within", "unbind",
+];
+
+make_lints! {
+    pub fn lint<'a>(src, line) -> Lint<'a>;
+    let lints;
+    "set" | "getlink" (2) {
+        if let [_, result, ..] = line.args() {
+            lints.extend(check_assigh_var(src, line, result))
+        }
+        if let [_, _, var, ..] = line.args() {
+            lints.extend(check_vars(src, line, [var]))
+        }
+    }
+    "op" (4) {
+        if let [_, oper, ..] = line.args() {
+            if !OP_METHODS.contains(&oper.value()) {
+                lints.push(Lint::new(oper, ErrorLint::InvalidOper))
+            }
+        }
+        if let [_, _, result, ..] = line.args() {
+            lints.extend(check_assigh_var(src, line, result))
+        }
+        if let [_, _, _, var, var1, ..] = line.args() {
+            lints.extend(check_vars(src, line, [var, var1]))
+        }
+    }
+    "lookup" (3) {
+        if let [_, mode, result, index, ..] = line.args() {
+            match mode.value() {
+                "block" | "unit" | "item" | "liquid" => (),
+                _ => lints.push(Lint::new(mode, ErrorLint::InvalidOper)),
+            }
+            lints.extend(check_assigh_var(src, line, result));
+            lints.extend(check_vars(src, line, [index]));
+        }
+    }
+    "ucontrol" (6) {
+        if let [_, oper, args @ ..] = line.args() {
+            if !UNIT_CONTROL_METHODS.contains(&oper.value()) {
+                lints.push(Lint::new(oper, ErrorLint::InvalidOper))
+            }
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "ulocate" (8) {
+        if let [_, mode, btype, args @ ..] = line.args() {
+            match mode.value() {
+                "building" | "ore" | "spawn" | "damaged" => (),
+                _ => lints.push(Lint::new(mode, ErrorLint::InvalidOper)),
+            }
+            match btype.value() {
+                | "core" | "storage" | "generator" | "turret" | "factory"
+                | "repair" | "rally" | "battery" | "reactor" => (),
+                _ => lints.push(Lint::new(btype, ErrorLint::InvalidOper)),
+            }
+            lints.extend(check_vars(src, line, args))
+        }
+    }
+    "end" | "stop" (0) {}
+    "print" | "printflush" | "drawflush" | "wait" | "ubind" (1) {
+        if let [_, var, ..] = line.args() {
+            lints.extend(check_vars(src, line, [var]))
+        }
+    }
+    "packcolor" (5) {
+        if let [_, result, args @ ..] = line.args() {
+            lints.extend(check_assigh_var(src, line, result));
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "control" (6) {
+        if let [_, mode, args @ ..] = line.args() {
+            match mode.value() {
+                "enabled" | "shoot" | "shootp" | "config" | "color" => (),
+                _ => lints.push(Lint::new(mode, ErrorLint::InvalidOper)),
+            }
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "read" (3) {
+        if let [_, result, args @ ..] = line.args() {
+            lints.extend(check_assigh_var(src, line, result));
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "draw" (7) {
+        if let [_, mode, args @ ..] = line.args() {
+            match mode.value() {
+                | "clear" | "color" | "col" | "stroke" | "line" | "rect"
+                | "lineRect" | "poly" | "linePoly" | "triangle" | "image"
+                => (),
+                _ => lints.push(Lint::new(mode, ErrorLint::InvalidOper)),
+            }
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "write" (3) {
+        if let [_, args @ ..] = line.args() {
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "radar" | "uradar" (7) {
+        fn check_filter<'a>(arg: &'a Var<'a>) -> Option<Lint<'a>> {
+            match arg.value() {
+                | "any" | "enemy" | "ally" | "player" | "attacker"
+                | "flying" | "boss" | "ground"
+                => None,
+                | _
+                => Lint::new(arg, ErrorLint::InvalidOper).into(),
+            }
+        }
+        if let [_, filt1, filt2, filt3, order, from, rev, result]
+        = line.args() {
+            lints.extend(check_filter(filt1));
+            lints.extend(check_filter(filt2));
+            lints.extend(check_filter(filt3));
+            lints.extend(check_vars(src, line, [order, from, rev]));
+            lints.extend(check_assigh_var(src, line, result));
+        }
+    }
+}
+
+pub trait ShowLint {
+    fn show_lint(
+        &self,
+        src: &Source<'_>,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result;
+}
+
+#[derive(Debug)]
+pub struct Lint<'a> {
+    arg: &'a Var<'a>,
+    msg: LintType,
+}
+impl<'a> Lint<'a> {
+    pub fn new(arg: &'a Var<'a>, msg: impl Into<LintType>) -> Self {
+        Self { arg, msg: msg.into() }
+    }
+}
+impl ShowLint for Lint<'_> {
+    fn show_lint(
+        &self,
+        src: &Source<'_>,
+        f: &mut fmt::Formatter<'_>,
+    ) -> Result<(), std::fmt::Error> {
+        let lineno = self.arg.lineno();
+        let arg_idx = self.arg.arg_idx();
+        write!(
+            f, concat!("{} ", color_str!(33: "[{}@{}]"), ": "),
+            self.msg.lint_type(),
+            lineno,
+            arg_idx,
+        )?;
+        self.msg.show_lint(src, f)?;
+        write!(f, "\n")?;
+
+        let (prelines, suflines)
+            = src.view_lines(lineno, (2, 2));
+
+        macro_rules! show_lines {
+            ($lines:expr) => {{
+                for line in $lines {
+                    writeln!(f, "    {}", line.hint_args(&[]).join(" "))?;
+                }
+            }};
+        }
+
+        let args = src.lines()[lineno].hint_args(&[arg_idx]);
+        show_lines!(prelines);
+        writeln!(f, concat!(color_str!(1 92: "==>"), " {}"), args.join(" "))?;
+        show_lines!(suflines);
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub enum LintType {
+    Warning(WarningLint),
+    Error(ErrorLint),
+}
+impl LintType {
+    pub fn lint_type(&self) -> &'static str {
+        match self {
+            LintType::Warning(_) => color_str!(1 93: "Warning"),
+            LintType::Error(_) => color_str!(1 91: "Error"),
+        }
+    }
+}
+impl From<WarningLint> for LintType {
+    fn from(value: WarningLint) -> Self {
+        Self::Warning(value)
+    }
+}
+impl From<ErrorLint> for LintType {
+    fn from(value: ErrorLint) -> Self {
+        Self::Error(value)
+    }
+}
+impl ShowLint for LintType {
+    fn show_lint(
+        &self,
+        src: &Source<'_>,
+        f: &mut fmt::Formatter<'_>,
+    ) -> Result<(), std::fmt::Error> {
+        match self {
+            LintType::Warning(warn) => warn.show_lint(src, f),
+            LintType::Error(err) => err.show_lint(src, f),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum WarningLint {
+    /// 显式使用双下划线名称
+    UsedDoubleUnderline,
+    /// 直接使用未被替换的参数调用协定, 如`_0`
+    UsedRawArgs,
+    /// 参数数量不匹配
+    ArgsCountNotMatch {
+        expected: usize,
+        found: usize,
+    },
+    /// 向字面量赋值
+    AssignLiteral,
+    /// 从命名来看疑似是未被替换的常量
+    SuspectedConstant,
+}
+impl ShowLint for WarningLint {
+    fn show_lint(
+        &self,
+        _src: &Source<'_>,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        match self {
+            WarningLint::UsedDoubleUnderline => write!(f, "使用了双下划线")?,
+            WarningLint::UsedRawArgs => write!(f, "使用了参数协定的原始格式")?,
+            WarningLint::ArgsCountNotMatch { expected, found } => {
+                write!(
+                    f,
+                    "不合预期的参数个数, 期待{expected}个, 得到{found}个")?
+            },
+            WarningLint::AssignLiteral => write!(f, "对字面量进行操作")?,
+            WarningLint::SuspectedConstant => {
+                write!(f, "命名疑似未被替换的常量")?
+            },
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub enum ErrorLint {
+    InvalidOper,
+}
+impl ShowLint for ErrorLint {
+    fn show_lint(
+        &self,
+        _src: &Source<'_>,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        match self {
+            ErrorLint::InvalidOper => write!(f, "无效的操作符")?,
+        }
+        Ok(())
+    }
+}

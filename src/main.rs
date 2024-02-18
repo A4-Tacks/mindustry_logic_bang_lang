@@ -27,6 +27,7 @@ use parser::{
     },
 };
 use tag_code::TagCodes;
+use logic_lint::Source;
 
 /// 带有错误前缀, 并且文本为红色的eprintln
 macro_rules! err {
@@ -62,6 +63,7 @@ pub const HELP_MSG: &str = concat_lines! {
     "\t", "r: compile MdtLogicCode to MdtBangLang";
     "\t", "R: compile MdtLogicCode to MdtBangLang (Builded TagDown)";
     "\t", "C: compile MdtTagCode to MdtLogicCode";
+    "\t", "l: lint MdtLogicCode";
     ;
     "input from stdin";
     "output to stdout";
@@ -98,7 +100,7 @@ fn main() {
     );
     let mut src = read_stdin();
     for mode in modes {
-        src = mode.compile(&src)
+        src = mode.compile(src)
     }
     println!("{src}")
 }
@@ -111,33 +113,34 @@ enum CompileMode {
     MdtLogicToMdtTagCode { tag_down: bool },
     MdtLogicToBang { tag_down: bool },
     MdtTagCodeToMdtLogic,
+    LintLogic,
 }
 impl CompileMode {
-    fn compile(&self, src: &str) -> String {
+    fn compile(&self, src: String) -> String {
         match *self {
             Self::BangToMdtLogic => {
-                let ast = build_ast(src);
+                let ast = build_ast(&src);
                 let mut meta = compile_ast(ast);
                 build_tag_down(&mut meta);
                 let logic_lines = meta.tag_codes_mut().compile().unwrap();
                 logic_lines.join("\n")
             },
             Self::BangToASTDebug => {
-                let ast = build_ast(src);
+                let ast = build_ast(&src);
                 format!("{ast:#?}")
             },
             Self::BangToASTDisplay => {
-                let ast = build_ast(src);
+                let ast = build_ast(&src);
                 display_ast(&ast)
             },
             Self::BangToMdtTagCode { tag_down } => {
-                let ast = build_ast(src);
+                let ast = build_ast(&src);
                 let mut meta = compile_ast(ast);
                 if tag_down { build_tag_down(&mut meta); }
                 meta.tag_codes().to_string()
             },
             Self::MdtLogicToMdtTagCode { tag_down } => {
-                match TagCodes::from_str(src) {
+                match TagCodes::from_str(&src) {
                     Ok(mut lines) => {
                         if tag_down {
                             lines.build_tagdown().unwrap();
@@ -152,7 +155,7 @@ impl CompileMode {
                 }
             },
             Self::MdtLogicToBang { tag_down } => {
-                match TagCodes::from_str(src) {
+                match TagCodes::from_str(&src) {
                     Ok(mut lines) => {
                         if tag_down {
                             lines.build_tagdown().unwrap();
@@ -183,11 +186,16 @@ impl CompileMode {
                 }
             },
             Self::MdtTagCodeToMdtLogic => {
-                let tag_codes = TagCodes::from_tag_lines(src);
+                let tag_codes = TagCodes::from_tag_lines(&src);
                 let mut meta = CompileMeta::with_tag_codes(tag_codes);
                 build_tag_down(&mut meta);
                 let logic_lines = meta.tag_codes_mut().compile().unwrap();
                 logic_lines.join("\n")
+            },
+            Self::LintLogic => {
+                let linter = Source::from_str(&src);
+                linter.show_lints();
+                src
             },
         }
     }
@@ -207,6 +215,7 @@ impl TryFrom<char> for CompileMode {
             'r' => Self::MdtLogicToBang { tag_down: false },
             'R' => Self::MdtLogicToBang { tag_down: true },
             'C' => Self::MdtTagCodeToMdtLogic,
+            'l' => Self::LintLogic,
             mode => return Err(mode),
         })
     }
@@ -337,7 +346,14 @@ fn unwrap_parse_err(result: ParseResult<'_>, src: &str) -> Expand {
                     let [loc] = get_locations(src, [location]);
                     let view = &src[
                         location
-                            ..src.len().min(location+MAX_INVALID_TOKEN_VIEW)
+                        ..
+                        src.len().min(
+                            src[location..]
+                                .char_indices()
+                                .map(|(i, _ch)| location+i)
+                                .take(MAX_INVALID_TOKEN_VIEW+1)
+                                .last()
+                                .unwrap_or(location))
                     ];
                     err!(
                         "在位置 {:?} 处找到无效的令牌: {:?}",

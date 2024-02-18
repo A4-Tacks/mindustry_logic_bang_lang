@@ -1,6 +1,6 @@
 [package]
 name = "mindustry_logic_bang_lang"
-version = "0.14.17"
+version = "0.14.18"
 edition = "2021"
 
 authors = ["A4-Tacks <wdsjxhno1001@163.com>"]
@@ -19,6 +19,7 @@ members = [
     "./tools/tag_code",
     "./tools/utils",
     "./tools/var_utils",
+    "./tools/logic_lint",
 ]
 
 [dependencies]
@@ -26,6 +27,7 @@ tag_code = { path = "./tools/tag_code", version = "*" }
 display_source = { path = "./tools/display_source", version = "*" }
 parser = { path = "./tools/parser", version = "*" }
 syntax = { path = "./tools/syntax", version = "*" }
+logic_lint = { path = "./tools/logic_lint", version = "*" }
 
 [profile.release]
 strip = true
