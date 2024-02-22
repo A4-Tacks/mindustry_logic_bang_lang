@@ -5064,4 +5064,51 @@ fn builtin_func_test() {
             "print 1",
         ],
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = ($ = 1+2;);
+        print Builtin.EvalNum[F];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 3",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const N = 2 S = "s" D = ();
+        print Builtin.IsString[N];
+        print Builtin.IsString[2];
+        print Builtin.IsString[D];
+        print Builtin.IsString[()];
+        print Builtin.IsString[S];
+        print Builtin.IsString["s"];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 0",
+            "print 0",
+            "print 0",
+            "print 0",
+            "print 1",
+            "print 1",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = (
+            {
+                take Ref = Builtin.RefArg[0];
+                match Ref { [113] { take Builtin.Exit[2]; } }
+                take Builtin.Const[`N` Ref];
+                print N;
+            }
+        );
+        take F[113];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 113",
+        ],
+    );
 }

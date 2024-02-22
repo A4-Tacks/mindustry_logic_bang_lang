@@ -25,6 +25,9 @@
 * * `MaxExpandDepth[]`: 获取最大展开层数限制
 * * `SetMaxExpandDepth[depth]`: 设置最大展开层数限制
 * * `ExpandStack[]`: 调试输出当前展开栈情况
+* * `EvalNum[num]`: 尝试常量计算一个值, 失败则返回`__`
+* * `IsString[str]`: 返回给定量是否是一个字符串
+* * `RefArg`: 返回指定下标的上层参数句柄, 一般再用Const解开
 *#
 
 print Builtin.Type[x];

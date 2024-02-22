@@ -117,8 +117,8 @@ macro_rules! build_builtin_funcs {
 }
 
 pub fn build_builtins() -> Vec<BuiltinFunc> {
-    fn value_type(value: &Value) -> &'static str {
-        match value {
+    fn value_type(value: impl Borrow<Value>) -> &'static str {
+        match value.borrow() {
             Value::Var(_) => "var",
             Value::DExp(_) => "dexp",
             Value::ReprVar(_) => "reprvar",
@@ -326,6 +326,37 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
         fn expand_stack:ExpandStack(meta) [] {
             meta.log_expand_stack();
             Ok("__".into())
+        }
+
+        fn eval_num:EvalNum(meta) [v:value] {
+            let Some((num, _)) = value.value().try_eval_const_num(meta) else {
+                return Ok("__".into());
+            };
+            Ok(Value::fmt_literal_num(num))
+        }
+
+        fn is_string:IsString(meta) [v:value] {
+            Ok(value.value().as_var()
+                .map(|v| Value::is_string(v)
+                    .then(|| "1".into()))
+                .flatten()
+                .unwrap_or_else(|| "0".into()))
+        }
+
+        fn ref_arg:RefArg(meta) [i:index] {
+            check_type!("var" Value::Var(index) = index.value() => {
+                let Ok(index) = index.parse::<usize>() else {
+                    return Err((2, format!("Invalid start value: {index}")))
+                };
+                let args = meta.get_env_second_args();
+                args.get(index)
+                    .cloned()
+                    .ok_or_else(|| {
+                        (2, format!(
+                            "Index out of range ({index} >= {})",
+                            args.len()))
+                    })
+            })
         }
     }
 }
