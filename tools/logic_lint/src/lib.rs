@@ -1,10 +1,12 @@
 pub mod lints;
 
 use core::fmt;
-use std::{borrow::Cow, ops::Deref};
+use std::{borrow::Cow, collections::HashSet, ops::Deref};
 
-use crate::lints::{ShowLint, Lint};
+use lints::get_useds;
 use tag_code::mdt_logic_split_unwraped;
+
+use crate::lints::{Lint, ShowLint};
 
 const LIGHT_ARGS_BEGIN: &str = "\x1b[7m";
 const LIGHT_ARGS_END: &str = "\x1b[27m";
@@ -29,7 +31,7 @@ impl<'a> Line<'a> {
     }
 
     pub fn hint_args(&self, hints: &[usize]) -> Vec<Cow<'_, str>> {
-        self.args().into_iter()
+        self.args().iter()
             .enumerate()
             .map(|(i, arg)| if hints.contains(&i) {
                 format!(
@@ -52,23 +54,37 @@ impl<'a> Line<'a> {
         self.args.first().unwrap().lineno
     }
 
-    pub fn args(&self) -> &[Var<'_>] {
+    pub fn args(&self) -> &[Var<'a>] {
         self.args.as_ref()
+    }
+
+    pub fn len(&self) -> usize {
+        self.args().len()
     }
 }
 
 #[derive(Debug)]
 pub struct Source<'a> {
     lines: Vec<Line<'a>>,
+    used_vars: HashSet<&'a str>,
 }
 impl<'a> Source<'a> {
     pub fn from_str(s: &'a str) -> Self {
         let lines = s.lines().enumerate()
             .map(|(lineno, line)| Line::from_line(lineno, line))
-            .collect();
+            .collect::<Vec<_>>();
+
+        let used_vars = FromIterator::from_iter(lines.iter()
+            .filter_map(get_useds)
+            .flatten()
+            .filter_map(|used| used.as_read().map(Var::value))
+            .chain([
+                "@counter",
+            ]));
 
         Self {
             lines,
+            used_vars,
         }
     }
 
@@ -90,8 +106,7 @@ impl<'a> Source<'a> {
 
     pub fn lint(&self) -> Vec<lints::Lint> {
         self.lines.iter()
-            .map(|line| line.lint(self))
-            .flatten()
+            .flat_map(|line| line.lint(self))
             .collect()
     }
 
@@ -113,13 +128,12 @@ impl<'a> Source<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Var<'a> {
     lineno: usize,
     arg_idx: usize,
     value: &'a str,
 }
-
 impl<'a> Deref for Var<'a> {
     type Target = str;
 
@@ -133,7 +147,7 @@ impl<'a> Var<'a> {
         Self { lineno, arg_idx, value }
     }
 
-    pub fn value(&self) -> &str {
+    pub fn value(&self) -> &'a str {
         self.value
     }
 

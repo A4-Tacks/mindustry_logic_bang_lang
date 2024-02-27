@@ -223,6 +223,19 @@ fn control_test() {
         }
         "#).unwrap(),
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+        skip _ {
+            print 1;
+        }
+        "#).unwrap(),
+        parse!(parser, r#"
+        skip {
+            print 1;
+        }
+        "#).unwrap(),
+    );
 }
 
 #[test]

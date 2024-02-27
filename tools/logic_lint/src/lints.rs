@@ -1,9 +1,10 @@
 use core::fmt;
+use std::vec;
 
 use lazy_regex::regex_is_match;
 use var_utils::{AsVarType, VarType};
 
-use crate::{Var, Source};
+use crate::{Line, Source, Var};
 
 macro_rules! color_str {
     ($fnum:literal $($num:literal)* : $str:literal) => {
@@ -45,18 +46,198 @@ macro_rules! make_lints {
     };
 }
 
-fn check_assigh_var<'a>(
+#[derive(Debug, Clone, Copy)]
+pub enum VarUsedMethod {
+    /// 匹配将要向其写入
+    Assign,
+    /// 匹配将要读取
+    Read,
+}
+impl VarUsedMethod {
+    /// Returns `true` if the var used method is [`Assign`].
+    ///
+    /// [`Assign`]: VarUsedMethod::Assign
+    #[must_use]
+    pub fn is_assign(&self) -> bool {
+        matches!(self, Self::Assign)
+    }
+
+    /// Returns `true` if the var used method is [`Read`].
+    ///
+    /// [`Read`]: VarUsedMethod::Read
+    #[must_use]
+    pub fn is_read(&self) -> bool {
+        matches!(self, Self::Read)
+    }
+}
+
+#[derive(Debug)]
+pub struct VarUsed<'a> {
+    method: VarUsedMethod,
+    var: Var<'a>,
+}
+impl<'a> VarUsed<'a> {
+    pub fn method(&self) -> VarUsedMethod {
+        self.method
+    }
+
+    pub fn var(&self) -> &Var<'a> {
+        &self.var
+    }
+
+    pub fn as_read(&self) -> Option<&Var<'a>> {
+        if self.method.is_read() {
+            Some(&self.var)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_assign(&self) -> Option<&Var<'a>> {
+        if self.method.is_assign() {
+            Some(&self.var)
+        } else {
+            None
+        }
+    }
+}
+
+enum VarPat {
+    Catch(VarUsedMethod),
+    Lit(&'static str),
+    Any,
+}
+impl VarPat {
+    pub fn pat<'a>(&self, var: Var<'a>) -> Result<Option<VarUsed<'a>>, ()> {
+        match *self {
+            VarPat::Catch(method) => Ok(VarUsed {
+                method,
+                var,
+            }.into()),
+            VarPat::Lit(s) if s == var.value() => Ok(None),
+            VarPat::Any => Ok(None),
+            VarPat::Lit(_) => Err(()),
+        }
+    }
+}
+
+thread_local! {
+    static LINE_PAT: Vec<Vec<VarPat>> = {
+        macro_rules! pat {
+            (_) => {
+                VarPat::Any
+            };
+            ($lit:literal) => {
+                VarPat::Lit($lit)
+            };
+            (a) => {
+                VarPat::Catch(VarUsedMethod::Assign)
+            };
+            (v) => {
+                VarPat::Catch(VarUsedMethod::Read)
+            };
+        }
+        macro_rules! make_pats {
+            {
+                $([
+                    $($t:tt)*
+                ])*
+            } => {
+                vec![
+                    $(
+                        vec![$(pat!($t)),*]
+                    ),*
+                ]
+            };
+        }
+        make_pats! {
+            ["read" v v v]
+            ["write" a v v]
+            ["draw" "clear" v v v]
+            ["draw" "color" v v v v]
+            ["draw" "col" v]
+            ["draw" "stroke" v]
+            ["draw" "line" v v v v]
+            ["draw" "rect" v v v v]
+            ["draw" "lineRect" v v v v]
+            ["draw" "poly" v v v v v]
+            ["draw" "linePoly" v v v v v]
+            ["draw" "triangle" v v v v v v]
+            ["draw" "image" v v v v v]
+            ["print" v]
+            ["drawflush" v]
+            ["printflush" v]
+            ["getlink" a v]
+            ["control" "shoot" v v v v]
+            ["control" "shootp" v v v]
+            ["control" _ v v]
+            ["radar" _ _ _ _ v v a]
+            ["sensor" a v v]
+            ["set" a v]
+            ["op" _ a v v]
+            ["lookup" _ a v]
+            ["packcolor" a v v v v]
+            ["wait" v]
+            ["stop"]
+            ["end"]
+            ["jump" _ _ v v]
+            ["ubind" v]
+            ["ucontrol" "within" v v v a]
+            ["ucontrol" _ v v v v v]
+            ["uradar" _ _ _ _ _ v a]
+            ["ulocate" "ore" _ _ v a a a]
+            ["ulocate" "building" _ v _ a a a a]
+            ["ulocate" "spawn" _ _ _ a a a a]
+            ["ulocate" "damaged" _ _ _ a a a a]
+            // 兜底, 对未录入的语句参数统一为使用
+            [_ v v v v v v v v v v v v v v v v v v]
+        }
+    };
+}
+pub fn get_useds<'a>(line: &Line<'a>) -> Option<Vec<VarUsed<'a>>> {
+    LINE_PAT.with(|pats| {
+        pats.iter()
+            .find_map(|pat| {
+                let mut useds = vec![];
+                for (pat, var) in pat.iter().zip(line.args()) {
+                    match pat.pat(*var) {
+                        Ok(Some(used)) => useds.push(used),
+                        Ok(None) => {},
+                        Err(()) => return None,
+                    }
+                }
+                useds.into()
+            })
+    })
+}
+
+fn vec_optiter<T>(value: Option<Vec<T>>) -> vec::IntoIter<T> {
+    match value {
+        Some(x) => x.into_iter(),
+        None => Vec::new().into_iter(),
+    }
+}
+#[must_use]
+fn check_assign_var<'a>(
     src: &'a crate::Source<'a>,
     line: &'a crate::Line<'a>,
     var: &'a Var<'a>,
-) -> Option<Lint<'a>> {
+) -> impl IntoIterator<Item = Lint<'a>> + 'a {
     match var.as_var_type() {
         VarType::String(_) | VarType::Number(_) => {
-            Lint::new(var, WarningLint::AssignLiteral).into()
+            vec_optiter(vec![Lint::new(var, WarningLint::AssignLiteral)].into())
         },
-        VarType::Var(_) => check_var(src, line, var),
+        VarType::Var(_) => {
+            let mut lints = Vec::new();
+            lints.extend(check_var(src, line, var));
+            if !src.used_vars.contains(var.value()) {
+                lints.push(Lint::new(var, WarningLint::NeverUsed));
+            }
+            vec_optiter(lints.into())
+        },
     }
 }
+#[must_use]
 fn check_var<'a>(
     _src: &'a crate::Source<'a>,
     _line: &'a crate::Line<'a>,
@@ -78,6 +259,7 @@ fn check_var<'a>(
         _ => None,
     }
 }
+#[must_use]
 fn check_vars<'a>(
     src: &'a crate::Source<'a>,
     line: &'a crate::Line<'a>,
@@ -86,6 +268,7 @@ fn check_vars<'a>(
     vars.into_iter()
         .filter_map(|var| check_var(src, line, var))
 }
+#[must_use]
 fn check_argc<'a>(
     _src: &'a crate::Source<'a>,
     line: &'a crate::Line<'a>,
@@ -113,6 +296,11 @@ const OP_METHODS: &[&str] = &[
     "floor", "ceil", "sqrt", "rand", "sin", "cos",
     "tan", "asin", "acos", "atan",
 ];
+const JUMP_METHODS: &[&str] = &[
+    "equal", "notEqual", "lessThan", "lessThanEq",
+    "greaterThan", "greaterThanEq", "strictEqual",
+    "always",
+];
 const UNIT_CONTROL_METHODS: &[&str] = &[
     "idle", "stop", "move", "approach", "pathfind",
     "autoPathfind", "boost", "target", "targetp", "itemDrop",
@@ -125,7 +313,7 @@ make_lints! {
     let lints;
     "set" | "getlink" (2) {
         if let [_, result, ..] = line.args() {
-            lints.extend(check_assigh_var(src, line, result))
+            lints.extend(check_assign_var(src, line, result))
         }
         if let [_, _, var, ..] = line.args() {
             lints.extend(check_vars(src, line, [var]))
@@ -138,7 +326,7 @@ make_lints! {
             }
         }
         if let [_, _, result, ..] = line.args() {
-            lints.extend(check_assigh_var(src, line, result))
+            lints.extend(check_assign_var(src, line, result))
         }
         if let [_, _, _, var, var1, ..] = line.args() {
             lints.extend(check_vars(src, line, [var, var1]))
@@ -150,7 +338,7 @@ make_lints! {
                 "block" | "unit" | "item" | "liquid" => (),
                 _ => lints.push(Lint::new(mode, ErrorLint::InvalidOper)),
             }
-            lints.extend(check_assigh_var(src, line, result));
+            lints.extend(check_assign_var(src, line, result));
             lints.extend(check_vars(src, line, [index]));
         }
     }
@@ -184,7 +372,7 @@ make_lints! {
     }
     "packcolor" (5) {
         if let [_, result, args @ ..] = line.args() {
-            lints.extend(check_assigh_var(src, line, result));
+            lints.extend(check_assign_var(src, line, result));
             lints.extend(check_vars(src, line, args));
         }
     }
@@ -199,7 +387,7 @@ make_lints! {
     }
     "read" (3) {
         if let [_, result, args @ ..] = line.args() {
-            lints.extend(check_assigh_var(src, line, result));
+            lints.extend(check_assign_var(src, line, result));
             lints.extend(check_vars(src, line, args));
         }
     }
@@ -229,13 +417,35 @@ make_lints! {
                 => Lint::new(arg, ErrorLint::InvalidOper).into(),
             }
         }
+        fn check_order<'a>(arg: &'a Var<'a>) -> Option<Lint<'a>> {
+            match arg.value() {
+                | "distance" | "health" | "shield"
+                | "armor" | "maxHealth"
+                => None,
+                | _
+                => Lint::new(arg, ErrorLint::InvalidOper).into(),
+            }
+        }
         if let [_, filt1, filt2, filt3, order, from, rev, result]
         = line.args() {
             lints.extend(check_filter(filt1));
             lints.extend(check_filter(filt2));
             lints.extend(check_filter(filt3));
-            lints.extend(check_vars(src, line, [order, from, rev]));
-            lints.extend(check_assigh_var(src, line, result));
+            lints.extend(check_order(order));
+            lints.extend(check_vars(src, line, [from, rev]));
+            lints.extend(check_assign_var(src, line, result));
+        }
+    }
+    "jump" (4) {
+        if let [_, target, method, a, b]
+        = line.args() {
+            if target.value() == "-1" {
+                lints.push(Lint::new(target, WarningLint::NoTargetJump));
+            }
+            if !JUMP_METHODS.contains(&&**method) {
+                lints.push(Lint::new(method, ErrorLint::InvalidOper));
+            }
+            lints.extend(check_vars(src, line, [a, b]));
         }
     }
 }
@@ -273,7 +483,7 @@ impl ShowLint for Lint<'_> {
             arg_idx,
         )?;
         self.msg.show_lint(src, f)?;
-        write!(f, "\n")?;
+        writeln!(f)?;
 
         let (prelines, suflines)
             = src.view_lines(lineno, (2, 2));
@@ -345,6 +555,9 @@ pub enum WarningLint {
     AssignLiteral,
     /// 从命名来看疑似是未被替换的常量
     SuspectedConstant,
+    /// 未被使用
+    NeverUsed,
+    NoTargetJump,
 }
 impl ShowLint for WarningLint {
     fn show_lint(
@@ -364,6 +577,8 @@ impl ShowLint for WarningLint {
             WarningLint::SuspectedConstant => {
                 write!(f, "命名疑似未被替换的常量")?
             },
+            WarningLint::NeverUsed => write!(f, "未被使用到的量")?,
+            WarningLint::NoTargetJump => write!(f, "没有目标的跳转")?,
         }
         Ok(())
     }

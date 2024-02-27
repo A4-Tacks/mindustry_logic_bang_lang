@@ -799,6 +799,15 @@ pub Control: LogicLine = {
         ]).into()
     },
 
+    "skip" <body:BlockExpand> => {
+        let lab = meta.get_tag();
+        Expand(vec![
+            Goto(lab.clone(), JumpCmp::Always.into()).into(),
+            body.into(),
+            LogicLine::new_label(lab, meta),
+        ]).into()
+    },
+
     "while" <cmp:JumpCmp> CtrlStart <body:LogicLine> <ctrl:CtrlStop> => {
         let (break_lab, continue_lab) = ctrl;
         let [end, head] = [meta.get_tag(), meta.get_tag()];
