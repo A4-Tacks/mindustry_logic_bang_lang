@@ -20,8 +20,8 @@
 * 本编译器已经尽量做到更像逻辑的行为
 *#
 
-take Num = ($ = 1/3;);
-take Foo = ($ = Num*3;);
+take Num = (?1/3);
+take Foo = (?Num*3);
 print Num","Foo;
 printflush message1;
 #* >>>
@@ -31,13 +31,13 @@ print 1
 printflush message1
 *#
 
-take N = (set $ ($ = 1+2;););
+take N = (set $ (?1+2););
 print N;
 #* >>>
 print 3
 *#
 
-take N = ($ = 1e3 / 10;);
+take N = (?1e3 / 10);
 print N;
 #* >>>
 print 100

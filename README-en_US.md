@@ -128,16 +128,16 @@ while id < @unitCount {
         while Bind != first {
             # if the first unit dies, restart this type of counting
             goto :restart (sensor $ first @dead;);
-            icount = icount + 1;
+            icount += 1;
         }
         # Accumulate the number of units to the total number of units
-        count = count + icount;
+        count += icount;
 
         # Print units with units count not equal to zero
         print unit_type ": " icount "\n";
     }
 
-    id = id + 1; # add units type id
+    id += 1; # add units type id
 }
 
 print "unit total: " count;

@@ -1,0 +1,92 @@
+#**
+* 一个方便显示数字的逻辑, 应该是非常高效的, 就是行数有点多
+*#
+
+const Once = (
+    const $.F = _0;
+    const $.V = (__:
+        take Value = ...F;
+        take ...V = Value;
+        setres Value;
+    );
+);
+
+const ShowNum = (
+    # 粗细为2的整数数显, 给定显示右下角, 用负方向显示
+    # DoNeg参数控制是否考虑负数
+    match @ {
+        X Y Num { take DoNeg = 0; }
+        X Y Num DoNeg {}
+        @ {
+            take Builtin.Err["ShowNum argc err"];
+            take N=Builtin.ArgsLen[] Builtin.Err[N];
+        }
+    }
+    match DoNeg { [1] {
+        take IsNeg = (?Num < 0);
+        Num = abs(Num);
+    } }
+    take S = 2; # Size
+
+    take OLen=(?S*2); # offset len
+    take Len=(?S*3) NLen=(?-Len) NS=(?-S);
+    take EWid = S; # 间距
+
+    const Display = (
+        take LBX=Once[(?X-OLen)]    LBY=Once[Y]
+             LMX=Once[LBX.V]        LMY=Once[(?Y+OLen)]
+             RBX=Once[X]            RBY=Once[Y]
+             RMX=Once[X]            RMY=Once[LMY.V]
+             RTX=Once[X]            RTY=Once[(?RMY.V+OLen)]
+        ;
+
+        inline@{
+            match @ {
+                [t]  { draw rect RTX.V RTY.V NLen S 0 0; }
+                [m]  { draw rect RMX.V RMY.V NLen S 0 0; }
+                [b]  { draw rect RBX.V RBY.V NLen S 0 0; }
+                [rb] { draw rect RBX.V RBY.V NS Len 0 0; }
+                [lb] { draw rect LBX.V LBY.V NS Len 0 0; }
+                [rt] { draw rect RMX.V RMY.V NS Len 0 0; }
+                [lt] { draw rect LMX.V LMY.V NS Len 0 0; }
+                Other {
+                    take Builtin.Err["Unknown line"];
+                    take Builtin.Err[Other];
+                }
+            }
+        }
+    );
+
+    do {
+        take N = (?Num%10);
+
+        switch N {
+            break;
+        case: take Display[t b lb rb lt rt];
+        case: take Display[rb rt];
+        case: take Display[t rt m lb b];
+        case: take Display[t m b rt rb];
+        case: take Display[lt m rt rb];
+        case: take Display[t lt m rb b];
+        case: take Display[t lt m lb rb b];
+        case: take Display[t rt rb];
+        case: take Display[t m b rb lb rt lt];
+        case: take Display[t lt rt m rb b];
+        }
+        Num //= 10;
+        X -= Len+EWid;
+    } while Num > 0;
+    match DoNeg { [1] {
+        if IsNeg {
+            take Display[m];
+        }
+    } }
+);
+
+i = -40;
+do {
+    draw clear 0 0 0 0 0 0;
+    take ShowNum[(?(80:)) (?(50:)) (?(i:)) 1];
+    drawflush display1;
+    i += 1;
+} while i < 10000;

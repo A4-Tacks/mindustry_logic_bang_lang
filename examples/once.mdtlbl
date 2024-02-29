@@ -1,0 +1,28 @@
+#**
+* 仅展开一次的包装器
+*#
+
+const Once = (
+    const $.F = _0;
+    const $.V = (__:
+        take Value = ...F;
+        take ...V = Value;
+        setres Value;
+    );
+);
+
+print "begin";
+take Foo = Once[(sensor $ _0 @copper;)];
+print "defined";
+print Foo.V[a];
+print "inited";
+print Foo.V[b];
+
+#* >>>
+print "begin"
+print "defined"
+sensor __5 a @copper
+print __5
+print "inited"
+print __5
+*#
