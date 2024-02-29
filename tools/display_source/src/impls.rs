@@ -67,7 +67,13 @@ impl DisplaySource for DExp {
 }
 impl DisplaySource for ValueBind {
     fn display_source(&self, meta: &mut DisplaySourceMeta) {
-        self.0.display_source(meta);
+        if let Value::DExp(_) = &*self.0 {
+            meta.push("(%");
+            self.0.display_source(meta);
+            meta.push(")");
+        } else {
+            self.0.display_source(meta);
+        }
         meta.push(".");
         self.1.display_source(meta);
     }
@@ -701,5 +707,32 @@ fn display_source_test() {
             .unwrap()
             .display_source_and_get(&mut meta),
         "foo 'match';"
+    );
+
+    assert_eq!(
+        parse!(line_parser, r#"
+        take Foo[a b].x;
+        "#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "take __ = (%(__:\n    # setArgs a b;\n    setres Foo;\n)).x;"
+    );
+
+    assert_eq!(
+        parse!(line_parser, r#"
+        take a.b;
+        "#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "take __ = a.b;"
+    );
+
+    assert_eq!(
+        parse!(line_parser, r#"
+        take $.b;
+        "#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "take __ = $.b;"
     );
 }

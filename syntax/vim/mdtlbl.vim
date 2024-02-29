@@ -42,8 +42,9 @@ syn match mdtlblCmpTreeOper /&&\|||\|!/
 syn match mdtlblArgsExpand /@/
 
 " 注释 {{{1
-syn region mdtlblComment start=/#[^*]\=/ end=/$/ oneline
-syn region mdtlblLongComment start=/#\*/ end=/\*#/ fold
+syn region mdtlblComment start=/#\%([^*]\|$\)/ end=/$/ oneline contains=mdtlblCommentMeta
+syn region mdtlblLongComment start=/#\*/ end=/\*#/ contains=mdtlblCommentMeta fold
+syn keyword mdtlblCommentMeta Todo TODO Note NOTE Hint HINT
 
 setlocal comments=s:#*,mb:*,ex:*#,:#
 setlocal commentstring=#%s
@@ -63,25 +64,25 @@ syn match mdtlblNull /\<null\>/
 
 syn match mdtlblResultHandle /\$/
 
-" Label {{{1
-syn match mdtlblDefineResultHandle /\%((\%(\s\|#\*.*\*#\|\%(#[^*].*\|#\)\=\n\)*\)\@<=\I\i*:/
+" Label And ResultH {{{1
+syn match mdtlblDefineResultHandle /\%(([%?]\=\%(\s\|#\*.*\*#\|\%(#[^*].*\|#\)\=\n\)*\)\@<=\I\i*:/
 
 syn match mdtlblQuickDExpTakeIdent /\I\i*\%(\%(\s\|#\*.*\*#\|\%(#[^*].*\|#\)\=\n\)*\[\)\@=/
 syn match mdtlblIdentLabel /:\I\i*/
 
+" Fold {{{1
 setlocal foldmethod=syntax
 syn region mdtlblBlock start=/{/ end=/}/ transparent fold
 syn region mdtlblDExp start=/(/ end=/)/ transparent fold
 syn region mdtlblArgs matchgroup=mdtlblArgsBracket start=/\[/ end=/\]/ transparent fold
 
 " Indent (缩进控制) {{{1
-
 function! <SID>lineFilter(line)
     " 过滤掉注释与字符串与原始标识符
     let regex_a = ''
                 \. '#\*.\{-}\*#'
                 \. '\|#.*$'
-    let regex_b = '@\I\i*\(-\i*\)*'
+    let regex_b = '@\I\i*\%(-\i*\)*'
                 \. '\|' . "'[^' \\t]*'"
                 \. '\|"[^"]*"'
     let line = substitute(a:line, regex_a, '', 'g')
@@ -100,11 +101,11 @@ function! <SID>getMdtlblIndent()
 
     let diff = 0
 
-    if preline =~# '\([({[:]\|\<\(else\)\>\)$'
+    if preline =~# '\%(([%?]\=\|[{[:]\|\<\%(else\)\>\)$'
         let diff += 1
     endif
 
-    if line =~# '\(^[)}\]]\|\<case\>\)' && !(preline =~# '\<case\>' && preline !~# ':$')
+    if line =~# '^\%(%\=)\|[}\]]\|\<case\>\)' && !(preline =~# '\<case\>' && preline !~# ':$')
         let diff -= 1
     endif
 
@@ -128,6 +129,7 @@ hi def link mdtlblOpFunKeyword Operator
 hi def link mdtlblCmpTreeOper Operator
 hi def link mdtlblComment Comment
 hi def link mdtlblLongComment Comment
+hi def link mdtlblCommentMeta Todo
 hi def link mdtlblStringFailedEscape Error
 hi def link mdtlblStringColor Include
 hi def link mdtlblSpecialChar SpecialChar

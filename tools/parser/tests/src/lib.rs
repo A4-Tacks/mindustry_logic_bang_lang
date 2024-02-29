@@ -2090,6 +2090,48 @@ fn value_bind_test() {
                "print __0",
     ]);
 
+    assert_eq!(
+        parse!(parser, r#"
+        take Foo = (%x).y;
+        "#),
+        parse!(parser, r#"
+        take Foo = x.y;
+        "#),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        print (%(print 1 2;)).x;
+        "#),
+        parse!(parser, r#"
+        print (%print 1 2;%).x;
+        "#),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        print (%(x: print 1 2;)).x;
+        "#),
+        parse!(parser, r#"
+        print (%x: print 1 2;%).x;
+        "#),
+    );
+
+    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+    print (%()).x;
+    "#).unwrap()).compile().unwrap();
+    assert_eq!(logic_lines, vec![
+               "print __1",
+    ]);
+
+    assert_eq!(
+        parse!(parser, r#"
+        print (%(%(%(print 2;))));
+        "#),
+        parse!(parser, r#"
+        print (print 2;);
+        "#),
+    );
 }
 
 #[test]
@@ -2316,6 +2358,24 @@ fn op_expr_test() {
         x = y - -2;
         "#).unwrap(),
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+        take Foo = (?a+b);
+        "#).unwrap(),
+        parse!(parser, r#"
+        take Foo = ($ = a+b;);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        take Foo = (?m: a+b);
+        "#).unwrap(),
+        parse!(parser, r#"
+        take Foo = (m: $ = a+b;);
+        "#).unwrap(),
+    );
 }
 
 #[test]
@@ -2421,6 +2481,33 @@ fn consted_dexp() {
                "print 1",
     ]);
 
+    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+    const Do2 = (
+        const F = _0;
+        take F;
+        take F;
+    );
+    take[
+        const!(
+            if a < b {
+                print 1;
+            } else {
+                print 2;
+            }
+        )
+    ] Do2;
+    "#).unwrap()).compile().unwrap();
+    assert_eq!(logic_lines, vec![
+               "jump 3 lessThan a b",
+               "print 2",
+               "jump 4 always 0 0",
+               "print 1",
+               "jump 7 lessThan a b",
+               "print 2",
+               "jump 0 always 0 0",
+               "print 1",
+    ]);
+
     assert!(CompileMeta::new().compile(parse!(parser, r#"
     const Do2 = (
         const F = _0;
@@ -2437,6 +2524,23 @@ fn consted_dexp() {
         )
     ] Do2;
     "#).unwrap()).compile().is_err());
+
+    assert_eq!(
+        parse!(parser, r#"
+        foo const(:x bar;);
+        "#).unwrap(),
+        parse!(parser, r#"
+        foo const!(:x bar;);
+        "#).unwrap(),
+    );
+
+    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+    const x.Y = 2;
+    print const!(%setres x;%).Y;
+    "#).unwrap()).compile().unwrap();
+    assert_eq!(logic_lines, vec![
+               "print 2",
+    ]);
 }
 
 #[test]

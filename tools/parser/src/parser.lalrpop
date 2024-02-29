@@ -59,10 +59,12 @@ match {
 Or<A, B> = { A, B }; // A或者B
 Or3<A, B, C> = { A, B, C }; // A或者B或者C
 OrSwap<A, B> = { A B, B A }; // 匹配 `A B`或者`B A`
-OrRev<A, M, B> = { A M B, B, M, A }; // 匹配`A M B`或者`B M A`
 OrShl<A, B, C> = { A B C, B C A }; // 匹配`A B C`或者`B C A`, 后者是值进行左移循环得到
 Wrap<Open, T, Close> = Open <T> Close; // 用于定义包裹
 MTuple<T> = Wrap<"(", T, ")">;
+METuple<T> = Wrap<"(?", T, ")">;
+MFTuple<T> = Wrap<"(%", T, ")">;
+MFETuple<T> = Wrap<"(%", T, "%)">;
 MList<T> = Wrap<"[", T, "]">;
 MBlock<T> = Wrap<"{", T, "}">;
 OpenArgs<T, S> = (<T> S)*; // 零至多个有分隔后缀值
@@ -118,33 +120,42 @@ pub Var: Var = {
     NoStringVar,
 }
 
-ValueBind: ValueBind = <value:NonDExpValue> "." <attr:NoStringVar> => {
-    ValueBind(value.into(), attr)
-};
+ValueBind: ValueBind = {
+    <value:NonConstRangeValue> "." <attr:NoStringVar> => {
+        ValueBind(value.into(), attr)
+    },
+}
 
-NonDExpValue: Value = {
-    <v:Var> => v.into(),
+ConstKey: ConstKey = {
+    ValueBind => <>.into(),
+    Var => <>.into(),
+}
+
+NonConstRangeValue: Value = {
+    ConstKey => <>.into(),
     "`" <Var> "`" => ReprVar(<>), // 原始值
     "$" => ResultHandle,
-    <name:NonDExpValue> <args:MList<Args?>> => {
+    <name:NonConstRangeValue> <args:MList<Args?>> => {
         // QuickDExpTake
         DExp::new("__".into(), vec![
             LogicLine::SetArgs(args.unwrap_or_default()),
             LogicLine::SetResultHandle(name),
         ].into()).into()
     },
-    ValueBind => <>.into(),
     "goto" <MTuple<JumpCmpOnce>> => Value::Cmper(<>.into()),
     ".." => Value::Binder,
+    FEDExp => <>.into(),
+    MFTuple<Value>,
+    OpExprDExp => <>.into(),
 }
 
 pub Value: Value = {
-    NonDExpValue,
+    NonConstRangeValue,
     DExp => <>.into(),
     // consted-dexp
-    "const" ConstStart <dexp:DExp> <labels:ConstStop> => {
+    "const" ConstStart <value:Or<ValueDExp, ("!" <Value>)>> <labels:ConstStop> => {
         let tmp_name = meta.get_tmp_var();
-        let dexp_const = Const(tmp_name.clone().into(), dexp.into(), labels);
+        let dexp_const = Const(tmp_name.clone().into(), value.into(), labels);
         DExp::new("__".into(), vec![
             dexp_const.into(),
             LogicLine::SetResultHandle(tmp_name.into()),
@@ -433,6 +444,11 @@ OpExpr: LogicLine = {
     },
     <IOpExpr> LEnd => <>.into(),
 }
+OpExprDExp: DExp = METuple<((<Var> ":")? OpExprBody)> => {
+    let (res, body) = <>;
+    let line = op_expr_build_results(meta, vec![ResultHandle], vec![body]);
+    DExp::new_optional_res(res, vec![line].into())
+};
 
 IOpExpr: Expand = {
     <v:Value> "+="  <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Add (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
@@ -677,11 +693,6 @@ OpExprAtom: OpExprInfo = {
     OpExprCallOp,
 }
 
-ConstKey: ConstKey = {
-    ValueBind => <>.into(),
-    Var => <>.into(),
-}
-
 // 开始一个const, 开启了必须负责清理
 ConstStart: () = () => meta.add_label_scope();
 ConstStop: Vec<Var> = () => Vec::from_iter(meta.pop_label_scope());
@@ -738,6 +749,10 @@ pub Block: LogicLine = BlockExpand => <>.into();
 
 pub DExp: DExp = MTuple<(<(<Var> ":")?> <Expand>)>
     => DExp::new_optional_res(<>.0, <>.1);
+FEDExp: DExp = MFETuple<(<(<Var> ":")?> <Expand>)>
+    => DExp::new_optional_res(<>.0, <>.1);
+#[inline]
+ValueDExp: Value = DExp => <>.into();
 
 SwitchCatchFlag: SwitchCatch = {
     "<" => SwitchCatch::Underflow,
