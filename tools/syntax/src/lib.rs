@@ -1,27 +1,24 @@
 mod builtins;
+#[cfg(test)]
+mod tests;
 
 use std::{
-    num::ParseIntError,
+    borrow::Borrow,
     collections::{HashMap, HashSet},
-    iter::{
-        zip,
-        repeat_with,
-    },
-    process::exit,
+    convert::identity,
+    fmt::{self, Debug, Display},
+    hash::Hash,
+    iter::{repeat_with, zip},
     mem::{self, replace},
-    fmt::{Display, Debug},
-    convert::identity, borrow::Borrow, hash::Hash,
+    num::ParseIntError,
+    ops,
+    process::exit,
 };
-use builtins::{BuiltinFunc, build_builtins};
-use tag_code::{
-    Jump,
-    TagCodes,
-    TagLine
-};
-use var_utils::{AsVarType,string_unescape};
-use tag_code::mdt_logic_split;
-use utils::counter::Counter;
 
+use builtins::{build_builtins, BuiltinFunc};
+use tag_code::{Jump, TagCodes, TagLine, mdt_logic_split};
+use utils::counter::Counter;
+use var_utils::{string_unescape, AsVarType};
 
 macro_rules! impl_enum_froms {
     (impl From for $ty:ty { $(
@@ -567,15 +564,17 @@ impl Meta {
     /// 返回一个临时变量, 不会造成重复
     pub fn get_tmp_var(&mut self) -> Var {
         let var = self.tmp_var_count;
-        self.tmp_var_count+= 1;
-        format!("___{}", var)
+        self.tmp_var_count += 1;
+        gen_anon_name(var, |arg| format!("___{}", arg))
     }
 
     /// 获取一个标签, 并且进行内部自增以保证不会获取到获取过的
     pub fn get_tag(&mut self) -> String {
         let tag = self.tag_number;
         self.tag_number += 1;
-        self.add_defined_label(format!("___{}", tag))
+        let fmtted_arg = gen_anon_name(tag, |arg|
+            format!("___{}", arg));
+        self.add_defined_label(fmtted_arg)
     }
 
     /// 添加一个被跳转的label到当前作用域
@@ -2668,6 +2667,41 @@ impl ConstData {
     }
 }
 
+fn num_radix<N>(mut n: N, radix: N) -> String
+where N: ops::DivAssign + ops::Rem<Output = N>
+         + Eq + Debug + Default + Into<usize>
+         + Copy,
+{
+    const LIST: &[u8; 62]
+        = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    let zero = Default::default();
+    assert_ne!(radix, zero);
+    let sub_list = &LIST[..radix.into()];
+    if n == zero {
+        return "0".into();
+    }
+    let mut res = Vec::new();
+    while n != zero {
+        let dig = n % radix;
+        res.push(sub_list[dig.into()]);
+        n /= radix;
+    }
+    res.reverse();
+    String::from_utf8(res).unwrap()
+}
+
+/// 当编号过大时, 使用62进制进行编码, 降低长度
+fn gen_anon_name<'a, R>(
+    id: usize,
+    f: impl FnOnce(fmt::Arguments<'_>) -> R,
+) -> R {
+    if id < 1000 {
+        f(format_args!("{id}"))
+    } else {
+        f(format_args!("0{}", num_radix(id, 62)))
+    }
+}
+
 /// 每层Expand的环境
 #[derive(Debug, PartialEq, Clone)]
 #[derive(Default)]
@@ -2810,7 +2844,7 @@ impl CompileMeta {
     fn tmp_tag_getter(id: &mut usize) -> Var {
         let old = *id;
         *id += 1;
-        format!("__{old}")
+        gen_anon_name(old, |arg| format!("__{arg}"))
     }
 
     /// 获取一个临时的`tag`
@@ -2821,7 +2855,7 @@ impl CompileMeta {
     fn tmp_var_getter(id: &mut usize) -> Var {
         let old = *id;
         *id += 1;
-        format!("__{old}")
+        gen_anon_name(old, |arg| format!("__{arg}"))
     }
 
     pub fn get_tmp_var(&mut self) -> Var {
