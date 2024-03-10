@@ -50,6 +50,8 @@ English README, please click on [**README-en_US.md**](./README-en_US.md)
    在`mindustry_logic_bang`语言中, 我们可以使用`DExp`来将语句嵌套的塞进一行,
    可以在一行内完成多个计算.
 
+   且拥有OpExpr这种简单计算方式, 比如`print (?a+b*c+log(x));`
+
    产生的中间变量完全由编译器自动生成名字,
    当然, 在之后需要使用此中间变量的情况下，您可以手动指定此变量以实现零开销
 

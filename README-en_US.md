@@ -68,6 +68,8 @@ compilation target language is the `LogicLang` in game [`Mindustry`]
    We can use `DExp` to nest statements into one line,
    multiple operations can be completed within one line.
 
+   And it has a simple calculation method like OpExpr, such as `print (?a+b*c+log(x));`
+
    The generated intermediate variables are automatically named by the compiler,
    of course, you can manually specify this variable to achieve zero overhead in scenarios where you need to use this intermediate variable later
 
