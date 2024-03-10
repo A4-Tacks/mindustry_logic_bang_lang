@@ -100,7 +100,7 @@ dependencies = [
 
 [[package]]
 name = "display_source"
-version = "0.3.9"
+version = "0.3.10"
 dependencies = [
  "parser",
  "syntax",
@@ -301,7 +301,7 @@ checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
 
 [[package]]
 name = "mindustry_logic_bang_lang"
-version = "0.14.22"
+version = "0.15.0"
 dependencies = [
  "display_source",
  "logic_lint",
@@ -347,7 +347,7 @@ dependencies = [
 
 [[package]]
 name = "parser"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "lalrpop",
  "lalrpop-util",
@@ -358,7 +358,7 @@ dependencies = [
 
 [[package]]
 name = "parser-tests"
-version = "0.1.14"
+version = "0.1.15"
 dependencies = [
  "parser",
  "syntax",
@@ -535,7 +535,7 @@ dependencies = [
 
 [[package]]
 name = "syntax"
-version = "0.2.13"
+version = "0.2.14"
 dependencies = [
  "tag_code",
  "utils",

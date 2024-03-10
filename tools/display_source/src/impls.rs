@@ -1,6 +1,21 @@
 use syntax::*;
 use crate::{DisplaySource, DisplaySourceMeta};
 
+fn inline_labs<T>(labs: &[T], meta: &mut DisplaySourceMeta)
+where T: DisplaySource
+{
+    if !labs.is_empty() {
+        meta.push("#*");
+        meta.push("labels: [");
+        meta.display_source_iter_by_splitter(
+            |meta| meta.push(", "),
+            labs,
+        );
+        meta.push("]");
+        meta.push("*#");
+    }
+}
+
 impl DisplaySource for str {
     fn display_source(&self, meta: &mut DisplaySourceMeta) {
         meta.push(&Value::replace_ident(self))
@@ -9,6 +24,44 @@ impl DisplaySource for str {
 impl DisplaySource for Var {
     fn display_source(&self, meta: &mut DisplaySourceMeta) {
         self.as_str().display_source(meta)
+    }
+}
+impl DisplaySource for ClosuredValueMethod {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        match self {
+            Self::Take(Take(var, val)) => {
+                var.display_source(meta);
+                meta.push(":");
+                val.display_source(meta);
+            },
+            Self::Const(Const(var, val, labs)) => {
+                meta.push("&");
+                var.display_source(meta);
+                meta.push(":");
+                val.display_source(meta);
+
+                inline_labs(labs, meta)
+            },
+        }
+    }
+}
+impl DisplaySource for ClosuredValue {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        let Self::Uninit {
+            catch_values,
+            value,
+            labels,
+        } = self else {
+            panic!("failed builded value: {:?}", self)
+        };
+        meta.push("([");
+        meta.display_source_iter_by_splitter(|meta| {
+            meta.add_space();
+        }, catch_values);
+        meta.push("]");
+        value.display_source(meta);
+        inline_labs(labels, meta);
+        meta.push(")");
     }
 }
 impl DisplaySource for Value {
@@ -36,6 +89,7 @@ impl DisplaySource for Value {
                 meta.push(builtin_func.name());
                 meta.push("*#)");
             },
+            Self::ClosuredValue(clos) => clos.display_source(meta),
         }
     }
 }
@@ -264,14 +318,8 @@ impl DisplaySource for Const {
         self.1.display_source(meta);
 
         meta.push(";");
-        meta.add_space();
 
-        meta.push("# labels: [");
-        meta.display_source_iter_by_splitter(
-            |meta| meta.push(", "),
-            &self.2,
-        );
-        meta.push("]");
+        inline_labs(&self.2, meta);
     }
 }
 impl DisplaySource for Take {
@@ -486,6 +534,7 @@ fn display_source_test() {
         };
     }
 
+    let top_parser = TopLevelParser::new();
     let line_parser = LogicLineParser::new();
     let jumpcmp_parser = JumpCmpParser::new();
 
@@ -734,5 +783,25 @@ fn display_source_test() {
             .unwrap()
             .display_source_and_get(&mut meta),
         "take __ = $.b;"
+    );
+
+    assert_eq!(
+        parse!(top_parser, r#"
+        const X = 2;
+        const Y = ();
+        const Z = (:x);
+        "#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "const X = 2;\nconst Y = ();\nconst Z = (:x);#*labels: [x]*#\n"
+    );
+
+    assert_eq!(
+        parse!(line_parser, r#"
+        const X = ([A &B C:2 &D:(:m)](:z));
+        "#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "const X = ([A:A &B:B C:2 &D:(:m)#*labels: [m]*#](:z)#*labels: [z]*#);"
     );
 }

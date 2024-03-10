@@ -39,31 +39,31 @@ print 2
 jump 0 always 0 0
 print 1
 *#
-#* A >>>
-const 'Do2' = (
-    const 'F' = '_0'; # labels: []
-    take '__' = 'F';
-    take '__' = 'F';
-); # labels: []
-{
-    const '_0' = ('__':
-        const '___0' = ({
-            goto :'___1' 'a' < 'b';
-            {
-                `'print'` '2';
-            }
-            goto :'___0' _;
-            :'___1'
-            {
-                `'print'` '1';
-            }
-            :'___0'
-        }); # labels: ['___1', '___0']
-        setres '___0';
-    ); # labels: []
-    take '__' = 'Do2';
-}
-*#
+# A >>>
+# const Do2 = (
+#     const F = _0;
+#     take __ = F;
+#     take __ = F;
+# );
+# {
+#     # setArgs (__:
+#         # const ___0 = ({
+#             # goto :___1 a < b;
+#             # {
+#                 # `'print'` 2;
+#             # }
+#             # goto :___0 _;
+#             # :___1
+#             # {
+#                 # `'print'` 1;
+#             # }
+#             # :___0
+#         # });#*labels: [___0, ___1]*#
+#         # setres ___0;
+#     # );
+#     take __ = Do2;
+# }
+
 # 可以看到, 并没有发生标记冲突.
 # 如果你把consted-DExp换成普通的DExp
 # 那么你将可以看到内部标记冲突

@@ -165,6 +165,7 @@ pub enum Value {
     Cmper(Box<CmpTree>),
     /// 本层应该指向的绑定者, 也就是ValueBind的被绑定的值
     Binder,
+    ClosuredValue(ClosuredValue),
     BuiltinFunc(BuiltinFunc),
 }
 impl Value {
@@ -233,7 +234,8 @@ impl TakeHandle for Value {
                     cmp,
                 );
                 exit(6);
-            }
+            },
+            Self::ClosuredValue(closurev) => closurev.take_handle(meta),
             Self::BuiltinFunc(func) => func.call(meta),
         }
     }
@@ -427,7 +429,8 @@ impl Value {
             Value::ValueBind(ValueBind(..)) => None,
             // NOTE: 这不能实现, 否则可能牵扯一些不希望的作用域问题
             Value::ResultHandle => None,
-            Value::BuiltinFunc(_) | Value::DExp(_) | Value::Cmper(_) => None,
+            Value::BuiltinFunc(_) | Value::DExp(_)
+            | Value::Cmper(_) | Value::ClosuredValue(_) => None,
         }
     }
 }
@@ -436,8 +439,123 @@ impl_enum_froms!(impl From for Value {
     Var => &str;
     DExp => DExp;
     ValueBind => ValueBind;
+    ClosuredValue => ClosuredValue;
     BuiltinFunc => BuiltinFunc;
 });
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum ClosuredValueMethod {
+    Take(Take),
+    Const(Const),
+}
+impl ClosuredValueMethod {
+    pub fn do_catch(self, meta: &mut CompileMeta, bind: impl Into<Var>) {
+        let make_key = |k: &mut ConstKey| {
+            k.name_to_bind(Value::ReprVar(bind.into())).unwrap()
+        };
+        match self {
+            Self::Take(mut take) => {
+                make_key(&mut take.0);
+                take.compile(meta);
+            },
+            Self::Const(mut r#const) => {
+                make_key(&mut r#const.0);
+                r#const.compile(meta);
+            },
+        }
+    }
+
+    pub fn get_key(&self) -> &ConstKey {
+        match self {
+            | Self::Take(Take(key, _))
+            | Self::Const(Const(key, _, _))
+            => key,
+        }
+    }
+}
+impl_enum_froms!(impl From for ClosuredValueMethod {
+    Take => Take;
+    Const => Const;
+});
+
+/// 闭包值, 将在常量追溯或take时设置闭包环境,
+/// 然后在take时将环境加载
+#[derive(Debug, PartialEq, Clone)]
+pub enum ClosuredValue {
+    Uninit {
+        catch_values: Vec<ClosuredValueMethod>,
+        value: Box<Value>,
+        labels: Vec<Var>,
+    },
+    Inited {
+        bind_handle: Var,
+        vars: Vec<Var>,
+    },
+    /// 操作过程中使用, 过程外不能使用
+    Empty,
+}
+impl ClosuredValue {
+    const BINDED_VALUE_NAME: &'static str = "__Value";
+
+    pub fn make_valkey(bindh: Var) -> ConstKey {
+        let mut key = ConstKey::Var(Self::BINDED_VALUE_NAME.into());
+        key.name_to_bind(Value::ReprVar(bindh)).unwrap();
+        key
+    }
+
+    pub fn catch_vars(&mut self, meta: &mut CompileMeta) {
+        let this = match self {
+            Self::Uninit { .. } => mem::replace(self, Self::Empty),
+            Self::Inited { .. } => return,
+            Self::Empty => panic!(),
+        };
+        let Self::Uninit {
+            catch_values,
+            value,
+            labels,
+        } = this else { panic!() };
+
+        let vars = catch_values.iter()
+            .map(ClosuredValueMethod::get_key)
+            .map(ConstKey::as_var)
+            .map(Option::unwrap)
+            .cloned()
+            .collect();
+        let bindh = meta.get_tmp_var();
+        for catch in catch_values {
+            catch.do_catch(meta, &bindh);
+        }
+
+        let key = Self::make_valkey(bindh.clone());
+        let r#const = Const(key, *value, labels);
+        r#const.compile(meta);
+
+        *self = Self::Inited { bind_handle: bindh, vars };
+    }
+}
+impl TakeHandle for ClosuredValue {
+    fn take_handle(mut self, meta: &mut CompileMeta) -> Var {
+        self.catch_vars(meta);
+        let Self::Inited { bind_handle, vars } = self else {
+            panic!("self uninit, {:?}", self)
+        };
+        let mut result = None;
+        meta.with_block(|meta| {
+            for var in vars {
+                let handle = meta.get_value_binded(
+                    bind_handle.clone(),
+                    var.clone(),
+                ).clone();
+                Const(ConstKey::Var(var), handle.into(), Vec::new())
+                    .compile(meta);
+            }
+            result = Self::make_valkey(bind_handle)
+                .take_handle(meta)
+                .into();
+        });
+        result.unwrap()
+    }
+}
 
 /// 带返回值的表达式
 /// 其依赖被计算完毕后, 句柄有效
@@ -1136,6 +1254,7 @@ impl CmpTree {
                 | V::ValueBind(_)
                 | V::Cmper(_)
                 | V::BuiltinFunc(_)
+                | V::ClosuredValue(_)
                 => None,
             }
         }
@@ -1959,6 +2078,21 @@ pub enum ConstKey {
     ValueBind(ValueBind),
 }
 impl ConstKey {
+    /// 当自身为Var时, 通过给定值转换成ValueBind
+    /// 如果自身已经是ValueBind, 那么将会通过错误将给定值返回
+    pub fn name_to_bind<T>(&mut self, bind: T) -> Result<(), T>
+    where T: Into<Box<Value>>
+    {
+        match self {
+            ConstKey::Var(var) => {
+                let name = mem::take(var);
+                *self = Self::ValueBind(ValueBind(bind.into(), name));
+                Ok(())
+            },
+            ConstKey::ValueBind(_) => Err(bind),
+        }
+    }
+
     /// Returns `true` if the const key is [`Var`].
     ///
     /// [`Var`]: ConstKey::Var
@@ -1968,6 +2102,14 @@ impl ConstKey {
     }
 
     pub fn as_var(&self) -> Option<&Var> {
+        if let Self::Var(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_var_mut(&mut self) -> Option<&mut Var> {
         if let Self::Var(v) = self {
             Some(v)
         } else {
@@ -2042,6 +2184,7 @@ impl Const {
                     return binder.as_ref().cloned();
                 }
             },
+            Value::ClosuredValue(closure) => closure.catch_vars(meta),
             _ => (),
         }
         None
@@ -3169,8 +3312,7 @@ impl CompileMeta {
 
     pub fn get_dexp_expand_binder(&self) -> Option<&Var> {
         self.dexp_expand_binders.iter()
-            .map(Option::as_ref)
-            .filter_map(identity)
+            .filter_map(Option::as_ref)
             .next_back()
     }
 
@@ -3195,8 +3337,8 @@ impl CompileMeta {
 
     /// 获取最内层args的每个句柄, 如果不存在则返回空切片
     pub fn get_env_args(&self) -> &[Var] {
-        self.env_args.iter().map(Option::as_ref)
-            .filter_map(identity)
+        self.env_args.iter()
+            .filter_map(Option::as_ref)
             .map(Vec::as_slice)
             .next_back()
             .unwrap_or(&[])
@@ -3204,8 +3346,8 @@ impl CompileMeta {
 
     /// 获取次内层args的每个句柄
     pub fn get_env_second_args(&self) -> &[Var] {
-        self.env_args.iter().map(Option::as_ref)
-            .filter_map(identity)
+        self.env_args.iter()
+            .filter_map(Option::as_ref)
             .map(Vec::as_slice)
             .nth_back(1)
             .unwrap_or(&[])

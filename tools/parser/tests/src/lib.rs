@@ -5229,3 +5229,110 @@ fn builtin_func_test() {
         ],
     );
 }
+
+#[test]
+fn closure_value_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        parse!(parser, r#"
+        const X = ([A &B]2);
+        "#).unwrap(),
+        parse!(parser, r#"
+        const X = ([A:A &B:B]2);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const A = (a: print "makeA";);
+        const B = (b: print "makeB";);
+        const F = ([A &B](
+            print "Do"A B"End";
+        ));
+        const A="eA" B="eB";
+        take F;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print "makeA""#,
+            r#"print "Do""#,
+            r#"print a"#,
+            r#"print "makeB""#,
+            r#"print b"#,
+            r#"print "End""#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const A = 2;
+        const B = `A`;
+        const F = ([B](
+            print B;
+        ));
+        take F;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print A"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const A = 2;
+        const B = `A`;
+        const V = ([]`B`);
+        const B = "e";
+        print V;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print B"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Do = (
+            take _0 _0;
+        );
+        take Do[([](
+            :x
+            print 2;
+            goto :x a < b;
+        ))];
+        :x
+        goto :x;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 2"#,
+            r#"jump 0 lessThan a b"#,
+            r#"print 2"#,
+            r#"jump 2 lessThan a b"#,
+            r#"jump 4 always 0 0"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Do = (
+            take _0 _0;
+        );
+        take Do[([&F:(
+            :x
+            print 2;
+            goto :x a < b;
+        )](
+            take F;
+        ))];
+        :x
+        goto :x;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 2"#,
+            r#"jump 0 lessThan a b"#,
+            r#"print 2"#,
+            r#"jump 2 lessThan a b"#,
+            r#"jump 4 always 0 0"#,
+        ],
+    );
+}

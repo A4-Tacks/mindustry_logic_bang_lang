@@ -127,6 +127,7 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
             Value::Cmper(_) => "cmper",
             Value::Binder => "binder",
             Value::BuiltinFunc(_) => "builtinfunc",
+            Value::ClosuredValue(_) => "closuredvalue",
         }
     }
     macro_rules! check_type {
@@ -337,9 +338,8 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
 
         fn is_string:IsString(meta) [v:value] {
             Ok(value.value().as_var()
-                .map(|v| Value::is_string(v)
+                .and_then(|v| Value::is_string(v)
                     .then(|| "1".into()))
-                .flatten()
                 .unwrap_or_else(|| "0".into()))
         }
 

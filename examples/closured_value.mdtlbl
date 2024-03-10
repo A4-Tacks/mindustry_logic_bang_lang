@@ -1,0 +1,56 @@
+#**
+* 这是在0.15.0添加的语法, 是一种特殊的值.
+* 其用途可以在常量追值时对捕获表中进行求值
+* 然后在展开前将捕获表中捕获的值加载
+*
+* 有两种捕获方式: 以take捕获 以const捕获
+* 使用`A:B`表示以take捕获B到A, 相当于`take B=A;`
+* 使用`&A:B`表示以const捕获B到A, 就不会take而是进行常量追值, 相当于`const B=A;`
+*
+* 有省略语法糖, 可以使用`A`表示`A:A`, 使用`&B`表示`&B:B`
+*
+* 语法起始处使用圆括号接方括号, 方括号内是捕获表, 方括号结束后接着一个值
+*#
+
+const A = (a: print "makeA";);
+const B = (b: print "makeB";);
+const Clos = ([A &B](
+    # 因为闭包内部原理是将捕获值绑定到`..`, 所以你可以在其中重新修改它
+    # 但是因为在求值前就已经将内部注册量加载完毕了, 所以无法从加载完毕的值获取
+    # 例如你可以用`...B`获取而不能使用`B`
+    take ...B = makedB;
+    print "run" A B ...B;
+));
+print "inited";
+
+const A = "errA"; # 因为闭包值在常量追值时就将值记录, 所以不会拿到这个
+const B = "errB"; # 因为闭包值在常量追值时就将值记录, 所以不会拿到这个
+
+print "do";
+take Clos Clos;
+#* >>>
+print "makeA"
+print "inited"
+print "do"
+print "run"
+print a
+print "makeB"
+print b
+print makedB
+print "run"
+print a
+print makedB
+print makedB
+*#
+
+# 在没有闭包语法时, 要实现闭包会比较麻烦
+# 比如以如下办法实现
+take Clos = ();
+take Clos.A = (a: print "makeA";);
+const Clos.B = (b: print "makeB";);
+const Clos.V = (
+    print "run" ...A ...B;
+);
+print "inited";
+print "do";
+take Clos.V;

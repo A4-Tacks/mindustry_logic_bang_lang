@@ -16,6 +16,8 @@ use ::syntax::{
     Var,
     DExp,
     ValueBind,
+    ClosuredValue,
+    ClosuredValueMethod,
     op_expr_build_op,
     op_expr_build_results,
     OpExprInfo,
@@ -62,6 +64,7 @@ OrSwap<A, B> = { A B, B A }; // 匹配 `A B`或者`B A`
 OrShl<A, B, C> = { A B C, B C A }; // 匹配`A B C`或者`B C A`, 后者是值进行左移循环得到
 Wrap<Open, T, Close> = Open <T> Close; // 用于定义包裹
 MTuple<T> = Wrap<"(", T, ")">;
+MLTuple<L, T> = Wrap<"([", (<L> "]" <T>), ")">;
 METuple<T> = Wrap<"(?", T, ")">;
 MFTuple<T> = Wrap<"(%", T, ")">;
 MFETuple<T> = Wrap<"(%", T, "%)">;
@@ -147,6 +150,7 @@ NonConstRangeValue: Value = {
     FEDExp => <>.into(),
     MFTuple<Value>,
     OpExprDExp => <>.into(),
+    ClosuredValue => <>.into(),
 }
 
 pub Value: Value = {
@@ -753,6 +757,25 @@ FEDExp: DExp = MFETuple<(<(<Var> ":")?> <Expand>)>
     => DExp::new_optional_res(<>.0, <>.1);
 #[inline]
 ValueDExp: Value = DExp => <>.into();
+
+ClosuredValueCatch: ClosuredValueMethod = {
+    <name:Var> => Take(name.clone().into(), name.into()).into(),
+    <name:Var> ":" <val:Value> => Take(name.into(), val).into(),
+
+    "&" <name:Var> => Const(name.clone().into(), name.into(), Vec::new()).into(),
+    "&" <name:Var> ":" ConstStart <val:Value> <labels:ConstStop>
+        => Const(name.into(), val, labels).into(),
+}
+ClosuredValue: ClosuredValue = {
+    MLTuple<ClosuredValueCatch*, (ConstStart <Value> <ConstStop>)> => {
+        let (catchs, (value, labels)) = <>;
+        ClosuredValue::Uninit {
+            catch_values: catchs,
+            value: value.into(),
+            labels,
+        }
+    },
+}
 
 SwitchCatchFlag: SwitchCatch = {
     "<" => SwitchCatch::Underflow,
