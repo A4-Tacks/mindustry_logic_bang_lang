@@ -286,6 +286,14 @@ fn check_argc<'a>(
         }
     ).into()
 }
+#[must_use]
+fn check_oper<'a>(
+    oper: &'a Var<'a>,
+    expected: &'static [&'static str],
+) -> Option<Lint<'a>> {
+    if expected.contains(&oper.value()) { return None; }
+    Lint::new(oper, ErrorLint::InvalidOper { expected }).into()
+}
 
 const OP_METHODS: &[&str] = &[
     "add", "sub", "mul", "div", "idiv", "mod",
@@ -321,9 +329,7 @@ make_lints! {
     }
     "op" (4) {
         if let [_, oper, ..] = line.args() {
-            if !OP_METHODS.contains(&oper.value()) {
-                lints.push(Lint::new(oper, ErrorLint::InvalidOper))
-            }
+            lints.extend(check_oper(oper, OP_METHODS));
         }
         if let [_, _, result, ..] = line.args() {
             lints.extend(check_assign_var(src, line, result))
@@ -334,33 +340,26 @@ make_lints! {
     }
     "lookup" (3) {
         if let [_, mode, result, index, ..] = line.args() {
-            match mode.value() {
-                "block" | "unit" | "item" | "liquid" => (),
-                _ => lints.push(Lint::new(mode, ErrorLint::InvalidOper)),
-            }
+            lints.extend(check_oper(mode, &["block", "unit", "item", "liquid"]));
             lints.extend(check_assign_var(src, line, result));
             lints.extend(check_vars(src, line, [index]));
         }
     }
     "ucontrol" (6) {
         if let [_, oper, args @ ..] = line.args() {
-            if !UNIT_CONTROL_METHODS.contains(&oper.value()) {
-                lints.push(Lint::new(oper, ErrorLint::InvalidOper))
-            }
+            lints.extend(check_oper(oper, UNIT_CONTROL_METHODS));
             lints.extend(check_vars(src, line, args));
         }
     }
     "ulocate" (8) {
         if let [_, mode, btype, args @ ..] = line.args() {
-            match mode.value() {
-                "building" | "ore" | "spawn" | "damaged" => (),
-                _ => lints.push(Lint::new(mode, ErrorLint::InvalidOper)),
-            }
-            match btype.value() {
-                | "core" | "storage" | "generator" | "turret" | "factory"
-                | "repair" | "rally" | "battery" | "reactor" => (),
-                _ => lints.push(Lint::new(btype, ErrorLint::InvalidOper)),
-            }
+            lints.extend(check_oper(mode, &[
+                "building", "ore", "spawn", "damaged",
+            ]));
+            lints.extend(check_oper(btype, &[
+                "core", "storage", "generator", "turret", "factory",
+                "repair", "rally", "battery", "reactor",
+            ]));
             lints.extend(check_vars(src, line, args))
         }
     }
@@ -378,10 +377,9 @@ make_lints! {
     }
     "control" (6) {
         if let [_, mode, args @ ..] = line.args() {
-            match mode.value() {
-                "enabled" | "shoot" | "shootp" | "config" | "color" => (),
-                _ => lints.push(Lint::new(mode, ErrorLint::InvalidOper)),
-            }
+            lints.extend(check_oper(mode, &[
+                "enabled", "shoot", "shootp", "config", "color",
+            ]));
             lints.extend(check_vars(src, line, args));
         }
     }
@@ -393,12 +391,10 @@ make_lints! {
     }
     "draw" (7) {
         if let [_, mode, args @ ..] = line.args() {
-            match mode.value() {
-                | "clear" | "color" | "col" | "stroke" | "line" | "rect"
-                | "lineRect" | "poly" | "linePoly" | "triangle" | "image"
-                => (),
-                _ => lints.push(Lint::new(mode, ErrorLint::InvalidOper)),
-            }
+            lints.extend(check_oper(mode, &[
+               "clear", "color", "col", "stroke", "line", "rect",
+               "lineRect", "poly", "linePoly", "triangle", "image",
+            ]));
             lints.extend(check_vars(src, line, args));
         }
     }
@@ -409,22 +405,16 @@ make_lints! {
     }
     "radar" | "uradar" (7) {
         fn check_filter<'a>(arg: &'a Var<'a>) -> Option<Lint<'a>> {
-            match arg.value() {
-                | "any" | "enemy" | "ally" | "player" | "attacker"
-                | "flying" | "boss" | "ground"
-                => None,
-                | _
-                => Lint::new(arg, ErrorLint::InvalidOper).into(),
-            }
+            check_oper(arg, &[
+               "any", "enemy", "ally", "player", "attacker",
+               "flying", "boss", "ground",
+            ])
         }
         fn check_order<'a>(arg: &'a Var<'a>) -> Option<Lint<'a>> {
-            match arg.value() {
-                | "distance" | "health" | "shield"
-                | "armor" | "maxHealth"
-                => None,
-                | _
-                => Lint::new(arg, ErrorLint::InvalidOper).into(),
-            }
+            check_oper(arg, &[
+               "distance", "health", "shield",
+               "armor", "maxHealth",
+            ])
         }
         if let [_, filt1, filt2, filt3, order, from, rev, result]
         = line.args() {
@@ -442,9 +432,7 @@ make_lints! {
             if target.value() == "-1" {
                 lints.push(Lint::new(target, WarningLint::NoTargetJump));
             }
-            if !JUMP_METHODS.contains(&&**method) {
-                lints.push(Lint::new(method, ErrorLint::InvalidOper));
-            }
+            lints.extend(check_oper(method, JUMP_METHODS));
             lints.extend(check_vars(src, line, [a, b]));
         }
     }
@@ -586,7 +574,9 @@ impl ShowLint for WarningLint {
 
 #[derive(Debug)]
 pub enum ErrorLint {
-    InvalidOper,
+    InvalidOper {
+        expected: &'static [&'static str],
+    },
 }
 impl ShowLint for ErrorLint {
     fn show_lint(
@@ -595,7 +585,9 @@ impl ShowLint for ErrorLint {
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         match self {
-            ErrorLint::InvalidOper => write!(f, "无效的操作符")?,
+            ErrorLint::InvalidOper { expected } => {
+                write!(f, "无效的操作符, 预期: [{}]", expected.join(" "))?
+            },
         }
         Ok(())
     }
