@@ -236,6 +236,35 @@ fn control_test() {
         }
         "#).unwrap(),
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+        do do {
+            print 1;
+        } while a < b; while c < d;
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            :___1 {
+                :___0 {
+                    print 1;
+                }
+                goto :___0 a < b;
+            }
+            goto :___1 c < d;
+        }
+        "#).unwrap(),
+    );
+
+    let _ = parse!(parser, r#"
+    while a < b if c < d {
+        print 1;
+    } elif e < f {
+        print 2;
+    } else {
+        print 3;
+    }
+    "#).unwrap();
 }
 
 #[test]

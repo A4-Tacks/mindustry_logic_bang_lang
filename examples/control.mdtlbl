@@ -132,3 +132,14 @@ jump 0 always 0 0
 # select是原始版本, 没有switch那么多的功能,
 # 但是相比switch的好处是不用编写case, 直接跳转到指定行
 #   第0行, 第1行 以此类推
+
+
+# 在0.15.2版本, 对于一些简单控制语句组合, 可以省略其括号, 比如
+do do {
+    print 1;
+} while c < d; while a < b;
+#* >>>
+print 1
+jump 0 lessThan c d
+jump 0 lessThan a b
+*#

@@ -814,6 +814,14 @@ ControlBlock: Expand = {
 }
 
 pub Control: LogicLine = {
+    ControlWithoutOptionalEnd,
+    ControlWithOptionalEnd,
+}
+ControlBody: LogicLine = {
+    ControlWithoutOptionalEnd,
+    Block,
+}
+ControlWithoutOptionalEnd: LogicLine = {
     "goto" <Label> <AlwaysJumpCmp> LEnd => {
         Goto(<>).into()
     },
@@ -867,7 +875,7 @@ pub Control: LogicLine = {
         Expand(res).into()
     },
 
-    "do" CtrlStart <body:Block> <ctrl:CtrlStop> "while" <cmp:AlwaysJumpCmp> LEnd => {
+    "do" CtrlStart <body:ControlBody> <ctrl:CtrlStop> "while" <cmp:AlwaysJumpCmp> LEnd => {
         let (break_lab, continue_lab) = ctrl;
         let head = meta.get_tag();
         let mut res = Vec::with_capacity(5);
@@ -1083,7 +1091,9 @@ pub Control: LogicLine = {
             Expand(res).into()
         }
     },
+}
 
+ControlWithOptionalEnd: LogicLine = {
     "if" <cmp:JumpCmp> <body:Block>
         <elifs:("elif" <JumpCmp> <Block>)*>
         <else_body:("else" <LogicLine>)?> => {
