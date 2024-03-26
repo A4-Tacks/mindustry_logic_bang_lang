@@ -100,7 +100,7 @@ dependencies = [
 
 [[package]]
 name = "display_source"
-version = "0.3.10"
+version = "0.3.11"
 dependencies = [
  "parser",
  "syntax",
@@ -108,9 +108,9 @@ dependencies = [
 
 [[package]]
 name = "either"
-version = "1.9.0"
+version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a26ae43d7bcc3b814de94796a5e736d4029efb0ee900c12e2d54c993ad1a1e07"
+checksum = "11157ac094ffbdde99aa67b23417ebdd801842852b500e395a45a9c0aac03e4a"
 
 [[package]]
 name = "ena"
@@ -301,7 +301,7 @@ checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
 
 [[package]]
 name = "mindustry_logic_bang_lang"
-version = "0.15.2"
+version = "0.15.3"
 dependencies = [
  "display_source",
  "logic_lint",
@@ -347,7 +347,7 @@ dependencies = [
 
 [[package]]
 name = "parser"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "lalrpop",
  "lalrpop-util",
@@ -358,7 +358,7 @@ dependencies = [
 
 [[package]]
 name = "parser-tests"
-version = "0.1.16"
+version = "0.1.17"
 dependencies = [
  "parser",
  "syntax",
@@ -535,8 +535,9 @@ dependencies = [
 
 [[package]]
 name = "syntax"
-version = "0.2.14"
+version = "0.2.15"
 dependencies = [
+ "either",
  "tag_code",
  "utils",
  "var_utils",

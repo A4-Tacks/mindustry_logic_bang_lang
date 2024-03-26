@@ -16,6 +16,8 @@ use ::syntax::{
     Var,
     DExp,
     ValueBind,
+    ValueBindRef,
+    ValueBindRefTarget,
     ClosuredValue,
     ClosuredValueMethod,
     op_expr_build_op,
@@ -151,6 +153,16 @@ NonConstRangeValue: Value = {
     MFTuple<Value>,
     OpExprDExp => <>.into(),
     ClosuredValue => <>.into(),
+    <value:NonConstRangeValue> "->" <name:NoStringVar> => {
+        let target = ValueBindRefTarget::NameBind(name);
+        ValueBindRef::new(value.into(), target.into()).into()
+    },
+    <NonConstRangeValue> "->" ".." => {
+        ValueBindRef::new(<>.into(), ValueBindRefTarget::Binder).into()
+    },
+    <NonConstRangeValue> "->" "$" => {
+        ValueBindRef::new(<>.into(), ValueBindRefTarget::ResultHandle).into()
+    },
 }
 
 pub Value: Value = {

@@ -1,6 +1,6 @@
 [package]
 name = "syntax"
-version = "0.2.14"
+version = "0.2.15"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -9,3 +9,4 @@ edition = "2021"
 tag_code = { path = "../tag_code", version = "*" }
 var_utils = { path = "../var_utils", version = "*"}
 utils = { path = "../utils", version = "*" }
+either = "1.10.0"

@@ -68,6 +68,7 @@ syn match mdtlblResultHandle /\$/
 syn match mdtlblDefineResultHandle /\%(([%?]\=\%(\s\|#\*.*\*#\|\%(#[^*].*\|#\)\=\n\)*\)\@<=\I\i*:/
 
 syn match mdtlblQuickDExpTakeIdent /\I\i*\%(\%(\s\|#\*.*\*#\|\%(#[^*].*\|#\)\=\n\)*\[\)\@=/
+syn match mdtlblQuickDExpTakeIdent /->/
 syn match mdtlblIdentLabel /:\I\i*/
 
 " Fold {{{1

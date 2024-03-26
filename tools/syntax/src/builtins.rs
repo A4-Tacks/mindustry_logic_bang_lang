@@ -124,6 +124,7 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
             Value::ReprVar(_) => "reprvar",
             Value::ResultHandle => "resulthandle",
             Value::ValueBind(_) => "valuebind",
+            Value::ValueBindRef(_) => "valuebindref",
             Value::Cmper(_) => "cmper",
             Value::Binder => "binder",
             Value::BuiltinFunc(_) => "builtinfunc",

@@ -77,6 +77,7 @@ impl DisplaySource for Value {
             Self::Binder => meta.push(".."),
             Self::DExp(dexp) => dexp.display_source(meta),
             Self::ValueBind(value_attr) => value_attr.display_source(meta),
+            Self::ValueBindRef(bindref) => bindref.display_source(meta),
             Self::Cmper(cmp) => {
                 meta.push("goto");
                 meta.push("(");
@@ -117,6 +118,23 @@ impl DisplaySource for DExp {
             }
         }
         meta.push(")");
+    }
+}
+impl DisplaySource for ValueBindRef {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        if let val @ Value::DExp(_) = self.value() {
+            meta.push("(%");
+            val.display_source(meta);
+            meta.push(")");
+        } else {
+            self.value().display_source(meta);
+        }
+        meta.push("->");
+        match self.bind_target() {
+            ValueBindRefTarget::NameBind(bind) => bind.display_source(meta),
+            ValueBindRefTarget::Binder => meta.push(".."),
+            ValueBindRefTarget::ResultHandle => meta.push("$"),
+        }
     }
 }
 impl DisplaySource for ValueBind {

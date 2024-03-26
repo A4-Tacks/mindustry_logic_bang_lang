@@ -5364,4 +5364,179 @@ fn closure_value_test() {
             r#"jump 4 always 0 0"#,
         ],
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print ([X:1](
+            print "foo";
+            setres X;
+        ));
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print "foo""#,
+            r#"print 1"#,
+        ],
+    );
+}
+
+#[test]
+fn value_bind_ref_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const bind.V = (
+            print "take";
+            setres "finish";
+        );
+        print 1;
+        const V = bind->V;
+        print 2;
+        const bind.V = (
+            print "fail";
+        );
+        print V;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 1"#,
+            r#"print 2"#,
+            r#"print "take""#,
+            r#"print "finish""#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Bind = bind;
+        const Bind.V = (
+            print "take";
+            setres "finish";
+        );
+        print 1;
+        const V = Bind->V;
+        const V1 = bind->V;
+        print 2;
+        const Bind.V = (
+            print "fail";
+        );
+        print V V1;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 1"#,
+            r#"print 2"#,
+            r#"print "take""#,
+            r#"print "finish""#,
+            r#"print "take""#,
+            r#"print "finish""#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const bind.V = (
+            print "take";
+            setres "finish";
+        );
+        print 1;
+        const V = bind->V;
+        print 2;
+        const bind.V = (
+            print "fail";
+        );
+        print V->..;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 1"#,
+            r#"print 2"#,
+            r#"print bind"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const bind.V = (
+            print "take";
+            setres "finish";
+        );
+        print 1;
+        const B = bind->V->..;
+        print 2;
+        const bind.V = (
+            print "fail";
+        );
+        print B;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 1"#,
+            r#"print 2"#,
+            r#"print bind"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Res = (%
+            print "maked";
+            const $.M = 2;
+        %)->$;
+        print 1 Res.M;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print "maked""#,
+            r#"print 1"#,
+            r#"print 2"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = (print 2;);
+        print 1;
+        const Attr = F->X;
+        print 3 Attr;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 1"#,
+            r#"print 2"#,
+            r#"print 3"#,
+            r#"print __1"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const bind.next.X = 2;
+        const F = bind->next->X;
+        print bind.next F->.. F->..->..;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print __0"#,
+            r#"print __0"#,
+            r#"print __"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const bind.X = (x: print "makeX";);
+        const bind.Y = (y: print "makeY";);
+        print 1;
+        const X = bind->X;
+        print 2 X;
+        const Y = X->..->Y;
+        print 3 Y;
+        print X->.. Y->..;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 1"#,
+            r#"print 2"#,
+            r#"print "makeX""#,
+            r#"print x"#,
+            r#"print 3"#,
+            r#"print "makeY""#,
+            r#"print y"#,
+            r#"print bind"#,
+            r#"print bind"#,
+        ],
+    );
 }

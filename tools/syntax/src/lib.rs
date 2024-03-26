@@ -16,6 +16,7 @@ use std::{
 };
 
 use builtins::{build_builtins, BuiltinFunc};
+use either::Either;
 use tag_code::{Jump, TagCodes, TagLine, mdt_logic_split};
 use utils::counter::Counter;
 use var_utils::{string_unescape, AsVarType};
@@ -160,6 +161,7 @@ pub enum Value {
     /// 编译时被替换为当前DExp返回句柄
     ResultHandle,
     ValueBind(ValueBind),
+    ValueBindRef(ValueBindRef),
     /// 一个跳转条件, 未决目标的跳转, 它会被内联
     /// 如果它被take, 那么它将引起报错
     Cmper(Box<CmpTree>),
@@ -223,6 +225,7 @@ impl TakeHandle for Value {
             Self::ResultHandle => meta.dexp_handle().clone(),
             Self::ReprVar(var) => var,
             Self::ValueBind(val_bind) => val_bind.take_handle(meta),
+            Self::ValueBindRef(bindref) => bindref.take_handle(meta),
             Self::Binder => {
                 meta.get_dexp_expand_binder().cloned()
                     .unwrap_or_else(|| "__".into())
@@ -426,7 +429,8 @@ impl Value {
             },
             Value::Binder => num(meta.get_dexp_expand_binder()?, true),
             // NOTE: 故意的不实现, 常量求值应该'简单'
-            Value::ValueBind(ValueBind(..)) => None,
+            Value::ValueBind(..) => None,
+            Value::ValueBindRef(..) => None,
             // NOTE: 这不能实现, 否则可能牵扯一些不希望的作用域问题
             Value::ResultHandle => None,
             Value::BuiltinFunc(_) | Value::DExp(_)
@@ -441,6 +445,88 @@ impl_enum_froms!(impl From for Value {
     ValueBind => ValueBind;
     ClosuredValue => ClosuredValue;
     BuiltinFunc => BuiltinFunc;
+    ValueBindRef => ValueBindRef;
+});
+
+/// 在常量追溯时就发生绑定追溯, 而不是take时
+/// 不会take追溯到的值
+///
+/// 当未经过常量追溯, 那么它将采用ValueBind的行为
+#[derive(Debug, PartialEq, Clone)]
+pub struct ValueBindRef {
+    value: Box<Value>,
+    bind_target: ValueBindRefTarget,
+}
+impl ValueBindRef {
+    pub fn new(value: Box<Value>, bind_target: ValueBindRefTarget) -> Self {
+        Self { value, bind_target }
+    }
+
+    fn get_binder(value: Value, meta: &mut CompileMeta) -> Var {
+        Const(ConstKey::Var(Var::new()), value, vec![])
+            .run_value(meta)
+            .unwrap_or_else(|| "__".into())
+    }
+
+    pub fn do_follow(
+        self,
+        meta: &mut CompileMeta,
+    ) -> Either<Var, &ConstData> {
+        let Self { value, bind_target } = self;
+        match bind_target {
+            ValueBindRefTarget::NameBind(name) => {
+                let handle = ValueBind(value, name).take_unfollow_handle(meta);
+                meta.get_const_value(&handle)
+                    .map(Either::Right)
+                    .unwrap_or_else(|| Either::Left(handle))
+            },
+            ValueBindRefTarget::Binder => {
+                Either::Left(Self::get_binder(*value, meta))
+            },
+            ValueBindRefTarget::ResultHandle => {
+                Either::Left(value.take_handle(meta))
+            },
+        }
+    }
+
+    pub fn value(&self) -> &Value {
+        &self.value
+    }
+
+    pub fn bind_target(&self) -> &ValueBindRefTarget {
+        &self.bind_target
+    }
+}
+impl TakeHandle for ValueBindRef {
+    fn take_handle(self, meta: &mut CompileMeta) -> Var {
+        let Self { value, bind_target } = self;
+        match bind_target {
+            ValueBindRefTarget::NameBind(name) => {
+                ValueBind(value, name).take_handle(meta)
+            },
+            ValueBindRefTarget::Binder => {
+                Self::get_binder(*value, meta)
+            },
+            ValueBindRefTarget::ResultHandle => {
+                value.take_handle(meta)
+            },
+        }
+    }
+    fn take_handle_with_consted(self, _meta: &mut CompileMeta) -> Var {
+        panic!("它不应以常量追溯目标被take, \
+                它应是直接take或者追溯时被替换成了其它值.\n\
+                {:?}", self)
+    }
+}
+#[derive(Debug, PartialEq, Clone)]
+pub enum ValueBindRefTarget {
+    NameBind(Var),
+    Binder,
+    ResultHandle,
+}
+impl_enum_froms!(impl From for ValueBindRefTarget {
+    NameBind => Var;
+    NameBind => &str;
 });
 
 #[derive(Debug, PartialEq, Clone)]
@@ -1252,6 +1338,7 @@ impl CmpTree {
                 | V::Binder
                 => Some(meta.get_dexp_expand_binder().map(|s| &**s).unwrap_or("__")),
                 | V::ValueBind(_)
+                | V::ValueBindRef(_)
                 | V::Cmper(_)
                 | V::BuiltinFunc(_)
                 | V::ClosuredValue(_)
@@ -2174,20 +2261,41 @@ impl Const {
             },
             Value::Var(var) => {
                 if let Some(data) = meta.get_const_value(var) {
-                    let ConstData {
-                        value,
-                        labels,
-                        binder,
-                    } = data;
-                    self.1 = value.clone();
-                    self.2 = labels.clone();
-                    return binder.as_ref().cloned();
+                    return self.extend_data(data.clone());
                 }
             },
             Value::ClosuredValue(closure) => closure.catch_vars(meta),
+            val @ Value::ValueBindRef(_) => {
+                let Value::ValueBindRef(bindref)
+                    = replace(val, Value::ResultHandle)
+                    else { unreachable!() };
+                let data = bindref.do_follow(meta);
+                match data {
+                    Either::Left(var) => {
+                        return self.extend_data(ConstData {
+                            value: var.into(),
+                            labels: vec![],
+                            binder: None,
+                        });
+                    },
+                    Either::Right(data) => {
+                        return self.extend_data(data.clone());
+                    },
+                }
+            },
             _ => (),
         }
         None
+    }
+
+    /// 使右半部分继承某个const值, 如果目标有的话, 返回绑定者
+    fn extend_data(
+        &mut self,
+        ConstData { value, labels, binder }: ConstData,
+    ) -> Option<Var> {
+        self.1 = value;
+        self.2 = labels;
+        binder
     }
 }
 impl Compile for Const {
@@ -3163,14 +3271,9 @@ impl CompileMeta {
             },
             ConstKey::ValueBind(ValueBind(binder, name)) => {
                 let binder_handle = binder.take_handle(self);
-                let binder
-                    = if let Some(extra_binder) = extra_binder {
-                        extra_binder
-                    } else {
-                        binder_handle.clone()
-                    };
                 let data = ConstData::new(value, labels)
-                    .set_binder(binder);
+                    .set_binder(extra_binder
+                        .unwrap_or_else(|| binder_handle.clone()));
                 let binded = self.get_value_binded(
                     binder_handle, name).clone();
                 self.value_bind_global_consts
