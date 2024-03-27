@@ -1,0 +1,200 @@
+#**
+* 这是基于0.15.3编写的快排示例
+*
+* 用于构建高度可配置的排序
+*
+* 本例子中主要排序默认实现是一个LR的普通快速排序,
+* 经过随机枢轴优化后, 只要排序数据的每类数量没有严重不均, 且数据较为混乱,
+* 在基于比较的排序中, 快速排序算是最快的那一类了
+*#
+
+const QuickSortBuilder = (
+    #**
+    * 构造一个静态的排序, 并可以使用调用器调用
+    *
+    * 注意, 比较器读写器等里面不能调用这个排序它自己
+    *#
+    take $.MinRng = 10;
+    const $.Cmper = goto(_0 < _1);
+    const $.RecStack        = Builtin.Err["没有设置递归栈"];
+    const $.RecStackFloor   = Builtin.Err["没有设置递归栈底"];
+    const $.Read            = Builtin.Err["没有设置读取器"];
+    const $.Write           = Builtin.Err["没有设置写入器"];
+
+    const $.SetRecStack = (
+        setres ..;
+        take ...RecStack = _0;
+        take ...RecStackFloor = _1;
+    );
+
+    const $.SetMinRng = (
+        setres ..;
+        take ...MinRng = _0;
+    );
+
+    const $.SetCmper = (
+        setres ..;
+        const ...Cmper = _0;
+    );
+
+    const $.SetRead = (
+        setres ..;
+        const ...Read = _0;
+    );
+
+    const $.SetWrite = (
+        setres ..;
+        const ...Write = _0;
+    );
+
+    const $.SetSwap = (
+        setres ..;
+        const ...Swap = _0;
+    );
+
+    const $.SetSortMemory = (match @ { Memory {
+        #**
+        * 用于快捷的将排序目标设置到读写某个内存
+        *#
+        setres ..;
+        const $.Read = ([Memory](
+            setres _0;
+            read $ Memory _1;
+        ));
+        const $.Write = ([Memory](
+            write _0 Memory _1;
+        ));
+    } });
+
+    const $.Swap = (match @ { Self A B {
+        #**
+        * 用于交换两处元素, 需要将两处读的值绑定到A和B
+        *#
+        take R = $;
+        take Self.Read[R->A A] Self.Read[R->B B];
+        take Self.Write[R->B A] Self.Write[R->A B];
+    } });
+
+    const $.MinRngSort = (match @ { Self Left Right {
+        #**
+        * 对于元素较少时应用的排序
+        *#
+        take I=() J=() C=();
+
+        I = Left + 1;
+        while I <= Right {
+            take Num = Self.Read[$ I];
+            J = I;
+            while (J: C=J; J-=1;) >= Left {
+                take Num1 = Self.Read[$ J];
+                break ({
+                    take _0=Num1 _1=Num;
+                    const Cmper = Self->Cmper;
+                } => Cmper);
+                take Self.Write[Num1 C];
+            }
+            take Self.Write[Num C];
+            I += 1;
+        }
+    } });
+
+    const $.PivotIdx = (match @ { Self Left Right {
+        #**
+        * 默认分区算法使用的基准数下标算法
+        * 默认实现是随机取一个
+        *#
+        $ = rand(Right-Left+1)+Left;
+    } });
+
+    const $.Partition = (match @ { Self Left Right {
+        #**
+        * 默认的快排使用的分区算法实现
+        *#
+        take PivotIdx = ...PivotIdx[Self Left Right];
+        take Pivot = ...Swap[Self PivotIdx Left].A;
+        take I=$ J=() Num=();
+        I, J = Left, Right;
+        const Cmper = ..->Cmper;
+        const Check = ([I J] (goto :ed !I < J;));
+
+        do {
+            take Check;
+            while ({take ...Read[Num J] _0=Num _1=Pivot;} => !Cmper) {
+                J -= 1;
+                take Check;
+            }
+            take ...Write[Num I];
+            I += 1;
+
+            take Check;
+            while ({take ...Read[Num I] _0=Num _1=Pivot;} => Cmper) {
+                I += 1;
+                take Check;
+            }
+            take ...Write[Num J];
+            J -= 1;
+        } while; :ed
+        take ...Write[Pivot I];
+    } });
+
+    const $.MainSort = (match @ { Self Left Right {
+        #**
+        * 默认的快排实现
+        *#
+        const Make = (?_0 | _1 << 26);
+        const UnMake = (match @ { Data {
+            $.left, $.right = Data & ((1<<26)-(1)), Data >> 26;
+        } });
+        take Top=...rec_stack_top Stack=...RecStack;
+        Top = ...RecStackFloor;
+        write Make[Left Right] Stack Top;
+        do {
+            take Data = UnMake[(read $ Stack Top; Top -= 1;)];
+            while (?Data.right - Data.left) > ...MinRng {
+                take Mid = ...Partition[Self Data.left->$ Data.right->$];
+                { # add task
+                    Top += 1;
+                    write Make[(?Mid+1) Data.right] Stack Top;
+                }
+                Data.right = Mid - 1;
+            }
+        } while Top >= ...RecStackFloor;
+        take ...MinRngSort[Self Left Right];
+    } });
+
+    const $.Finish = (
+        #**
+        * 静态的将排序展开, 并做好了被调准备
+        *#
+        setres ..;
+        ...call_line = @counter + 1;
+        skip {
+            take Left=...left Right=...right;
+            take ...MainSort[..->$ Left Right];
+            @counter = ...ret_line;
+        }
+    );
+
+    const $.Call = (match @ { Begin End {
+        #**
+        * 调用器
+        *#
+        setres ..;
+        ...left, ...right = Begin, End - 1;
+        ...ret_line = @counter + 1;
+        @counter = ...call_line;
+    } });
+);
+
+const QuickSort = QuickSortBuilder[]
+    .SetRecStack[cell1 0]       # 设置使用的辅助栈
+    .SetSortMemory[bank1]       # 用于快捷的将排序目标设置到读写某个内存
+    .SetMinRng[10]              # 设置使用小区间排序的区间长度
+    .SetCmper[goto(_0 > _1)]    # 设置相反的比较器, 它将反向排序
+    .Finish[]                   # 构建一个静态的快排, 供调用
+    ->Call;                     # 指向调用器
+
+
+break (sensor $ switch1 @enabled;);
+take QuickSort[0 176];
+control enabled switch1 true 0 0 0;
