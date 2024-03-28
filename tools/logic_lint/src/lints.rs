@@ -114,8 +114,8 @@ impl VarPat {
                 method,
                 var,
             }.into()),
-            VarPat::Lit(s) if s == var.value() => Ok(None),
             VarPat::Any => Ok(None),
+            VarPat::Lit(s) if s == var.value() => Ok(None),
             VarPat::Lit(_) => Err(()),
         }
     }
@@ -151,8 +151,8 @@ thread_local! {
             };
         }
         make_pats! {
-            ["read" v v v]
-            ["write" a v v]
+            ["read" a v v]
+            ["write" v v v]
             ["draw" "clear" v v v]
             ["draw" "color" v v v v]
             ["draw" "col" v]
@@ -230,7 +230,9 @@ fn check_assign_var<'a>(
         VarType::Var(_) => {
             let mut lints = Vec::new();
             lints.extend(check_var(src, line, var));
-            if !src.used_vars.contains(var.value()) {
+            if !src.used_vars.contains(var.value())
+                && !regex_is_match!(r"^_(?:$|[^_])", var.value())
+            {
                 lints.push(Lint::new(var, WarningLint::NeverUsed));
             }
             vec_optiter(lints.into())
@@ -353,6 +355,7 @@ make_lints! {
     }
     "ulocate" (8) {
         if let [_, mode, btype, args @ ..] = line.args() {
+            // 考虑到经常需要不用这里的参数, 所以不使用assign
             lints.extend(check_oper(mode, &[
                 "building", "ore", "spawn", "damaged",
             ]));
