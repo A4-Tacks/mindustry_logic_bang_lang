@@ -1,7 +1,7 @@
 pub mod lints;
 
 use core::fmt;
-use std::{borrow::Cow, collections::HashMap, ops::Deref};
+use std::{borrow::Cow, collections::HashSet, ops::Deref};
 
 use lints::get_useds;
 use tag_code::mdt_logic_split_unwraped;
@@ -61,12 +61,19 @@ impl<'a> Line<'a> {
     pub fn len(&self) -> usize {
         self.args().len()
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.args().is_empty()
+    }
 }
 
 #[derive(Debug)]
 pub struct Source<'a> {
     lines: Vec<Line<'a>>,
-    used_vars: HashMap<&'a str, Vec<Var<'a>>>,
+    /// 行中只读的量表,
+    /// 如果一行同时对一个量进行了读写,
+    /// 那么它将不会出现在这个表中
+    readonly_used_vars: HashSet<&'a str>,
 }
 impl<'a> Source<'a> {
     pub fn from_str(s: &'a str) -> Self {
@@ -77,25 +84,29 @@ impl<'a> Source<'a> {
             .map(|(lineno, line)| Line::from_line(lineno, line))
             .collect::<Vec<_>>();
 
-        let mut used_vars: HashMap<&str, Vec<Var<'_>>> = HashMap::new();
-        lines.iter()
+        let readonly_used_vars = lines.iter()
             .filter_map(get_useds)
-            .flatten()
-            .filter_map(|used| (
-                used.as_read().map(Var::value)?,
-                *used.as_read().unwrap()
-            ).into())
-            .chain(env_assignables.iter()
-                .map(|&var| (var, Var::new_nonlocation(var))))
-            .for_each(|(key, var)| {
-                used_vars.entry(key)
-                    .or_default()
-                    .push(var)
-            });
+            .flat_map(|args| {
+                args.clone()
+                    .into_iter()
+                    .filter(move |arg| {
+                        if arg.method().is_assign() {
+                            return false;
+                        }
+                        !args.iter().any(|x| {
+                            x.method().is_assign()
+                                && x.var().value() == arg.var().value()
+                        })
+                    })
+            })
+            .filter_map(|used| used.as_read()
+                .map(Var::value))
+            .chain(env_assignables.iter().copied())
+            .collect();
 
         Self {
             lines,
-            used_vars,
+            readonly_used_vars,
         }
     }
 
@@ -136,6 +147,10 @@ impl<'a> Source<'a> {
             let fmtter = LintFmtter(self, &lint);
             eprintln!("{}", fmtter)
         }
+    }
+
+    pub fn used_vars(&self) -> &HashSet<&'a str> {
+        &self.readonly_used_vars
     }
 }
 

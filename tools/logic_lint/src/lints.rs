@@ -230,17 +230,9 @@ fn check_assign_var<'a>(
         VarType::Var(_) => {
             let mut lints = Vec::new();
             lints.extend(check_var(src, line, var));
-            'x: {
-                if let Some(useds) = src.used_vars.get(var.value()) {
-                    if useds.iter()
-                        .any(|used| used.lineno() != var.lineno())
-                    {
-                        break 'x;
-                    }
-                }
-                if regex_is_match!(r"^_(?:$|[^_])", var.value()) {
-                    break 'x;
-                }
+            if !src.used_vars().contains(var.value())
+                && !regex_is_match!(r"^_(?:$|[^_])", var.value())
+            {
                 lints.push(Lint::new(var, WarningLint::NeverUsed));
             }
             vec_optiter(lints.into())
