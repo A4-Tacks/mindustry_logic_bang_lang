@@ -3,7 +3,7 @@ mod builtins;
 mod tests;
 
 use std::{
-    borrow::Borrow,
+    borrow::{Borrow, Cow},
     collections::{HashMap, HashSet},
     convert::identity,
     fmt::{self, Debug, Display},
@@ -77,6 +77,17 @@ macro_rules! do_return {
         if $e {
             return $($v)?
         }
+    };
+}
+macro_rules! csi {
+    (@ignore($($i:tt)*) $($t:tt)*) => ($($t)*);
+    ($fcode:expr $(, $code:expr)*; $($arg:tt)*) => {
+        format_args!(
+            concat!("\x1b[{}", $(csi!(@ignore($code) ";{}"), )* "m{}\x1b[0m"),
+            $fcode,
+            $($code,)*
+            format_args!($($arg)*),
+        )
     };
 }
 
@@ -2500,14 +2511,15 @@ pub struct Match {
 impl Compile for Match {
     fn compile(self, meta: &mut CompileMeta) {
         let args = self.args.into_taked_args_handle(meta);
-        let mut iter = self.cases.into_iter();
-        loop {
-            let Some(case) = iter.next() else { break };
-            let (pat, block) = case;
+        for (pat, block) in self.cases {
             if pat.do_pattern(&args, meta) {
                 block.compile(meta);
-                break;
+                return;
             }
+        }
+        if meta.enable_misses_match_log_info {
+            meta.log_info(format_args!("Misses match, [{}]", args.join(" ")));
+            meta.log_expand_stack();
         }
     }
 }
@@ -3009,6 +3021,7 @@ pub struct CompileMeta {
     /// 值绑定全局常量表, 只有值绑定在使用它
     value_bind_global_consts: HashMap<Var, ConstData>,
     last_builtin_exit_code: u8,
+    enable_misses_match_log_info: bool,
 }
 impl Debug for CompileMeta {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -3033,6 +3046,7 @@ impl Debug for CompileMeta {
             .field("value_binds", &self.value_binds)
             .field("value_bind_global_consts", &self.value_bind_global_consts)
             .field("last_builtin_exit_code", &self.last_builtin_exit_code)
+            .field("enable_misses_match_log_info", &self.enable_misses_match_log_info)
             .field("..", &DotDot)
             .finish()
     }
@@ -3064,6 +3078,7 @@ impl CompileMeta {
             value_binds: HashMap::new(),
             value_bind_global_consts: HashMap::new(),
             last_builtin_exit_code: 0,
+            enable_misses_match_log_info: false,
         };
         let builtin = String::from("Builtin");
         for builtin_func in build_builtins() {
@@ -3506,20 +3521,24 @@ impl CompileMeta {
     }
 
     pub fn log_info(&mut self, s: impl std::fmt::Display) {
-        eprintln!("\x1b[1m[I] {}\x1b[0m", s.to_string()
-            .trim_end().replace('\n', "\n    "))
+        eprintln!("{}", csi!(1; "[I] {}",
+                s.to_string().trim_end().replace('\n', "\n    ")))
     }
 
     pub fn log_err(&mut self, s: impl std::fmt::Display) {
-        eprintln!("\x1b[1;91m[E] {}\x1b[0m", s.to_string()
-            .trim_end().replace('\n', "\n    "))
+        eprintln!("{}", csi!(1, 91; "[E] {}",
+                s.to_string().trim_end().replace('\n', "\n    ")))
     }
 
-    pub fn debug_expand_stack(&self) -> impl Iterator<Item = String> + '_ {
+    pub fn debug_expand_stack(&self) -> impl Iterator<
+        Item = Cow<'_, str>
+    > + '_ {
         self.const_expand_names().iter()
             .zip(&self.dexp_expand_binders)
             .map(|x| match x {
-                (name, Some(binder)) => format!("{name} ..{binder}"),
+                (name, Some(binder)) => {
+                    format!("{name} ..{binder}").into()
+                },
                 (name, None) => name.into(),
             })
     }

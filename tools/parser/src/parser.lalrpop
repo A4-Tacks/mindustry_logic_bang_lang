@@ -830,7 +830,7 @@ pub Control: LogicLine = {
     ControlWithOptionalEnd,
 }
 ControlBody: LogicLine = {
-    ControlWithoutOptionalEnd,
+    Control,
     Block,
 }
 ControlWithoutOptionalEnd: LogicLine = {

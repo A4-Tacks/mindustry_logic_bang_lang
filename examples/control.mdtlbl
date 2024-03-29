@@ -143,3 +143,4 @@ print 1
 jump 0 lessThan c d
 jump 0 lessThan a b
 *#
+# 在0.15.5中, if也可以写进do_while了

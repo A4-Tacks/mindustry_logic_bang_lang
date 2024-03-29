@@ -359,5 +359,12 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
                     })
             })
         }
+
+        fn misses_match:MissesMatch(meta) [v:enable] {
+            check_type!("var" Value::Var(enable) = enable.value() => {
+                meta.enable_misses_match_log_info = enable != "0";
+                Ok("__".into())
+            })
+        }
     }
 }

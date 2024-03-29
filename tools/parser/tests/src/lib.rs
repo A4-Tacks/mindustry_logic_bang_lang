@@ -265,6 +265,20 @@ fn control_test() {
         print 3;
     }
     "#).unwrap();
+
+    let _ = parse!(parser, r#"
+    do if c < d {
+        print 1;
+    } elif e < f {
+        print 2;
+    } else {
+        print 3;
+    } while a < b;
+    "#).unwrap();
+
+    let _ = parse!(parser, r#"
+    do print; while a < b;
+    "#).unwrap_err();
 }
 
 #[test]
