@@ -71,7 +71,7 @@ impl VarUsedMethod {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct VarUsed<'a> {
     method: VarUsedMethod,
     var: Var<'a>,
@@ -230,9 +230,17 @@ fn check_assign_var<'a>(
         VarType::Var(_) => {
             let mut lints = Vec::new();
             lints.extend(check_var(src, line, var));
-            if !src.used_vars.contains(var.value())
-                && !regex_is_match!(r"^_(?:$|[^_])", var.value())
-            {
+            'x: {
+                if let Some(useds) = src.used_vars.get(var.value()) {
+                    if useds.iter()
+                        .any(|used| used.lineno() != var.lineno())
+                    {
+                        break 'x;
+                    }
+                }
+                if regex_is_match!(r"^_(?:$|[^_])", var.value()) {
+                    break 'x;
+                }
                 lints.push(Lint::new(var, WarningLint::NeverUsed));
             }
             vec_optiter(lints.into())

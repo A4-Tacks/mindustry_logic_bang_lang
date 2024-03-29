@@ -1,7 +1,7 @@
 pub mod lints;
 
 use core::fmt;
-use std::{borrow::Cow, collections::HashSet, ops::Deref};
+use std::{borrow::Cow, collections::HashMap, ops::Deref};
 
 use lints::get_useds;
 use tag_code::mdt_logic_split_unwraped;
@@ -66,21 +66,32 @@ impl<'a> Line<'a> {
 #[derive(Debug)]
 pub struct Source<'a> {
     lines: Vec<Line<'a>>,
-    used_vars: HashSet<&'a str>,
+    used_vars: HashMap<&'a str, Vec<Var<'a>>>,
 }
 impl<'a> Source<'a> {
     pub fn from_str(s: &'a str) -> Self {
+        let env_assignables = &[
+            "@counter",
+        ][..];
         let lines = s.lines().enumerate()
             .map(|(lineno, line)| Line::from_line(lineno, line))
             .collect::<Vec<_>>();
 
-        let used_vars = FromIterator::from_iter(lines.iter()
+        let mut used_vars: HashMap<&str, Vec<Var<'_>>> = HashMap::new();
+        lines.iter()
             .filter_map(get_useds)
             .flatten()
-            .filter_map(|used| used.as_read().map(Var::value))
-            .chain([
-                "@counter",
-            ]));
+            .filter_map(|used| (
+                used.as_read().map(Var::value)?,
+                *used.as_read().unwrap()
+            ).into())
+            .chain(env_assignables.iter()
+                .map(|&var| (var, Var::new_nonlocation(var))))
+            .for_each(|(key, var)| {
+                used_vars.entry(key)
+                    .or_default()
+                    .push(var)
+            });
 
         Self {
             lines,
@@ -145,6 +156,10 @@ impl<'a> Deref for Var<'a> {
 impl<'a> Var<'a> {
     pub fn new(lineno: usize, arg_idx: usize, value: &'a str) -> Self {
         Self { lineno, arg_idx, value }
+    }
+
+    pub fn new_nonlocation(value: &'a str) -> Self {
+        Self { lineno: usize::MAX, arg_idx: 0, value }
     }
 
     pub fn value(&self) -> &'a str {
