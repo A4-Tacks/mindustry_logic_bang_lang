@@ -386,7 +386,7 @@ make_lints! {
             lints.extend(check_vars(src, line, args));
         }
     }
-    "read" (3) {
+    "read" | "sensor" (3) {
         if let [_, result, args @ ..] = line.args() {
             lints.extend(check_assign_var(src, line, result));
             lints.extend(check_vars(src, line, args));

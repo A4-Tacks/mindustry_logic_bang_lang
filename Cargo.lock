@@ -286,7 +286,7 @@ checksum = "b06a4cde4c0f271a446782e3eff8de789548ce57dbc8eca9292c27f4a42004b4"
 
 [[package]]
 name = "logic_lint"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "lazy-regex",
  "tag_code",
@@ -301,7 +301,7 @@ checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
 
 [[package]]
 name = "mindustry_logic_bang_lang"
-version = "0.15.7"
+version = "0.15.8"
 dependencies = [
  "display_source",
  "logic_lint",
