@@ -1,0 +1,261 @@
+#**
+* 这是小游戏 十步万度 的简单mdt复刻版
+*
+* 完成时间: 2024-04-27 16:00 - 2024-04-27 18:37
+*
+* links
+* ---
+* - display1
+* - arc1
+* - cell1
+*#
+
+:begin
+
+const Size = 30;
+take MSize = (?Size/2);
+take SideSize = (?MSize*0.85);
+take PointerLen = (?MSize);
+take PointerWid = (?MSize*0.2);
+
+take DisplayRatio = (?32*6/176);
+
+sensor display_x display1 @x;
+sensor display_y display1 @y;
+score = 0;
+max_steps = 10;
+step = 0;
+
+const DisplayClock = (match @ {
+    Id Angle {
+        take X = (?Id%5*Size);
+        take Y = (?Id//5*Size);
+        take MX = (?X+MSize);
+        take MY = (?Y+MSize);
+        take A1=(?Angle-(90)) A2=(?Angle+90);
+
+        draw color 0 0 0 0 0 0;
+        draw rect X Y Size Size 0 0;
+        draw color 0xFF 0xFF 0xFF 0xFF 0 0;
+        draw linePoly MX MY 60 SideSize 0 "by A4-Tacks";
+        draw color 0xFF 0 0 0xFF 0 0;
+        draw triangle
+            (?MX+cos(A1)*PointerWid) (?MY+sin(A1)*PointerWid)
+            (?MX+cos(A2)*PointerWid) (?MY+sin(A2)*PointerWid)
+            (?MX+cos(Angle)*PointerLen) (?MY+sin(Angle)*PointerLen)
+            ;
+
+        drawflush display1;
+    }
+});
+const DisplayMemClock = (match @ {
+    I {
+        take DisplayClock[I (%read $ cell1 I;%)->$];
+    }
+});
+const ClickClock = (
+    #**
+    * 阻塞直到按下, 返回点击的目标
+    * 如果没点到执行传入
+    *#
+    const Then = _0;
+    const Else = _1;
+
+    do { } while !(sensor $ arc1 @shooting;);
+    do { } while (sensor $ arc1 @shooting;);
+    take X = (?(sensor $ arc1 @shootX;)-display_x);
+    take Y = (?(sensor $ arc1 @shootY;)-display_y);
+    take X=(?X*DisplayRatio);
+    take Y=(?Y*DisplayRatio);
+    if X < -3 || X > 3 || Y < -3 || Y > 3 {
+        take Else[X Y];
+    } else {
+        take Ratio = (?176/(Size*5));
+        take Then[(?X+3)->$ (?Y+3)->$];
+    }
+);
+const DoChain = (match @ {
+    #**
+    * 进行一个链式反应
+    *#
+    Id {
+        take Out = ();
+        do {
+            # show score
+            score += 90;
+            take ShowScores[];
+
+            Out = (read $ cell1 Id;)-(90);
+            if Out < 0 { Out += 360; }
+            write Out cell1 Id;
+            take DisplayMemClock[Id];
+        } while (
+            {
+                take X=(?Id%5) Y=(?Id//5);
+            } => Out == 0 && X != 4 && ({ Id += 1; } => _)
+            || Out == 90  && Y != 4 && ({ Id += 5; } => _)
+            || Out == 180 && X != 0 && ({ Id -= 1; } => _)
+            || Out == 270 && Y != 0 && ({ Id -= 5; } => _)
+        );
+    }
+});
+const Once = (
+    const $.F = _0;
+    const $.V = (__:
+        take Value = ...F;
+        take ...V = Value;
+        setres Value;
+    );
+);
+const ShowNum = (
+    # 粗细为2的整数数显, 给定显示右下角, 用负方向显示
+    # DoNeg参数控制是否考虑负数
+    match @ {
+        X Y Num { take DoNeg = 0; }
+        X Y Num DoNeg {}
+        @ {
+            take Builtin.Err["ShowNum argc err"];
+            take N=Builtin.ArgsLen[] Builtin.Err[N];
+        }
+    }
+    match DoNeg { [1] {
+        take IsNeg = (?Num < 0);
+        Num = abs(Num);
+    } }
+    take S = 2; # Size
+
+    take OLen=(?S*2); # offset len
+    take Len=(?S*3) NLen=(?-Len) NS=(?-S);
+    take EWid = S; # 间距
+
+    const Display = (
+        take LBX=Once[(?X-OLen)]    LBY=Once[Y]
+             LMX=Once[LBX.V]        LMY=Once[(?Y+OLen)]
+             RBX=Once[X]            RBY=Once[Y]
+             RMX=Once[X]            RMY=Once[LMY.V]
+             RTX=Once[X]            RTY=Once[(?RMY.V+OLen)]
+        ;
+
+        inline@{
+            match @ {
+                [t]  { draw rect RTX.V RTY.V NLen S 0 0; }
+                [m]  { draw rect RMX.V RMY.V NLen S 0 0; }
+                [b]  { draw rect RBX.V RBY.V NLen S 0 0; }
+                [rb] { draw rect RBX.V RBY.V NS Len 0 0; }
+                [lb] { draw rect LBX.V LBY.V NS Len 0 0; }
+                [rt] { draw rect RMX.V RMY.V NS Len 0 0; }
+                [lt] { draw rect LMX.V LMY.V NS Len 0 0; }
+                Other {
+                    take Builtin.Err["Unknown line"];
+                    take Builtin.Err[Other];
+                }
+            }
+        }
+    );
+
+    do {
+        take N = (?Num%10);
+
+        switch N {
+            break;
+        case: take Display[t b lb rb lt rt];
+        case: take Display[rb rt];
+        case: take Display[t rt m lb b];
+        case: take Display[t m b rt rb];
+        case: take Display[lt m rt rb];
+        case: take Display[t lt m rb b];
+        case: take Display[t lt m lb rb b];
+        case: take Display[t rt rb];
+        case: take Display[t m b rb lb rt lt];
+        case: take Display[t lt rt m rb b];
+        }
+        Num //= 10;
+        X -= Len+EWid;
+    } while Num > 0;
+    match DoNeg { [1] {
+        if IsNeg {
+            take Display[m];
+        }
+    } }
+);
+const DefaultColor = (
+    draw color 0x4E 0x4D 0x5B 0xFF 0 0;
+);
+const ShowSteps = (% # static function caller
+    $.line = @counter + 1;
+    skip {
+        take DefaultColor[];
+        draw rect 0 152 176 10 0 0;
+        draw color 0xEB 0xD6 0x71 0xFF 0 0;
+        take ShowNum[(?(176:)) 152 (?max_steps-step)];
+        drawflush display1;
+        @counter = $.ret_line;
+    }
+    const $.Call = (
+        ...ret_line = @counter + 1;
+        @counter = ...line;
+    );
+%)->Call;
+const ShowScores = (% # static function caller
+    $.line = @counter + 1;
+    skip {
+        take DefaultColor[];
+        draw rect 0 166 176 10 0 0;
+        draw color 0xFF 0 0 0xFF 0 0;
+        take ShowNum[(?(176:)) 166 (?(score:))];
+        drawflush display1;
+        @counter = $.ret_line;
+    }
+    const $.Call = (
+        ...ret_line = @counter + 1;
+        @counter = ...line;
+    );
+%)->Call;
+
+# init
+take DefaultColor[];
+draw rect 0 0 176 176 0 0;
+
+i = 0; while i < 25 {
+    write 90 cell1 i;
+    take DisplayClock[i 90];
+    i += 1;
+}
+# restart button
+draw color 0 0xFF 0 0xFF 0 0;
+draw rect (?Size*5) 0 Size Size 0 0;
+draw color 0xFF 0xFF 0xFF 0xFF 0 0;
+draw image (?Size*5+MSize) MSize @overdrive-projector MSize 0 0;
+drawflush display1;
+
+take ShowSteps[];
+take ShowScores[];
+
+# main loop
+do {
+    const Miss = (
+        draw color 0xFF 0 0 0xFF 0 0;
+        draw rect (?Size*5) Size Size Size 0 0;
+        drawflush display1;
+    );
+    take ClickClock[(
+        take X=_0 Y=_1;
+        goto :begin X >= 5 && X < 6 && Y < 1; # restart
+
+        # clear missed info
+        take DefaultColor[];
+        draw rect (?Size*5) Size Size Size 0 0;
+
+        if !step < max_steps {
+        } elif X < 5 && Y < 5 {
+            # click clock
+            take Id = (?floor(Y)*5+floor(X));
+            take DoChain[Id];
+            step += 1;
+            take ShowSteps[];
+        } else {
+            # missed
+            take Miss[];
+        }
+    ) Miss];
+} while;
