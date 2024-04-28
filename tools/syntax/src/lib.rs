@@ -150,7 +150,7 @@ impl From<&'_ Var> for Var {
 impl From<Var> for String {
     fn from(mut value: Var) -> Self {
         Rc::make_mut(&mut value.value);
-        Rc::into_inner(value.value).unwrap()
+        Rc::try_unwrap(value.value).unwrap()
     }
 }
 impl From<Var> for Rc<String> {
