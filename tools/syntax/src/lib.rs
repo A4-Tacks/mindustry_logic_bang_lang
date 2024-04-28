@@ -11,8 +11,9 @@ use std::{
     iter::{repeat_with, zip},
     mem::{self, replace},
     num::ParseIntError,
-    ops,
+    ops::{self, Deref},
     process::exit,
+    rc::Rc, cell::Cell,
 };
 
 use builtins::{build_builtins, BuiltinFunc};
@@ -115,7 +116,7 @@ impl From<((Location, Location), Errors)> for Error {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Errors {
-    NotALiteralUInteger(String, ParseIntError),
+    NotALiteralUInteger(Var, ParseIntError),
     SetVarNoPatternValue(usize, usize),
     ArgsRepeatChunkByZero,
 }
@@ -127,7 +128,105 @@ macro_rules! err {
     };
 }
 
-pub type Var = String;
+#[derive(Debug, Default, Clone)]
+pub struct Var {
+    value: Rc<String>,
+}
+impl Var {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+impl FromIterator<char> for Var {
+    fn from_iter<T: IntoIterator<Item = char>>(iter: T) -> Self {
+        String::from_iter(iter).into()
+    }
+}
+impl From<&'_ Var> for Var {
+    fn from(value: &'_ Var) -> Self {
+        value.clone()
+    }
+}
+impl From<Var> for String {
+    fn from(mut value: Var) -> Self {
+        Rc::make_mut(&mut value.value);
+        Rc::into_inner(value.value).unwrap()
+    }
+}
+impl From<Var> for Rc<String> {
+    fn from(value: Var) -> Self {
+        value.value
+    }
+}
+impl Display for Var {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.value, f)
+    }
+}
+impl Hash for Var {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.value.hash(state)
+    }
+}
+impl Borrow<String> for Var {
+    fn borrow(&self) -> &String {
+        &self.value
+    }
+}
+impl Borrow<str> for Var {
+    fn borrow(&self) -> &str {
+        &***self
+    }
+}
+impl AsRef<String> for Var {
+    fn as_ref(&self) -> &String {
+        self.borrow()
+    }
+}
+impl AsRef<str> for Var {
+    fn as_ref(&self) -> &str {
+        self.borrow()
+    }
+}
+impl From<String> for Var {
+    fn from(value: String) -> Self {
+        Self { value: value.into() }
+    }
+}
+impl From<&'_ str> for Var {
+    fn from(value: &'_ str) -> Self {
+        Self { value: Rc::new(value.into()) }
+    }
+}
+impl Deref for Var {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &*self.value
+    }
+}
+impl Eq for Var { }
+impl PartialEq for Var {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+impl PartialEq<String> for Var {
+    fn eq(&self, other: &String) -> bool {
+        &**self == other
+    }
+}
+impl PartialEq<str> for Var {
+    fn eq(&self, other: &str) -> bool {
+        **self == other
+    }
+}
+impl PartialEq<&str> for Var {
+    fn eq(&self, other: &&str) -> bool {
+        **self == *other
+    }
+}
+
 pub type Location = usize;
 pub type Float = f64;
 
@@ -194,14 +293,14 @@ impl Value {
             {
                 let num = num.round() as i64;
                 return if !num.is_negative() {
-                    format!("0x{num:X}")
+                    format!("0x{num:X}").into()
                 } else {
                     let num = -num;
-                    format!("0x-{num:X}")
+                    format!("0x-{num:X}").into()
                 }
             }
         }
-        return num.to_string()
+        return num.to_string().into()
     }
 
     pub fn try_eval_const_num_to_var(&self, meta: &CompileMeta) -> Option<Var> {
@@ -427,7 +526,7 @@ impl Value {
                         let Value::ReprVar(cmd) = &args[0] else {
                             return None;
                         };
-                        match &**cmd {
+                        match &***cmd {
                             "set"
                             if args.len() == 3
                             && args[1].is_result_handle()
@@ -451,6 +550,7 @@ impl Value {
 }
 impl_enum_froms!(impl From for Value {
     Var => Var;
+    Var => String;
     Var => &str;
     DExp => DExp;
     ValueBind => ValueBind;
@@ -458,6 +558,57 @@ impl_enum_froms!(impl From for Value {
     BuiltinFunc => BuiltinFunc;
     ValueBindRef => ValueBindRef;
 });
+
+/// 一次性的迭代器格式化包装器
+struct IterFmtter<I> {
+    iter: Cell<Option<I>>,
+}
+impl<I> From<I> for IterFmtter<I> {
+    fn from(value: I) -> Self {
+        Self::new(value)
+    }
+}
+impl<I> IterFmtter<I> {
+    fn new(iter: I) -> Self {
+        Self {
+            iter: Some(iter).into(),
+        }
+    }
+}
+trait IntoIterFmtter: Sized {
+    fn into_iter_fmtter(self) -> IterFmtter<Self>;
+}
+impl<I: IntoIterator> IntoIterFmtter for I {
+    fn into_iter_fmtter(self) -> IterFmtter<Self> {
+        self.into()
+    }
+}
+impl<I> Debug for IterFmtter<I>
+where I: IntoIterator,
+      I::Item: Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.iter.take()
+            .ok_or(fmt::Error)?
+            .into_iter()
+            .try_for_each(|s| {
+                s.fmt(f)
+            })
+    }
+}
+impl<I> Display for IterFmtter<I>
+where I: IntoIterator,
+      I::Item: Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.iter.take()
+            .ok_or(fmt::Error)?
+            .into_iter()
+            .try_for_each(|s| {
+                s.fmt(f)
+            })
+    }
+}
 
 /// 在常量追溯时就发生绑定追溯, 而不是take时
 /// 不会take追溯到的值
@@ -620,7 +771,7 @@ impl ClosuredValue {
             .collect();
         let bindh = meta.get_tmp_var();
         for catch in catch_values {
-            catch.do_catch(meta, &bindh);
+            catch.do_catch(meta, &**bindh);
         }
 
         let key = Self::make_valkey(bindh.clone());
@@ -780,16 +931,16 @@ impl Meta {
     pub fn get_tmp_var(&mut self) -> Var {
         let var = self.tmp_var_count;
         self.tmp_var_count += 1;
-        gen_anon_name(var, |arg| format!("___{}", arg))
+        gen_anon_name(var, |arg| format!("___{}", arg)).into()
     }
 
     /// 获取一个标签, 并且进行内部自增以保证不会获取到获取过的
-    pub fn get_tag(&mut self) -> String {
+    pub fn get_tag(&mut self) -> Var {
         let tag = self.tag_number;
         self.tag_number += 1;
         let fmtted_arg = gen_anon_name(tag, |arg|
             format!("___{}", arg));
-        self.add_defined_label(fmtted_arg)
+        self.add_defined_label(fmtted_arg.into())
     }
 
     /// 添加一个被跳转的label到当前作用域
@@ -1347,7 +1498,7 @@ impl CmpTree {
                 | V::ResultHandle
                 => Some(&**meta.dexp_handle()),
                 | V::Binder
-                => Some(meta.get_dexp_expand_binder().map(|s| &**s).unwrap_or("__")),
+                => Some(meta.get_dexp_expand_binder().map(|s| &***s).unwrap_or("__")),
                 | V::ValueBind(_)
                 | V::ValueBindRef(_)
                 | V::Cmper(_)
@@ -1686,14 +1837,16 @@ impl Op {
 
     pub fn generate_args(self, meta: &mut CompileMeta) -> Vec<String> {
         let info = self.into_info();
-        let mut args: Vec<Var> = Vec::with_capacity(5);
+        let mut args: Vec<String> = Vec::with_capacity(5);
 
         args.push("op".into());
         args.push(info.oper_str.into());
         args.push(info.result.take_handle(meta).into());
         args.push(info.arg1.take_handle(meta).into());
         args.push(
-            info.arg2.map(|arg| arg.take_handle(meta))
+            info.arg2
+                .map(|arg| arg.take_handle(meta))
+                .map(Into::into)
                 .unwrap_or(UNUSED_VAR.into())
         );
 
@@ -2082,7 +2235,7 @@ impl Select {
                 let mut head = Op::Mul(
                     tmp_var.clone().into(),
                     target,
-                    Value::ReprVar(max_len.to_string())
+                    Value::ReprVar(max_len.to_string().into())
                 ).compile_take(meta);
                 let head_1 = Op::Add(
                     counter.clone(),
@@ -2150,7 +2303,7 @@ impl SwitchCatch {
             // 跳过式为`x <= max_case`
             Self::Overflow => JumpCmp::LessThanEq(
                 value,
-                Value::ReprVar(max_case.to_string())
+                Value::ReprVar(max_case.to_string().into())
             ).into(),
             // 下溢, 捕获式为 `x < 0`
             // 跳过式为`x >= 0`
@@ -2249,7 +2402,8 @@ impl TakeHandle for ConstKey {
 }
 impl_enum_froms!(impl From for ConstKey {
     Var => &str;
-    Var => &String;
+    Var => String;
+    Var => &Var;
     Var => Var;
     ValueBind => ValueBind;
 });
@@ -2673,7 +2827,7 @@ impl Compile for LogicLine {
                 meta.push(data)
             },
             Self::Other(args) => {
-                let handles: Vec<String> = args.into_taked_args_handle(meta);
+                let handles: Vec<Var> = args.into_taked_args_handle(meta);
                 meta.push(TagLine::Line(handles.join(" ").into()));
             },
             Self::SetResultHandle(value) => {
@@ -2682,7 +2836,7 @@ impl Compile for LogicLine {
             },
             Self::SetArgs(args) => {
                 fn iarg(i: usize) -> Var {
-                    format!("_{i}")
+                    format!("_{i}").into()
                 }
                 let expand_args = args.into_value_args(meta);
                 let len = expand_args.len();
@@ -2847,14 +3001,14 @@ impl TryFrom<&TagLine> for LogicLine {
                     mdt_logic_split_2(&str)?
                 );
                 Ok(Goto(
-                    to_tag.to_string(),
+                    to_tag.to_string().into(),
                     match JumpCmp::from_mdt_args(&args) {
                         Ok(cmp) => cmp.into(),
                         Err(e) => return Err(e.into()),
                     }
                 ).into())
             },
-            TagLine::TagDown(tag) => Ok(Self::Label(tag.to_string())),
+            TagLine::TagDown(tag) => Ok(Self::Label(tag.to_string().into())),
             TagLine::Line(line) => {
                 assert!(line.tag().is_none());
                 let line = line.data();
@@ -2917,11 +3071,11 @@ impl ConstData {
         &self.value
     }
 
-    pub fn labels(&self) -> &[String] {
+    pub fn labels(&self) -> &[Var] {
         self.labels.as_ref()
     }
 
-    pub fn binder(&self) -> Option<&String> {
+    pub fn binder(&self) -> Option<&Var> {
         self.binder.as_ref()
     }
 
@@ -2982,7 +3136,7 @@ impl ExpandEnv {
         }
     }
 
-    pub fn leak_vars(&self) -> &[String] {
+    pub fn leak_vars(&self) -> &[Var] {
         self.leak_vars.as_ref()
     }
 
@@ -3083,8 +3237,8 @@ impl CompileMeta {
         let builtin = String::from("Builtin");
         for builtin_func in build_builtins() {
             let handle = format!("__{builtin}__{}", builtin_func.name());
-            let key = (builtin.clone(), builtin_func.name().into());
-            meta.value_binds.insert(key, handle);
+            let key = (builtin.clone().into(), builtin_func.name().into());
+            meta.value_binds.insert(key, handle.into());
             meta.add_const_value(Const(
                 ConstKey::ValueBind(ValueBind(
                     Box::new(builtin.clone().into()),
@@ -3099,8 +3253,8 @@ impl CompileMeta {
 
     /// 获取一个标记的编号, 如果不存在则将其插入并返回新分配的编号.
     /// 注: `Tag`与`Label`是混用的, 表示同一个意思
-    pub fn get_tag(&mut self, label: String) -> usize {
-        *self.tags_map.entry(label).or_insert_with(|| {
+    pub fn get_tag(&mut self, label: Var) -> usize {
+        *self.tags_map.entry(label.to_string()).or_insert_with(|| {
             let id = self.tag_count;
             self.tag_count += 1;
             id
@@ -3110,7 +3264,7 @@ impl CompileMeta {
     fn tmp_tag_getter(id: &mut usize) -> Var {
         let old = *id;
         *id += 1;
-        gen_anon_name(old, |arg| format!("__{arg}"))
+        gen_anon_name(old, |arg| format!("__{arg}")).into()
     }
 
     /// 获取一个临时的`tag`
@@ -3121,7 +3275,7 @@ impl CompileMeta {
     fn tmp_var_getter(id: &mut usize) -> Var {
         let old = *id;
         *id += 1;
-        gen_anon_name(old, |arg| format!("__{arg}"))
+        gen_anon_name(old, |arg| format!("__{arg}")).into()
     }
 
     pub fn get_tmp_var(&mut self) -> Var {
@@ -3386,8 +3540,10 @@ impl CompileMeta {
             self.log_err(format!(
                     "Stack Expand:\n{}",
                     self.debug_expand_stack()
-                        .collect::<Vec<_>>()
-                        .join(", "),
+                        .flat_map(|var| [
+                            var.to_string().into(),
+                            Cow::Borrowed("\n"),
+                        ]).into_iter_fmtter(),
             ));
             err!(
                 "Maximum recursion depth exceeded ({})",
@@ -3409,7 +3565,7 @@ impl CompileMeta {
                     tmp_tag,
                     &name,
                     &label
-                )
+                ).into()
             });
         }
         let res = value.clone();
@@ -3531,23 +3687,28 @@ impl CompileMeta {
     }
 
     pub fn debug_expand_stack(&self) -> impl Iterator<
-        Item = Cow<'_, str>
+        Item = Cow<'_, Var>
     > + '_ {
         self.const_expand_names().iter()
             .zip(&self.dexp_expand_binders)
             .map(|x| match x {
                 (name, Some(binder)) => {
-                    format!("{name} ..{binder}").into()
+                    Cow::Owned(format!("{name} ..{binder}").into())
                 },
-                (name, None) => name.into(),
+                (name, None) => Cow::Borrowed(name),
             })
     }
 
     pub fn log_expand_stack(&mut self) {
         let names = self.debug_expand_stack()
-            .collect::<Vec<_>>()
-            .join("\n");
-        self.log_info(format!("Expand Stack:\n{names}"))
+            .flat_map(|var| [
+                var.to_string().into(),
+                Cow::Borrowed("\n"),
+            ])
+            .into_iter_fmtter();
+        let s = format!("Expand Stack:\n{names}");
+        drop(names);
+        self.log_info(s);
     }
 
     pub fn last_builtin_exit_code(&self) -> u8 {
@@ -3558,7 +3719,7 @@ impl CompileMeta {
         replace(&mut self.last_builtin_exit_code, new_code)
     }
 
-    pub fn const_expand_names(&self) -> &[String] {
+    pub fn const_expand_names(&self) -> &[Var] {
         self.const_expand_names.as_ref()
     }
 

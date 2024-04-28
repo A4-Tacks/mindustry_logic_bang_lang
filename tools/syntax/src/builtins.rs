@@ -158,13 +158,13 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
                 Ok(if Value::is_string(var) {
                     var.into()
                 } else {
-                    format!("\"{var}\"")
+                    format!("\"{var}\"").into()
                 })
             })
         }
 
         fn status:Status(meta) [] {
-            Ok(meta.last_builtin_exit_code().to_string())
+            Ok(meta.last_builtin_exit_code().to_string().into())
         }
 
         fn concat:Concat(meta) [va:a vb:b] {
@@ -176,7 +176,7 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
                     if !Value::is_string(b) {
                         return Err((2, format!("{b} is not a string")));
                     }
-                    Ok([&a[..a.len()-1], &b[1..]].concat())
+                    Ok([&a[..a.len()-1], &b[1..]].concat().into())
                 })
             })
         }
@@ -184,18 +184,18 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
         fn info:Info(meta) [var:data] {
             let value = data.value();
             check_type!("var" Value::Var(var) = value => {
-                let msg = String::from(var);
-                meta.log_info(msg.clone());
-                Ok(msg)
+                let var = var.clone();
+                meta.log_info(var.clone());
+                Ok(var)
             })
         }
 
         fn err:Err(meta) [var:data] {
             let value = data.value();
             check_type!("var" Value::Var(var) = value => {
-                let msg = String::from(var);
-                meta.log_err(msg.clone());
-                Ok(msg)
+                let var = var.clone();
+                meta.log_err(var.clone());
+                Ok(var)
             })
         }
 
@@ -214,9 +214,9 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
         /// 建议直接使用quick_dexp_take
         fn r#const:Const(meta) [n:name v:value] {
             check_type!("var" Value::Var(name) = name.value() => {
-                let name: String = name.into();
-                Const(name.clone().into(), value.value().clone(), vec![]).compile(meta);
-                meta.add_const_value_leak(name);
+                let name = &name.clone();
+                Const(name.into(), value.value().clone(), vec![]).compile(meta);
+                meta.add_const_value_leak(name.clone());
                 Ok("__".into())
             })
         }
@@ -224,10 +224,10 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
         fn binder:Binder(meta) [n:name v:value] {
             check_type!("var" Value::Var(name) = name.value() => {
                 check_type!("valuebind" Value::ValueBind(ValueBind(binder, _)) = value.value() => {
-                    let name: String = name.into();
-                    Const(name.clone().into(), binder.as_ref().clone(), vec![])
+                    let name = &name.clone();
+                    Const(name.into(), binder.as_ref().clone(), vec![])
                         .compile(meta);
-                    meta.add_const_value_leak(name);
+                    meta.add_const_value_leak(name.clone());
                     Ok("__".into())
                 })
             })
@@ -272,7 +272,7 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
         }
 
         fn args_len:ArgsLen(meta) [] {
-            Ok(meta.get_env_second_args().len().to_string())
+            Ok(meta.get_env_second_args().len().to_string().into())
         }
 
         fn slice_args:SliceArgs(meta) [s:start e:end] {
@@ -309,7 +309,7 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
         }
 
         fn max_expand_depth:MaxExpandDepth(meta) [] {
-            Ok(meta.const_expand_max_depth().to_string())
+            Ok(meta.const_expand_max_depth().to_string().into())
         }
 
         fn set_max_expand_depth:SetMaxExpandDepth(meta) [d:depth] {

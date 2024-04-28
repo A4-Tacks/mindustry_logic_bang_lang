@@ -4150,7 +4150,7 @@ fn string_escape_test() {
     ];
     let quoted = |s| format!("\"{s}\"");
     for (src, dst) in true_case {
-        assert_eq!(parse!(parser, &quoted(src)), Ok(quoted(dst)));
+        assert_eq!(parse!(parser, &quoted(src)), Ok(quoted(dst).into()));
     }
     for src in false_case {
         let src = quoted(src);

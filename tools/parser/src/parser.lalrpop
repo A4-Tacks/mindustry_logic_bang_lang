@@ -99,7 +99,8 @@ pub TopLevel: Expand = CtrlStart <mut lines:Expand> <ctrl:CtrlStop> => {
     lines
 };
 
-pub String: Var = r#""(?:\\\r?\n\s*(?:\\ )?|\r?\n|\\[n\\\[]|[^"\r\n\\])*""# => string_escape(<>);
+pub String: Var = r#""(?:\\\r?\n\s*(?:\\ )?|\r?\n|\\[n\\\[]|[^"\r\n\\])*""#
+    => string_escape(<>).into();
 pub Ident: Var = r"[_\p{XID_Start}]\p{XID_Continue}*" => <>.into();
 pub OIdent: Var = r"@[_\p{XID_Start}][\p{XID_Continue}\-]*" => <>.into(); // `@abc-def`这种
 pub Number: Var = r"(?:0(?:x-?[\da-fA-F][_\da-fA-F]*|b-?[01][_01]*)|-?\d[_\d]*(?:\.\d[\d_]*|e[+\-]?\d[\d_]*)?)"
@@ -107,7 +108,7 @@ pub Number: Var = r"(?:0(?:x-?[\da-fA-F][_\da-fA-F]*|b-?[01][_01]*)|-?\d[_\d]*(?
 // 原始字面量, 如`'@abc-def'`, 其中双引号会被替换为单引号.
 // 在一对单引号内可以写任意非空字符, 可避开关键字等
 pub OtherVar: Var = r"'[^'\s]+'" => {
-    <>[1..<>.len()-1].replace('"', "\'")
+    <>[1..<>.len()-1].replace('"', "\'").into()
 };
 
 // 逻辑里面一个单元
@@ -304,7 +305,7 @@ pub Op: Op = {
         ),
 }
 
-Label: String = ":" <Var>;
+Label: Var = ":" <Var>;
 
 #[inline]
 Expand: Expand = LogicLine+? => Expand(<>.unwrap_or_default());
@@ -734,7 +735,7 @@ pub BuiltinCommand: LogicLine = {
 
         Take::new(
             args.unwrap_or_default(),
-            var.unwrap_or_else(|| String::from("__")),
+            var.unwrap_or_else(|| "__".into()),
             do_leak_res,
             value
         )
@@ -979,7 +980,7 @@ ControlWithoutOptionalEnd: LogicLine = {
         // 用于添加到头部的捕获块
         let mut catch_lines = Vec::new();
         let value_handle: Var = if catchs_is_empty {
-            Var::with_capacity(0)
+            Var::new()
         } else { meta.get_tmp_var() };
 
         // 这里开始遍历捕获
