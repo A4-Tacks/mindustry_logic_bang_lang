@@ -33,12 +33,13 @@ syn keyword mdtlblKeyword
 syn keyword mdtlblOpFunKeyword
             \ add sub mul div idiv mod pow
             \ equal notEqual land lessThan lessThanEq greaterThan greaterThanEq
-            \ strictEqual strictNotEqual shl shr or and xor max
+            \ strictEqual strictNotEqual always _
+            \ shl shr or and xor max
             \ min angle len noise not abs log
             \ floor ceil sqrt rand sin cos tan
             \ asin acos atan lnot
 
-syn match mdtlblCmpTreeOper /&&\|||\|!/
+syn match mdtlblCmpTreeOper /&&\|||\|!\|=>/
 syn match mdtlblArgsExpand /@/
 
 " 注释 {{{1
