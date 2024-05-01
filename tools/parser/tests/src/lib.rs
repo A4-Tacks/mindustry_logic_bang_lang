@@ -5271,6 +5271,66 @@ fn builtin_func_test() {
             "print 113",
         ],
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        take Builtin.SetNoOp["set noop \\'noop\n\\'"];
+        select x {
+            print 1 2 3 4 5;
+            print 1 2 3;
+            print 1 2 3 4 5;
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"op mul __1 x 5"#,
+            r#"op add @counter @counter __1"#,
+            r#"print 1"#,
+            r#"print 2"#,
+            r#"print 3"#,
+            r#"print 4"#,
+            r#"print 5"#,
+            r#"print 1"#,
+            r#"print 2"#,
+            r#"print 3"#,
+            r#"jump 12 always 0 0"#,
+            r#"set noop "noop\n""#,
+            r#"print 1"#,
+            r#"print 2"#,
+            r#"print 3"#,
+            r#"print 4"#,
+            r#"print 5"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        take Builtin.SetNoOp['\"str\"'];
+        select x {
+            print 1 2 3 4 5;
+            print 1 2 3;
+            print 1 2 3 4 5;
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"op mul __1 x 5"#,
+            r#"op add @counter @counter __1"#,
+            r#"print 1"#,
+            r#"print 2"#,
+            r#"print 3"#,
+            r#"print 4"#,
+            r#"print 5"#,
+            r#"print 1"#,
+            r#"print 2"#,
+            r#"print 3"#,
+            r#"jump 12 always 0 0"#,
+            r#""str""#,
+            r#"print 1"#,
+            r#"print 2"#,
+            r#"print 3"#,
+            r#"print 4"#,
+            r#"print 5"#,
+        ],
+    );
 }
 
 #[test]

@@ -793,7 +793,7 @@ impl TakeHandle for ClosuredValue {
                 let handle = meta.get_value_binded(
                     bind_handle.clone(),
                     var.clone(),
-                ).clone();
+                );
                 Const(ConstKey::Var(var), handle.into(), Vec::new())
                     .compile(meta);
             }
@@ -888,7 +888,7 @@ pub struct ValueBind(pub Box<Value>, pub Var);
 impl ValueBind {
     pub fn take_unfollow_handle(self, meta: &mut CompileMeta) -> Var {
         let handle = self.0.take_handle(meta);
-        meta.get_value_binded(handle, self.1).clone()
+        meta.get_value_binded(handle, self.1)
     }
 }
 impl TakeHandle for ValueBind {
@@ -2258,8 +2258,11 @@ impl Select {
                             tag_code::Jump::new_always(end_tag).into()
                     ));
                     case.extend(
-                        repeat_with(Default::default)
-                        .take(insert_counts - 1)
+                        repeat_with(||
+                            LogicLine::NoOp
+                                .compile_take(meta))
+                            .take(insert_counts - 1)
+                            .flatten()
                     );
                     case.push(TagLine::TagDown(end_tag));
                 },
@@ -2819,7 +2822,7 @@ pub enum LogicLine {
 impl Compile for LogicLine {
     fn compile(self, meta: &mut CompileMeta) {
         match self {
-            Self::NoOp => meta.push("noop".into()),
+            Self::NoOp => meta.push(meta.noop_line.clone().into()),
             Self::Label(mut lab) => {
                 // 如果在常量展开中, 尝试将这个标记替换
                 lab = meta.get_in_const_label(lab);
@@ -3176,6 +3179,7 @@ pub struct CompileMeta {
     value_bind_global_consts: HashMap<Var, ConstData>,
     last_builtin_exit_code: u8,
     enable_misses_match_log_info: bool,
+    noop_line: String,
 }
 impl Debug for CompileMeta {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -3211,6 +3215,8 @@ impl Default for CompileMeta {
     }
 }
 impl CompileMeta {
+    const BUILTIN_FUNCS_BINDER: &'static str = "Builtin";
+
     pub fn new() -> Self {
         Self::default()
     }
@@ -3233,8 +3239,9 @@ impl CompileMeta {
             value_bind_global_consts: HashMap::new(),
             last_builtin_exit_code: 0,
             enable_misses_match_log_info: false,
+            noop_line: "noop".into(),
         };
-        let builtin = String::from("Builtin");
+        let builtin = String::from(Self::BUILTIN_FUNCS_BINDER);
         for builtin_func in build_builtins() {
             let handle = format!("__{builtin}__{}", builtin_func.name());
             let key = (builtin.clone().into(), builtin_func.name().into());
@@ -3283,12 +3290,21 @@ impl CompileMeta {
     }
 
     /// 获取绑定值, 如果绑定关系不存在则自动插入
-    pub fn get_value_binded(&mut self, value: Var, bind: Var) -> &Var {
+    pub fn get_value_binded(&mut self, value: Var, bind: Var) -> Var {
+        let mut warn_builtin = (value == Self::BUILTIN_FUNCS_BINDER)
+            .then_some((false, bind.clone()));
         let key = (value, bind);
-        self.value_binds.entry(key)
+        let binded = self.value_binds.entry(key)
             .or_insert_with(|| {
+                if let Some((ref mut warn, _)) = warn_builtin {
+                    *warn = true;
+                }
                 self.tmp_var_count.get()
-            })
+            }).clone();
+        if let Some((true, bind)) = warn_builtin {
+            self.log_info(format_args!("Missed Builtin Call: {bind}"));
+        }
+        binded
     }
 
     /// 向已生成代码`push`
@@ -3444,7 +3460,7 @@ impl CompileMeta {
                     .set_binder(extra_binder
                         .unwrap_or_else(|| binder_handle.clone()));
                 let binded = self.get_value_binded(
-                    binder_handle, name).clone();
+                    binder_handle, name);
                 self.value_bind_global_consts
                     .insert(binded, data)
             },

@@ -238,11 +238,6 @@ impl Display for TagLine {
         write!(f, "{}", res)
     }
 }
-impl Default for TagLine {
-    fn default() -> Self {
-        Self::Line("noop".to_string().into())
-    }
-}
 impl std::fmt::Debug for TagLine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fn push_tag(s: &mut String, tag: Option<usize>, tail: bool) {

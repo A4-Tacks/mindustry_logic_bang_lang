@@ -1,8 +1,8 @@
-use lazy_regex::{regex,Lazy,Regex};
+use lazy_regex::{regex, Lazy, Regex};
 use std::{
     collections::HashSet,
-    thread_local,
     num::IntErrorKind,
+    thread_local,
 };
 
 /// 判断是否是一个标识符(包括数字)
@@ -222,6 +222,36 @@ pub fn string_unescape(s: &str) -> String {
     }
     res.shrink_to_fit();
     res
+}
+
+/// 使用一种简单的转义允许双引号的输入
+///
+/// `\\` => `\`
+/// `\'` => `"`
+/// `\a` => `\a`
+/// `x`  => `x`
+pub fn escape_doublequote(s: &str) -> Result<String, &'static str> {
+    let mut res = String::with_capacity(s.len());
+    let mut chars = s.chars();
+
+    loop {
+        let Some(ch) = chars.next() else { break; };
+        let escaped = match ch {
+            '\\' => match chars.next() {
+                Some('\'') => '"',
+                Some('\\') => '\\',
+                Some(ch) => {
+                    res.push('\\');
+                    ch
+                },
+                None => return Err("escaped eof"),
+            }
+            ch => ch,
+        };
+        res.push(escaped);
+    }
+
+    Ok(res)
 }
 
 #[cfg(test)]

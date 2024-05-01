@@ -29,6 +29,13 @@
 * * `IsString[str]`: 返回给定量是否是一个字符串
 * * `RefArg`: 返回指定下标的上层参数句柄, 一般再用Const解开
 * * `MissesMatch[enable]`: 当enable非0时, 将match失配打印日志功能开启
+* * `SetNoOp[line]`: 根据给定的字串设置noop语句生成的行,
+*   包含一层简单的反斜杠解释规则:
+*     `\\` => `\`
+*     `\'` => `"`
+*     `\` ch @ anychar => `\` + ch
+*   需要注意的是, 字符串本身也会进行转义, 所以要注意一下
+*   还要注意转义后双引号本身需要配对
 *#
 
 print Builtin.Type[x];

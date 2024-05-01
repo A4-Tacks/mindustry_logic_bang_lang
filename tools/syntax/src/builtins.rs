@@ -1,5 +1,7 @@
 use std::process;
 
+use var_utils::escape_doublequote;
+
 use crate::*;
 
 #[derive(Clone)]
@@ -363,6 +365,24 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
         fn misses_match:MissesMatch(meta) [v:enable] {
             check_type!("var" Value::Var(enable) = enable.value() => {
                 meta.enable_misses_match_log_info = enable != "0";
+                Ok("__".into())
+            })
+        }
+        fn set_noop:SetNoOp(meta) [l:line] {
+            check_type!("var" Value::Var(line) = line.value() => {
+                let line = if Value::is_string(line) {
+                    &line[1..line.len()-1]
+                } else {
+                    line
+                };
+                let line = match escape_doublequote(line.trim()) {
+                    Ok(s) => s,
+                    Err(e) => return Err((2, e.into())),
+                };
+                if 0 != line.chars().filter(|&c| c == '"').count() & 1 {
+                    return Err((2, "双引号未配对".into()));
+                }
+                meta.noop_line = line;
                 Ok("__".into())
             })
         }

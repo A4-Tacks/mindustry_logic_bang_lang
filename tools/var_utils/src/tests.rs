@@ -172,3 +172,18 @@ fn string_unescape_test() {
         assert_eq!(string_unescape(src), dst);
     }
 }
+
+#[test]
+fn escape_doublequote_test() {
+    let tests = [
+        (r#"abc"#, r#"abc"#),
+        (r#"abc\\def"#, r#"abc\def"#),
+        (r#"abc\def"#, r#"abc\def"#),
+        (r#"abc\'def"#, r#"abc"def"#),
+        (r#"'abc'def"#, r#"'abc'def"#),
+    ];
+    for (src, dst) in tests {
+        let escaped = escape_doublequote(src);
+        assert_eq!(escaped.as_deref(), Ok(dst), "src: {src}");
+    }
+}
