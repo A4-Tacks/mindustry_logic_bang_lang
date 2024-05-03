@@ -39,6 +39,9 @@ use ::syntax::{
     Match,
     MatchPat,
     MatchPatAtom,
+    ConstMatch,
+    ConstMatchPat,
+    ConstMatchPatAtom,
     Meta,
     ZERO_VAR,
     FALSE_VAR,
@@ -83,6 +86,8 @@ OOCArgs<T, S>: Vec<T> = {
     CloseArgs<T, S>,
 }
 Span<T> = @L T @R;
+#[inline]
+Opt<T>: bool = T? => <>.is_some();
 
 CtrlBreakStart: () = () => meta.add_control_break_level(None);
 CtrlContinueStart: () = () => meta.add_control_continue_level(None);
@@ -307,13 +312,15 @@ pub Op: Op = {
 
 Label: Var = ":" <Var>;
 
+NoPrefixInlineBlock: InlineBlock = MBlock<LogicLine*> => <>.into();
+
 #[inline]
 Expand: Expand = LogicLine+? => Expand(<>.unwrap_or_default());
 pub LogicLine: LogicLine = {
     Control,
     BuiltinCommand,
     MBlock<Expand> => <>.into(),
-    "inline" <MBlock<LogicLine*>> => InlineBlock(<>).into(),
+    "inline" <NoPrefixInlineBlock> => <>.into(),
     Label => LogicLine::new_label(<>, meta),
     "op" <Op> LEnd => <>.into(),
     "noop" LEnd => LogicLine::NoOp,
@@ -326,6 +333,7 @@ pub LogicLine: LogicLine = {
     <Args> LEnd => LogicLine::Other(<>),
     "inline" <ArgsRepeatBlock> => <>.into(),
     Match => <>.into(),
+    ConstMatch => <>.into(),
 }
 
 Match: Match = "match" <args:Args?> <cases:MBlock<(
@@ -344,9 +352,72 @@ Match: Match = "match" <args:Args?> <cases:MBlock<(
 };
 
 MatchPat: MatchPatAtom = {
-    MList<Args1> => MatchPatAtom::new_unnamed(<>),
+    MList<Args1> => MatchPatAtom::new_unamed(<>),
     Var => MatchPatAtom::new(<>, vec![]),
     <name:Var> ":" <pat:MList<Args1>> => MatchPatAtom::new(name, pat),
+}
+
+ConstMatch: ConstMatch
+    = "const" "match" <args:Args?>
+    <cases:MBlock<(
+        ConstMatchPat NoPrefixInlineBlock
+    )*>>
+=> {
+    ConstMatch::new(args.unwrap_or_default(), cases)
+};
+
+ConstMatchPat: ConstMatchPat = {
+    ConstMatchPatAtom* => ConstMatchPat::Normal(<>),
+    <ConstMatchPatAtom*> "@" <ConstMatchPatAtom*>
+        => ConstMatchPat::Expanded(<>),
+}
+
+ConstMatchPatAtom: ConstMatchPatAtom = {
+    <dotake:Opt<"*">> <name:(<Var> ":")?> <pat:MList<Args1>> => {
+        ConstMatchPatAtom::new(dotake, name.unwrap_or_default(), pat)
+    },
+    <dotake:Opt<"*">> <name:(<Var> ":")?> <pat:MList<("?" <OpExprBody>)>> => {
+        ConstMatchPatAtom::new_guard(
+            dotake,
+            name.unwrap_or_default(),
+            pat.into_value(meta),
+        )
+    },
+    <dotake:Opt<"*">> <name:(<Var> ":")?> <pat:MList<("*" <Args0>)>> => {
+        ConstMatchPatAtom::new_guard(
+            dotake,
+            name.unwrap_or_default(),
+            DExp::new("__".into(), vec![
+                LogicLine::from(Match::new(
+                    Args::GLOB_ONLY,
+                    vec![
+                        (
+                            vec![MatchPatAtom::new_unamed(pat)].into(),
+                            vec![
+                                LogicLine::SetResultHandle(
+                                    Value::ReprVar("1".into())
+                                ),
+                            ].into(),
+                        ),
+                        (
+                            vec![MatchPatAtom::default()].into(),
+                            vec![
+                                LogicLine::SetResultHandle(
+                                    Value::ReprVar("0".into())
+                                ),
+                            ].into(),
+                        ),
+                    ]
+                )),
+            ].into()).into()
+        )
+    },
+    <dotake:Opt<"*">> <name:Var> => {
+        ConstMatchPatAtom::new(dotake, name, vec![])
+    },
+    <dotake:Opt<"*">> "_" => {
+        ConstMatchPatAtom::new(dotake, Default::default(), vec![])
+    },
 }
 
 Args: Args = {

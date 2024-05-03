@@ -35,6 +35,7 @@
 > [`closured_value.mdtlbl`](./closured_value.mdtlbl)<br/>
 > [`caller.mdtlbl`](./caller.mdtlbl)<br/>
 > [`match.mdtlbl`](./match.mdtlbl)<br/>
+> [`const_match.mdtlbl`](./const_match.mdtlbl)<br/>
 > [`builtin_functions.mdtlbl`](./builtin_functions.mdtlbl)<br/>
 > [`value_bind_ref.mdtlbl`](./value_bind_ref.mdtlbl)<br/>
 

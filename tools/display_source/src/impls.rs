@@ -422,6 +422,7 @@ impl DisplaySource for LogicLine {
             },
             Self::ArgsRepeat(args_repeat) => args_repeat.display_source(meta),
             Self::Match(r#match) => r#match.display_source(meta),
+            Self::ConstMatch(r#match) => r#match.display_source(meta),
             Self::Other(args) => {
                 if let Some(args) = args.as_normal() {
                     assert_ne!(args.len(), 0);
@@ -535,6 +536,92 @@ impl DisplaySource for Match {
                     meta.push("}");
                     meta.add_lf();
                 });
+            });
+        }
+        meta.push("}");
+    }
+}
+impl DisplaySource for ConstMatchPatAtom {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        let show_list = self.pattern()
+            .as_ref()
+            .left()
+            .map(|pats| !pats.is_empty())
+            .unwrap_or_default()
+            || self.pattern().is_right();
+        if self.do_take() {
+            meta.push("*")
+        }
+        if !self.name().is_empty() {
+            meta.push(self.name());
+            if show_list { meta.push(":") }
+        } else if !show_list {
+            meta.push("_")
+        }
+        if show_list {
+            meta.push("[");
+            if self.pattern().is_right() {
+                meta.push("?");
+            }
+            meta.display_source_iter_by_splitter(
+                DisplaySourceMeta::add_space,
+                self.pattern()
+                    .as_ref()
+                    .map_right(Some)
+                    .into_iter()
+            );
+            meta.push("]");
+        }
+    }
+}
+impl DisplaySource for ConstMatchPat {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        match self {
+            ConstMatchPat::Normal(args) => {
+                meta.display_source_iter_by_splitter(
+                    DisplaySourceMeta::add_space,
+                    args,
+                )
+            },
+            ConstMatchPat::Expanded(prefix, suffix) => {
+                for s in prefix {
+                    s.display_source(meta);
+                    meta.add_space();
+                }
+                meta.push("@");
+                for s in suffix {
+                    meta.add_space();
+                    s.display_source(meta);
+                }
+            },
+        }
+    }
+}
+impl DisplaySource for ConstMatch {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        meta.push("const");
+        meta.add_space();
+        meta.push("match");
+        meta.add_space();
+        let slen = meta.len();
+        self.args().display_source(meta);
+        if meta.len() != slen { meta.add_space(); }
+        meta.push("{");
+        if !self.cases().is_empty() {
+            meta.add_lf();
+            meta.do_block(|meta| {
+                for (pat, block) in self.cases() {
+                    let slen = meta.len();
+                    pat.display_source(meta);
+                    if meta.len() != slen { meta.add_space(); }
+                    meta.push("{");
+                    if !block.is_empty() {
+                        meta.add_lf();
+                        meta.do_block(|meta| block.display_source(meta));
+                    }
+                    meta.push("}");
+                    meta.add_lf();
+                }
             });
         }
         meta.push("}");
@@ -821,5 +908,26 @@ fn display_source_test() {
             .unwrap()
             .display_source_and_get(&mut meta),
         "const X = ([A:A &B:B C:2 &D:(:m)#*labels: [m]*#](:z)#*labels: [z]*#);"
+    );
+
+    assert_eq!(
+        parse!(line_parser, r#"
+        const match @ {
+            A *B *_ C:[1] *D:[2 3] E:[?x] [1 2] {}
+            X @ Y {}
+            @ Z {}
+            @ {}
+        }
+        "#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "\
+        const match @ {\n\
+     \x20   A *B *_ C:[1] *D:[2 3] E:[?x] [1 2] {}\n\
+     \x20   X @ Y {}\n\
+     \x20   @ Z {}\n\
+     \x20   @ {}\n\
+        }\
+        "
     );
 }

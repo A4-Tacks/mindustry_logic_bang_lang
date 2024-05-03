@@ -13,7 +13,8 @@ use std::{
     num::ParseIntError,
     ops::{self, Deref},
     process::exit,
-    rc::Rc, cell::Cell,
+    rc::Rc,
+    cell::Cell,
 };
 
 use builtins::{build_builtins, BuiltinFunc};
@@ -21,6 +22,8 @@ use either::Either;
 use tag_code::{Jump, TagCodes, TagLine, mdt_logic_split};
 use utils::counter::Counter;
 use var_utils::{string_unescape, AsVarType};
+
+pub use either;
 
 macro_rules! impl_enum_froms {
     (impl From for $ty:ty { $(
@@ -550,6 +553,7 @@ impl Value {
 }
 impl_enum_froms!(impl From for Value {
     Var => Var;
+    Var => &Var;
     Var => String;
     Var => &str;
     DExp => DExp;
@@ -2531,6 +2535,8 @@ pub enum Args {
     Expanded(Vec<Value>, Vec<Value>),
 }
 impl Args {
+    pub const GLOB_ONLY: Self = Self::Expanded(vec![], vec![]);
+
     /// 获取值
     pub fn into_value_args(self, meta: &CompileMeta) -> Vec<Value> {
         match self {
@@ -2608,6 +2614,11 @@ impl Args {
 impl Default for Args {
     fn default() -> Self {
         Self::Normal(vec![])
+    }
+}
+impl<const N: usize> From<[Value; N]> for Args {
+    fn from(value: [Value; N]) -> Self {
+        Self::Normal(value.into())
     }
 }
 impl_enum_froms!(impl From for Args {
@@ -2700,6 +2711,8 @@ pub enum MatchPat {
     Expanded(Vec<MatchPatAtom>, Vec<MatchPatAtom>),
 }
 impl MatchPat {
+    pub const GLOB_ONLY: Self = Self::Expanded(vec![], vec![]);
+
     pub fn base_len(&self) -> usize {
         match self {
             Self::Normal(args) => args.len(),
@@ -2758,8 +2771,7 @@ impl MatchPat {
                         for ((name, _), arg) in a.chain(b) {
                             binds(name, arg, meta)
                         }
-                        meta.set_env_args(Vec::from_iter(
-                                extracted.iter().cloned().map(Into::into)))
+                        meta.set_env_args(extracted)
                     }).is_some()
             },
             _ => false,
@@ -2772,7 +2784,7 @@ impl From<Vec<MatchPatAtom>> for MatchPat {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Default)]
 pub struct MatchPatAtom {
     name: Var,
     pattern: Vec<Value>,
@@ -2782,7 +2794,7 @@ impl MatchPatAtom {
         Self { name, pattern }
     }
 
-    pub fn new_unnamed(pattern: Vec<Value>) -> Self {
+    pub fn new_unamed(pattern: Vec<Value>) -> Self {
         Self::new("".into(), pattern)
     }
 
@@ -2795,6 +2807,228 @@ impl MatchPatAtom {
     }
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub struct ConstMatch {
+    args: Args,
+    cases: Vec<(ConstMatchPat, InlineBlock)>,
+}
+impl ConstMatch {
+    pub fn new(args: Args, cases: Vec<(ConstMatchPat, InlineBlock)>) -> Self {
+        Self { args, cases }
+    }
+
+    pub fn args(&self) -> &Args {
+        &self.args
+    }
+
+    pub fn cases(&self) -> &[(ConstMatchPat, InlineBlock)] {
+        self.cases.as_ref()
+    }
+}
+impl Compile for ConstMatch {
+    fn compile(self, meta: &mut CompileMeta) {
+        let args = self.args.into_value_args(meta)
+            .into_iter()
+            .map(|value| {
+                let handle = meta.get_tmp_var();
+                Const(
+                    handle.clone().into(),
+                    value,
+                    vec![],
+                ).compile(meta);
+                handle
+            })
+            .collect::<Vec<_>>();
+        for (pat, code) in self.cases {
+            if let Ok(()) = pat.do_pattern(meta, &args, code) {
+                return;
+            }
+        }
+        if meta.enable_misses_match_log_info {
+            meta.log_info(format_args!(
+                "Misses const match, [{}]",
+                args.join(" "),
+            ));
+            meta.log_expand_stack();
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum ConstMatchPat {
+    Normal(Vec<ConstMatchPatAtom>),
+    Expanded(Vec<ConstMatchPatAtom>, Vec<ConstMatchPatAtom>),
+}
+impl ConstMatchPat {
+    pub fn check_len(&self, value_len: usize) -> bool {
+        match self {
+            ConstMatchPat::Normal(norm) => norm.len() == value_len,
+            ConstMatchPat::Expanded(left, right) => {
+                left.len() + right.len() <= value_len
+            },
+        }
+    }
+
+    pub fn do_pattern<'a, C>(
+        self,
+        meta: &'a mut CompileMeta,
+        handles: &[Var],
+        code: C,
+    ) -> Result<(), C>
+    where C: Compile,
+    {
+        fn do_iter<'a>(
+            iter: impl IntoIterator<Item = ConstMatchPatAtom>,
+            meta: &mut CompileMeta,
+            handles: &'a [Var],
+        ) -> Option<Vec<(bool, Var, &'a Var)>> {
+            iter.into_iter()
+                .zip(handles)
+                .map(|(pat, handle)| {
+                    pat.pat(meta, handle)
+                        .map(|(do_take, name)| (do_take, name, handle))
+                })
+                .collect()
+        }
+        fn make(
+            (do_take, name, handle): (bool, Var, &Var),
+            meta: &mut CompileMeta,
+        ) {
+            if do_take {
+                Take(
+                    name.is_empty()
+                        .then(|| "__".into())
+                        .unwrap_or(name)
+                        .into(),
+                    handle.into(),
+                ).compile(meta);
+            } else if !name.is_empty() {
+                Const(
+                    name.into(),
+                    handle.clone().into(),
+                    vec![],
+                ).compile(meta);
+            }
+        }
+
+        if !self.check_len(handles.len()) {
+            return Err(code);
+        }
+        match self {
+            Self::Normal(norm) => {
+                let Some(datas)
+                    = do_iter(norm, meta, handles)
+                    else {
+                        return Err(code);
+                    };
+                for ele in datas {
+                    make(ele, meta);
+                }
+                code.compile(meta);
+                Ok(())
+            },
+            Self::Expanded(left, right) => {
+                let mid_rng = left.len()..handles.len()-right.len();
+                let Some(left_datas)
+                    = do_iter(left, meta, handles)
+                    else {
+                        return Err(code);
+                    };
+                let Some(right_datas)
+                    = do_iter(right, meta, &handles[mid_rng.end..])
+                    else {
+                        return Err(code);
+                    };
+                for ele in left_datas {
+                    make(ele, meta);
+                }
+                for ele in right_datas {
+                    make(ele, meta);
+                }
+                meta.set_env_args(&handles[mid_rng]);
+                code.compile(meta);
+                Ok(())
+            },
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ConstMatchPatAtom {
+    do_take: bool,
+    name: Var,
+    pattern: Either<Vec<Value>, Value>,
+}
+impl ConstMatchPatAtom {
+    pub fn new(do_take: bool, name: Var, pattern: Vec<Value>) -> Self {
+        Self {
+            do_take,
+            name,
+            pattern: Either::Left(pattern),
+        }
+    }
+
+    pub fn new_guard(do_take: bool, name: Var, pattern: Value) -> Self {
+        Self {
+            do_take,
+            name,
+            pattern: Either::Right(pattern),
+        }
+    }
+
+    pub fn new_unamed(do_take: bool, pattern: Vec<Value>) -> Self {
+        Self::new(do_take, "".into(), pattern)
+    }
+
+    pub fn new_unamed_guard(do_take: bool, pattern: Value) -> Self {
+        Self::new_guard(do_take, "".into(), pattern)
+    }
+
+    /// 尝试和某个句柄匹配, 返回是否take和需要给到的量
+    pub fn pat(
+        self,
+        meta: &mut CompileMeta,
+        handle: &Var,
+    ) -> Option<(bool, Var)> {
+        match self.pattern {
+            Either::Left(pats) => {
+                pats.is_empty() || {
+                    let var = meta.get_const_value(handle)
+                        .unwrap()
+                        .value()
+                        .as_var()
+                        .cloned()?;
+                    pats.into_iter()
+                        .map(|v| v.take_handle(meta))
+                        .any(|h| h == var)
+                }
+            },
+            Either::Right(guard) => {
+                let mut res = false;
+                meta.with_block(|meta| {
+                    LogicLine::SetArgs([handle.into()].into())
+                        .compile(meta);
+                    res = guard.take_handle(meta).ne("0")
+                });
+                res
+            },
+        }.then_some((self.do_take, self.name))
+    }
+
+    pub fn do_take(&self) -> bool {
+        self.do_take
+    }
+
+    pub fn name(&self) -> &str {
+        self.name.as_ref()
+    }
+
+    pub fn pattern(&self) -> &Either<Vec<Value>, Value> {
+        &self.pattern
+    }
+}
+
+#[must_use]
 #[derive(Debug, PartialEq, Clone)]
 pub enum LogicLine {
     Op(Op),
@@ -2818,6 +3052,7 @@ pub enum LogicLine {
     SetArgs(Args),
     ArgsRepeat(ArgsRepeat),
     Match(Match),
+    ConstMatch(ConstMatch),
 }
 impl Compile for LogicLine {
     fn compile(self, meta: &mut CompileMeta) {
@@ -2852,10 +3087,7 @@ impl Compile for LogicLine {
                             Vec::with_capacity(0),
                     ).into());
                 }
-                meta.set_env_args((0..len)
-                    .map(iarg)
-                    .map(Into::into)
-                    .collect());
+                meta.set_env_args((0..len).map(iarg));
             },
             Self::Select(select) => select.compile(meta),
             Self::Expand(expand) => expand.compile(meta),
@@ -2867,6 +3099,7 @@ impl Compile for LogicLine {
             Self::ConstLeak(r#const) => meta.add_const_value_leak(r#const),
             Self::ArgsRepeat(args_repeat) => args_repeat.compile(meta),
             Self::Match(r#match) => r#match.compile(meta),
+            Self::ConstMatch(r#match) => r#match.compile(meta),
             Self::Ignore => (),
         }
     }
@@ -2981,6 +3214,7 @@ impl_enum_froms!(impl From for LogicLine {
     Take => Take;
     ArgsRepeat => ArgsRepeat;
     Match => Match;
+    ConstMatch => ConstMatch;
 });
 impl TryFrom<&TagLine> for LogicLine {
     type Error = LogicLineFromTagError;
@@ -3646,12 +3880,36 @@ impl CompileMeta {
     /// 设置最内层args, 返回旧值
     ///
     /// 这将进行const的追溯
-    pub fn set_env_args(&mut self, expand_args: Vec<Value>) -> Option<Vec<Var>> {
-        let vars: Vec<Var> = expand_args.into_iter()
-            .map(|value| {
+    pub fn set_env_args<I>(&mut self, expand_args: I) -> Option<Vec<Var>>
+    where I: IntoIterator,
+          I::Item: Into<Value>,
+    {
+        self.set_raw_env_args(
+            expand_args.into_iter()
+                .map(|v| (None, v.into())),
+            true,
+        )
+    }
+
+    /// 设置最内层args, 返回旧值
+    ///
+    /// 给定绑定者和值
+    pub fn set_raw_env_args(
+        &mut self,
+        expand_binder_and_args: impl IntoIterator<
+            Item = (Option<Var>, Value),
+        >,
+        do_follow: bool,
+    ) -> Option<Vec<Var>> {
+        let vars: Vec<Var> = expand_binder_and_args.into_iter()
+            .map(|(mut binder, value)| {
                 let var_key = self.get_tmp_var();
                 let key = ConstKey::Var(var_key.clone());
-                Const::new(key, value).compile(self);
+                let mut r#const = Const::new(key, value);
+                if do_follow {
+                    binder = r#const.run_value(self).or(binder);
+                }
+                self.add_const_value_with_extra_binder(r#const, binder);
                 var_key
             })
             .collect();

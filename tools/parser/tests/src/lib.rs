@@ -4762,6 +4762,360 @@ fn match_test() {
 }
 
 #[test]
+fn const_match_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const match {
+            {
+                print empty;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print empty",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        match 1 2 { @ {} }
+        const match {
+            @ {
+                print @;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        Vec::<&str>::new(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Val = (res:
+            print taked;
+        );
+        const match Val {
+            V {
+                print 1 V;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 1",
+            "print taked",
+            "print res",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Val = (res:
+            print taked;
+        );
+        const match Val {
+            *V {
+                print 1 V;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print taked",
+            "print 1",
+            "print res",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Val = 2;
+        const match `Val` {
+            *V {
+                print 1 V;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 1",
+            "print Val",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Val = 2;
+        const match Val {
+            *V:[1] {
+                print 1 V;
+            }
+            *V:[(1:print take1;) 2 (3: print err;)] { # lazy
+                print x2 V;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print take1",
+            "print x2",
+            "print 2",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Val = 2;
+        const match Val {
+            V:[1] {
+                print 1 V;
+            }
+            V:[(1:print take1;) 2 (3: print err;)] { # lazy
+                print x2 V;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print take1",
+            "print x2",
+            "print 2",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Val = 2;
+        const match Val {
+            [?(0: print _0;)] {
+                print unreachable;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 2",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Val = 2;
+        const match Val {
+            [?(__: print _0;)] {
+                print x;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 2",
+            "print x",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Val = 2;
+        const match Val {
+            [?(1: print _0;)] {
+                print x;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 2",
+            "print x",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Val = 2;
+        const match Val {
+            [?(false: print _0;)] {
+                print x;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 2",
+            "print x",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const match 2 {
+            [2] {
+                print only;
+            }
+            [2] {
+                print unreachable;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print only",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const match (print err;) {
+            [2] {
+                print only;
+            }
+            [2] {
+                print unreachable;
+            }
+            __ {
+                print default;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print default",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const match (%2: print x;%)->$ {
+            [2] {
+                print only;
+            }
+            [2] {
+                print unreachable;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print x",
+            "print only",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const match (2: print x;) {
+            _ {
+                print only;
+            }
+            [2] {
+                print unreachable;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print only",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const match (2: print x;) {
+            *_ {
+                print only;
+            }
+            [2] {
+                print unreachable;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print x",
+            "print only",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const match (2: print x;) {
+            [*] {
+                print only;
+            }
+            [2] {
+                print unreachable;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print x",
+            "print only",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const match (2: print x;) {
+            [*3] {
+                print unreachable;
+            }
+            [*2 4] {
+                print only;
+            }
+            [2] {
+                print unreachable;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print x",
+            "print x",
+            "print only",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const match (2: print x;) 3 {
+            [*2] [2] {
+                print unreachable;
+            }
+            [*2] [3] {
+                print only;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print x",
+            "print x",
+            "print only",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const match (2: print x;) 3 {
+            *_ [2] {
+                print unreachable;
+            }
+            *_ [3] {
+                print only;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print x",
+            "print only",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        match A { @ {} }
+        const A = 2;
+        const match @ {
+            [`A`] {
+                print yes;
+            }
+            @ {
+                print no @;
+            }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print yes",
+        ],
+    );
+}
+
+#[test]
 fn value_bind_of_constkey_test() {
     let parser = TopLevelParser::new();
 
