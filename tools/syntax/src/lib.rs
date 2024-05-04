@@ -36,6 +36,25 @@ macro_rules! impl_enum_froms {
         }
     )* };
 }
+macro_rules! impl_enum_try_into {
+    (impl TryInto for $ty:ty {$(
+        $variant:ident => $target:ty ;
+    )*}) => {
+        $(
+            impl TryFrom<$ty> for $target {
+                type Error = $ty;
+
+                fn try_from(value: $ty) -> Result<Self, Self::Error> {
+                    use $ty::*;
+                    match value {
+                        $variant(v) => Ok(v),
+                        this => Err(this),
+                    }
+                }
+            }
+        )*
+    };
+}
 macro_rules! impl_derefs {
     (impl $([$($t:tt)*])? for $ty:ty => ($self_:ident : $expr:expr): $res_ty:ty) => {
         impl $(<$($t)*>)? ::std::ops::Deref for $ty {
@@ -560,6 +579,12 @@ impl_enum_froms!(impl From for Value {
     ValueBind => ValueBind;
     ClosuredValue => ClosuredValue;
     BuiltinFunc => BuiltinFunc;
+    ValueBindRef => ValueBindRef;
+});
+impl_enum_try_into!(impl TryInto for Value {
+    Var => Var;
+    DExp => DExp;
+    ValueBind => ValueBind;
     ValueBindRef => ValueBindRef;
 });
 
@@ -2830,6 +2855,11 @@ impl Compile for ConstMatch {
         let args = self.args.into_value_args(meta)
             .into_iter()
             .map(|value| {
+                if let Some(var) = value.as_var() {
+                    if meta.get_const_value(var).is_some() {
+                        return value.try_into().unwrap();
+                    }
+                }
                 let handle = meta.get_tmp_var();
                 Const(
                     handle.clone().into(),
