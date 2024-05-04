@@ -1,0 +1,175 @@
+#**
+* 使用传送带的启用和禁用来做逻辑门, 世处逻辑实现
+* 可以一次放八个十个这样的 基本是不干扰的进行加速
+*
+* 灰带是或非门, 紫带是与门, 蓝带是或门, 按钮是信号源
+* 交叉器可以不改变的传导和交叉信号
+* 路由器可以将最先输入的信号分发
+*
+* 除朝向外, 剩余方向为输入
+*#
+
+take Builtin.MissesMatch[1];
+
+setrate 500; # ipt
+
+take L = ();
+take L.Switch = @switch;
+take L.OrNot = @conveyor;
+take L.And = @armored-conveyor;
+take L.Or = @titanium-conveyor;
+take L.Link = @junction;
+take L.Branch = @router;
+
+team = 3;
+const IsConveyor = goto({
+    take Ty = _0;
+} => Ty == L.Or || Ty == L.And || Ty == L.OrNot);
+const ForBuilds = (const match @ {
+    *Type F {
+        take I=();
+        take Count = (fetch buildCount $ team 0 Type;);
+        I = 0;
+        while I < Count {
+            take F[I (%fetch build $ team I Type;%)->$];
+            I += 1;
+        }
+    }
+});
+const ToRotatePos = (const match @ {
+    *R *X *Y F {
+        take LastBlock = ();
+        const SkipLink = (const match @ {
+            *Inc [*0] *Id {
+                take I = (?(X:));
+                do {
+                    I += Inc;
+                } while (LastBlock: getblock `block` $ I Y;) == L.Link;
+                take F[I Y Id LastBlock];
+            }
+            [*0] *Inc *Id {
+                take I = (?(Y:));
+                do {
+                    I += Inc;
+                } while (LastBlock: getblock `block` $ X I;) == L.Link;
+                take F[X I Id LastBlock];
+            }
+        });
+        match R {
+            [0] { take SkipLink[1 0 R]; }
+            [1] { take SkipLink[0 1 R]; }
+            [2] { take SkipLink[-1 0 R]; }
+            [3] { take SkipLink[0 -1 R]; }
+        }
+    }
+});
+const DynToRotatePos = (const match @ {
+    *Rotate *X *Y F {
+        match 0 1 2 3 { @ {} }
+        inline@{
+            match @ { R {} }
+            take const(
+                if R == Rotate {
+                    take ToRotatePos[R X Y F];
+                }
+            );
+        }
+    }
+});
+const ForRULD = (const match @ {
+    *X *Y F {
+        match 0 1 2 3 { @ {} }
+        inline@{
+            take ToRotatePos[@ X Y F];
+        }
+    }
+});
+const ForOtherRotate = (const match @ {
+    *Rotate *X *Y F {
+        match 0 1 2 3 { @ {} }
+        inline@{
+            match @ { R {} }
+            take const(
+                if R != Rotate {
+                    take ToRotatePos[R X Y F];
+                }
+            );
+        }
+    }
+});
+const DoLogic = (const match @ {
+    *From *Block *R F {
+        take RevR = (?(R+2)%4);
+        take Ty = (sensor $ Block @type;);
+        if Ty == L.Switch
+        || Ty == L.Branch
+        || (sensor $ Block @rotation;) == RevR
+        && (=>[Ty] IsConveyor)
+        {
+            take F[];
+        }
+    }
+});
+const DoBuild = (const match @ {
+    *Build *Default Checker {
+        take DoBuild[
+            Build
+            Default
+            (sensor $ _0 @rotation;)
+            ForOtherRotate
+            Checker
+        ];
+    }
+    *Build *Default Rotater RotateExecuter Checker {
+        take ForBuilds[Build const(match @ { I From {
+            take X = (sensor $ From @x;);
+            take Y = (sensor $ From @y;);
+            take Rotate = Rotater[From X Y];
+
+            take RotateExecuter[Rotate X Y const(match @ { X Y R __ {
+                take Block = (getblock `building` $ X Y;);
+                if Block != @air {
+                    take DoLogic[From Block R ([Block &Checker](
+                        goto :disabled (=>[Block] Checker);
+                    ))];
+                }
+            } })];
+
+            control enabled From Default 0 0 0;
+            skip {
+                :disabled
+                control enabled From (?!Default) 0 0 0;
+            }
+        } })];
+    }
+});
+
+take DoBuild[L->OrNot true (sensor $ _0 @enabled;)];
+take DoBuild[L->And true goto(!(sensor $ _0 @enabled;))];
+take DoBuild[L->Or false (sensor $ _0 @enabled;)];
+take DoBuild[
+    L->Branch
+    false
+    const(match @ {
+        From X Y {
+            take Res = $;
+            take ForRULD[X Y ([X Y]const(match @ {
+                IX IY I Block {
+                    if Block != @air {
+                        take ToThisRotate = (?(I+2)%4);
+                        take Building = (getblock `building` $ IX IY;);
+                        goto :bk (
+                            (sensor $ Building @rotation;) == ToThisRotate
+                            && ({
+                                Res = I;
+                            } => _)
+                        );
+                    }
+                }
+            }))];
+            :bk
+        }
+    })
+    DynToRotatePos
+    (sensor $ _0 @enabled;)
+];
