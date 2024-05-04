@@ -1,0 +1,45 @@
+take MatchUtils = ();
+
+const MatchUtils.AssertEvalable = (inline@{
+    #**
+    * 断言是否每个参数都能eval
+    *#
+    const match @ {
+        N {
+            match `Builtin`.EvalNum[N] {
+                [`__`] {
+                    take Msg = `Builtin`.Concat[
+                        `Builtin`.Stringify[N]->$
+                        " is not evalable"
+                    ];
+                    take `Builtin`.Err[Msg];
+                    take `Builtin`.ExpandStack[];
+                    take `Builtin`.Exit[3];
+                    setres `__`;
+                }
+                @ {}
+            }
+        }
+    }
+});
+const MatchUtils.ForC = ([MU:MatchUtils](const match @ {
+    #**
+    * 静态的将给定值进行for操作
+    *#
+    *Stop F {
+        take MU.ForC[0 Stop F];
+    }
+    *Start *Stop F {
+        take MU.ForC[Start Stop 1 F];
+    }
+    *Start *Stop *Step F {
+        MU.AssertEvalable[Start Stop Step];
+        const Do = (const match @ {
+            I:[?_0 < Stop] {
+                take F[I];
+                take Do[(?I+Step)->$];
+            }
+        });
+        take Do[Start];
+}
+}));
