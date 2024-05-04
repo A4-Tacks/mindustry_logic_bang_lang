@@ -247,9 +247,9 @@ fn build_tag_down(meta: &mut CompileMeta) {
             {}\n\
             TagsMap:\n\
             {}",
+            tag_str,
             tag_codes.join("\n"),
             tags_map.join("\n"),
-            tag_str,
         );
         exit(4)
     })

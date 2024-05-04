@@ -392,7 +392,12 @@ impl DisplaySource for LogicLine {
             Self::SetArgs(args) => {
                 meta.do_insert_first("# ".into(), |meta| {
                     meta.push("setArgs");
-                    meta.add_space();
+                    if !args.as_normal()
+                        .map(Vec::is_empty)
+                        .unwrap_or_default()
+                    {
+                        meta.add_space();
+                    }
 
                     args.display_source(meta);
                     meta.push(";");
@@ -741,6 +746,24 @@ fn display_source_test() {
             .unwrap()
             .display_source_and_get(&mut meta),
         "({\n    take X = A;\n    take Y = B;\n} => ((X > 10 && Y > 20) && X < Y))"
+    );
+    assert_eq!(
+        parse!(jumpcmp_parser, "(=>[A B] X == 2)")
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "({\n    inline {}\n    # setArgs A B;\n} => X == 2)"
+    );
+    assert_eq!(
+        parse!(jumpcmp_parser, "(=>[] X == 2)")
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "({\n    inline {}\n    # setArgs;\n} => X == 2)"
+    );
+    assert_eq!(
+        parse!(jumpcmp_parser, "(=>[@] X == 2)")
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "({\n    inline {}\n    # setArgs @;\n} => X == 2)"
     );
     assert_eq!(
         parse!(line_parser, r#"set a "\n\\\[hi]\\n";"#)

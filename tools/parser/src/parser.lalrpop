@@ -227,7 +227,14 @@ pub JumpCmpOnce: CmpTree = CmpTree1;
 AlwaysJumpCmp: CmpTree = JumpCmp? => <>.unwrap_or(JumpCmp::Always.into());
 
 CmpTree1: CmpTree = {
-    <deps:MBlock<LogicLine*>> "=>" <cmp:CmpTree1> => CmpTree::Deps(deps.into(), cmp.into()),
+    <deps:MBlock<LogicLine*>> "=>" <cmp:CmpTree1>
+        => CmpTree::Deps(deps.into(), cmp.into()),
+    <deps:MBlock<LogicLine*>?> "=>" <args:MList<Args?>> <cmp:CmpTree1> => {
+        CmpTree::Deps(vec![
+            InlineBlock::from(deps.unwrap_or_default()).into(),
+            LogicLine::SetArgs(args.unwrap_or_default()),
+        ].into(), cmp.into())
+    },
     CmpTree2,
 }
 
