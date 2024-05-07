@@ -8,7 +8,7 @@ use std::{
     convert::identity,
     fmt::{self, Debug, Display},
     hash::Hash,
-    iter::{repeat_with, zip},
+    iter::{repeat_with, zip, once},
     mem::{self, replace},
     num::ParseIntError,
     ops::{self, Deref},
@@ -251,6 +251,10 @@ impl PartialEq<&str> for Var {
 
 pub type Location = usize;
 pub type Float = f64;
+
+fn default<T: Default>() -> T {
+    T::default()
+}
 
 pub const COUNTER: &str = "@counter";
 pub const FALSE_VAR: &str = "false";
@@ -857,7 +861,7 @@ impl DExp {
     /// 新建一个未指定返回值的DExp
     pub fn new_nores(lines: Expand) -> Self {
         Self {
-            result: Default::default(),
+            result: default(),
             lines
         }
     }
@@ -1182,7 +1186,7 @@ impl JumpCmp {
             | Self::Always
             | Self::NotAlways
             // 这里使用default生成无副作用的占位值
-            => Default::default(),
+            => default(),
         }
     }
 
@@ -1306,6 +1310,14 @@ impl JumpCmp {
             StrictEqual, "===",
             StrictNotEqual, "!==",
         }
+    }
+
+    /// Returns `true` if the jump cmp is [`Always`].
+    ///
+    /// [`Always`]: JumpCmp::Always
+    #[must_use]
+    pub fn is_always(&self) -> bool {
+        matches!(self, Self::Always)
     }
 }
 impl Display for JumpCmpRParseError {
@@ -1452,6 +1464,7 @@ pub enum CmpTree {
     Atom(JumpCmp),
 }
 impl CmpTree {
+    pub const ALWAYS: Self = Self::Atom(JumpCmp::Always);
     /// 反转自身条件,
     /// 使用`德•摩根定律`进行表达式变换.
     ///
@@ -1675,10 +1688,19 @@ impl CmpTree {
 
         root.into()
     }
+
+    pub fn is_always(&self) -> bool {
+        match self {
+            CmpTree::Deps(_, cond) => cond.is_always(),
+            CmpTree::And(a, b) => a.is_always() && b.is_always(),
+            CmpTree::Or(a, b) => a.is_always() && b.is_always(),
+            CmpTree::Atom(atom) => atom.is_always(),
+        }
+    }
 }
 impl Default for CmpTree {
     fn default() -> Self {
-        Self::Atom(Default::default())
+        Self::Atom(default())
     }
 }
 impl_enum_froms!(impl From for CmpTree {
@@ -2080,6 +2102,19 @@ impl FromMdtArgs for Op {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Goto(pub Var, pub CmpTree);
+impl Goto {
+    pub fn cond(&self) -> &CmpTree {
+        &self.1
+    }
+
+    pub fn cond_mut(&mut self) -> &mut CmpTree {
+        &mut self.1
+    }
+
+    pub fn is_always(&self) -> bool {
+        self.cond().is_always()
+    }
+}
 impl Compile for Goto {
     fn compile(self, meta: &mut CompileMeta) {
         self.1.build(meta, self.0)
@@ -2105,6 +2140,11 @@ impl From<Vec<LogicLine>> for Expand {
         Self(value)
     }
 }
+impl<const N: usize> From<[LogicLine; N]> for Expand {
+    fn from(value: [LogicLine; N]) -> Self {
+        Self(value.into())
+    }
+}
 impl TryFrom<&TagCodes> for Expand {
     type Error = (usize, LogicLineFromTagError);
 
@@ -2114,6 +2154,11 @@ impl TryFrom<&TagCodes> for Expand {
             lines.push(code.try_into().map_err(|e| (idx, e))?)
         }
         Ok(Self(lines))
+    }
+}
+impl FromIterator<LogicLine> for Expand {
+    fn from_iter<T: IntoIterator<Item = LogicLine>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
     }
 }
 impl_derefs!(impl for Expand => (self: self.0): Vec<LogicLine>);
@@ -2445,7 +2490,7 @@ impl_enum_froms!(impl From for ConstKey {
 pub struct Const(pub ConstKey, pub Value, pub Vec<Var>);
 impl Const {
     pub fn new(var: ConstKey, value: Value) -> Self {
-        Self(var, value, Default::default())
+        Self(var, value, default())
     }
 
     /// 在const编译前对右部分进行处理, 如果目标有的话, 返回绑定者
@@ -2621,6 +2666,14 @@ impl Args {
         }
     }
 
+    pub fn as_normal_mut(&mut self) -> Option<&mut Vec<Value>> {
+        if let Self::Normal(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
     pub fn try_into_normal(self) -> Result<Vec<Value>, Self> {
         match self {
             Self::Normal(args) => Ok(args),
@@ -2712,7 +2765,7 @@ impl Compile for Match {
         }
         if meta.enable_misses_match_log_info {
             meta.log_info(format_args!("Misses match, [{}]", args.join(" ")));
-            meta.log_expand_stack();
+            meta.log_expand_stack::<false>();
         }
     }
 }
@@ -2879,7 +2932,7 @@ impl Compile for ConstMatch {
                 "Misses const match, [{}]",
                 args.join(" "),
             ));
-            meta.log_expand_stack();
+            meta.log_expand_stack::<false>();
         }
     }
 }
@@ -3058,6 +3111,232 @@ impl ConstMatchPatAtom {
     }
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub enum GSwitchCase {
+    Catch {
+        underflow: bool,
+        missed: bool,
+        overflow: bool,
+        to: Option<ConstKey>,
+    },
+    Normal {
+        /// 如果为空, 那么则继承上一个的编号
+        ids: Args,
+        guard: Option<CmpTree>,
+    },
+}
+impl GSwitchCase {
+    #[must_use]
+    pub fn is_missed(&self) -> bool {
+        matches!(self, Self::Catch { missed: true, .. })
+    }
+
+    #[must_use]
+    pub fn is_underflow(&self) -> bool {
+        matches!(self, Self::Catch { underflow: true, .. })
+    }
+
+    #[must_use]
+    pub fn is_overflow(&self) -> bool {
+        matches!(self, Self::Catch { overflow: true, .. })
+    }
+
+    /// Returns `true` if the gswitch case is [`Normal`].
+    ///
+    /// [`Normal`]: GSwitchCase::Normal
+    #[must_use]
+    pub fn is_normal(&self) -> bool {
+        matches!(self, Self::Normal { .. })
+    }
+
+    /// Returns `true` if the gswitch case is [`Catch`].
+    ///
+    /// [`Catch`]: GSwitchCase::Catch
+    #[must_use]
+    pub fn is_catch(&self) -> bool {
+        matches!(self, Self::Catch { .. })
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct GSwitch {
+    pub value: Value,
+    pub extra: Expand,
+    pub cases: Vec<(GSwitchCase, Expand)>,
+}
+impl GSwitch {
+    const MAX_CONST_ID: usize = 750;
+
+    fn get_ids(ids: Args, meta: &mut CompileMeta) -> impl Iterator<
+        Item = usize
+    > + '_ {
+        ids.into_taked_args_handle(meta)
+            .into_iter()
+            .map(Value::ReprVar)
+            .map(|var| var.try_eval_const_num(meta)
+                .map(|x| match x.0.round() {
+                    n if n < 0. => {
+                        meta.log_expand_stack::<true>();
+                        err!("小于0的gswitch id");
+                        exit(4);
+                    },
+                    n if n >= GSwitch::MAX_CONST_ID as f64 => {
+                        meta.log_expand_stack::<true>();
+                        err!("过大的gswitch id");
+                        exit(4);
+                    },
+                    n => n as usize,
+                })
+                .unwrap_or_else(|| {
+                    meta.log_expand_stack::<true>();
+                    err!("gswitch id并不是一个数字");
+                    exit(4);
+                }))
+    }
+
+    fn case_lab_with_cond(
+        &self, 
+        mut f: impl FnMut(&GSwitchCase) -> bool,
+        meta: &mut CompileMeta,
+    ) -> Option<Var> {
+        self.cases.iter()
+            .find(|x| f(&x.0))
+            .is_some()
+            .then(|| meta.get_tmp_tag())
+    }
+}
+impl Compile for GSwitch {
+    fn compile(self, meta: &mut CompileMeta) {
+        use GSwitchCase as GSC;
+
+        meta.with_block(|meta| {
+            let mut missed_lab = self
+                .case_lab_with_cond(GSwitchCase::is_missed, meta);
+            let underflow_lab = self
+                .case_lab_with_cond(GSwitchCase::is_underflow, meta);
+            let overflow_lab = self
+                .case_lab_with_cond(GSwitchCase::is_overflow, meta);
+
+            let val_h = meta.get_tmp_var();
+            let mut head = Select(
+                val_h.clone().into(),
+                vec![].into(),
+            );
+            macro_rules! push_id {
+                ($id:expr => $e:expr) => {{
+                    let id = $id;
+                    for _ in head.1.len()..=id {
+                        head.1.push(Expand(vec![]).into())
+                    }
+                    head.1[id].as_expand_mut()
+                        .unwrap()
+                        .push($e.into());
+                }};
+            }
+            let [mut prev_case, mut max_case] = [-1isize; 2];
+            let mut case_lines = vec![];
+            for (case, code) in self.cases {
+                let GSC::Normal { mut ids, guard } = case else {
+                    let GSwitchCase::Catch {
+                        underflow,
+                        missed,
+                        overflow,
+                        to,
+                    } = case else {
+                        unreachable!("{meta:#?}")
+                    };
+                    case_lines.push(LogicLine::Expand(
+                        None.into_iter()
+                            .chain(underflow.then(||
+                                    underflow_lab.clone().unwrap())
+                                .map(LogicLine::Label))
+                            .chain(missed.then(||
+                                    missed_lab.clone().unwrap())
+                                .map(LogicLine::Label))
+                            .chain(overflow.then(||
+                                    overflow_lab.clone().unwrap())
+                                .map(LogicLine::Label))
+                            .chain(to.into_iter()
+                                .map(|k| Take(k, val_h.clone().into()).into()))
+                            .chain(once(code.into()))
+                            .chain(self.extra.0.iter().cloned())
+                            .collect()
+                    ));
+                    continue;
+                };
+                if ids.as_normal()
+                    .map(Vec::is_empty)
+                    .unwrap_or_default()
+                {
+                    let id = (prev_case+1).to_string();
+                    ids.as_normal_mut()
+                        .unwrap()
+                        .push(Value::ReprVar(id.into()));
+                }
+                let cmp = guard.unwrap_or_default();
+                let lab = meta.get_tmp_tag();
+                Self::get_ids(ids, meta)
+                    .for_each(|id| {
+                        push_id!(id => Goto(lab.clone(), cmp.clone()));
+                        prev_case = id.try_into().unwrap();
+                        max_case = max_case.max(prev_case);
+                    });
+                case_lines.push(LogicLine::Expand(vec![
+                    LogicLine::Label(lab),
+                    code.into(),
+                    self.extra.clone().into(),
+                ].into()));
+            }
+            let mut default_missed_catch = false;
+            for to_case in &mut *head.1 {
+                let expand = to_case.as_expand_mut().unwrap();
+                expand.last()
+                    .and_then(|line| line.as_goto())
+                    .map(|goto| !goto.is_always())
+                    .unwrap_or(true)
+                    .then(|| {
+                        let lab = missed_lab
+                            .get_or_insert_with(|| {
+                                default_missed_catch = true;
+                                meta.get_tmp_tag()
+                            })
+                            .clone();
+                        expand.push(Goto(
+                            lab,
+                            CmpTree::ALWAYS,
+                        ).into());
+                    });
+            }
+
+            // generate
+            LogicLine::from(Take(val_h.clone().into(), self.value))
+                .compile(meta);
+            underflow_lab
+                .map(|lab| Goto(lab, JumpCmp::LessThan(
+                    val_h.clone().into(),
+                    Value::ReprVar("0".into()),
+                ).into()))
+                .map(LogicLine::from)
+                .map(|line| line.compile(meta));
+            overflow_lab
+                .map(|lab| Goto(lab, JumpCmp::GreaterThan(
+                    val_h.clone().into(),
+                    Value::ReprVar(max_case.to_string().into()),
+                ).into()))
+                .map(LogicLine::from)
+                .map(|line| line.compile(meta));
+            LogicLine::from(head)
+                .compile(meta);
+            LogicLine::from(Expand(case_lines))
+                .compile(meta);
+            if default_missed_catch {
+                LogicLine::Label(missed_lab.unwrap())
+                    .compile(meta);
+            }
+        });
+    }
+}
+
 #[must_use]
 #[derive(Debug, PartialEq, Clone)]
 pub enum LogicLine {
@@ -3070,6 +3349,7 @@ pub enum LogicLine {
     Expand(Expand),
     InlineBlock(InlineBlock),
     Select(Select),
+    GSwitch(GSwitch),
     NoOp,
     /// 空语句, 什么也不生成
     Ignore,
@@ -3120,6 +3400,7 @@ impl Compile for LogicLine {
                 meta.set_env_args((0..len).map(iarg));
             },
             Self::Select(select) => select.compile(meta),
+            Self::GSwitch(gs) => gs.compile(meta),
             Self::Expand(expand) => expand.compile(meta),
             Self::InlineBlock(block) => block.compile(meta),
             Self::Goto(goto) => goto.compile(meta),
@@ -3233,6 +3514,14 @@ impl LogicLine {
             None
         }
     }
+
+    pub fn as_expand_mut(&mut self) -> Option<&mut Expand> {
+        if let Self::Expand(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
 }
 impl_enum_froms!(impl From for LogicLine {
     Op => Op;
@@ -3240,6 +3529,7 @@ impl_enum_froms!(impl From for LogicLine {
     Expand => Expand;
     InlineBlock => InlineBlock;
     Select => Select;
+    GSwitch => GSwitch;
     Const => Const;
     Take => Take;
     ArgsRepeat => ArgsRepeat;
@@ -3358,7 +3648,7 @@ where N: ops::DivAssign + ops::Rem<Output = N>
 {
     const LIST: &[u8; 62]
         = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-    let zero = Default::default();
+    let zero = default();
     assert_ne!(radix, zero);
     let sub_list = &LIST[..radix.into()];
     if n == zero {
@@ -3399,7 +3689,7 @@ impl ExpandEnv {
         Self {
             leak_vars,
             consts,
-            ..Default::default()
+            ..default()
         }
     }
 
@@ -4003,7 +4293,7 @@ impl CompileMeta {
             })
     }
 
-    pub fn log_expand_stack(&mut self) {
+    pub fn log_expand_stack<const E: bool>(&mut self) {
         let names = self.debug_expand_stack()
             .flat_map(|var| [
                 var.to_string().into(),
@@ -4012,7 +4302,11 @@ impl CompileMeta {
             .into_iter_fmtter();
         let s = format!("Expand Stack:\n{names}");
         drop(names);
-        self.log_info(s);
+        if E {
+            self.log_err(s);
+        } else {
+            self.log_info(s);
+        }
     }
 
     pub fn last_builtin_exit_code(&self) -> u8 {

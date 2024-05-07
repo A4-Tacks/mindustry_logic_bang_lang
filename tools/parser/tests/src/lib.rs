@@ -5968,3 +5968,381 @@ fn value_bind_ref_test() {
         ],
     );
 }
+
+#[test]
+fn gswitch_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        gswitch x {
+        case: print 1;
+        case: print 2;
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"op add @counter @counter x"#,
+            r#"jump 3 always 0 0"#,
+            r#"jump 4 always 0 0"#,
+            r#"print 1"#,
+            r#"print 2"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        gswitch x {
+            break;
+        case: print 1;
+        case: print 2;
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"op add @counter @counter x"#,
+            r#"jump 3 always 0 0"#,
+            r#"jump 5 always 0 0"#,
+            r#"print 1"#,
+            r#"jump 0 always 0 0"#,
+            r#"print 2"#,
+            r#"jump 0 always 0 0"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        gswitch x {
+            break;
+        case 1: print 1;
+        case: print 2;
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"op add @counter @counter x"#,
+            r#"jump 0 always 0 0"#,
+            r#"jump 4 always 0 0"#,
+            r#"jump 6 always 0 0"#,
+            r#"print 1"#,
+            r#"jump 0 always 0 0"#,
+            r#"print 2"#,
+            r#"jump 0 always 0 0"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        gswitch x {
+            break;
+        case 1: print 1;
+        case !: print mis;
+        case: print 2;
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"op add @counter @counter x"#,
+            r#"jump 6 always 0 0"#,
+            r#"jump 4 always 0 0"#,
+            r#"jump 8 always 0 0"#,
+            r#"print 1"#,
+            r#"jump 0 always 0 0"#,
+            r#"print mis"#,
+            r#"jump 0 always 0 0"#,
+            r#"print 2"#,
+            r#"jump 0 always 0 0"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        gswitch x {
+            break;
+        case 1: print 1;
+        case ! MAX: print mis MAX;
+        case: print 2;
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"op add @counter @counter x"#,
+            r#"jump 6 always 0 0"#,
+            r#"jump 4 always 0 0"#,
+            r#"jump 9 always 0 0"#,
+            r#"print 1"#,
+            r#"jump 0 always 0 0"#,
+            r#"print mis"#,
+            r#"print x"#,
+            r#"jump 0 always 0 0"#,
+            r#"print 2"#,
+            r#"jump 0 always 0 0"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        gswitch x {
+            break;
+        case 1: print 1;
+        case ! MAX: print mis MAX;
+        case: print 2;
+        }
+        end;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"op add @counter @counter x"#,
+            r#"jump 6 always 0 0"#,
+            r#"jump 4 always 0 0"#,
+            r#"jump 9 always 0 0"#,
+            r#"print 1"#,
+            r#"jump 11 always 0 0"#,
+            r#"print mis"#,
+            r#"print x"#,
+            r#"jump 11 always 0 0"#,
+            r#"print 2"#,
+            r#"jump 11 always 0 0"#,
+            r#"end"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        gswitch x {
+            break;
+        case 1: print 1;
+        case <: print less;
+        case: print 2;
+        }
+        end;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"jump 7 lessThan x 0"#,
+            r#"op add @counter @counter x"#,
+            r#"jump 11 always 0 0"#,
+            r#"jump 5 always 0 0"#,
+            r#"jump 9 always 0 0"#,
+            r#"print 1"#,
+            r#"jump 11 always 0 0"#,
+            r#"print less"#,
+            r#"jump 11 always 0 0"#,
+            r#"print 2"#,
+            r#"jump 11 always 0 0"#,
+            r#"end"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        gswitch x {
+            break;
+        case 1: print 1;
+        case >: print 'greaterThan';
+        case: print 2;
+        }
+        end;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"jump 7 greaterThan x 2"#,
+            r#"op add @counter @counter x"#,
+            r#"jump 11 always 0 0"#,
+            r#"jump 5 always 0 0"#,
+            r#"jump 9 always 0 0"#,
+            r#"print 1"#,
+            r#"jump 11 always 0 0"#,
+            r#"print greaterThan"#,
+            r#"jump 11 always 0 0"#,
+            r#"print 2"#,
+            r#"jump 11 always 0 0"#,
+            r#"end"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        gswitch x {
+            break;
+        case 1: print 1;
+        case !>: print hit;
+        case: print 2;
+        }
+        end;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"jump 7 greaterThan x 2"#,
+            r#"op add @counter @counter x"#,
+            r#"jump 7 always 0 0"#,
+            r#"jump 5 always 0 0"#,
+            r#"jump 9 always 0 0"#,
+            r#"print 1"#,
+            r#"jump 11 always 0 0"#,
+            r#"print hit"#,
+            r#"jump 11 always 0 0"#,
+            r#"print 2"#,
+            r#"jump 11 always 0 0"#,
+            r#"end"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        gswitch x {
+            break;
+        case 1: print 1;
+        case <!>: print hit;
+        case: print 2;
+        }
+        end;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"jump 8 lessThan x 0"#,
+            r#"jump 8 greaterThan x 2"#,
+            r#"op add @counter @counter x"#,
+            r#"jump 8 always 0 0"#,
+            r#"jump 6 always 0 0"#,
+            r#"jump 10 always 0 0"#,
+            r#"print 1"#,
+            r#"jump 12 always 0 0"#,
+            r#"print hit"#,
+            r#"jump 12 always 0 0"#,
+            r#"print 2"#,
+            r#"jump 12 always 0 0"#,
+            r#"end"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const I = 1;
+        gswitch x {
+            break;
+        case I: print `I`;
+        }
+        end;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"op add @counter @counter x"#,
+            r#"jump 5 always 0 0"#,
+            r#"jump 3 always 0 0"#,
+            r#"print I"#,
+            r#"jump 5 always 0 0"#,
+            r#"end"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const I = 1;
+        gswitch x {
+            break;
+        case I if y: print `I`;
+        }
+        end;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"op mul __1 x 2"#,
+            r#"op add @counter @counter __1"#,
+            r#"jump 8 always 0 0"#,
+            r#"jump 4 always 0 0"#,
+            r#"jump 6 notEqual y false"#,
+            r#"jump 8 always 0 0"#,
+            r#"print I"#,
+            r#"jump 8 always 0 0"#,
+            r#"end"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        match 1 2 { @ {} }
+        gswitch x {
+            break;
+        case @: print x;
+        }
+        end;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"op add @counter @counter x"#,
+            r#"jump 6 always 0 0"#,
+            r#"jump 4 always 0 0"#,
+            r#"jump 4 always 0 0"#,
+            r#"print x"#,
+            r#"jump 6 always 0 0"#,
+            r#"end"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const match (1:) 2 { @ {} }
+        gswitch x {
+            break;
+        case @: print x;
+        }
+        end;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"op add @counter @counter x"#,
+            r#"jump 6 always 0 0"#,
+            r#"jump 4 always 0 0"#,
+            r#"jump 4 always 0 0"#,
+            r#"print x"#,
+            r#"jump 6 always 0 0"#,
+            r#"end"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const match (1:) (2: print start;) { @ {} }
+        gswitch x {
+            break;
+        case @: print x;
+        }
+        end;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print start"#,
+            r#"op add @counter @counter x"#,
+            r#"jump 7 always 0 0"#,
+            r#"jump 5 always 0 0"#,
+            r#"jump 5 always 0 0"#,
+            r#"print x"#,
+            r#"jump 7 always 0 0"#,
+            r#"end"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        gswitch x {
+        case: print 1;
+        case: print 2 3 4;
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"op add @counter @counter x"#,
+            r#"jump 3 always 0 0"#,
+            r#"jump 4 always 0 0"#,
+            r#"print 1"#,
+            r#"print 2"#,
+            r#"print 3"#,
+            r#"print 4"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        gswitch x {
+        case 0: print 0;
+        case 1 2 3: print 1 2 3;
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"op add @counter @counter x"#,
+            r#"jump 5 always 0 0"#,
+            r#"jump 6 always 0 0"#,
+            r#"jump 6 always 0 0"#,
+            r#"jump 6 always 0 0"#,
+            r#"print 0"#,
+            r#"print 1"#,
+            r#"print 2"#,
+            r#"print 3"#,
+        ],
+    );
+}

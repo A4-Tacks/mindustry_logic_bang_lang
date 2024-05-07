@@ -328,7 +328,7 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
         }
 
         fn expand_stack:ExpandStack(meta) [] {
-            meta.log_expand_stack();
+            meta.log_expand_stack::<false>();
             Ok("__".into())
         }
 

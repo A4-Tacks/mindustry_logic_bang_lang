@@ -411,6 +411,7 @@ impl DisplaySource for LogicLine {
             Self::Goto(goto) => goto.display_source(meta),
             Self::Op(op) => op.display_source(meta),
             Self::Select(select) => select.display_source(meta),
+            Self::GSwitch(gswitch) => gswitch.display_source(meta),
             Self::Take(take) => take.display_source(meta),
             Self::Const(r#const) => r#const.display_source(meta),
             Self::ConstLeak(var) => {
@@ -628,6 +629,69 @@ impl DisplaySource for ConstMatch {
                     meta.add_lf();
                 }
             });
+        }
+        meta.push("}");
+    }
+}
+impl DisplaySource for GSwitchCase {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        match self {
+            &Self::Catch {
+                underflow,
+                missed,
+                overflow,
+                ref to,
+            } => {
+                meta.add_space();
+                if underflow {
+                    meta.push("<");
+                }
+                if missed {
+                    meta.push("!")
+                }
+                if overflow {
+                    meta.push(">")
+                }
+                if let Some(key) = to {
+                    meta.add_space();
+                    key.display_source(meta);
+                }
+            },
+            Self::Normal { ids, guard } => {
+                if !ids.as_normal().map(Vec::is_empty).unwrap_or_default() {
+                    meta.add_space();
+                    ids.display_source(meta);
+                }
+                if let Some(guard) = guard {
+                    meta.add_space();
+                    meta.push("if");
+                    meta.add_space();
+                    guard.display_source(meta);
+                }
+            },
+        }
+    }
+}
+impl DisplaySource for GSwitch {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        meta.push("gswitch");
+        meta.add_space();
+        self.value.display_source(meta);
+        meta.add_space();
+        meta.push("{");
+        meta.add_lf();
+        meta.do_block(|meta| {
+            self.extra.display_source(meta);
+            meta.add_lf();
+        });
+        for (case, expand) in &self.cases {
+            meta.push("case");
+            case.display_source(meta);
+            meta.push(":");
+            meta.add_lf();
+            meta.do_block(|meta| {
+                expand.display_source(meta);
+            })
         }
         meta.push("}");
     }

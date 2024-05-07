@@ -25,7 +25,7 @@ syn case match
 
 " 一些关键字 {{{1
 syn keyword mdtlblKeyword
-            \ while gwhile do skip goto if elif else switch case break continue
+            \ while gwhile do skip goto if elif else switch gswitch case break continue
             \ const take setres select match
             \ inline
             \ op set noop print
@@ -72,6 +72,10 @@ syn match mdtlblQuickDExpTakeIdent /\I\i*\%(\[\)\@=/
 syn match mdtlblQuickDExpTakeIdent /'[^' \t]\+'\%(\[\)\@=/
 syn match mdtlblQuickDExpTakeIdent /->/
 syn match mdtlblIdentLabel /:\I\i*/
+syn match mdtlblIdentLabel /:@\I\i*\%(-\i*\)*/
+syn match mdtlblIdentLabel /:'[^' \t]\+'/
+syn match mdtlblIdentLabel /:\v0%(x-=%(_)@![0-9a-fA-F_]+|x-=%(_)@![01_]+)/
+syn match mdtlblIdentLabel /:\v-=%(_)@![0-9_]+/
 
 " Fold {{{1
 setlocal foldmethod=syntax

@@ -65,8 +65,13 @@ switch $1 {
 	$0
 }
 endsnippet
+snippet gswitch "gswitch" w
+gswitch $1 {
+	$0
+}
+endsnippet
 snippet case "switch-case" w
-case ${1:0}:$0
+case ${1}:$0
 endsnippet
 snippet op "op result a + b;" w
 op ${1:result} ${2:a} ${3:+} ${4:b};$0

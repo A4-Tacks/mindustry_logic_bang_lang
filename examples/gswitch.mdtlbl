@@ -1,0 +1,167 @@
+#**
+* 这是0.16.3版本新增的语法, 主要是解决switch无法和常量还有参数系统交互的问题
+* 并且更加强大, 拥有匹配守卫, 并且对于不同的值到同一块代码并不会有过多的代码重复
+*
+* 它的结构始终是jump跳转到代码的表.
+* 由于它始终采用跳转表式, 所以它的穿透也将与case声明顺序相同.
+* 它的跳转表是使用select原语构建的, 方便且偷懒
+*
+* 需要注意的是, 它对于为指定失配时的行为和普通switch不同,
+* 它会直接跳过整个gswitch, 而不是采用append
+*
+* 它的catchs和switch的很像, 但是其代码体和其它case的在一起,
+* 这可以很符合直觉的穿透
+*
+* 没有设计同时匹配catch和普通case的语法, 这或许是一个遗憾, 但是真的不想实现它
+* 当然, 你可以舍弃常用的简单的向append中编写break的语法, 直接穿透到它那里.
+*
+* 它还拥有匹配守卫, 可以在普通的匹配后面增加一个if加上比较条件,
+* 将仅在成立时执行这个case.
+* 当然不设计为为同一个case中每个匹配使用不同的守卫支持, 也是类似上面的原因.
+* 实在要使用也可以使用类似上面的解决方法
+*#
+
+# 一个例子
+const Foo = 0;
+const Bar = 2;
+x = Bar;
+y = 2;
+gswitch x {
+    break;
+case Foo if y < 1:
+    print "Foo && y<1";
+case Foo:
+    print "Foo";
+case Bar:
+    print "Bar";
+}
+
+#* >>>
+set x 2
+set y 2
+op mul __1 x 2
+op add @counter @counter __1
+jump 10 lessThan y 1
+jump 12 always 0 0
+jump 0 always 0 0
+jump 14 always 0 0
+jump 14 always 0 0
+jump 10 always 0 0
+print "Foo && y<1"
+jump 0 always 0 0
+print "Foo"
+jump 0 always 0 0
+print "Bar"
+jump 0 always 0 0
+*#
+
+
+# 使用catch的例子
+gswitch x {
+    break;
+case 0: print "0";
+case ! X: print X": missed";
+case 1: print "1";
+}
+end;
+#* >>>
+op add @counter @counter x
+jump 3 always 0 0
+jump 8 always 0 0
+print "0"
+jump 10 always 0 0
+print x
+print ": missed"
+jump 10 always 0 0
+print "1"
+jump 10 always 0 0
+end
+*#
+
+
+# 这种只有一个分支的, 会触发select的优化, 所以看着怪怪的
+gswitch x {
+    break;
+case 0: print "0";
+case ! X: print X": missed";
+}
+#* >>>
+jump 1 always 0 0
+print "0"
+jump 1 always 0 0
+print x
+print ": missed"
+jump 1 always 0 0
+*#
+
+
+# 同时使用多个匹配的情况
+gswitch x {
+    break;
+case 1 2 3 4: print "1 or 2 or 3 or 4"a","b","c;
+case ! X: print X": missed";
+}
+#* >>>
+op add @counter @counter x
+jump 13 always 0 0
+jump 6 always 0 0
+jump 6 always 0 0
+jump 6 always 0 0
+jump 6 always 0 0
+print "1 or 2 or 3 or 4"
+print a
+print ","
+print b
+print ","
+print c
+jump 0 always 0 0
+print x
+print ": missed"
+jump 0 always 0 0
+*#
+# 我们和switch比对一下
+switch x {
+    break;
+case !: print ": missed";
+case 1 2 3 4: print "1 or 2 or 3 or 4"a","b","c;
+}
+#* >>>
+jump 2 always 0 0
+print ": missed"
+op add @counter @counter x
+jump 1 always 0 0
+jump 9 always 0 0
+jump 16 always 0 0
+jump 23 always 0 0
+jump 30 always 0 0
+jump 1 always 0 0
+print "1 or 2 or 3 or 4"
+print a
+print ","
+print b
+print ","
+print c
+jump 2 always 0 0
+print "1 or 2 or 3 or 4"
+print a
+print ","
+print b
+print ","
+print c
+jump 2 always 0 0
+print "1 or 2 or 3 or 4"
+print a
+print ","
+print b
+print ","
+print c
+jump 2 always 0 0
+print "1 or 2 or 3 or 4"
+print a
+print ","
+print b
+print ","
+print c
+jump 2 always 0 0
+*#
+# 显然, gswitch很好的解决了这个问题

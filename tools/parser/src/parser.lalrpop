@@ -30,6 +30,8 @@ use ::syntax::{
     InlineBlock,
     SwitchCatch,
     Select,
+    GSwitch,
+    GSwitchCase,
     Const,
     Take,
     ConstKey,
@@ -912,6 +914,18 @@ ControlBody: LogicLine = {
     Control,
     Block,
 }
+GSwitchCase: GSwitchCase = {
+    <ids:Args?> <guard:("if" <JumpCmp>)?> => {
+        GSwitchCase::Normal { ids: ids.unwrap_or_default(), guard }
+    },
+    "<" <to:ConstKey?> => GSwitchCase::Catch { underflow: true, missed: false, overflow: false, to },
+    "!" <to:ConstKey?> => GSwitchCase::Catch { underflow: false, missed: true, overflow: false, to },
+    ">" <to:ConstKey?> => GSwitchCase::Catch { underflow: false, missed: false, overflow: true, to },
+    "<" "!" <to:ConstKey?> => GSwitchCase::Catch { underflow: true, missed: true, overflow: false, to },
+    "!" ">" <to:ConstKey?> => GSwitchCase::Catch { underflow: false, missed: true, overflow: true, to },
+    "<" ">" <to:ConstKey?> => GSwitchCase::Catch { underflow: true, missed: false, overflow: true, to },
+    "<" "!" ">" <to:ConstKey?> => GSwitchCase::Catch { underflow: true, missed: true, overflow: true, to },
+}
 ControlWithoutOptionalEnd: LogicLine = {
     "goto" <Label> <AlwaysJumpCmp> LEnd => {
         Goto(<>).into()
@@ -998,6 +1012,26 @@ ControlWithoutOptionalEnd: LogicLine = {
         meta.push_some_label_to(&mut res, break_lab);
 
         Expand(res).into()
+    },
+
+    "gswitch" <value:Value>
+    CtrlStart
+    <cases:MBlock<(
+        <Expand> // append line
+        <(
+            "case" <GSwitchCase> ":"
+            <Expand>
+        )+>
+    )>>
+    <ctrl:CtrlStop>
+    => {
+        let (extra, cases) = cases;
+        let (break_lab, continue_lab) = ctrl;
+
+        let mut lines = vec![GSwitch { value, extra, cases }.into()];
+        meta.push_some_label_to(&mut lines, break_lab);
+        meta.push_some_label_to(&mut lines, continue_lab);
+        Expand(lines).into()
     },
 
     "switch" <value:Value>

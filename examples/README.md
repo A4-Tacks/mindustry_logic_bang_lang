@@ -25,6 +25,7 @@
 > [`switch_append.mdtlbl`](./switch_append.mdtlbl)<br/>
 > [`switch_catch.mdtlbl`](./switch_catch.mdtlbl)<br/>
 > [`take2.mdtlbl`](./take2.mdtlbl)<br/>
+> [`gswitch.mdtlbl`](./gswitch.mdtlbl)<br/>
 > [`mul_takes_and_consts.mdtlbl`](./mul_takes_and_consts.mdtlbl)<br/>
 > [`cmper.mdtlbl`](./cmper.mdtlbl)<br/>
 > [`setres.mdtlbl`](./setres.mdtlbl)<br/>
