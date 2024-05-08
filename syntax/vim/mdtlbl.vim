@@ -25,10 +25,12 @@ syn case match
 
 " 一些关键字 {{{1
 syn keyword mdtlblKeyword
-            \ while gwhile do skip goto if elif else switch gswitch case break continue
+            \ while gwhile do skip goto if elif else switch gswitch break continue
             \ const take setres select match
             \ inline
             \ op set noop print
+syn keyword mdtlblKeyword case nextgroup=mdtlblStar skipwhite
+syn match mdtlblStar /\*/ contained
 
 syn keyword mdtlblOpFunKeyword
             \ add sub mul div idiv mod pow
@@ -133,6 +135,7 @@ setlocal indentkeys+==:
 
 " END And Color Links {{{1
 hi def link mdtlblKeyword Keyword
+hi def link mdtlblStar Keyword
 hi def link mdtlblOpFunKeyword Operator
 hi def link mdtlblCmpTreeOper Operator
 hi def link mdtlblComment Comment

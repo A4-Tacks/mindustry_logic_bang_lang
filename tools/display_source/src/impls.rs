@@ -635,13 +635,17 @@ impl DisplaySource for ConstMatch {
 }
 impl DisplaySource for GSwitchCase {
     fn display_source(&self, meta: &mut DisplaySourceMeta) {
-        match self {
-            &Self::Catch {
+        match *self {
+            Self::Catch {
+                skip_extra,
                 underflow,
                 missed,
                 overflow,
                 ref to,
             } => {
+                if skip_extra {
+                    meta.push("*");
+                }
                 meta.add_space();
                 if underflow {
                     meta.push("<");
@@ -657,7 +661,14 @@ impl DisplaySource for GSwitchCase {
                     key.display_source(meta);
                 }
             },
-            Self::Normal { ids, guard } => {
+            Self::Normal {
+                skip_extra,
+                ref ids,
+                ref guard
+            } => {
+                if skip_extra {
+                    meta.push("*");
+                }
                 if !ids.as_normal().map(Vec::is_empty).unwrap_or_default() {
                     meta.add_space();
                     ids.display_source(meta);
@@ -682,7 +693,6 @@ impl DisplaySource for GSwitch {
         meta.add_lf();
         meta.do_block(|meta| {
             self.extra.display_source(meta);
-            meta.add_lf();
         });
         for (case, expand) in &self.cases {
             meta.push("case");

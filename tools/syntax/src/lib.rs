@@ -3114,12 +3114,14 @@ impl ConstMatchPatAtom {
 #[derive(Debug, PartialEq, Clone)]
 pub enum GSwitchCase {
     Catch {
+        skip_extra: bool,
         underflow: bool,
         missed: bool,
         overflow: bool,
         to: Option<ConstKey>,
     },
     Normal {
+        skip_extra: bool,
         /// 如果为空, 那么则继承上一个的编号
         ids: Args,
         guard: Option<CmpTree>,
@@ -3177,12 +3179,12 @@ impl GSwitch {
                 .map(|x| match x.0.round() {
                     n if n < 0. => {
                         meta.log_expand_stack::<true>();
-                        err!("小于0的gswitch id");
+                        err!("小于0的gswitch id: {}", n);
                         exit(4);
                     },
                     n if n >= GSwitch::MAX_CONST_ID as f64 => {
                         meta.log_expand_stack::<true>();
-                        err!("过大的gswitch id");
+                        err!("过大的gswitch id: {}", n);
                         exit(4);
                     },
                     n => n as usize,
@@ -3236,8 +3238,13 @@ impl Compile for GSwitch {
             let [mut prev_case, mut max_case] = [-1isize; 2];
             let mut case_lines = vec![];
             for (case, code) in self.cases {
-                let GSC::Normal { mut ids, guard } = case else {
+                let GSC::Normal {
+                    skip_extra,
+                    mut ids,
+                    guard
+                } = case else {
                     let GSwitchCase::Catch {
+                        skip_extra,
                         underflow,
                         missed,
                         overflow,
@@ -3259,7 +3266,9 @@ impl Compile for GSwitch {
                             .chain(to.into_iter()
                                 .map(|k| Take(k, val_h.clone().into()).into()))
                             .chain(once(code.into()))
-                            .chain(self.extra.0.iter().cloned())
+                            .chain((!skip_extra)
+                                .then(|| self.extra.0.iter().cloned())
+                                .into_iter().flatten())
                             .collect()
                     ));
                     continue;
@@ -3281,11 +3290,12 @@ impl Compile for GSwitch {
                         prev_case = id.try_into().unwrap();
                         max_case = max_case.max(prev_case);
                     });
-                case_lines.push(LogicLine::Expand(vec![
+                let mut lines = vec![
                     LogicLine::Label(lab),
                     code.into(),
-                    self.extra.clone().into(),
-                ].into()));
+                ];
+                if !skip_extra { lines.push(self.extra.clone().into()) }
+                case_lines.push(LogicLine::Expand(lines.into()));
             }
             let mut default_missed_catch = false;
             for to_case in &mut *head.1 {

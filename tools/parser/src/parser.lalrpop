@@ -915,16 +915,14 @@ ControlBody: LogicLine = {
     Block,
 }
 GSwitchCase: GSwitchCase = {
-    <ids:Args?> <guard:("if" <JumpCmp>)?> => {
-        GSwitchCase::Normal { ids: ids.unwrap_or_default(), guard }
-    },
-    "<" <to:ConstKey?> => GSwitchCase::Catch { underflow: true, missed: false, overflow: false, to },
-    "!" <to:ConstKey?> => GSwitchCase::Catch { underflow: false, missed: true, overflow: false, to },
-    ">" <to:ConstKey?> => GSwitchCase::Catch { underflow: false, missed: false, overflow: true, to },
-    "<" "!" <to:ConstKey?> => GSwitchCase::Catch { underflow: true, missed: true, overflow: false, to },
-    "!" ">" <to:ConstKey?> => GSwitchCase::Catch { underflow: false, missed: true, overflow: true, to },
-    "<" ">" <to:ConstKey?> => GSwitchCase::Catch { underflow: true, missed: false, overflow: true, to },
-    "<" "!" ">" <to:ConstKey?> => GSwitchCase::Catch { underflow: true, missed: true, overflow: true, to },
+    <skip_extra:Opt<"*">> <ids:Args?> <guard:("if" <JumpCmp>)?> => GSwitchCase::Normal { skip_extra, ids: ids.unwrap_or_default(), guard },
+    <skip_extra:Opt<"*">> "<" <to:ConstKey?> => GSwitchCase::Catch { skip_extra, underflow: true, missed: false, overflow: false, to },
+    <skip_extra:Opt<"*">> "!" <to:ConstKey?> => GSwitchCase::Catch { skip_extra, underflow: false, missed: true, overflow: false, to },
+    <skip_extra:Opt<"*">> ">" <to:ConstKey?> => GSwitchCase::Catch { skip_extra, underflow: false, missed: false, overflow: true, to },
+    <skip_extra:Opt<"*">> "<" "!" <to:ConstKey?> => GSwitchCase::Catch { skip_extra, underflow: true, missed: true, overflow: false, to },
+    <skip_extra:Opt<"*">> "!" ">" <to:ConstKey?> => GSwitchCase::Catch { skip_extra, underflow: false, missed: true, overflow: true, to },
+    <skip_extra:Opt<"*">> "<" ">" <to:ConstKey?> => GSwitchCase::Catch { skip_extra, underflow: true, missed: false, overflow: true, to },
+    <skip_extra:Opt<"*">> "<" "!" ">" <to:ConstKey?> => GSwitchCase::Catch { skip_extra, underflow: true, missed: true, overflow: true, to },
 }
 ControlWithoutOptionalEnd: LogicLine = {
     "goto" <Label> <AlwaysJumpCmp> LEnd => {

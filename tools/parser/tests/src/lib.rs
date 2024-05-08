@@ -6345,4 +6345,48 @@ fn gswitch_test() {
             r#"print 3"#,
         ],
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        gswitch x {
+            break;
+        case 1 2: print x;
+        case*3: print end;
+        }
+        end;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"op add @counter @counter x"#,
+            r#"jump 8 always 0 0"#,
+            r#"jump 5 always 0 0"#,
+            r#"jump 5 always 0 0"#,
+            r#"jump 7 always 0 0"#,
+            r#"print x"#,
+            r#"jump 8 always 0 0"#,
+            r#"print end"#,
+            r#"end"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        gswitch x {
+            break;
+        case*1 2: print x;
+        case 3: print end;
+        }
+        end;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"op add @counter @counter x"#,
+            r#"jump 8 always 0 0"#,
+            r#"jump 5 always 0 0"#,
+            r#"jump 5 always 0 0"#,
+            r#"jump 6 always 0 0"#,
+            r#"print x"#,
+            r#"print end"#,
+            r#"jump 8 always 0 0"#,
+            r#"end"#,
+        ],
+    );
 }

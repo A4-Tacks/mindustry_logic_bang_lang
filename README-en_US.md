@@ -179,7 +179,7 @@ printflush message1
 # Project Build
 Building this project will be relatively slow due to the following reasons:
 1. Compile using `rustc`, which is slightly slower compared to `gcc` and `clang`
-2. Using the large syntax analysis framework 'lalrpop', which generates over 400000 lines of code and works together with 'rustc' to make compilation slower
+2. Using the large syntax analysis framework 'lalrpop', which generates over 500000 lines of code and works together with 'rustc' to make compilation slower
 
 You can first check the Releases to see if there is a built program,
 and if it does not exist or cannot be used, try building it yourself
