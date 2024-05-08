@@ -7,17 +7,23 @@ use std::{
     process::exit,
     str::FromStr,
     collections::HashMap,
-    ops::Deref, fmt::Display,
+    ops::Deref,
+    fmt::Display,
+    cell::RefCell,
+    borrow::Cow,
 };
 
-use display_source::DisplaySource;
+use display_source::{
+    DisplaySource,
+    DisplaySourceMeta,
+};
 use syntax::{
     CompileMeta,
     Error,
     Errors,
     Expand,
     Meta,
-    line_first_add,
+    line_first_add, CompileMetaExtends,
 };
 use parser::{
     TopLevelParser,
@@ -120,7 +126,7 @@ impl CompileMode {
         match *self {
             Self::BangToMdtLogic => {
                 let ast = build_ast(&src);
-                let mut meta = compile_ast(ast);
+                let mut meta = compile_ast(ast, src);
                 build_tag_down(&mut meta);
                 let logic_lines = meta.tag_codes_mut().compile().unwrap();
                 logic_lines.join("\n")
@@ -135,7 +141,7 @@ impl CompileMode {
             },
             Self::BangToMdtTagCode { tag_down } => {
                 let ast = build_ast(&src);
-                let mut meta = compile_ast(ast);
+                let mut meta = compile_ast(ast, src);
                 if tag_down { build_tag_down(&mut meta); }
                 meta.tag_codes().to_string()
             },
@@ -422,8 +428,36 @@ fn unwrap_parse_err(result: ParseResult<'_>, src: &str) -> Expand {
     }
 }
 
-fn compile_ast(ast: Expand) -> CompileMeta {
-    CompileMeta::new().compile_res_self(ast)
+struct CompileMetaExtender {
+    source: String,
+    display_meta: RefCell<DisplaySourceMeta>,
+}
+impl CompileMetaExtender {
+    fn new(source: String, display_meta: RefCell<DisplaySourceMeta>) -> Self {
+        Self {
+            source,
+            display_meta,
+        }
+    }
+}
+impl CompileMetaExtends for CompileMetaExtender {
+    fn source_location(&self, index: usize) -> [syntax::Location; 2] {
+        get_locations(&self.source, [index])[0]
+    }
+    fn display_value(&self, value: &syntax::Value) -> Cow<'_, str> {
+        let meta = &mut *self.display_meta.borrow_mut();
+        meta.to_default();
+        value.display_source_and_get(meta).to_owned().into()
+    }
+}
+
+fn compile_ast(ast: Expand, src: String) -> CompileMeta {
+    let mut meta = CompileMeta::new();
+    meta.set_extender(Box::new(CompileMetaExtender::new(
+        src,
+        DisplaySourceMeta::new().into(),
+    )));
+    meta.compile_res_self(ast)
 }
 
 fn get_token_name(s: &str) -> Option<&'static str> {

@@ -158,6 +158,13 @@ impl Var {
     pub fn new() -> Self {
         Self::default()
     }
+
+    pub fn display_src<'a>(&'a self, meta: &'a CompileMeta) -> Cow<'a, str> {
+        meta.extender.as_ref()
+            .map(|ext| ext
+                .display_value(&Value::Var(self.clone())))
+            .unwrap_or(self.as_str().into())
+    }
 }
 impl FromIterator<char> for Var {
     fn from_iter<T: IntoIterator<Item = char>>(iter: T) -> Self {
@@ -347,6 +354,17 @@ impl Value {
             None
         }
     }
+
+    /// 尝试借助扩展直接显示源码, 如果不成的话走普通的debug
+    pub fn display_src<'a>(
+        &self,
+        meta: &'a CompileMeta,
+    ) -> Cow<'a, str> {
+        meta.extender
+            .as_ref()
+            .map(|ext| ext.display_value(&self))
+            .unwrap_or_else(|| format!("{self:#?}").into())
+    }
 }
 impl TakeHandle for Value {
     fn take_handle(self, meta: &mut CompileMeta) -> Var {
@@ -366,11 +384,11 @@ impl TakeHandle for Value {
                 meta.get_dexp_expand_binder().cloned()
                     .unwrap_or_else(|| "__".into())
             },
-            Self::Cmper(cmp) => {
+            cmp @ Self::Cmper(_) => {
                 err!(
-                    "{}\n最终未被展开的cmper, {:#?}",
+                    "{}\n最终未被展开的cmper:\n{}",
                     meta.err_info().join("\n"),
-                    cmp,
+                    cmp.display_src(meta),
                 );
                 exit(6);
             },
@@ -893,11 +911,11 @@ impl TakeHandle for DExp {
                     concat!(
                         "{}\n尝试在`DExp`的返回句柄处使用值不为Var的const, ",
                         "此处仅允许使用`Var`\n",
-                        "值: {:#?}\n",
+                        "值: {}\n",
                         "名称: {:?}",
                     ),
                     meta.err_info().join("\n"),
-                    value,
+                    value.display_src(meta),
                     result
                 );
                 exit(5);
@@ -2764,6 +2782,9 @@ impl Compile for Match {
             }
         }
         if meta.enable_misses_match_log_info {
+            let args = args.into_iter()
+                .map(|v| v.display_src(meta).into_owned())
+                .collect::<Vec<_>>();
             meta.log_info(format_args!("Misses match, [{}]", args.join(" ")));
             meta.log_expand_stack::<false>();
         }
@@ -2928,10 +2949,10 @@ impl Compile for ConstMatch {
             }
         }
         if meta.enable_misses_match_log_info {
-            meta.log_info(format_args!(
-                "Misses const match, [{}]",
-                args.join(" "),
-            ));
+            let args = args.into_iter()
+                .map(|v| v.display_src(meta).into_owned())
+                .collect::<Vec<_>>();
+            meta.log_info(format_args!("Misses match, [{}]", args.join(" ")));
             meta.log_expand_stack::<false>();
         }
     }
@@ -3720,7 +3741,15 @@ impl ExpandEnv {
     }
 }
 
+pub trait CompileMetaExtends {
+    #[must_use]
+    fn source_location(&self, index: usize) -> [Location; 2];
+    #[must_use]
+    fn display_value(&self, value: &Value) -> Cow<'_, str>;
+}
+
 pub struct CompileMeta {
+    extender: Option<Box<dyn CompileMetaExtends>>,
     /// 标记与`id`的映射关系表
     tags_map: HashMap<String, usize>,
     tag_count: usize,
@@ -3787,6 +3816,7 @@ impl CompileMeta {
 
     pub fn with_tag_codes(tag_codes: TagCodes) -> Self {
         let mut meta = Self {
+            extender: None,
             tags_map: HashMap::new(),
             tag_count: 0,
             tag_codes,
@@ -3866,7 +3896,10 @@ impl CompileMeta {
                 self.tmp_var_count.get()
             }).clone();
         if let Some((true, bind)) = warn_builtin {
-            self.log_info(format_args!("Missed Builtin Call: {bind}"));
+            self.log_info(format!(
+                "Missed Builtin Call: {}",
+                bind.display_src(self),
+            ));
         }
         binded
     }
@@ -4306,7 +4339,7 @@ impl CompileMeta {
     pub fn log_expand_stack<const E: bool>(&mut self) {
         let names = self.debug_expand_stack()
             .flat_map(|var| [
-                var.to_string().into(),
+                var.display_src(&self).into_owned().into(),
                 Cow::Borrowed("\n"),
             ])
             .into_iter_fmtter();
@@ -4337,6 +4370,14 @@ impl CompileMeta {
 
     pub fn set_const_expand_max_depth(&mut self, const_expand_max_depth: usize) {
         self.const_expand_max_depth = const_expand_max_depth;
+    }
+
+    pub fn set_extender(&mut self, extender: Box<dyn CompileMetaExtends>) {
+        self.extender = extender.into();
+    }
+
+    pub fn extender(&self) -> Option<&dyn CompileMetaExtends> {
+        self.extender.as_deref()
     }
 }
 

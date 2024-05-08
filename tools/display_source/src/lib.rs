@@ -51,6 +51,13 @@ impl DisplaySourceMeta {
         Self::default()
     }
 
+    /// 已显示内容恢复至初始状态,
+    /// 这个方法的存在是为了保留可能已经堆分配的缓冲区和配置等
+    pub fn to_default(&mut self) {
+        self.buffer.clear();
+        self.do_indent_flag = true;
+    }
+
     /// 执行传入的函数
     /// 在执行前会先将缩进增加一层
     /// 在执行完毕后会将缩进减回

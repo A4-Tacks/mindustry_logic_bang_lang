@@ -269,7 +269,22 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
 
         /// 以Debug形式显示一个值
         fn debug:Debug(meta) [v:value] {
-            meta.log_info(format!("Value Debug:\n{:#?}", value));
+            if let Some(ref ext) = meta.extender {
+                meta.log_info(format!(
+                    "Value Debug:\n\
+                    binder: ..{}\n\
+                    labels: {}\n\
+                    value: {}\
+                    ",
+                    value.binder.as_ref().map(|s| s.as_str()).unwrap_or(""),
+                    value.labels().iter()
+                        .flat_map(|s| [s.as_str(), ", "])
+                        .into_iter_fmtter(),
+                    ext.display_value(value.value()),
+                ));
+            } else {
+                meta.log_info(format!("Value Debug:\n{:#?}", value));
+            }
             Ok("__".into())
         }
 
