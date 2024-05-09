@@ -1029,7 +1029,11 @@ ControlWithoutOptionalEnd: LogicLine = {
         let mut lines = vec![GSwitch { value, extra, cases }.into()];
         meta.push_some_label_to(&mut lines, break_lab);
         meta.push_some_label_to(&mut lines, continue_lab);
-        Expand(lines).into()
+        <[_; 1]>::try_from(lines)
+            .map(|[line]| line)
+            .unwrap_or_else(|lines| {
+                InlineBlock(lines).into()
+            })
     },
 
     "switch" <value:Value>
@@ -1104,7 +1108,7 @@ ControlWithoutOptionalEnd: LogicLine = {
                         if flag.is_misses() {
                             // 是一个未命中捕获
                             let tag = meta.get_tag();
-                            out_block.push(LogicLine::Label(tag.clone()));
+                            out_block.push(LogicLine::new_label(tag.clone(), meta));
                             fill_line = Goto(tag, JumpCmp::Always.into()).into();
                             false // 已处理, 过滤掉
                         } else {
@@ -1130,7 +1134,7 @@ ControlWithoutOptionalEnd: LogicLine = {
                 )
             }
             out_block.push(lines.into());
-            out_block.push(LogicLine::Label(skip_tag));
+            out_block.push(LogicLine::new_label(skip_tag, meta));
 
             catch_lines.push(Expand(out_block).into())
         }
