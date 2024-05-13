@@ -152,7 +152,7 @@ impl DisplaySource for ValueBind {
 }
 impl DisplaySource for JumpCmp {
     fn display_source(&self, meta: &mut DisplaySourceMeta) {
-        if let Self::Always | Self::NotAlways = self {
+        if let Self::Always | Self::Never = self {
             meta.push(self.get_symbol_cmp_str())
         } else {
             let sym = self.get_symbol_cmp_str();

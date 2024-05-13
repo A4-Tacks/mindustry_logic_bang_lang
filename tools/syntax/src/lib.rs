@@ -1163,7 +1163,7 @@ pub enum JumpCmp {
     /// 总是
     Always,
     /// 总不是
-    NotAlways,
+    Never,
 }
 impl JumpCmp {
     /// 将值转为`bool`来对待
@@ -1184,8 +1184,8 @@ impl JumpCmp {
             GreaterThanEq(a, b) => LessThan(a, b),
             StrictEqual(a, b) => StrictNotEqual(a, b),
             StrictNotEqual(a, b) => StrictEqual(a, b),
-            Always => NotAlways,
-            NotAlways => Always,
+            Always => Never,
+            Never => Always,
         }
     }
 
@@ -1202,7 +1202,7 @@ impl JumpCmp {
             | Self::StrictNotEqual(a, b)
             => (a, b),
             | Self::Always
-            | Self::NotAlways
+            | Self::Never
             // 这里使用default生成无副作用的占位值
             => default(),
         }
@@ -1221,7 +1221,7 @@ impl JumpCmp {
             | Self::StrictNotEqual(a, b)
             => Some((a, b)),
             | Self::Always
-            | Self::NotAlways
+            | Self::Never
             => None,
         }
     }
@@ -1239,7 +1239,7 @@ impl JumpCmp {
             | Self::StrictNotEqual(a, b)
             => Some((a, b)),
             | Self::Always
-            | Self::NotAlways
+            | Self::Never
             => None,
         }
     }
@@ -1259,7 +1259,7 @@ impl JumpCmp {
                         Self::$name(..) => $str,
                     )*
                     Self::Always => "always",
-                    Self::NotAlways => e!(),
+                    Self::Never => e!(),
                 }
             };
         }
@@ -1289,7 +1289,7 @@ impl JumpCmp {
         match self {
             // 转换为0永不等于0
             // 要防止0被const, 我们使用repr
-            Self::NotAlways => {
+            Self::Never => {
                 Self::NotEqual(Value::new_noeffect(), Value::new_noeffect())
             },
             Self::StrictNotEqual(a, b) => {
@@ -1313,7 +1313,7 @@ impl JumpCmp {
                         Self::$name(..) => $str,
                     )*
                     Self::Always => "_",
-                    Self::NotAlways => "!_",
+                    Self::Never => "!_",
                 }
             };
         }
@@ -1659,6 +1659,7 @@ impl CmpTree {
                 let tag_id = meta.get_tag(end);
                 meta.push(TagLine::TagDown(tag_id));
             },
+            Atom(JumpCmp::Never) => (), // 构建不成立的条件没意义
             Atom(cmp) => {
                 // 构建为可以进行接下来的编译的形式
                 let cmp = cmp.do_start_compile_into();

@@ -364,7 +364,6 @@ fn goto_compile_test() {
     end;
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
-               "jump 1 notEqual 0 0",
                "end",
     ]);
 
@@ -418,6 +417,39 @@ fn goto_compile_test() {
                "end",
     ]);
 
+    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+    skip !_ && !_ {
+        print true;
+    }
+    end;
+    "#).unwrap()).compile().unwrap();
+    assert_eq!(logic_lines, vec![
+               "jump 1 always 0 0",
+               "print true",
+               "end",
+    ]);
+
+    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+    skip _ && !_ {
+        print true;
+    }
+    end;
+    "#).unwrap()).compile().unwrap();
+    assert_eq!(logic_lines, vec![
+               "print true",
+               "end",
+    ]);
+
+    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+    skip !_ {
+        print true;
+    }
+    end;
+    "#).unwrap()).compile().unwrap();
+    assert_eq!(logic_lines, vec![
+               "print true",
+               "end",
+    ]);
 }
 
 #[test]
