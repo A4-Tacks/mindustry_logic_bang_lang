@@ -2212,9 +2212,7 @@ impl Compile for Select {
         let lens: Vec<usize> = cases.iter()
             .map(|lines| {
                 lines.iter()
-                    .filter(
-                        |line| !line.is_tag_down()
-                    )
+                    .filter(|line| line.can_generate_line())
                     .count()
             }).collect();
         let max_len = lens.iter().copied().max().unwrap_or_default();
@@ -2231,8 +2229,12 @@ impl Compile for Select {
 
         let simple_select_len = match max_len {
             0 => 0,
-            1 => cases.len() + 1,
-            n => n * cases.len() + 2,
+            1 => (cases.len() - 1) + lens.last().unwrap() + 1,
+            n => {
+                n * (cases.len() - 1) // paded cases
+                    + lens.last().unwrap() // no padding last case
+                    + 2 // head
+            },
         };
         let goto_table_select_len = match max_len {
             0 => 0,
@@ -2241,7 +2243,8 @@ impl Compile for Select {
 
         #[cfg(debug_assertions)]
         let old_tag_codes_len = meta.tag_codes.count_no_tag();
-        if simple_select_len <= goto_table_select_len {
+        // 因为跳转表式的穿透更加高效, 所以长度相同时优先选择
+        if simple_select_len < goto_table_select_len {
             Self::build_simple_select(target, max_len, meta, lens, cases);
             #[cfg(debug_assertions)]
             assert_eq!(
@@ -2262,7 +2265,6 @@ impl Compile for Select {
         }
     }
 }
-
 impl Select {
     fn build_goto_table_select(
         target: Value,
@@ -2310,37 +2312,44 @@ impl Select {
         let counter = Value::ReprVar(COUNTER.into());
 
         // build head
-        let head = match max_len {
+        match max_len {
             0 => {          // no op
-                Take("__".into(), target).compile_take(meta)
+                Take("__".into(), target)
+                    .compile(meta)
             },
             1 => {          // no mul
                 Op::Add(
                     counter.clone(),
                     counter,
                     target
-                ).compile_take(meta)
+                ).compile(meta)
             },
             // normal
             _ => {
                 let tmp_var = meta.get_tmp_var();
-                let mut head = Op::Mul(
+                Op::Mul(
                     tmp_var.clone().into(),
                     target,
                     Value::ReprVar(max_len.to_string().into())
-                ).compile_take(meta);
-                let head_1 = Op::Add(
+                ).compile(meta);
+                Op::Add(
                     counter.clone(),
                     counter,
                     tmp_var.into()
-                ).compile_take(meta);
-                head.extend(head_1);
-                head
+                ).compile(meta);
             }
-        };
+        }
 
-        // 填补不够长的`case`
-        for (len, case) in zip(lens, &mut cases) {
+        assert_eq!(cases.len(), lens.len());
+        // 填补不够长的`case`, 但不包括最后一个
+        let cases_len = cases.len();
+        let iter = lens.into_iter()
+            .zip(&mut cases)
+            .enumerate();
+        for (i, (len, case)) in iter {
+            if cases_len.checked_sub(1) == Some(i) {
+                continue; // skip tail padding
+            }
             match max_len - len {
                 0 => continue,
                 insert_counts => {
@@ -2362,7 +2371,6 @@ impl Select {
         }
 
         let lines = meta.tag_codes.lines_mut();
-        lines.extend(head);
         lines.extend(cases.into_iter().flatten());
     }
 }
@@ -2569,6 +2577,7 @@ impl Compile for Const {
 
 /// 在此处计算后方的值, 并将句柄赋给前方值
 /// 如果后方不是一个DExp, 而是Var, 那么自然等价于一个常量定义
+#[must_use]
 #[derive(Debug, PartialEq, Clone)]
 pub struct Take(pub ConstKey, pub Value);
 impl Take {

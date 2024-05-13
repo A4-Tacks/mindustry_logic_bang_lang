@@ -359,6 +359,15 @@ impl TagLine {
         matches!(self, Self::TagDown(..))
     }
 
+    /// 返回是否生成行, 用于未生成时预测生成后长度
+    #[must_use]
+    pub fn can_generate_line(&self) -> bool {
+        match self {
+            TagLine::Jump(_) | TagLine::Line(_) => true,
+            TagLine::TagDown(_) => false,
+        }
+    }
+
     /// 如果是一个有被跳转标记的[`Line`]或者[`Jump`], 将其跳转标记分离出来
     /// 如果是一个[`TagDown`], 则返回[`None`]
     ///
@@ -811,7 +820,7 @@ impl TagCodes {
         // 因为这个语言实在是太快了, 处理的数据量也太少了
         self.lines
             .iter()
-            .filter(|line| !line.is_tag_down())
+            .filter(|line| line.can_generate_line())
             .count()
     }
 
@@ -824,7 +833,7 @@ impl TagCodes {
         self
             .iter()
             .enumerate()
-            .filter(|(_i, line)| !line.is_tag_down())
+            .filter(|(_i, line)| line.can_generate_line())
             .nth(index)
             .map(|(i, _line)| i)
     }

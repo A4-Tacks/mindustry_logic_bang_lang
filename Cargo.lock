@@ -301,7 +301,7 @@ checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
 
 [[package]]
 name = "mindustry_logic_bang_lang"
-version = "0.16.6"
+version = "0.16.7"
 dependencies = [
  "display_source",
  "logic_lint",
@@ -358,7 +358,7 @@ dependencies = [
 
 [[package]]
 name = "parser-tests"
-version = "0.1.23"
+version = "0.1.24"
 dependencies = [
  "parser",
  "syntax",
@@ -535,7 +535,7 @@ dependencies = [
 
 [[package]]
 name = "syntax"
-version = "0.2.25"
+version = "0.2.26"
 dependencies = [
  "either",
  "tag_code",
@@ -545,7 +545,7 @@ dependencies = [
 
 [[package]]
 name = "tag_code"
-version = "0.1.5"
+version = "0.1.6"
 
 [[package]]
 name = "term"

@@ -496,7 +496,6 @@ fn switch_test() {
         "print 2",
         "print 4",
         "print 5",
-        "jump 0 always 0 0"
     ]);
 
     let ast = parse!(parser, r#"
@@ -1676,6 +1675,44 @@ fn select_test() {
     let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
     select 1 {
         print 0;
+        print;
+    }
+    "#).unwrap()).compile().unwrap();
+    assert_eq!(logic_lines, vec![
+        "op add @counter @counter 1",
+        "print 0",
+    ]);
+
+    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+    select 1 {
+        print 0;
+        print;
+        print;
+    }
+    "#).unwrap()).compile().unwrap();
+    assert_eq!(logic_lines, vec![
+        "op add @counter @counter 1",
+        "print 0",
+        "jump 0 always 0 0",
+    ]);
+
+    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+    select 1 {
+        print 0;
+        print;
+        print 2;
+    }
+    "#).unwrap()).compile().unwrap();
+    assert_eq!(logic_lines, vec![
+        "op add @counter @counter 1",
+        "print 0",
+        "jump 3 always 0 0",
+        "print 2",
+    ]);
+
+    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+    select 1 {
+        print 0;
         print 1 " is one!";
         print 2;
     }
@@ -1688,7 +1725,6 @@ fn select_test() {
         "print 1",
         "print \" is one!\"",
         "print 2",
-        "jump 0 always 0 0",
     ]);
 
     let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
@@ -1720,7 +1756,7 @@ fn select_test() {
     let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
     select m {
         print 0;
-        print 1 " is one!" ", one!!";
+        print 1 " is one!" ", one!!" "\n";
         print 2;
     }
     "#).unwrap()).compile().unwrap();
@@ -1728,14 +1764,14 @@ fn select_test() {
         "op add @counter @counter m",
         "jump 4 always 0 0",
         "jump 5 always 0 0",
-        "jump 8 always 0 0",
+        "jump 9 always 0 0",
         "print 0",
         "print 1",
         "print \" is one!\"",
         "print \", one!!\"",
+        "print \"\\n\"",
         "print 2",
     ]);
-
 }
 
 #[test]
@@ -5629,9 +5665,21 @@ fn builtin_func_test() {
     assert_eq!(
         CompileMeta::new().compile(parse!(parser, r#"
         take Builtin.SetNoOp["set noop \\'noop\n\\'"];
+        noop;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"set noop "noop\n""#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        take Builtin.SetNoOp["set noop \\'noop\n\\'"];
         select x {
             print 1 2 3 4 5;
             print 1 2 3;
+            print 1 2 3 4 5;
+            print 1 2 3 4 5;
             print 1 2 3 4 5;
         }
         "#).unwrap()).compile().unwrap(),
@@ -5653,6 +5701,16 @@ fn builtin_func_test() {
             r#"print 3"#,
             r#"print 4"#,
             r#"print 5"#,
+            r#"print 1"#,
+            r#"print 2"#,
+            r#"print 3"#,
+            r#"print 4"#,
+            r#"print 5"#,
+            r#"print 1"#,
+            r#"print 2"#,
+            r#"print 3"#,
+            r#"print 4"#,
+            r#"print 5"#,
         ],
     );
 
@@ -5662,6 +5720,8 @@ fn builtin_func_test() {
         select x {
             print 1 2 3 4 5;
             print 1 2 3;
+            print 1 2 3 4 5;
+            print 1 2 3 4 5;
             print 1 2 3 4 5;
         }
         "#).unwrap()).compile().unwrap(),
@@ -5678,6 +5738,16 @@ fn builtin_func_test() {
             r#"print 3"#,
             r#"jump 12 always 0 0"#,
             r#""str""#,
+            r#"print 1"#,
+            r#"print 2"#,
+            r#"print 3"#,
+            r#"print 4"#,
+            r#"print 5"#,
+            r#"print 1"#,
+            r#"print 2"#,
+            r#"print 3"#,
+            r#"print 4"#,
+            r#"print 5"#,
             r#"print 1"#,
             r#"print 2"#,
             r#"print 3"#,
@@ -6235,10 +6305,10 @@ fn gswitch_test() {
         end;
         "#).unwrap()).compile().unwrap(),
         vec![
-            r#"op mul __1 x 2"#,
-            r#"op add @counter @counter __1"#,
+            r#"op add @counter @counter x"#,
             r#"jump 8 always 0 0"#,
             r#"jump 4 always 0 0"#,
+            r#"jump 8 always 0 0"#,
             r#"jump 6 notEqual y false"#,
             r#"jump 8 always 0 0"#,
             r#"print I"#,
