@@ -104,12 +104,19 @@ macro_rules! do_return {
 }
 macro_rules! csi {
     (@ignore($($i:tt)*) $($t:tt)*) => ($($t)*);
-    ($fcode:expr $(, $code:expr)*; $($arg:tt)*) => {
+    ($fcode:expr $(, $code:expr)*; $efcode:expr $(, $ecode:expr)*; $($arg:tt)*) => {
         format_args!(
-            concat!("\x1b[{}", $(csi!(@ignore($code) ";{}"), )* "m{}\x1b[0m"),
+            concat!(
+                "\x1b[{}",
+                $(csi!(@ignore($code) ";{}"), )*
+                "m{}\x1b[{}", $(csi!(@ignore($ecode) ";{}"), )*
+                "m",
+            ),
             $fcode,
             $($code,)*
             format_args!($($arg)*),
+            $efcode,
+            $($ecode,)*
         )
     };
 }
@@ -3782,6 +3789,7 @@ pub struct CompileMeta {
     value_bind_global_consts: HashMap<Var, ConstData>,
     last_builtin_exit_code: u8,
     enable_misses_match_log_info: bool,
+    enable_misses_bind_info: bool,
     noop_line: String,
 }
 impl Debug for CompileMeta {
@@ -3843,6 +3851,7 @@ impl CompileMeta {
             value_bind_global_consts: HashMap::new(),
             last_builtin_exit_code: 0,
             enable_misses_match_log_info: false,
+            enable_misses_bind_info: false,
             noop_line: "noop".into(),
         };
         let builtin = String::from(Self::BUILTIN_FUNCS_BINDER);
@@ -3896,18 +3905,24 @@ impl CompileMeta {
     /// 获取绑定值, 如果绑定关系不存在则自动插入
     pub fn get_value_binded(&mut self, value: Var, bind: Var) -> Var {
         let mut warn_builtin = (value == Self::BUILTIN_FUNCS_BINDER)
-            .then_some((false, bind.clone()));
-        let key = (value, bind);
+            .then_some(false);
+        let key = (value.clone(), bind.clone());
         let binded = self.value_binds.entry(key)
             .or_insert_with(|| {
-                if let Some((ref mut warn, _)) = warn_builtin {
+                if let Some(ref mut warn) = warn_builtin {
                     *warn = true;
                 }
                 self.tmp_var_count.get()
             }).clone();
-        if let Some((true, bind)) = warn_builtin {
+        if warn_builtin == Some(true) {
             self.log_info(format!(
                 "Missed Builtin Call: {}",
+                bind.display_src(self),
+            ));
+        } else if self.enable_misses_bind_info {
+            self.log_info(format!(
+                "Missed Bind Get: {}.{}",
+                value.display_src(self),
                 bind.display_src(self),
             ));
         }
@@ -4324,12 +4339,12 @@ impl CompileMeta {
     }
 
     pub fn log_info(&mut self, s: impl std::fmt::Display) {
-        eprintln!("{}", csi!(1; "[I] {}",
+        eprintln!("{}", csi!(1; 22; "[I] {}",
                 s.to_string().trim_end().replace('\n', "\n    ")))
     }
 
     pub fn log_err(&mut self, s: impl std::fmt::Display) {
-        eprintln!("{}", csi!(1, 91; "[E] {}",
+        eprintln!("{}", csi!(1, 91; 22, 39; "[E] {}",
                 s.to_string().trim_end().replace('\n', "\n    ")))
     }
 

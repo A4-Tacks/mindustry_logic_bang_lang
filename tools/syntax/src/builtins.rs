@@ -386,6 +386,14 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
                 Ok("__".into())
             })
         }
+
+        fn misses_bind:MissesBind(meta) [v:enable] {
+            check_type!("var" Value::Var(enable) = enable.value() => {
+                meta.enable_misses_bind_info = enable != "0";
+                Ok("__".into())
+            })
+        }
+
         fn set_noop:SetNoOp(meta) [l:line] {
             check_type!("var" Value::Var(line) = line.value() => {
                 let line = if Value::is_string(line) {

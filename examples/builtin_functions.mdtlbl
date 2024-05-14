@@ -29,6 +29,7 @@
 * * `IsString[str]`: 返回给定量是否是一个字符串
 * * `RefArg`: 返回指定下标的上层参数句柄, 一般再用Const解开
 * * `MissesMatch[enable]`: 当enable非0时, 将match失配打印日志功能开启
+* * `MissesBind[enable]`: 当enable非0时, 将绑定量失配打印日志功能开启
 * * `SetNoOp[line]`: 根据给定的字串设置noop语句生成的行,
 *   包含一层简单的反斜杠解释规则:
 *     `\\` => `\`

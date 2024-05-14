@@ -47,21 +47,54 @@ impl DisplaySource for ClosuredValueMethod {
 }
 impl DisplaySource for ClosuredValue {
     fn display_source(&self, meta: &mut DisplaySourceMeta) {
-        let Self::Uninit {
-            catch_values,
-            value,
-            labels,
-        } = self else {
-            panic!("failed builded value: {:?}", self)
-        };
-        meta.push("([");
-        meta.display_source_iter_by_splitter(|meta| {
-            meta.add_space();
-        }, catch_values);
-        meta.push("]");
-        value.display_source(meta);
-        inline_labs(labels, meta);
-        meta.push(")");
+        match self {
+            ClosuredValue::Uninit {
+                catch_values,
+                value,
+                labels,
+            } => {
+                meta.push("([");
+                meta.display_source_iter_by_splitter(
+                    |meta| {
+                        meta.add_space();
+                    },
+                    catch_values,
+                );
+                meta.push("]");
+                value.display_source(meta);
+                inline_labs(labels, meta);
+                meta.push(")");
+            },
+            ClosuredValue::Inited {
+                bind_handle,
+                vars,
+            } => {
+                struct CatchedVar<'a>(&'a Var);
+                impl DisplaySource for CatchedVar<'_> {
+                    fn display_source(
+                        &self,
+                        meta: &mut DisplaySourceMeta,
+                    ) {
+                        self.0.display_source(meta);
+                        meta.push(":__catched");
+                    }
+                }
+                let catcheds = vars.iter()
+                    .map(|var| CatchedVar(var))
+                    .collect::<Vec<_>>();
+                meta.push("([");
+                meta.display_source_iter_by_splitter(
+                    |meta| {
+                        meta.add_space();
+                    },
+                    &catcheds,
+                );
+                meta.push("]");
+                bind_handle.display_source(meta);
+                meta.push(")");
+            },
+            ClosuredValue::Empty => unreachable!(),
+        }
     }
 }
 impl DisplaySource for Value {

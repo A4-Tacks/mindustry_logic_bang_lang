@@ -100,7 +100,7 @@ dependencies = [
 
 [[package]]
 name = "display_source"
-version = "0.3.16"
+version = "0.3.17"
 dependencies = [
  "parser",
  "syntax",
@@ -301,7 +301,7 @@ checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
 
 [[package]]
 name = "mindustry_logic_bang_lang"
-version = "0.16.8"
+version = "0.16.9"
 dependencies = [
  "display_source",
  "logic_lint",
@@ -535,7 +535,7 @@ dependencies = [
 
 [[package]]
 name = "syntax"
-version = "0.2.27"
+version = "0.2.28"
 dependencies = [
  "either",
  "tag_code",
