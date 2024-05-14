@@ -82,9 +82,10 @@ syn match mdtlblIdentLabel /:\v-=%(_)@![0-9_]+/
 " Fold {{{1
 setlocal foldmethod=syntax
 syn region mdtlblBlock start=/{/ end=/}/ transparent fold
+syn region mdtlblDExp start=/(\[\@=/ end=/)/ transparent
 syn region mdtlblDExp start=/(\[\@!/ end=/)/ transparent fold
 syn region mdtlblArgs matchgroup=mdtlblArgsBracket start=/(\@<!\[/ end=/\]/ transparent fold
-syn region mdtlblArgs start=/(\ze\[/ end=/\]/ transparent fold
+syn region mdtlblArgs start=/(\@=\[/ end=/\]/ transparent fold
 
 " Indent (缩进控制) {{{1
 function! <SID>lineFilter(line)
