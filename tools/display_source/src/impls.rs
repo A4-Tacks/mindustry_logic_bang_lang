@@ -50,6 +50,7 @@ impl DisplaySource for ClosuredValue {
         match self {
             ClosuredValue::Uninit {
                 catch_values,
+                catch_labels,
                 value,
                 labels,
             } => {
@@ -60,6 +61,17 @@ impl DisplaySource for ClosuredValue {
                     },
                     catch_values,
                 );
+                if !catch_labels.is_empty() {
+                    if !catch_values.is_empty() {
+                        meta.add_space();
+                    }
+                    meta.push("|");
+                    for label in catch_labels {
+                        meta.add_space();
+                        meta.push(":");
+                        label.display_source(meta);
+                    }
+                }
                 meta.push("]");
                 value.display_source(meta);
                 inline_labs(labels, meta);
@@ -67,6 +79,7 @@ impl DisplaySource for ClosuredValue {
             },
             ClosuredValue::Inited {
                 bind_handle,
+                rename_labels,
                 vars,
             } => {
                 struct CatchedVar<'a>(&'a Var);
@@ -80,15 +93,27 @@ impl DisplaySource for ClosuredValue {
                     }
                 }
                 let catcheds = vars.iter()
-                    .map(|var| CatchedVar(var))
-                    .collect::<Vec<_>>();
+                    .map(|var| CatchedVar(var));
                 meta.push("([");
                 meta.display_source_iter_by_splitter(
                     |meta| {
                         meta.add_space();
                     },
-                    &catcheds,
+                    catcheds,
                 );
+                if !rename_labels.is_empty() {
+                    if !vars.is_empty() {
+                        meta.add_space();
+                    }
+                    meta.push("|");
+                    for (src, dst) in rename_labels {
+                        meta.add_space();
+                        meta.push(":");
+                        src.display_source(meta);
+                        meta.push("->:");
+                        dst.display_source(meta);
+                    }
+                }
                 meta.push("]");
                 bind_handle.display_source(meta);
                 meta.push(")");
@@ -1059,5 +1084,23 @@ fn display_source_test() {
      \x20   @ {}\n\
         }\
         "
+    );
+
+    assert_eq!(
+        parse!(line_parser, r#"
+        const X = ([| :c :d]2);
+        "#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "const X = ([| :c :d]2);"
+    );
+
+    assert_eq!(
+        parse!(line_parser, r#"
+        const X = ([A B | :c :d]2);
+        "#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "const X = ([A:A B:B | :c :d]2);"
     );
 }

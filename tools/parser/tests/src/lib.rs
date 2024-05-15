@@ -6492,3 +6492,174 @@ fn gswitch_test() {
         ],
     );
 }
+
+#[test]
+fn closure_catch_label_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Run = (
+            :x
+            print unexpected;
+            take _0;
+        );
+        :x
+        print expected;
+        take Run[(
+            goto :x;
+        )];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print expected"#,
+            r#"print unexpected"#,
+            r#"jump 1 always 0 0"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Run = (
+            :x
+            print unexpected;
+            take _0;
+        );
+        :x
+        print expected;
+        take Run[([| :x](
+            goto :x;
+        ))];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print expected"#,
+            r#"print unexpected"#,
+            r#"jump 0 always 0 0"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = (
+            const Run = (
+                :x
+                print unexpected;
+                take _0;
+            );
+            :x
+            print expected;
+            take Run[([| :x](
+                goto :x;
+            ))];
+        );
+        take F;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print expected"#,
+            r#"print unexpected"#,
+            r#"jump 0 always 0 0"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = (
+            const Run = (
+                :x
+                print unexpected;
+                take _0;
+            );
+            :x
+            print expected;
+            take Run[([| :x](
+                goto :x;
+            ))];
+        );
+        take F F;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print expected"#,
+            r#"print unexpected"#,
+            r#"jump 0 always 0 0"#,
+            r#"print expected"#,
+            r#"print unexpected"#,
+            r#"jump 3 always 0 0"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = (
+            const Run = (
+                :x
+                print unexpected;
+                take _0 _0;
+            );
+            :x
+            print expected;
+            take Run[([| :x](
+                goto :x;
+            ))];
+        );
+        take F F;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print expected"#,
+            r#"print unexpected"#,
+            r#"jump 0 always 0 0"#,
+            r#"jump 0 always 0 0"#,
+            r#"print expected"#,
+            r#"print unexpected"#,
+            r#"jump 4 always 0 0"#,
+            r#"jump 4 always 0 0"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = (
+            const Run = (
+                :x
+                print unexpected;
+                take _0 _0;
+            );
+            take Run[([| :x](
+                goto :x;
+            ))];
+            :x
+            print expected;
+        );
+        take F F;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print unexpected"#,
+            r#"jump 3 always 0 0"#,
+            r#"jump 3 always 0 0"#,
+            r#"print expected"#,
+            r#"print unexpected"#,
+            r#"jump 7 always 0 0"#,
+            r#"jump 7 always 0 0"#,
+            r#"print expected"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Run = (
+            :x
+            print unexpected;
+            take _0 _0;
+        );
+        take Run[([| :x](
+            goto :x;
+        ))];
+        :x
+        print expected;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print unexpected"#,
+            r#"jump 3 always 0 0"#,
+            r#"jump 3 always 0 0"#,
+            r#"print expected"#,
+        ],
+    );
+}

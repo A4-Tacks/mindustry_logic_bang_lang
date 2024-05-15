@@ -22,7 +22,7 @@ pub const UNINIT_TAG_TARGET: usize = usize::MAX;
 /// 带有错误前缀, 并且文本为红色的eprintln
 macro_rules! err {
     ( $fmtter:expr $(, $args:expr)* $(,)? ) => {
-        eprintln!(concat!("\x1b[1;31m", "TagCodeError: ", $fmtter, "\x1b[0m"), $($args),*);
+        eprintln!(concat!("\x1b[1;31m", "TagCodeError: ", $fmtter, "\x1b[22;39m"), $($args),*);
     };
 }
 

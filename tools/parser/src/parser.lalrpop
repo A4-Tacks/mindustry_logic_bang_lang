@@ -860,10 +860,17 @@ ClosuredValueCatch: ClosuredValueMethod = {
         => Const(name.into(), val, labels).into(),
 }
 ClosuredValue: ClosuredValue = {
-    MLTuple<ClosuredValueCatch*, (ConstStart <Value> <ConstStop>)> => {
-        let (catchs, (value, labels)) = <>;
+    MLTuple<
+        (
+            ClosuredValueCatch*
+            ("|" <Label*>)?
+        ),
+        (ConstStart <Value> <ConstStop>),
+    > => {
+        let ((catchs, catch_labels), (value, labels)) = <>;
         ClosuredValue::Uninit {
             catch_values: catchs,
+            catch_labels: catch_labels.unwrap_or_default(),
             value: value.into(),
             labels,
         }

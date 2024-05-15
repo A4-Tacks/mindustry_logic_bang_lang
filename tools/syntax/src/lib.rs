@@ -153,7 +153,7 @@ pub enum Errors {
 /// 带有错误前缀, 并且文本为红色的eprintln
 macro_rules! err {
     ( $fmtter:expr $(, $args:expr)* $(,)? ) => {
-        eprintln!(concat!("\x1b[1;31m", "CompileError:\n", $fmtter, "\x1b[0m"), $($args),*);
+        eprintln!(concat!("\x1b[1;31m", "CompileError:\n", $fmtter, "\x1b[22;39m"), $($args),*);
     };
 }
 
@@ -790,11 +790,13 @@ impl_enum_froms!(impl From for ClosuredValueMethod {
 pub enum ClosuredValue {
     Uninit {
         catch_values: Vec<ClosuredValueMethod>,
+        catch_labels: Vec<Var>,
         value: Box<Value>,
         labels: Vec<Var>,
     },
     Inited {
         bind_handle: Var,
+        rename_labels: HashMap<Var, Var>,
         vars: Vec<Var>,
     },
     /// 操作过程中使用, 过程外不能使用
@@ -809,7 +811,7 @@ impl ClosuredValue {
         key
     }
 
-    pub fn catch_vars(&mut self, meta: &mut CompileMeta) {
+    pub fn catch_env(&mut self, meta: &mut CompileMeta) {
         let this = match self {
             Self::Uninit { .. } => mem::replace(self, Self::Empty),
             Self::Inited { .. } => return,
@@ -817,6 +819,7 @@ impl ClosuredValue {
         };
         let Self::Uninit {
             catch_values,
+            catch_labels,
             value,
             labels,
         } = this else { panic!() };
@@ -836,14 +839,30 @@ impl ClosuredValue {
         let r#const = Const(key, *value, labels);
         r#const.compile(meta);
 
-        *self = Self::Inited { bind_handle: bindh, vars };
+        let mut rename_labels = catch_labels.into_iter()
+            .map(|name| (
+                name.clone(),
+                meta.get_in_const_label(name),
+            ))
+            .collect::<HashMap<_, _>>();
+        rename_labels.shrink_to_fit();
+
+        *self = Self::Inited {
+            bind_handle: bindh,
+            rename_labels,
+            vars,
+        };
     }
 }
 impl TakeHandle for ClosuredValue {
     fn take_handle(mut self, meta: &mut CompileMeta) -> Var {
-        self.catch_vars(meta);
-        let Self::Inited { bind_handle, vars } = self else {
-            panic!("self uninit, {:?}", self)
+        self.catch_env(meta);
+        let Self::Inited {
+            bind_handle,
+            rename_labels,
+            vars,
+        } = self else {
+            panic!("closured value uninit, {:?}", self)
         };
         let mut result = None;
         meta.with_block(|meta| {
@@ -855,9 +874,14 @@ impl TakeHandle for ClosuredValue {
                 Const(ConstKey::Var(var), handle.into(), Vec::new())
                     .compile(meta);
             }
-            result = Self::make_valkey(bind_handle)
-                .take_handle(meta)
-                .into();
+            meta.with_const_expand_tag_name_map_scope(
+                rename_labels,
+                |meta| {
+                    result = Self::make_valkey(bind_handle)
+                        .take_handle(meta)
+                        .into();
+                },
+            );
         });
         result.unwrap()
     }
@@ -2540,7 +2564,7 @@ impl Const {
                     return self.extend_data(data.clone());
                 }
             },
-            Value::ClosuredValue(closure) => closure.catch_vars(meta),
+            Value::ClosuredValue(closure) => closure.catch_env(meta),
             val @ Value::ValueBindRef(_) => {
                 let Value::ValueBindRef(bindref)
                     = replace(val, Value::ResultHandle)
@@ -3782,6 +3806,7 @@ pub struct CompileMeta {
     /// 一个标签从尾部上寻, 寻到就返回找到的, 没找到就返回原本的
     /// 所以它支持在宏A内部展开的宏B跳转到宏A内部的标记
     const_expand_tag_name_map: Vec<HashMap<Var, Var>>,
+    /// 每层展开的句柄记录, 用于栈回溯
     const_expand_names: Vec<Var>,
     const_expand_max_depth: usize,
     value_binds: HashMap<(Var, Var), Var>,
@@ -4169,20 +4194,26 @@ impl CompileMeta {
             .unwrap_or(name)
     }
 
+    pub fn with_const_expand_tag_name_map_scope<R>(
+        &mut self,
+        map: HashMap<Var, Var>,
+        f: impl FnOnce(&mut Self) -> R,
+    ) -> (R, HashMap<Var, Var>) {
+        self.const_expand_tag_name_map.push(map);
+        let result = f(self);
+        (
+            result,
+            self.const_expand_tag_name_map.pop().unwrap(),
+        )
+    }
+
     /// 进入一层宏展开环境, 并且返回其值
     /// 这个函数会直接调用获取函数将标记映射完毕, 然后返回其值
     /// 如果不是一个宏则直接返回None, 也不会进入无需清理
     pub fn const_expand_enter(&mut self, name: &Var) -> Option<Value> {
         let label_count = self.get_const_value(name)?.labels().len();
         if self.const_expand_names.len() >= self.const_expand_max_depth {
-            self.log_err(format!(
-                    "Stack Expand:\n{}",
-                    self.debug_expand_stack()
-                        .flat_map(|var| [
-                            var.to_string().into(),
-                            Cow::Borrowed("\n"),
-                        ]).into_iter_fmtter(),
-            ));
+            self.log_expand_stack::<true>();
             err!(
                 "Maximum recursion depth exceeded ({})",
                 self.const_expand_max_depth,
@@ -4197,14 +4228,15 @@ impl CompileMeta {
             = self.get_const_value(name).unwrap();
         let mut labels_map = HashMap::with_capacity(labels.len());
         for (tmp_tag, label) in zip(tmp_tags, labels.iter().cloned()) {
-            labels_map.entry(label).or_insert_with_key(|label| {
-                format!(
-                    "{}_const_{}_{}",
-                    tmp_tag,
-                    &name,
-                    &label
-                ).into()
-            });
+            labels_map.entry(label)
+                .or_insert_with_key(|label| {
+                    format!(
+                        "{}_const_{}_{}",
+                        tmp_tag,
+                        &name,
+                        &label
+                    ).into()
+                });
         }
         let res = value.clone();
         self.dexp_expand_binders.push(binder.clone());
@@ -4213,8 +4245,11 @@ impl CompileMeta {
         res.into()
     }
 
-    pub fn const_expand_exit(&mut self)
-    -> (Var, HashMap<Var, Var>, Option<Var>) {
+    pub fn const_expand_exit(&mut self) -> (
+        Var,
+        HashMap<Var, Var>,
+        Option<Var>,
+    ) {
         (
             self.const_expand_names.pop().unwrap(),
             self.const_expand_tag_name_map.pop().unwrap(),

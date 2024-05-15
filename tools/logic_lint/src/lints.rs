@@ -14,7 +14,7 @@ macro_rules! color_str {
             $(";", stringify!($num), )*
             "m",
             $str,
-            "\x1b[0m",
+            "\x1b[22;39m",
         )
     };
 }

@@ -40,9 +40,9 @@ macro_rules! err {
     ( $($args:tt)* ) => {{
         let str = format!($($args)*);
         let mut iter = str.lines();
-        eprintln!("\x1b[1;31mMainError: {}\x1b[0m", iter.next().unwrap());
+        eprintln!("\x1b[1;31mMainError: {}\x1b[22;39m", iter.next().unwrap());
         for line in iter {
-            eprintln!("    \x1b[1;31m{}\x1b[0m", line);
+            eprintln!("    \x1b[1;31m{}\x1b[22;39m", line);
         }
     }};
 }

@@ -73,11 +73,8 @@ syn match mdtlblDefineResultHandle /\%(([%?]\=\%(\s\|#\*.*\*#\|\%(#[^*].*\|#\)\=
 syn match mdtlblQuickDExpTakeIdent /\I\i*\%(\[\)\@=/
 syn match mdtlblQuickDExpTakeIdent /'[^' \t]\+'\%(\[\)\@=/
 syn match mdtlblQuickDExpTakeIdent /->/
-syn match mdtlblIdentLabel /:\I\i*/
-syn match mdtlblIdentLabel /:@\I\i*\%(-\i*\)*/
-syn match mdtlblIdentLabel /:'[^' \t]\+'/
-syn match mdtlblIdentLabel /:\v0%(x-=%(_)@![0-9a-fA-F_]+|x-=%(_)@![01_]+)/
-syn match mdtlblIdentLabel /:\v-=%(_)@![0-9_]+/
+syn match mdtlblIdentLabel /\v%(\w@1<!|%(goto)@4<=)%(:%(\I\i*|\@\I\i*%(-\i*)*|'[^' \t]+'|0%(x-=%(_)@![0-9a-fA-F_]+|x-=%(_)@![01_]+)|-=%(_)@![0-9_]+))+%(:"@=)=/
+syn match mdtlblIdentLabel /\v%(\w@1<!|%(goto)@4<=):"@=/
 
 " Fold {{{1
 setlocal foldmethod=syntax

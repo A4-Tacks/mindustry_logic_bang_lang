@@ -168,7 +168,7 @@ impl DisplaySourceMeta {
     pub fn display_source_iter_by_splitter<'a, T: DisplaySource + 'a>(
         &mut self,
         mut split: impl FnMut(&mut Self),
-        iter: impl IntoIterator<Item = &'a T>
+        iter: impl IntoIterator<Item = T>
     ) {
         let mut iter = iter.into_iter();
         if let Some(s) = iter.next() {
@@ -193,6 +193,16 @@ pub trait DisplaySource {
     }
 }
 impl<T> DisplaySource for &'_ T
+where T: DisplaySource
+{
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        T::display_source(self, meta)
+    }
+    fn display_source_and_get<'a>(&self, meta: &'a mut DisplaySourceMeta) -> &'a str {
+        T::display_source_and_get(&self, meta)
+    }
+}
+impl<T> DisplaySource for &'_ mut T
 where T: DisplaySource
 {
     fn display_source(&self, meta: &mut DisplaySourceMeta) {

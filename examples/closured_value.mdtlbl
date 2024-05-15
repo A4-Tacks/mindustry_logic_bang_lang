@@ -10,6 +10,10 @@
 * 有省略语法糖, 可以使用`A`表示`A:A`, 使用`&B`表示`&B:B`
 *
 * 语法起始处使用圆括号接方括号, 方括号内是捕获表, 方括号结束后接着一个值
+*
+* 在0.16.10添加了对label的捕获, 终于不用怕内层label和外层的同名了
+* 使用方法在捕获的参数那里添加一个竖线, 然后在右边编写捕获的label
+* 比如`([A B | :x](goto :x;))`
 *#
 
 const A = (a: print "makeA";);
@@ -54,3 +58,41 @@ const Clos.V = (
 print "inited";
 print "do";
 take Clos.V;
+
+
+# 使用闭包捕获标记, 不会被内层跳转影响
+const F = (
+    const Run = (const match @ {
+        F {
+            :x
+            print "unexpected";
+            take F[];
+        }
+    });
+
+    :x
+    print "expected";
+
+    take Run[([| :x](
+        goto :x;
+    ))];
+);
+take F F; # 这里证明它不会被展开标签重命名破坏
+#* >>>
+print "expected"
+print "unexpected"
+jump 0 always 0 0
+print "expected"
+print "unexpected"
+jump 3 always 0 0
+*#
+# 可以看到, 并没有跳到Run里面的:x, 而是闭包捕获到的
+# 如果我们将闭包去掉的话, 会得到我们不希望看到的, 如下
+#* >>>
+print "expected"
+print "unexpected"
+jump 1 always 0 0
+print "expected"
+print "unexpected"
+jump 4 always 0 0
+*#
