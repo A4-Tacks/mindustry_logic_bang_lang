@@ -3931,12 +3931,14 @@ impl CompileMeta {
     pub fn get_value_binded(&mut self, value: Var, bind: Var) -> Var {
         let mut warn_builtin = (value == Self::BUILTIN_FUNCS_BINDER)
             .then_some(false);
+        let mut show_new_bind = false;
         let key = (value.clone(), bind.clone());
         let binded = self.value_binds.entry(key)
             .or_insert_with(|| {
                 if let Some(ref mut warn) = warn_builtin {
                     *warn = true;
                 }
+                show_new_bind = self.enable_misses_bind_info;
                 self.tmp_var_count.get()
             }).clone();
         if warn_builtin == Some(true) {
@@ -3944,11 +3946,12 @@ impl CompileMeta {
                 "Missed Builtin Call: {}",
                 bind.display_src(self),
             ));
-        } else if self.enable_misses_bind_info {
+        } else if show_new_bind {
             self.log_info(format!(
-                "Missed Bind Get: {}.{}",
+                "New Bind: {}.{} => {}",
                 value.display_src(self),
                 bind.display_src(self),
+                binded.display_src(self),
             ));
         }
         binded
@@ -4384,22 +4387,29 @@ impl CompileMeta {
     }
 
     pub fn debug_expand_stack(&self) -> impl Iterator<
-        Item = Cow<'_, Var>
+        Item = (Var, Option<Var>)
     > + '_ {
-        self.const_expand_names().iter()
-            .zip(&self.dexp_expand_binders)
-            .map(|x| match x {
-                (name, Some(binder)) => {
-                    Cow::Owned(format!("{name} ..{binder}").into())
-                },
-                (name, None) => Cow::Borrowed(name),
-            })
+        self.const_expand_names()
+            .iter()
+            .cloned()
+            .zip(self.dexp_expand_binders.iter().cloned())
     }
 
     pub fn log_expand_stack<const E: bool>(&mut self) {
         let names = self.debug_expand_stack()
             .flat_map(|var| [
-                var.display_src(&self).into_owned().into(),
+                match var {
+                    (var, None) => var.display_src(self)
+                        .into_owned()
+                        .into(),
+                    (var, Some(binder)) => {
+                        format!(
+                            "{} ..{}",
+                            var.display_src(self),
+                            binder.display_src(self),
+                        ).into()
+                    },
+                },
                 Cow::Borrowed("\n"),
             ])
             .into_iter_fmtter();
