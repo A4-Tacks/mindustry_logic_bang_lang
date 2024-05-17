@@ -1,0 +1,447 @@
+#**
+* 这是一个基于IO抽象的简单分配器,
+* 默认提供一个针对多内存块的抽象实现, 也可以自己实现一个单内存块的
+*
+* 关于IO共有三组抽象, 位置游标LoCursor, 可变游标Cursor
+* 位置游标可以在同一个地址读写时避免可能的昂贵的复合地址计算
+* 可变游标可以依赖一个基本地址和偏移量来移动游标读写,
+* 如此设计是因为检查是否需要更新游标所在块等情况比重新计算一个地址更快,
+* 而通常我们的读取大概率不至于跨越块, 所以性能理论上会提升较多
+*
+* 块头块尾有一个块大小标记, 当值为负数表示已使用, 正数为未使用
+* 块大小包括了块头和块尾, 也就是说当块大小处于-1 0 1时将是未定义的
+*
+* 当所有分配的空间满后应该是会无限死循环,
+* 这个分配器为了性能并不会记录已分配大小等, 所以自己把控好
+*
+* 当然哪怕是为了性能, 这个分配器依旧是如此之慢, 能静态还是静态吧
+*#
+
+take Alloc = ();
+const Alloc.Extra = (
+    const UnImpl = (const match @ {
+        *Msg {
+            take Msg = `Builtin`.Concat[
+                "UnImpl "
+                `Builtin`.Stringify[Msg]->$
+            ];
+            take `Builtin`.Err[Msg];
+        }
+    });
+    #**
+    * 地址范围, 不包括这个点, 一般是0,AddrEnd的左闭右开区间
+    *#
+    const $.AddrEnd = ([&UnImpl]UnImpl[`AddrEnd`]);
+    #**
+    * 原地位置游标, 可以在某个位置重复读写时避免反复计算地址
+    *
+    * 之所以不用其功能超集的可变游标,
+    * 是因为可变游标有保存地址并进行可变的绝对需求,
+    * 而这个静止游标并没有这个需求, 在一些情况下能更快
+    *
+    * - [Idx]
+    * - Read[Result] -> Result
+    * - Write[Result] -> Result
+    * - MakeIdx[]
+    * - MakeIdx[Result] -> Result
+    *#
+    const $.LoCursor = ([&UnImpl]UnImpl[`LoCursor`]);
+    #**
+    * 游标, 可以使用Inc和Dec偏移读取位置, 不能传入负偏移
+    *
+    * extend LoCursor
+    * - Inc[Inc] -> ..
+    * - Set[Idx] -> ..
+    *#
+    const $.Cursor = ([&UnImpl]UnImpl[`Cursor`]);
+    const $.Read = (const match @ {
+        *Result *Idx {
+            setres ...LoCursor[Idx].Read[Result];
+        }
+    });
+    const $.Write = (const match @ {
+        *Result *Idx {
+            setres ...LoCursor[Idx].Write[Result];
+        }
+    });
+);
+const Alloc.GetLinkExtraImpl = ([Alloc](const match @ {
+    *MemMaxAddr *BlockCount {
+        setres Alloc.GetLinkExtraImpl[
+            `@impl`
+            MemMaxAddr
+            BlockCount
+            ([BaseLinkId MemMaxAddr](match @ {
+                Idx {
+                    setres (?Idx // MemMaxAddr);
+                }
+                Res Idx {
+                    setres Res;
+                    Res = Idx // MemMaxAddr;
+                }
+            }))
+            0
+        ];
+    }
+    *MemMaxAddr *BlockCount *BaseLinkId {
+        setres Alloc.GetLinkExtraImpl[
+            `@impl`
+            MemMaxAddr
+            BlockCount
+            ([BaseLinkId MemMaxAddr](match @ {
+                Idx {
+                    setres (?BaseLinkId + Idx // MemMaxAddr);
+                }
+                Res Idx {
+                    setres Res;
+                    Res = BaseLinkId + Idx // MemMaxAddr;
+                }
+            }))
+            BaseLinkId
+        ];
+    }
+    [`@impl`] *MemMaxAddr *BlockCount MemIdxGetter *BaseLinkId {
+        setres Alloc.Extra;
+        take Res = $;
+
+        take $.AddrEnd = (?MemMaxAddr*BlockCount);
+        take $.BlockCount = BlockCount;
+        take $.BaseLinkId = BaseLinkId;
+        take $.BlockIdxEnd = (?BlockCount+BaseLinkId);
+        take $.MemMaxAddr = MemMaxAddr;
+        const $.LoCursor = ([
+            Extra:$
+            MemMaxAddr
+            &MemIdxGetter
+            BaseLinkId
+        ](const match @ {
+            *Idx {
+                take This = $;
+                take This.Idx = (?Idx%MemMaxAddr);
+                take This.MemIdx = MemIdxGetter[Idx];
+                take This.Mem = (`getlink` $ This.MemIdx;);
+                const This.Read = (const match @ {
+                    *Result {
+                        setres Result;
+                        `read` Result ...Mem ...Idx;
+                    }
+                });
+                const This.Write = (const match @ {
+                    *Result {
+                        setres Result;
+                        `write` Result ...Mem ...Idx;
+                    }
+                });
+                const This.MakeIdx = ([
+                    This
+                    MemMaxAddr
+                    BaseLinkId
+                ](
+                    take MemIdx=This.MemIdx Idx=This.Idx;
+                    const match @ {
+                        {
+                            match BaseLinkId {
+                                [0] {
+                                    setres (?MemIdx*MemMaxAddr + Idx);
+                                }
+                                Base {
+                                    setres (?(MemIdx-Base)*MemMaxAddr + Idx);
+                                }
+                            }
+                        }
+                        *Result {
+                            match BaseLinkId {
+                                [0] {
+                                    setres (?Result:
+                                        MemIdx*MemMaxAddr + Idx
+                                    );
+                                }
+                                Base {
+                                    setres (?Result:
+                                        (MemIdx-Base)*MemMaxAddr + Idx
+                                    );
+                                }
+                            }
+                        }
+                    }
+                ));
+            }
+        }));
+        const $.Cursor = ([
+            Extra:$
+            MemMaxAddr
+            &MemIdxGetter
+            BaseLinkId
+        ](const match @ {
+            *Idx {
+                take This = $;
+                const This.Set = ([
+                    This
+                    MemMaxAddr
+                    &MemIdxGetter
+                    BaseLinkId
+                ](const match @ {
+                    *Idx {
+                        setres This;
+                        This.idx = Idx % MemMaxAddr;
+                        take MemIdxGetter[This->mem_idx Idx];
+                        `getlink` This.mem This.mem_idx;
+                    }
+                }));
+                const This.Read = (const match @ {
+                    *Result {
+                        setres Result;
+                        `read` $ ...mem ...idx;
+                    }
+                });
+                const This.Write = (const match @ {
+                    *Result {
+                        setres Result;
+                        `write` $ ...mem ...idx;
+                    }
+                });
+                const This.Inc = ([
+                    This
+                    Extra
+                    MemMaxAddr
+                    BaseLinkId
+                ](const match @ {
+                    *Inc {
+                        setres This;
+                        This.idx += Inc;
+                        skip This.idx < MemMaxAddr {
+                            This.mem_idx += This.idx // MemMaxAddr;
+                            This.idx %= MemMaxAddr;
+                            `getlink` This.mem This.mem_idx;
+                        }
+                    }
+                }));
+                const This.Dec = ([
+                    This
+                    Extra
+                    MemMaxAddr
+                    BaseLinkId
+                ](const match @ {
+                    *Dec {
+                        setres This;
+                        This.idx -= Dec;
+                        if This.idx < 0 {
+                            This.mem_idx += This.idx // MemMaxAddr;
+                            {
+                                # 模拟取模运算, 因为mdt的mod是取余
+                                take I=This.idx M=MemMaxAddr;
+                                I = M-abs(I%M);
+                            }
+                            `getlink` This.mem This.mem_idx;
+                        }
+                    }
+                }));
+                const This.WithOverflow = ([Extra This](const match @ {
+                    # 写这个的时候goto还没法位于闭包内、具有绑定量、
+                    # 具有标签跳转, 所以多举出几个版本
+                    F {
+                        skip This.mem_idx < Extra.BlockIdxEnd {
+                            take F[];
+                        }
+                    }
+                    [`yes`] T {
+                        if This.mem_idx < Extra.BlockIdxEnd {
+                            take T[];
+                        }
+                    }
+                    F T {
+                        if This.mem_idx < Extra.BlockIdxEnd {
+                            take T[];
+                        } else {
+                            take F[];
+                        }
+                    }
+                }));
+                const This.WithUnderflow = ([Extra This](const match @ {
+                    F {
+                        if This.mem_idx < Extra.BaseLinkId {
+                            take F[];
+                        }
+                    }
+                    [`yes`] T {
+                        skip This.mem_idx < Extra.BaseLinkId {
+                            take T[];
+                        }
+                    }
+                    F T {
+                        if This.mem_idx < Extra.BaseLinkId {
+                            take F[];
+                        } else {
+                            take T[];
+                        }
+                    }
+                }));
+                const This.MakeIdx = ([
+                    This
+                    MemMaxAddr
+                    BaseLinkId
+                ](
+                    take MemIdx=This.mem_idx Idx=This.idx;
+                    const match @ {
+                        {
+                            match BaseLinkId {
+                                [0] {
+                                    setres (?MemIdx*MemMaxAddr + Idx);
+                                }
+                                Base {
+                                    setres (?(MemIdx-Base)*MemMaxAddr + Idx);
+                                }
+                            }
+                        }
+                        *Result {
+                            match BaseLinkId {
+                                [0] {
+                                    setres (?Result:
+                                        MemIdx*MemMaxAddr + Idx
+                                    );
+                                }
+                                Base {
+                                    setres (?Result:
+                                        (MemIdx-Base)*MemMaxAddr + Idx
+                                    );
+                                }
+                            }
+                        }
+                    }
+                ));
+
+                take This.Set[Idx];
+            }
+        }));
+    }
+}));
+const Alloc.Allocator = ([Alloc](const match @ {
+    *Extra {
+        take Res = $;
+
+        const Res.Extra = Extra;
+        const Res.AddrEnd = Extra->AddrEnd;
+        take  Res.AddrMax = (take AddrEnd=Res.AddrEnd; setres (?AddrEnd-(1)););
+        const Res.LoCursor = Extra->LoCursor;
+        const Res.Cursor = Extra->Cursor;
+        const Res.Read = Extra->Read;
+        const Res.Write = Extra->Write;
+        const Res.FindBlock = (const match @ {
+            *InCur *BSize {
+                take Res = $;
+                const Res.InCur = InCur;
+                gwhile InCur.Read[Res->Size] < 0    # skip used block
+                || Res.Size < BSize                 # 跳过空间不足的块
+                {
+                    take InCur.Inc[(?abs(Res.Size))->$]
+                    .WithOverflow[([InCur](
+                        take InCur.Set[0];
+                    ))];
+                }
+            }
+        });
+        const Res.Malloc = (const match @ {
+            *Size {
+                setres ...Malloc[$ Size];
+            }
+            #**
+            * 往返回的句柄上附加方便的Free
+            *#
+            *Result *Size [1] {
+                setres ...Malloc[Result Size];
+                const $.Free = ([Res:$ &Free:..->Free](const match @ {
+                    {
+                        take Free[Res];
+                    }
+                }));
+            }
+            *Result *Size {
+                setres ...Malloc[Result (?Size+2)->$ `raw`];
+            }
+            #**
+            * 注意, 块大小不能小于2
+            *#
+            *Result *BSize [`raw`] {
+                setres Result;
+                take Meta = ...FindBlock[
+                    ...Cursor[..->current]->$
+                    BSize
+                ];
+                take Meta.InCur.MakeIdx[..->current];
+                Result = ...current + 1;
+                take UsedBSize = (?-BSize);
+                take RemSize = (?Meta.InCur.Read[$]-BSize);
+                take Meta.InCur.Write[UsedBSize]; # head meta
+                take Meta.InCur.Inc[(?BSize-(1))->$]
+                    .Write[UsedBSize]; # tail meta
+                if RemSize {
+                    take Meta.InCur.Inc[1].Write[RemSize];
+                    take Meta.InCur.Inc[(?RemSize-(1))->$]
+                        .Write[RemSize];
+                }
+            }
+        });
+        const Res.Free = (const match @ {
+            *Idx {
+                setres ...Free[(?Idx-(1))->$ `raw`];
+            }
+            *MetaIdx [`raw`] {
+                take BeginCur = ...Cursor[MetaIdx];
+                take BSize = (?abs(BeginCur.Read[$]));
+                take BSizeJmp = (?BSize-(1));
+                take EndIdx = (?MetaIdx+BSizeJmp);
+                take EndCur = ...Cursor[EndIdx];
+
+                if MetaIdx > 0 {
+                    take PrevSize = BeginCur.Dec[1].Read[$];
+                    if PrevSize < 0 {
+                        take BeginCur.Inc[1]; # used go back
+                    } else {
+                        take BeginCur.Dec[(?PrevSize-(1))->$];
+                        BSize += PrevSize;
+                    }
+                }
+                if EndIdx < ...AddrMax {
+                    take NextSize = EndCur.Inc[1].Read[$];
+                    if NextSize < 0 {
+                        take EndCur.Dec[1]; # block used, go back
+                    } else {
+                        take EndCur.Inc[(?NextSize-(1))->$];
+                        BSize += NextSize;
+                    }
+                }
+
+                take BeginCur.Write[BSize];
+                take EndCur.Write[BSize];
+            }
+        });
+        const Res.Init = (const match @ {
+            {
+                setres ..;
+                take ...Write[..->AddrEnd 0];
+                take ...Write[..->AddrEnd (?...AddrEnd-(1))->$];
+                ...current = 0;
+            }
+        });
+    }
+}));
+
+take `Builtin`.MissesMatch[1];
+
+begin = @time;
+printflush message1;
+take Extra = Alloc.GetLinkExtraImpl[64 2 2]; # 构建分配器, 内存元的大小, 数量, 链接偏移
+take Allocator = Alloc.Allocator[Extra].Init[];
+
+four, eight = 4, 8;
+print "0:"Allocator.Malloc[$ four]"\n";
+print "1:"Allocator.Malloc[x four 1]"\n";
+print "2:"Allocator.Malloc[$ four]"\n";
+print "3:"Allocator.Malloc[$ eight]"\n";
+print "4:"Allocator.Malloc[$ eight]"\n";
+print "5:"Allocator.Malloc[$ (?(87:))]"\n"; # 刚好分配满两个内存元
+take x.Free[]; # 释放之前分配的x
+print "e:"Allocator.Malloc[$ four]"\n"; # 分配到末尾重新从头寻找空位
+print "time:"(?(@time)-begin);
+printflush message1;
+stop;
