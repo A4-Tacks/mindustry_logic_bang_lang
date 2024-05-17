@@ -25,10 +25,11 @@ syn case match
 
 " 一些关键字 {{{1
 syn keyword mdtlblKeyword
-            \ while gwhile do skip goto if elif else switch gswitch break continue
+            \ while gwhile do skip if elif else switch gswitch break continue
             \ const take setres select match
             \ inline
             \ op set noop print
+syn keyword mdtlblKeyword goto nextgroup=mdtlblIdentLabelRest
 syn keyword mdtlblKeyword case nextgroup=mdtlblStar skipwhite
 syn match mdtlblStar /\*/ contained
 
@@ -57,11 +58,12 @@ setlocal formatoptions+=rq
 syn match mdtlblStringFailedEscape /\\\%("\@=\|.\)/ contained
 syn match mdtlblStringColor /\[\v%(#\x{6,8}|%(c%(lear|yan|oral)|b%(l%(ack|ue)|r%(own|ick))|white|li%(ghtgray|me)|g%(r%(ay|een)|old%(enrod)?)|darkgray|navy|r%(oyal|ed)|s%(late|ky|carlet|almon)|t%(eal|an)|acid|forest|o%(live|range)|yellow|p%(ink|urple)|ma%(genta|roon)|violet))=\]/ contained
 syn match mdtlblSpecialChar /^ *\\ \|\\\%([n\\[]\|$\)/ contained
-syn region mdtlblString start=/"/ end=/"/ contains=mdtlblSpecialChar,mdtlblStringFailedEscape,mdtlblStringColor
+syn cluster mdtlblStringContains add=mdtlblSpecialChar,mdtlblStringFailedEscape,mdtlblStringColor
+syn region mdtlblString start=/"/ end=/"/ contains=@mdtlblStringContains
 
 syn match mdtlblOIdent /@\I\i*\%(-\i*\)*/
 syn match mdtlblOtherVar /'[^' \t]\+'/
-syn match mdtlblNumber /\v(<0%(x\-?[0-9a-fA-F][0-9a-fA-F_]*|b\-?[01][_01]*)|\-?<\d[0-9_]*%(\.\d[0-9_]*|e[+\-]?\d[0-9_]*)?)>/
+syn match mdtlblNumber /\v(<0%(x\-?[0-9a-fA-F][0-9a-fA-F_]*|b\-?[01][_01]*)|\-?<\d[0-9_]*%(\.\d[0-9_]*|e[+-]?\d[0-9_]*)?)>/
 syn match mdtlblBoolean /\v<%(true|false)>/
 syn match mdtlblNull /\<null\>/
 
@@ -73,8 +75,16 @@ syn match mdtlblDefineResultHandle /\%(([%?]\=\%(\s\|#\*.*\*#\|\%(#[^*].*\|#\)\=
 syn match mdtlblQuickDExpTakeIdent /\I\i*\%(\[\)\@=/
 syn match mdtlblQuickDExpTakeIdent /'[^' \t]\+'\%(\[\)\@=/
 syn match mdtlblQuickDExpTakeIdent /->/
-syn match mdtlblIdentLabel /\v%(\w@1<!|%(goto)@4<=)%(:%(\I\i*|\@\I\i*%(-\i*)*|'[^' \t]+'|0%(x-=%(_)@![0-9a-fA-F_]+|x-=%(_)@![01_]+)|-=%(_)@![0-9_]+))+%(:"@=)=/
-syn match mdtlblIdentLabel /\v%(\w@1<!|%(goto)@4<=):"@=/
+
+syn match  mdtlblIdentLabel /\v%(^|\W@1<=):%(\I\i*|\@\I\i*%(-\i*)*|'[^' \t]+')/ nextgroup=mdtlblIdentLabelRest
+syn match  mdtlblIdentLabel /\v%(^|\W@1<=):-=_@![0-9_]+%(\._@![0-9_]+|e[+-]=-=_@![0-9_]+)=>/ nextgroup=mdtlblIdentLabelRest
+syn match  mdtlblIdentLabel /\v%(^|\W@1<=):0%(x-=_@![0-9a-fA-F_]+|b-=_@![01_]+)>/ nextgroup=mdtlblIdentLabelRest
+syn region mdtlblIdentLabel start=/\v%(^|\W@1<=):"/ end=/"/ contains=@mdtlblStringContains
+
+syn match  mdtlblIdentLabelRest /\v:%(\I\i*|\@\I\i*%(-\i*)*|'[^' \t]+')/ nextgroup=mdtlblIdentLabelRest contained
+syn match  mdtlblIdentLabelRest /\v:-=_@![0-9_]+%(\._@![0-9_]+|e[+-]=-=_@![0-9_]+)=>/ nextgroup=mdtlblIdentLabelRest contained
+syn match  mdtlblIdentLabelRest /\v:0%(x-=_@![0-9a-fA-F_]+|b-=_@![01_]+)>/ nextgroup=mdtlblIdentLabelRest contained
+syn region mdtlblIdentLabelRest start=/:"/ end=/"/ contains=@mdtlblStringContains contained
 
 " Fold {{{1
 setlocal foldmethod=syntax
@@ -82,7 +92,7 @@ syn region mdtlblBlock start=/{/ end=/}/ transparent fold
 syn region mdtlblDExp start=/(\[\@=/ end=/)/ transparent
 syn region mdtlblDExp start=/(\[\@!/ end=/)/ transparent fold
 syn region mdtlblArgs matchgroup=mdtlblArgsBracket start=/(\@<!\[/ end=/\]/ transparent fold
-syn region mdtlblArgs start=/(\@=\[/ end=/\]/ transparent fold
+syn region mdtlblArgs start=/(\@<=\[/ end=/\]/ transparent fold
 
 " Indent (缩进控制) {{{1
 function! <SID>lineFilter(line)
@@ -151,6 +161,7 @@ hi def link mdtlblNull Boolean
 hi def link mdtlblResultHandle Identifier
 hi def link mdtlblDefineResultHandle Identifier
 hi def link mdtlblIdentLabel Label
+hi def link mdtlblIdentLabelRest mdtlblIdentLabel
 hi def link mdtlblArgsBracket Macro
 hi def link mdtlblQuickDExpTakeIdent Macro
 hi def link mdtlblArgsExpand Structure
