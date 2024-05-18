@@ -288,7 +288,7 @@ impl TakeHandle for Var {
     fn take_handle(self, meta: &mut CompileMeta) -> Var {
         if let Some(value) = meta.const_expand_enter(&self) {
             // 是一个常量
-            let res = value.take_handle_with_consted(meta);
+            let res = value.clone().take_handle_with_consted(meta);
             meta.const_expand_exit();
             res
         } else {
@@ -613,6 +613,7 @@ impl_enum_froms!(impl From for Value {
 impl_enum_try_into!(impl TryInto for Value {
     Var => Var;
     DExp => DExp;
+    Cmper => Box<CmpTree>;
     ValueBind => ValueBind;
     ValueBindRef => ValueBindRef;
 });
@@ -853,9 +854,10 @@ impl ClosuredValue {
             vars,
         };
     }
-}
-impl TakeHandle for ClosuredValue {
-    fn take_handle(mut self, meta: &mut CompileMeta) -> Var {
+
+    pub fn expand_with<R, F>(mut self, meta: &mut CompileMeta, f: F) -> R
+    where F: FnOnce(Var, &mut CompileMeta) -> R,
+    {
         self.catch_env(meta);
         let Self::Inited {
             bind_handle,
@@ -877,13 +879,23 @@ impl TakeHandle for ClosuredValue {
             meta.with_const_expand_tag_name_map_scope(
                 rename_labels,
                 |meta| {
-                    result = Self::make_valkey(bind_handle)
-                        .take_handle(meta)
-                        .into();
+                    let binded = meta.get_value_binded(
+                        bind_handle,
+                        Self::BINDED_VALUE_NAME.into(),
+                    );
+                    result = f(binded, meta).into();
                 },
             );
         });
         result.unwrap()
+
+    }
+}
+impl TakeHandle for ClosuredValue {
+    fn take_handle(self, meta: &mut CompileMeta) -> Var {
+        self.expand_with(meta, |v, meta| {
+            v.take_handle(meta)
+        })
     }
 }
 
@@ -1508,6 +1520,8 @@ impl_enum_froms!(impl From for LogicLineFromTagError {
 pub enum CmpTree {
     /// 整棵条件树的依赖
     Deps(InlineBlock, Box<Self>),
+    /// 使用指定句柄的信息来进入const展开, 但使用的值是携带的那个
+    Expand(Var, Box<Self>),
     And(Box<Self>, Box<Self>),
     Or(Box<Self>, Box<Self>),
     Atom(JumpCmp),
@@ -1533,6 +1547,8 @@ impl CmpTree {
                 => Self::Or(a.reverse().into(), b.reverse().into()),
             Self::Atom(cmp)
                 => Self::Atom(cmp.reverse()),
+            Self::Expand(handle, cmp)
+                => Self::Expand(handle, cmp.reverse().into()),
         }
     }
 
@@ -1640,7 +1656,6 @@ impl CmpTree {
                 let info = op.into_info();
                 let cmp = cmper(info.arg1, info.arg2.unwrap());
                 *self = cmp_rev(cmp.into())
-
             }
             V::Var(name) => {
                 match meta.get_const_value(name) {
@@ -1653,7 +1668,10 @@ impl CmpTree {
                         *self = cmp_rev(cmp.into())
                     }
                     Some(ConstData { value: V::Cmper(cmper), .. }) => {
-                        *self = cmp_rev((**cmper).clone())
+                        *self = cmp_rev(Self::Expand(
+                            name.clone(),
+                            cmper.clone(),
+                        ))
                     }
                     Some(_) | None => return,
                 }
@@ -1689,6 +1707,11 @@ impl CmpTree {
                 b.build(meta, do_tag_expanded);
                 let tag_id = meta.get_tag(end);
                 meta.push(TagLine::TagDown(tag_id));
+            },
+            Expand(handle, cmp) => {
+                meta.const_expand_enter(&handle);
+                cmp.build(meta, do_tag_expanded);
+                meta.const_expand_exit();
             },
             Atom(JumpCmp::Never) => (), // 构建不成立的条件没意义
             Atom(cmp) => {
@@ -1739,11 +1762,14 @@ impl CmpTree {
         root.into()
     }
 
+    /// 静态的是否为始终成立的跳转判定, 不被常量什么的影响
     pub fn is_always(&self) -> bool {
         match self {
             CmpTree::Deps(_, cond) => cond.is_always(),
             CmpTree::And(a, b) => a.is_always() && b.is_always(),
+            // NOTE: 这里使用`&&`而不是`||`是为了调用方可能借此确认条件的简单
             CmpTree::Or(a, b) => a.is_always() && b.is_always(),
+            CmpTree::Expand(_, cond) => cond.is_always(),
             CmpTree::Atom(atom) => atom.is_always(),
         }
     }
@@ -4213,7 +4239,7 @@ impl CompileMeta {
     /// 进入一层宏展开环境, 并且返回其值
     /// 这个函数会直接调用获取函数将标记映射完毕, 然后返回其值
     /// 如果不是一个宏则直接返回None, 也不会进入无需清理
-    pub fn const_expand_enter(&mut self, name: &Var) -> Option<Value> {
+    pub fn const_expand_enter(&mut self, name: &Var) -> Option<&Value> {
         let label_count = self.get_const_value(name)?.labels().len();
         if self.const_expand_names.len() >= self.const_expand_max_depth {
             self.log_expand_stack::<true>();
@@ -4227,7 +4253,7 @@ impl CompileMeta {
         tmp_tags.extend(repeat_with(|| self.get_tmp_tag())
                         .take(label_count));
 
-        let ConstData { value, labels, binder }
+        let ConstData { value: _, labels, binder }
             = self.get_const_value(name).unwrap();
         let mut labels_map = HashMap::with_capacity(labels.len());
         for (tmp_tag, label) in zip(tmp_tags, labels.iter().cloned()) {
@@ -4241,11 +4267,10 @@ impl CompileMeta {
                     ).into()
                 });
         }
-        let res = value.clone();
         self.dexp_expand_binders.push(binder.clone());
         self.const_expand_tag_name_map.push(labels_map);
         self.const_expand_names.push(name.clone());
-        res.into()
+        Some(&self.get_const_value(name).unwrap().value)
     }
 
     pub fn const_expand_exit(&mut self) -> (

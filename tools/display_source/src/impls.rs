@@ -245,6 +245,9 @@ impl DisplaySource for CmpTree {
                 cmp.display_source(meta);
                 meta.push(")");
             },
+            Self::Expand(..) => {
+                unreachable!("应只在build处理过程中使用的变体, 所以不可能达到")
+            },
             Self::Or(a, b) => {
                 meta.push("(");
                 a.display_source(meta);

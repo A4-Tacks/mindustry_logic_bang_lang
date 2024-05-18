@@ -3826,6 +3826,89 @@ fn cmper_test() {
         "#).unwrap()).compile().unwrap(),
     );
 
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const x.Cmp = goto(.. < 2);
+        const Cmp = x->Cmp;
+        do {} while Cmp;
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {} while x < 2;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const x.New = (
+            setres ..;
+            const $.Cmp = goto(.. < 2);
+        );
+        const Cmp = x->New->Cmp;
+        do {} while Cmp;
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {} while x < 2;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const x.New = (
+            setres ..;
+            const $.Cmp = goto({print ..;} => .. < 2);
+        );
+        const Cmp = x->New->Cmp;
+        do {} while Cmp;
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {print x;} while x < 2;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const x.Cmp = goto(.. < 2);
+        const Cmp = x->Cmp;
+        do {} while Cmp;
+        do {} while Cmp;
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {} while x < 2;
+        do {} while x < 2;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const x.Cmp = goto({
+            do {} while;
+        } => .. < 2);
+        const Cmp = x->Cmp;
+        do {} while Cmp;
+        do {} while Cmp;
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {do {} while;} while x < 2;
+        do {do {} while;} while x < 2;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const x.Cmp = goto({
+            do {} while;
+        } => .. < 2);
+        const Cmp = x->Cmp;
+        do {} while Cmp;
+        do {} while Cmp;
+        print ..;
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        do {do {} while;} while x < 2;
+        do {do {} while;} while x < 2;
+        print __;
+        "#).unwrap()).compile().unwrap(),
+    );
 }
 
 #[test]
