@@ -115,31 +115,39 @@ function! <SID>getMdtlblIndent()
 
     let line = <SID>lineFilter(getline(lnum))
     let preline = <SID>lineFilter(getline(pnum))
-    let pre2line = <SID>lineFilter(getline(p2num))
 
     let diff = 0
 
-    if preline =~# '\%(([%?]\=\|[{[:]\|\<\%(else\)\>\)$'
+    if preline =~# '\%(([%?]\=\|\[[*?]\=\|[{[:]\)$'
         let diff += 1
     endif
 
-    if line =~# '^\%(%\=)\|[}\]]\|\<case\>\)' && !(preline =~# '\<case\>' && preline !~# ':$')
+    if line =~# '^\%(%\=)\|[}\]]\|\<case\>\)' && !(preline =~# '^\<case\>' && preline !~# ':$')
         let diff -= 1
     endif
 
-    if pre2line =~# 'else$'
+    let pat = '^\v%(\.\.@!|-\>)'
+
+    if preline =~# pat && preline !~# '[:({\[]$'
         let diff -= 1
+    endif
+
+    if line =~# pat
+        let diff += 1
     endif
 
     return indent(pnum) + diff * &shiftwidth
 endfunction
 
 setlocal indentexpr=<SID>getMdtlblIndent()
+setlocal indentkeys+=0case
 setlocal indentkeys+==case
 setlocal indentkeys+==}
 setlocal indentkeys+==]
 setlocal indentkeys+==)
 setlocal indentkeys+==:
+setlocal indentkeys+==.
+setlocal indentkeys+=0->
 
 " END And Color Links {{{1
 hi def link mdtlblKeyword Keyword
