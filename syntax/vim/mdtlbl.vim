@@ -70,7 +70,10 @@ syn match mdtlblNull /\<null\>/
 syn match mdtlblResultHandle /\$/
 
 " Label And ResultH {{{1
-syn match mdtlblDefineResultHandle /\%(([%?]\=\%(\s\|#\*.*\*#\|\%(#[^*].*\|#\)\=\n\)*\)\@<=\I\i*:/
+syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<=-=_@![0-9_]+%(\._@![0-9_]+|e[+-]=-=_@![0-9_]+)=>:/
+syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<=0%(x-=_@![0-9a-fA-F_]+|b-=_@![01_]+)>:/
+syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<=%(\I\i*|\@\I\i*%(-\i*)*|'[^' \t]+'):/
+syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<="[^"]*":/ contains=@mdtlblStringContains
 
 syn match mdtlblQuickDExpTakeIdent /\I\i*\%(\[\)\@=/
 syn match mdtlblQuickDExpTakeIdent /'[^' \t]\+'\%(\[\)\@=/
