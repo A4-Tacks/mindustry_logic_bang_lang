@@ -230,15 +230,20 @@ const Alloc.GetLinkExtraImpl = ([Alloc](const match @ {
                             {
                                 # 模拟取模运算, 因为mdt的mod是取余
                                 take I=This.idx M=MemMaxAddr;
-                                I = M-abs(I%M);
+                                I = (M+(I%M))%M;
                             }
                             `getlink` This.mem This.mem_idx;
                         }
                     }
                 }));
                 const This.WithOverflow = ([Extra This](const match @ {
-                    # 写这个的时候goto还没法位于闭包内、具有绑定量、
-                    # 具有标签跳转, 所以多举出几个版本
+                    [`cmp`] {
+                        const $.MemIdx = This->mem_idx;
+                        const $.BlockIdxEnd = Extra->BlockIdxEnd;
+                        const $.Cmp = goto(
+                            !...MemIdx < ...BlockIdxEnd
+                        );
+                    }
                     F {
                         skip This.mem_idx < Extra.BlockIdxEnd {
                             take F[];
@@ -249,15 +254,15 @@ const Alloc.GetLinkExtraImpl = ([Alloc](const match @ {
                             take T[];
                         }
                     }
-                    F T {
-                        if This.mem_idx < Extra.BlockIdxEnd {
-                            take T[];
-                        } else {
-                            take F[];
-                        }
-                    }
                 }));
                 const This.WithUnderflow = ([Extra This](const match @ {
+                    [`cmp`] {
+                        const $.MemIdx = This->mem_idx;
+                        const $.BlockIdxEnd = Extra->BaseLinkId;
+                        const $.Cmp = goto(
+                            !...MemIdx < ...BaseLinkId
+                        );
+                    }
                     F {
                         if This.mem_idx < Extra.BaseLinkId {
                             take F[];
@@ -265,13 +270,6 @@ const Alloc.GetLinkExtraImpl = ([Alloc](const match @ {
                     }
                     [`yes`] T {
                         skip This.mem_idx < Extra.BaseLinkId {
-                            take T[];
-                        }
-                    }
-                    F T {
-                        if This.mem_idx < Extra.BaseLinkId {
-                            take F[];
-                        } else {
                             take T[];
                         }
                     }
