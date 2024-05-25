@@ -449,6 +449,11 @@ impl CompileMetaExtends for CompileMetaExtender {
         meta.to_default();
         value.display_source_and_get(meta).to_owned().into()
     }
+    fn display_binds(&self, value: syntax::BindsDisplayer<'_>) -> Cow<'_, str> {
+        let meta = &mut *self.display_meta.borrow_mut();
+        meta.to_default();
+        value.display_source_and_get(meta).to_owned().into()
+    }
 }
 
 fn compile_ast(ast: Expand, src: String) -> CompileMeta {

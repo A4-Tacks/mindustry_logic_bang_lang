@@ -291,6 +291,21 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
             Ok("__".into())
         }
 
+        /// 以Debug形式显示一批绑定量
+        fn debug_binds:DebugBinds(meta) [v:value] {
+            check_type!("var" Value::Var(handle) = value.value() => {
+                let msg = meta.with_get_binds(handle.clone(), |displayer| {
+                    if let Some(ext) = meta.extender.as_deref() {
+                        ext.display_binds(displayer).into_owned()
+                    } else {
+                        format!("{handle:?}")
+                    }
+                });
+                meta.log_info(format_args!("Debug Binds: {msg}"));
+                Ok("__".into())
+            })
+        }
+
         fn args_len:ArgsLen(meta) [] {
             Ok(meta.get_env_second_args().len().to_string().into())
         }

@@ -3774,6 +3774,13 @@ fn gen_anon_name<'a, R>(
     }
 }
 
+pub struct BindsDisplayer<'a> {
+    pub handle: Var,
+    pub bind_names: Cell<Option<&'a mut dyn Iterator<
+        Item = (&'a Var, &'a ConstData),
+    >>>,
+}
+
 /// 每层Expand的环境
 #[derive(Debug, PartialEq, Clone)]
 #[derive(Default)]
@@ -3813,6 +3820,8 @@ pub trait CompileMetaExtends {
     fn source_location(&self, index: usize) -> [Location; 2];
     #[must_use]
     fn display_value(&self, value: &Value) -> Cow<'_, str>;
+    #[must_use]
+    fn display_binds(&self, value: BindsDisplayer<'_>) -> Cow<'_, str>;
 }
 
 pub struct CompileMeta {
@@ -3822,6 +3831,7 @@ pub struct CompileMeta {
     tag_count: usize,
     tag_codes: TagCodes,
     tmp_var_count: Counter<fn(&mut usize) -> Var>,
+    /// 每层Expand的环境, 也包括顶层
     expand_env: Vec<ExpandEnv>,
     env_args: Vec<Option<Vec<Var>>>,
     /// 每层DExp所使用的句柄, 末尾为当前层, 同时有一个是否为自动分配名称的标志
@@ -3835,9 +3845,7 @@ pub struct CompileMeta {
     /// 每层展开的句柄记录, 用于栈回溯
     const_expand_names: Vec<Var>,
     const_expand_max_depth: usize,
-    value_binds: HashMap<(Var, Var), Var>,
-    /// 值绑定全局常量表, 只有值绑定在使用它
-    value_bind_global_consts: HashMap<Var, ConstData>,
+    value_binds: HashMap<Var, HashMap<Var, Var>>,
     last_builtin_exit_code: u8,
     enable_misses_match_log_info: bool,
     enable_misses_bind_info: bool,
@@ -3864,7 +3872,6 @@ impl Debug for CompileMeta {
             .field("tmp_tag_count", &self.tmp_tag_count.counter())
             .field("const_expand_tag_name_map", &self.const_expand_tag_name_map)
             .field("value_binds", &self.value_binds)
-            .field("value_bind_global_consts", &self.value_bind_global_consts)
             .field("last_builtin_exit_code", &self.last_builtin_exit_code)
             .field("enable_misses_match_log_info", &self.enable_misses_match_log_info)
             .field("..", &DotDot)
@@ -3890,7 +3897,7 @@ impl CompileMeta {
             tag_count: 0,
             tag_codes,
             tmp_var_count: Counter::new(Self::tmp_var_getter),
-            expand_env: Vec::new(),
+            expand_env: vec![ExpandEnv::new(vec![], HashMap::new())],
             env_args: Vec::new(),
             dexp_result_handles: Vec::new(),
             dexp_expand_binders: Vec::new(),
@@ -3899,17 +3906,18 @@ impl CompileMeta {
             const_expand_names: Vec::new(),
             const_expand_max_depth: 500,
             value_binds: HashMap::new(),
-            value_bind_global_consts: HashMap::new(),
             last_builtin_exit_code: 0,
             enable_misses_match_log_info: false,
             enable_misses_bind_info: false,
             noop_line: "noop".into(),
         };
-        let builtin = String::from(Self::BUILTIN_FUNCS_BINDER);
+        let builtin = Var::from(Self::BUILTIN_FUNCS_BINDER);
         for builtin_func in build_builtins() {
             let handle = format!("__{builtin}__{}", builtin_func.name());
-            let key = (builtin.clone().into(), builtin_func.name().into());
-            meta.value_binds.insert(key, handle.into());
+            meta.value_binds
+                .entry(builtin.clone())
+                .or_default()
+                .insert(builtin_func.name().into(), handle.into());
             meta.add_const_value(Const(
                 ConstKey::ValueBind(ValueBind(
                     Box::new(builtin.clone().into()),
@@ -3954,12 +3962,14 @@ impl CompileMeta {
     }
 
     /// 获取绑定值, 如果绑定关系不存在则自动插入
-    pub fn get_value_binded(&mut self, value: Var, bind: Var) -> Var {
-        let mut warn_builtin = (value == Self::BUILTIN_FUNCS_BINDER)
+    pub fn get_value_binded(&mut self, handle: Var, bind: Var) -> Var {
+        let mut warn_builtin = (handle == Self::BUILTIN_FUNCS_BINDER)
             .then_some(false);
         let mut show_new_bind = false;
-        let key = (value.clone(), bind.clone());
-        let binded = self.value_binds.entry(key)
+        let binded = self.value_binds
+            .entry(handle.clone())
+            .or_default()
+            .entry(bind.clone())
             .or_insert_with(|| {
                 if let Some(ref mut warn) = warn_builtin {
                     *warn = true;
@@ -3975,7 +3985,7 @@ impl CompileMeta {
         } else if show_new_bind {
             self.log_info(format!(
                 "New Bind: {}.{} => {}",
-                value.display_src(self),
+                handle.display_src(self),
                 bind.display_src(self),
                 binded.display_src(self),
             ));
@@ -4085,7 +4095,6 @@ impl CompileMeta {
                 env.consts().get(name)
             })
             .map(|x| { assert!(! x.value().is_repr_var()); x })
-            .or_else(|| self.value_bind_global_consts.get(name))
     }
 
     /// 获取一个常量到值的使用次数与映射与其内部标记的可变引用,
@@ -4099,7 +4108,28 @@ impl CompileMeta {
                 env.consts_mut().get_mut(name)
             })
             .map(|x| { assert!(! x.value().is_repr_var()); x })
-            .or_else(|| self.value_bind_global_consts.get_mut(name))
+    }
+
+    /// 获取各个绑定量
+    pub fn with_get_binds<F, R>(&self, handle: Var, f: F) -> R
+    where F: FnOnce(BindsDisplayer<'_>) -> R,
+    {
+        let mut none_iter = None.into_iter();
+        f(self.value_binds
+            .get(&handle)
+            .map(|binds| binds.iter()
+                .flat_map(|(name, val_h)| {
+                    Some((name, self.get_const_value(val_h)?))
+                }))
+            .as_mut()
+            .map(|iter| BindsDisplayer {
+                handle: handle.clone(),
+                bind_names: Cell::new(Some(iter))
+            })
+            .unwrap_or_else(|| BindsDisplayer {
+                handle,
+                bind_names: Cell::new(Some(&mut none_iter)),
+            }))
     }
 
     /// 新增一个常量到值的映射, 如果当前作用域已有此映射则返回旧的值并插入新值
@@ -4137,7 +4167,9 @@ impl CompileMeta {
                         .unwrap_or_else(|| binder_handle.clone()));
                 let binded = self.get_value_binded(
                     binder_handle, name);
-                self.value_bind_global_consts
+                self.expand_env.first_mut() // global
+                    .unwrap()
+                    .consts_mut()
                     .insert(binded, data)
             },
         }

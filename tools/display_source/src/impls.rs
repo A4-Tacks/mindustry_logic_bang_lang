@@ -1,19 +1,38 @@
 use syntax::*;
 use crate::{DisplaySource, DisplaySourceMeta};
 
-fn inline_labs<T>(labs: &[T], meta: &mut DisplaySourceMeta)
+fn inline_labs_and_binder<T>(
+    labs: &[T],
+    binder: Option<&Var>,
+    meta: &mut DisplaySourceMeta,
+)
 where T: DisplaySource
 {
-    if !labs.is_empty() {
+    if !labs.is_empty() || binder.is_some() {
         meta.push("#*");
-        meta.push("labels: [");
-        meta.display_source_iter_by_splitter(
-            |meta| meta.push(", "),
-            labs,
-        );
-        meta.push("]");
+        if !labs.is_empty() {
+            meta.push("labels: [");
+            meta.display_source_iter_by_splitter(
+                |meta| meta.push(", "),
+                labs,
+            );
+            meta.push("]");
+        }
+        if let Some(binder) = binder {
+            if !labs.is_empty() { meta.add_space() }
+            meta.push("binder: ");
+            binder.display_source(meta);
+        }
         meta.push("*#");
     }
+}
+fn inline_labs<T>(
+    labs: &[T],
+    meta: &mut DisplaySourceMeta,
+)
+where T: DisplaySource
+{
+    inline_labs_and_binder(labs, None, meta)
 }
 
 impl DisplaySource for str {
@@ -765,6 +784,41 @@ impl DisplaySource for GSwitch {
             })
         }
         meta.push("}");
+    }
+}
+impl DisplaySource for BindsDisplayer<'_> {
+    fn display_source(&self, meta: &mut DisplaySourceMeta) {
+        meta.push("(__:");
+        meta.add_lf();
+        meta.do_block(|meta| {
+            meta.push("setres");
+            meta.add_space();
+            Value::ReprVar(self.handle.clone())
+                .display_source(meta);
+            meta.push(";");
+            self.bind_names.take().unwrap()
+                .enumerate()
+                .for_each(|(i, (name, data))| {
+                    if i == 0 { meta.add_lf(); }
+                    meta.add_lf();
+                    meta.push("const");
+                    meta.add_space();
+                    meta.push("$.");
+                    name.display_source(meta);
+                    meta.add_space();
+                    meta.push("=");
+                    meta.add_space();
+                    data.value().display_source(meta);
+                    inline_labs_and_binder(
+                        data.labels(),
+                        data.binder(),
+                        meta,
+                    );
+                    meta.push(";");
+                })
+        });
+        meta.add_lf();
+        meta.push(")");
     }
 }
 
