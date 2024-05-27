@@ -2174,6 +2174,15 @@ fn quick_dexp_take_test() {
                "print __3",
     ]);
 
+    assert_eq!(
+        parse!(parser, r#"
+        const V = F->[A B C @]->V;
+        "#).unwrap(),
+        parse!(parser, r#"
+        const V = F[A B C @]->$->V;
+        "#).unwrap(),
+    );
+
 }
 
 #[test]
@@ -3365,7 +3374,7 @@ fn op_expr_if_else_test() {
         {
             take ___0 = a;
             goto :___0 b < c;
-            set ___0 c;
+            `set` ___0 c;
             goto :___1 _;
             :___0
             op ___0 b + 2;
@@ -3382,7 +3391,7 @@ fn op_expr_if_else_test() {
         {
             take ___0 = a;
             goto :___0 b < c;
-            set ___0 c;
+            `set` ___0 c;
             goto :___1 _;
             :___0
             op ___0 b + 2;
@@ -3405,7 +3414,7 @@ fn op_expr_if_else_test() {
                 op ___0 c - 2;
                 goto :___1 _;
                 :___0
-                set ___0 8;
+                `set` ___0 8;
                 :___1
             }
             goto :___3 _;
@@ -3424,10 +3433,10 @@ fn op_expr_if_else_test() {
         op a 1 + (
             take ___0 = $;
             goto :___0 b;
-            set ___0 d;
+            `set` ___0 d;
             goto :___1 _;
             :___0
-            set ___0 c;
+            `set` ___0 c;
             :___1
         );
         "#).unwrap()
@@ -4145,7 +4154,7 @@ fn const_expr_eval_test() {
 
     assert_eq!(
         CompileMeta::new().compile(parse!(parser, r#"
-        print ($ = (set $ ($ = 1 + 1;);););
+        print ($ = (`set` $ ($ = 1 + 1;);););
         "#).unwrap()).compile().unwrap(),
         CompileMeta::new().compile(parse!(parser, r#"
         print 2;
@@ -6743,6 +6752,54 @@ fn closure_catch_label_test() {
             r#"jump 3 always 0 0"#,
             r#"jump 3 always 0 0"#,
             r#"print expected"#,
+        ],
+    );
+}
+
+#[test]
+fn non_take_result_handle_dexp_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const H = 2;
+        print (H: print pre;);
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print pre"#,
+            r#"print 2"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const H = 2;
+        print (`H`: print pre;);
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print pre"#,
+            r#"print H"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const H = (2:);
+        print (`H`: print pre;);
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print pre"#,
+            r#"print H"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print (?`n`: 2);
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"set n 2"#,
+            r#"print n"#,
         ],
     );
 }

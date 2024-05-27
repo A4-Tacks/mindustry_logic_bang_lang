@@ -278,25 +278,32 @@ pub const UNUSED_VAR: &str = "0";
 pub trait TakeHandle: Sized {
     /// 编译依赖并返回句柄
     fn take_handle(self, meta: &mut CompileMeta) -> Var;
-    /// 编译并拿取句柄, 但是是在被const的值的情况下
-    fn take_handle_with_consted(self, meta: &mut CompileMeta) -> Var {
-        self.take_handle(meta)
-    }
 }
 
 impl TakeHandle for Var {
     fn take_handle(self, meta: &mut CompileMeta) -> Var {
         if let Some(value) = meta.const_expand_enter(&self) {
             // 是一个常量
-            let res = value.clone().take_handle_with_consted(meta);
+            let res = match value.clone() {
+                Value::Var(var) => var,
+                Value::ReprVar(var) => {
+                    panic!("Fail const reprvar {}, meta: {:#?}", var, meta);
+                },
+                Value::ClosuredValue(clos @ ClosuredValue::Uninit { .. }) => {
+                    panic!("\
+                        未捕获闭包不应以常量追溯目标被take, \
+                        它应是直接take或者追溯时被替换成了其它值.\n\
+                        {:?}",
+                        clos,
+                    )
+                },
+                value => value.take_handle(meta),
+            };
             meta.const_expand_exit();
             res
         } else {
             self
         }
-    }
-    fn take_handle_with_consted(self, _meta: &mut CompileMeta) -> Var {
-        self
     }
 }
 
@@ -401,18 +408,6 @@ impl TakeHandle for Value {
             },
             Self::ClosuredValue(closurev) => closurev.take_handle(meta),
             Self::BuiltinFunc(func) => func.call(meta),
-        }
-    }
-    fn take_handle_with_consted(self, meta: &mut CompileMeta) -> Var {
-        if let Some(var) = self.try_eval_const_num_to_var(meta) {
-            return var;
-        }
-        match self {
-            Self::Var(var) => var,
-            Self::ReprVar(var) => {
-                panic!("Fail const reprvar {}, meta: {:#?}", var, meta);
-            },
-            other => other.take_handle(meta),
         }
     }
 }
@@ -669,6 +664,35 @@ where I: IntoIterator,
     }
 }
 
+trait BoolOpsExtend: Sized {
+    fn and_then<F, U>(self, f: F) -> Option<U>
+    where F: FnOnce() -> Option<U>;
+
+    fn or_else<F, U>(self, f: F) -> Option<U>
+    where F: FnOnce() -> Option<U>;
+}
+impl BoolOpsExtend for bool {
+    fn and_then<F, U>(self, f: F) -> Option<U>
+    where F: FnOnce() -> Option<U>,
+    {
+        if self {
+            f()
+        } else {
+            None
+        }
+    }
+
+    fn or_else<F, U>(self, f: F) -> Option<U>
+    where F: FnOnce() -> Option<U>,
+    {
+        if self {
+            None
+        } else {
+            f()
+        }
+    }
+}
+
 /// 在常量追溯时就发生绑定追溯, 而不是take时
 /// 不会take追溯到的值
 ///
@@ -732,11 +756,6 @@ impl TakeHandle for ValueBindRef {
                 value.take_handle(meta)
             },
         }
-    }
-    fn take_handle_with_consted(self, _meta: &mut CompileMeta) -> Var {
-        panic!("它不应以常量追溯目标被take, \
-                它应是直接take或者追溯时被替换成了其它值.\n\
-                {:?}", self)
     }
 }
 #[derive(Debug, PartialEq, Clone)]
@@ -903,17 +922,32 @@ impl TakeHandle for ClosuredValue {
 /// 其依赖被计算完毕后, 句柄有效
 #[derive(Debug, PartialEq, Clone)]
 pub struct DExp {
+    take_result: bool,
     result: Var,
     lines: Expand,
 }
 impl DExp {
     pub fn new(result: Var, lines: Expand) -> Self {
-        Self { result, lines }
+        Self::new_optional_res(result.into(), lines)
+    }
+
+    pub fn new_notake(result: Var, lines: Expand) -> Self {
+        Self::new_optional_res_notake(result.into(), lines)
     }
 
     /// 新建一个可能指定返回值的DExp
     pub fn new_optional_res(result: Option<Var>, lines: Expand) -> Self {
         Self {
+            take_result: true,
+            result: result.unwrap_or_default(),
+            lines
+        }
+    }
+
+    /// 新建一个可能指定返回值的DExp, 但不take它
+    pub fn new_optional_res_notake(result: Option<Var>, lines: Expand) -> Self {
+        Self {
+            take_result: false,
             result: result.unwrap_or_default(),
             lines
         }
@@ -921,10 +955,7 @@ impl DExp {
 
     /// 新建一个未指定返回值的DExp
     pub fn new_nores(lines: Expand) -> Self {
-        Self {
-            result: default(),
-            lines
-        }
+        Self::new_optional_res(None, lines)
     }
 
     pub fn result(&self) -> &str {
@@ -941,30 +972,34 @@ impl DExp {
 }
 impl TakeHandle for DExp {
     fn take_handle(self, meta: &mut CompileMeta) -> Var {
-        let DExp { mut result, lines } = self;
+        let DExp { take_result, mut result, lines } = self;
 
         let dexp_res_is_alloced = result.is_empty();
         if dexp_res_is_alloced {
             result = meta.get_tmp_var(); /* init tmp_var */
-        } else if let Some(ConstData { value, .. })
-                = meta.get_const_value(&result) {
-            // 对返回句柄使用常量值的处理
-            if !value.is_var() {
-                err!(
-                    concat!(
-                        "{}\n尝试在`DExp`的返回句柄处使用值不为Var的const, ",
-                        "此处仅允许使用`Var`\n",
-                        "值: {}\n",
-                        "名称: {:?}",
-                    ),
-                    meta.err_info().join("\n"),
-                    value.display_src(meta),
-                    result
-                );
-                exit(5);
+        } else if take_result {
+            if let Some(ConstData { value, .. })
+                = meta.get_const_value(&result)
+            {
+                // 对返回句柄使用常量值的处理
+                if !value.is_var() {
+                    err!(
+                        concat!(
+                            "{}\n\
+                            尝试在`DExp`的返回句柄处使用值不为Var的const, ",
+                            "此处仅允许使用`Var`\n",
+                            "值: {}\n",
+                            "名称: {}",
+                        ),
+                        meta.err_info().join("\n"),
+                        value.display_src(meta),
+                        result.display_src(meta),
+                    );
+                    exit(5);
+                }
+                assert!(value.is_var());
+                result = value.as_var().unwrap().clone()
             }
-            assert!(value.is_var());
-            result = value.as_var().unwrap().clone()
         }
         assert!(! result.is_empty());
         meta.push_dexp_handle(result);
@@ -1577,29 +1612,25 @@ impl CmpTree {
                         // 二级展开 A=0; B=(A:); use B;
                         | Some(ConstData {
                             value: V::DExp(DExp {
+                                take_result,
                                 result: s,
                                 lines
                             }),
                             ..
-                        }) => {
-                            if lines.is_empty() {
-                                f(meta, s)
-                            } else {
-                                None
-                            }
-                        },
+                        }) => take_result.then_some(&***s)
+                            .or_else(|| lines.is_empty()
+                                .and_then(|| f(meta, s))),
                         Some(_) => None,
                         None => Some(&**s),
                     }
                 },
-                | V::DExp(DExp { result: s, lines })
-                => {
-                    if lines.is_empty() {
-                        f(meta, s)
-                    } else {
-                        None
-                    }
-                },
+                | V::DExp(DExp {
+                    take_result,
+                    result: s,
+                    lines,
+                }) => take_result.then_some(&***s)
+                    .or_else(|| lines.is_empty()
+                        .and_then(|| f(meta, s))),
                 | V::ReprVar(s)
                 => Some(&**s),
                 | V::ResultHandle

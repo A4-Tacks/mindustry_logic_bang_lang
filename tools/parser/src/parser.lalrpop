@@ -90,6 +90,13 @@ OOCArgs<T, S>: Vec<T> = {
 Span<T> = @L T @R;
 #[inline]
 Opt<T>: bool = T? => <>.is_some();
+#[inline]
+MakeDExpBody<T>: DExp = {
+    <var:(<Var> ":")?> <value:T>
+        => DExp::new_optional_res(var, value.into()),
+    "`" <var:Var> "`" ":" <value:T>
+        => DExp::new_notake(var, value.into()),
+}
 
 CtrlBreakStart: () = () => meta.add_control_break_level(None);
 CtrlContinueStart: () = () => meta.add_control_continue_level(None);
@@ -148,11 +155,11 @@ NonConstRangeValue: Value = {
     ConstKey => <>.into(),
     "`" <Var> "`" => ReprVar(<>), // 原始值
     "$" => ResultHandle,
-    <name:NonConstRangeValue> <args:MList<Args?>> => {
+    <value:NonConstRangeValue> <args:MList<Args?>> => {
         // QuickDExpTake
         DExp::new("__".into(), vec![
             LogicLine::SetArgs(args.unwrap_or_default()),
-            LogicLine::SetResultHandle(name),
+            LogicLine::SetResultHandle(value),
         ].into()).into()
     },
     "goto" <MTuple<JumpCmpOnce>> => Value::Cmper(<>.into()),
@@ -170,6 +177,18 @@ NonConstRangeValue: Value = {
     },
     <NonConstRangeValue> "->" "$" => {
         ValueBindRef::new(<>.into(), ValueBindRefTarget::ResultHandle).into()
+    },
+    <value:NonConstRangeValue> "->" <args:MList<Args?>> => {
+        // Refed QuickDExpTake
+        let value = DExp::new("__".into(), vec![
+            LogicLine::SetArgs(args.unwrap_or_default()),
+            LogicLine::SetResultHandle(value),
+        ].into()).into();
+
+        ValueBindRef::new(
+            Box::new(value),
+            ValueBindRefTarget::ResultHandle,
+        ).into()
     },
 }
 
@@ -333,12 +352,10 @@ pub LogicLine: LogicLine = {
     Label => LogicLine::new_label(<>, meta),
     "op" <Op> LEnd => <>.into(),
     "noop" LEnd => LogicLine::NoOp,
-    "set" <Value> <Value> LEnd => Meta::build_set(<>),
     <l:@L> <vars:Args2> "=" <values:Args2> LEnd <r:@R>
         =>? Meta::build_sets([l, r], vars, values).map_err(|e| e.into()),
     OpExpr,
     Print,
-    //ArgsRepeatBlock => <>.into(),
     <Args> LEnd => LogicLine::Other(<>),
     "inline" <ArgsRepeatBlock> => <>.into(),
     Match => <>.into(),
@@ -541,11 +558,12 @@ OpExpr: LogicLine = {
     },
     <IOpExpr> LEnd => <>.into(),
 }
-OpExprDExp: DExp = METuple<((<Var> ":")? OpExprBody)> => {
-    let (res, body) = <>;
-    let line = op_expr_build_results(meta, vec![ResultHandle], vec![body]);
-    DExp::new_optional_res(res, vec![line].into())
+#[inline]
+OpExprBodySetR: Expand = OpExprBody => {
+    let line = op_expr_build_results(meta, vec![ResultHandle], vec![<>]);
+    vec![line].into()
 };
+OpExprDExp: DExp = METuple<MakeDExpBody<OpExprBodySetR>>;
 
 IOpExpr: Expand = {
     <v:Value> "+="  <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Add (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
@@ -844,10 +862,8 @@ pub BuiltinCommand: LogicLine = {
 BlockExpand: Expand = MBlock<Expand> => <>;
 pub Block: LogicLine = BlockExpand => <>.into();
 
-pub DExp: DExp = MTuple<(<(<Var> ":")?> <Expand>)>
-    => DExp::new_optional_res(<>.0, <>.1);
-FEDExp: DExp = MFETuple<(<(<Var> ":")?> <Expand>)>
-    => DExp::new_optional_res(<>.0, <>.1);
+pub DExp: DExp = MTuple<MakeDExpBody<Expand>>;
+FEDExp: DExp = MFETuple<MakeDExpBody<Expand>>;
 #[inline]
 ValueDExp: Value = DExp => <>.into();
 

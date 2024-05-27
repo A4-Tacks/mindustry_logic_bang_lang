@@ -868,25 +868,25 @@ fn display_source_test() {
         parse!(line_parser, "print ($ = x;);")
             .unwrap()
             .display_source_and_get(&mut meta),
-        "`'print'` (`'set'` $ x;);"
+        "`'print'` (`set` $ x;);"
     );
     assert_eq!(
         parse!(line_parser, "print (res: $ = x;);")
             .unwrap()
             .display_source_and_get(&mut meta),
-        "`'print'` (res: `'set'` $ x;);"
+        "`'print'` (res: `set` $ x;);"
     );
     assert_eq!(
         parse!(line_parser, "print (noop;$ = x;);")
             .unwrap()
             .display_source_and_get(&mut meta),
-        "`'print'` (\n    noop;\n    `'set'` $ x;\n);"
+        "`'print'` (\n    noop;\n    `set` $ x;\n);"
     );
     assert_eq!(
         parse!(line_parser, "print (res: noop;$ = x;);")
             .unwrap()
             .display_source_and_get(&mut meta),
-        "`'print'` (res:\n    noop;\n    `'set'` $ x;\n);"
+        "`'print'` (res:\n    noop;\n    `set` $ x;\n);"
     );
     assert_eq!(
         parse!(line_parser, "print a.b.c;")
@@ -922,7 +922,7 @@ fn display_source_test() {
         parse!(line_parser, "'take' 'set' 'print' 'const' 'take' 'op';")
             .unwrap()
             .display_source_and_get(&mut meta),
-        "'take' 'set' 'print' 'const' 'take' 'op';"
+        "'take' set 'print' 'const' 'take' 'op';"
     );
     assert_eq!(
         parse!(jumpcmp_parser, "({take X = N;} => X > 10 && X < 50)")
@@ -958,7 +958,7 @@ fn display_source_test() {
         parse!(line_parser, r#"set a "\n\\\[hi]\\n";"#)
             .unwrap()
             .display_source_and_get(&mut meta),
-        r#"`'set'` a "\n\\[[hi]\\n";"#
+        r#"set a "\n\\[[hi]\\n";"#
     );
     assert_eq!(
         parse!(line_parser, r#"foo bar baz;"#)

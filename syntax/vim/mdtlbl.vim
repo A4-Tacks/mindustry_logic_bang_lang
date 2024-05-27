@@ -1,11 +1,12 @@
 " Vim syntax file
 " Language:		mindustry_logic_bang_lang (mdtlbl)
 " Maintainer:		A4-Tacks <wdsjxhno1001@163.com>
-" Last Change:		2023-12-24
-" URL:		https://github.com/A4-Tacks/mindustry_logic_bang_lang
+" Last Change:		2024-05-27
+" URL:			https://github.com/A4-Tacks/mindustry_logic_bang_lang
+scriptencoding utf-8
 
 " 已加载高亮时就退出
-if exists("b:current_syntax")
+if exists('b:current_syntax')
     finish
 endif
 
@@ -28,7 +29,7 @@ syn keyword mdtlblKeyword
             \ while gwhile do skip if elif else switch gswitch break continue
             \ const take setres select match
             \ inline
-            \ op set noop print
+            \ op noop print
 syn keyword mdtlblKeyword goto nextgroup=mdtlblIdentLabelRest
 syn keyword mdtlblKeyword case nextgroup=mdtlblStar skipwhite
 syn match mdtlblStar /\*/ contained
@@ -46,8 +47,8 @@ syn match mdtlblCmpTreeOper /&&\|||\|!\|=>/
 syn match mdtlblArgsExpand /@/
 
 " 注释 {{{1
-syn region mdtlblComment start=/#\%([^*]\|$\)/ end=/$/ oneline contains=mdtlblCommentMeta
-syn region mdtlblLongComment start=/#\*/ end=/\*#/ contains=mdtlblCommentMeta fold
+syn region mdtlblComment	start=/#\%([^*]\|$\)/	end=/$/		contains=mdtlblCommentMeta oneline
+syn region mdtlblLongComment	start=/#\*/		end=/\*#/	contains=mdtlblCommentMeta fold
 syn keyword mdtlblCommentMeta Todo TODO Note NOTE Hint HINT
 
 setlocal comments=s:#*,mb:*,ex:*#,:#
@@ -55,11 +56,11 @@ setlocal commentstring=#%s
 setlocal formatoptions+=rq
 
 " 值(Var) {{{1
-syn match mdtlblStringFailedEscape /\\\%("\@=\|.\)/ contained
-syn match mdtlblStringColor /\[\v%(#\x{6,8}|%(c%(lear|yan|oral)|b%(l%(ack|ue)|r%(own|ick))|white|li%(ghtgray|me)|g%(r%(ay|een)|old%(enrod)?)|darkgray|navy|r%(oyal|ed)|s%(late|ky|carlet|almon)|t%(eal|an)|acid|forest|o%(live|range)|yellow|p%(ink|urple)|ma%(genta|roon)|violet))=\]/ contained
-syn match mdtlblSpecialChar /^ *\\ \|\\\%([n\\[]\|$\)/ contained
-syn cluster mdtlblStringContains add=mdtlblSpecialChar,mdtlblStringFailedEscape,mdtlblStringColor
-syn region mdtlblString start=/"/ end=/"/ contains=@mdtlblStringContains
+syn match	mdtlblStringFailedEscape /\\\%("\@=\|.\)/	contained
+syn match	mdtlblStringColor				contained /\[\v%(#\x{6,8}|%(c%(lear|yan|oral)|b%(l%(ack|ue)|r%(own|ick))|white|li%(ghtgray|me)|g%(r%(ay|een)|old%(enrod)?)|darkgray|navy|r%(oyal|ed)|s%(late|ky|carlet|almon)|t%(eal|an)|acid|forest|o%(live|range)|yellow|p%(ink|urple)|ma%(genta|roon)|violet))=\]/
+syn match	mdtlblSpecialChar /^ *\\ \|\\\%([n\\[]\|$\)/	contained
+syn cluster	mdtlblStringContains				contains=mdtlblSpecialChar,mdtlblStringFailedEscape,mdtlblStringColor
+syn region	mdtlblString start=/"/ end=/"/			contains=@mdtlblStringContains
 
 syn match mdtlblOIdent /@\I\i*\%(-\i*\)*/
 syn match mdtlblOtherVar /'[^' \t]\+'/
@@ -75,27 +76,28 @@ syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<=0%(x-=_@![0-9a-fA-F_]+|b-=_@
 syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<=%(\I\i*|\@\I\i*%(-\i*)*|'[^' \t]+'):/
 syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<="[^"]*":/ contains=@mdtlblStringContains
 
-syn match mdtlblQuickDExpTakeIdent /\I\i*\%(\[\)\@=/
-syn match mdtlblQuickDExpTakeIdent /'[^' \t]\+'\%(\[\)\@=/
+syn match mdtlblQuickDExpTakeIdent /\v\@\I\i*%(-\i*)*%(%(-\>)=\[)@=/
+syn match mdtlblQuickDExpTakeIdent /\v\I\i*%(%(-\>)=\[)@=/
+syn match mdtlblQuickDExpTakeIdent /\v'[^' \t]+'%(%(-\>)=\[)@=/
 syn match mdtlblQuickDExpTakeIdent /->/
 
-syn match  mdtlblIdentLabel /\v%(^|\W@1<=):%(\I\i*|\@\I\i*%(-\i*)*|'[^' \t]+')/ nextgroup=mdtlblIdentLabelRest
-syn match  mdtlblIdentLabel /\v%(^|\W@1<=):-=_@![0-9_]+%(\._@![0-9_]+|e[+-]=-=_@![0-9_]+)=>/ nextgroup=mdtlblIdentLabelRest
-syn match  mdtlblIdentLabel /\v%(^|\W@1<=):0%(x-=_@![0-9a-fA-F_]+|b-=_@![01_]+)>/ nextgroup=mdtlblIdentLabelRest
-syn region mdtlblIdentLabel start=/\v%(^|\W@1<=):"/ end=/"/ contains=@mdtlblStringContains
+syn match  mdtlblIdentLabel /\v%(^|\W@1<=):%(\I\i*|\@\I\i*%(-\i*)*|'[^' \t]+')/			nextgroup=mdtlblIdentLabelRest
+syn match  mdtlblIdentLabel /\v%(^|\W@1<=):-=_@![0-9_]+%(\._@![0-9_]+|e[+-]=-=_@![0-9_]+)=>/	nextgroup=mdtlblIdentLabelRest
+syn match  mdtlblIdentLabel /\v%(^|\W@1<=):0%(x-=_@![0-9a-fA-F_]+|b-=_@![01_]+)>/		nextgroup=mdtlblIdentLabelRest
+syn region mdtlblIdentLabel start=/\v%(^|\W@1<=):"/ end=/"/					contains=@mdtlblStringContains
 
-syn match  mdtlblIdentLabelRest /\v:%(\I\i*|\@\I\i*%(-\i*)*|'[^' \t]+')/ nextgroup=mdtlblIdentLabelRest contained
-syn match  mdtlblIdentLabelRest /\v:-=_@![0-9_]+%(\._@![0-9_]+|e[+-]=-=_@![0-9_]+)=>/ nextgroup=mdtlblIdentLabelRest contained
-syn match  mdtlblIdentLabelRest /\v:0%(x-=_@![0-9a-fA-F_]+|b-=_@![01_]+)>/ nextgroup=mdtlblIdentLabelRest contained
-syn region mdtlblIdentLabelRest start=/:"/ end=/"/ contains=@mdtlblStringContains contained
+syn match  mdtlblIdentLabelRest /\v:%(\I\i*|\@\I\i*%(-\i*)*|'[^' \t]+')/		nextgroup=mdtlblIdentLabelRest contained
+syn match  mdtlblIdentLabelRest /\v:-=_@![0-9_]+%(\._@![0-9_]+|e[+-]=-=_@![0-9_]+)=>/	nextgroup=mdtlblIdentLabelRest contained
+syn match  mdtlblIdentLabelRest /\v:0%(x-=_@![0-9a-fA-F_]+|b-=_@![01_]+)>/		nextgroup=mdtlblIdentLabelRest contained
+syn region mdtlblIdentLabelRest start=/:"/ end=/"/					contains=@mdtlblStringContains contained
 
 " Fold {{{1
 setlocal foldmethod=syntax
-syn region mdtlblBlock start=/{/ end=/}/ transparent fold
-syn region mdtlblDExp start=/(\[\@=/ end=/)/ transparent
-syn region mdtlblDExp start=/(\[\@!/ end=/)/ transparent fold
-syn region mdtlblArgs matchgroup=mdtlblArgsBracket start=/(\@<!\[/ end=/\]/ transparent fold
-syn region mdtlblArgs start=/(\@<=\[/ end=/\]/ transparent fold
+syn region mdtlblBlock	start=/{/	end=/}/		transparent fold
+syn region mdtlblDExp	start=/(\[\@!/	end=/)/		transparent fold
+syn region mdtlblArgs	start=/(\@<!\[/	end=/]/		transparent fold matchgroup=mdtlblArgsBracket
+syn region mdtlblClos	start=/(\[\@=/	end=/)/		transparent
+syn region mdtlblClos	start=/(\@<=\[/	end=/]/		transparent fold
 
 " Indent (缩进控制) {{{1
 function! <SID>lineFilter(line)
@@ -153,27 +155,28 @@ setlocal indentkeys+==.
 setlocal indentkeys+=0->
 
 " END And Color Links {{{1
-hi def link mdtlblKeyword Keyword
-hi def link mdtlblStar Keyword
-hi def link mdtlblOpFunKeyword Operator
-hi def link mdtlblCmpTreeOper Operator
-hi def link mdtlblComment Comment
-hi def link mdtlblLongComment Comment
-hi def link mdtlblCommentMeta Todo
-hi def link mdtlblStringFailedEscape Error
-hi def link mdtlblStringColor Include
-hi def link mdtlblSpecialChar SpecialChar
-hi def link mdtlblString String
-hi def link mdtlblOIdent Identifier
-hi def link mdtlblOtherVar Identifier
-hi def link mdtlblNumber Number
-hi def link mdtlblBoolean Boolean
-hi def link mdtlblNull Boolean
-hi def link mdtlblResultHandle Identifier
-hi def link mdtlblDefineResultHandle Identifier
-hi def link mdtlblIdentLabel Label
-hi def link mdtlblIdentLabelRest mdtlblIdentLabel
-hi def link mdtlblArgsBracket Macro
-hi def link mdtlblQuickDExpTakeIdent Macro
-hi def link mdtlblArgsExpand Structure
+hi def link mdtlblKeyword		Keyword
+hi def link mdtlblStar			Keyword
+hi def link mdtlblOpFunKeyword		Operator
+hi def link mdtlblCmpTreeOper		Operator
+hi def link mdtlblComment		Comment
+hi def link mdtlblLongComment		Comment
+hi def link mdtlblCommentMeta		Todo
+hi def link mdtlblStringFailedEscape	Error
+hi def link mdtlblStringColor		Include
+hi def link mdtlblSpecialChar		SpecialChar
+hi def link mdtlblString		String
+hi def link mdtlblOIdent		Identifier
+hi def link mdtlblOtherVar		Identifier
+hi def link mdtlblNumber		Number
+hi def link mdtlblBoolean		Boolean
+hi def link mdtlblNull			Boolean
+hi def link mdtlblResultHandle		Identifier
+hi def link mdtlblDefineResultHandle	Identifier
+hi def link mdtlblIdentLabel		Label
+hi def link mdtlblIdentLabelRest	mdtlblIdentLabel
+hi def link mdtlblArgsBracket		Macro
+hi def link mdtlblQuickDExpTakeIdent	Macro
+hi def link mdtlblArgsExpand		Structure
 " }}}1
+" vim:nowrap ts=8 sts=8 noet
