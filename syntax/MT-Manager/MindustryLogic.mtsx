@@ -15,220 +15,166 @@
     ]
     comment: {startsWith: "#"}
     defines: [
-        "ws": /[ \t]/
-        "bg": /(?:(?:[\n;]|^)/+include("ws")+/*)/
-        "ed": /(?:/+include("ws")+/*(?=;|(?:#[^\n]*)?(?:\n|$)))/
-        "string": /(?:"[^"\n]*(?:"|/+include("ed")+/))/
-        "val": /(?:/+include("string")+/|(?:(?!/+include("ws")+/)[^"#;\n])+)/
+        //!includeBegin
+        ws = /[ \t]/
+        _ = @ws /+/
+        bg = /(?:(?:[\n;]|^)/ @ws /*)/
+        ed = /(?:/ @ws /*(?=;|(?:#[^\n]*)?(?:\n|$)))/
+        string = /(?:"(?:(\[\[|\\n)|[^"\n])*(?:"|/ @ed /))/
+            $0: "string"
+            $1: "strEscape"
+
+        hex-oct = /0(?:x-?[\da-fA-F]+|b-?[01]+)/
+        val = /(?:/ @string /|(true|false|/ @hex-oct
+                /|-?\d+(?:\.\d+|e[+\-]?\d+)?)|(?:(?!/ @ws /)[^"#;\n])+)/
+            $1: "number"
+        var = @val
+            $0: "resultVar"
+        err = @val
+            $0: "error"
+        fill = @val
+            $0: "comment"
+
+
+        radar-selecter = /(?:(?:a(?:ny|lly|ttacker)|enemy|player|flying|boss|ground)|/ @err /)/
+        radar-order = /(?:(?:distance|health|shield|armor|maxHealth)|/ @err /)/
+        op-operator1 = /(?:not|a(?:bs|sin|cos|tan)|log(?:10)?|floor|c(?:eil|os)|s(?:qrt|in)|rand|tan)/
+        op-operator2 = /(?:a(?:dd|n(?:d|gle(?:Diff)?))|s(?:ub|trictEqual|h(?:l|r))|m(?:ul|od|ax|in)|div|idiv|pow|equal|no(?:tEqual|ise)|l(?:and|e(?:ssThan(?:Eq)?|n))|greaterThan(?:Eq)?|or|xor)/
+        jump-cmper = /(?:(?:equal|notEqual|lessThan(?:Eq)?|greaterThan(?:Eq)?|strictEqual|always)|/ @err /)/
+
+        ucontrol-normal = /(i(?:dle|tem(?:Drop|Take))|stop|m(?:ove|ine)|a(?:pproach|utoPathfind)|pa(?:thfind|y(?:Drop|Take|Enter))|b(?:oost|uild)|targetp?|flag|unbind)/ (?:@_ @val){5}
+            $1: "unit"
+        ucontrol-extend = (?:
+                /(getBlock)/ (?:@_ @val){2} (?:@_ @var){3}
+                | /(within)/ (?:@_ @val){3} @_ @var @_ @val
+                )
+            $1: "unit"
+            $2: "unit"
+        ucontrol-failed = @err (?:@_ @val){5}
+
+        ulocate-type = (?:/(core|storage|generator|turret|factory|r(?:e(?:pair|actor)|ally)|battery)/ | @err)
+            $1: "unit"
+
+
+        logic-lines-label := {
+            : @bg /(/ @val /:)/ @ed
+                $recordAllGroups: true
+                $1: "label"
+        }
+
+        logic-lines-io := {
+            : @bg /noop/ @ed
+                $0: "control"
+            : @bg /(read)/ @_ @var (?:@_ @val){2} @ed
+                $recordAllGroups: true
+                $1: "io"
+            : @bg /(write)(?:/ @_ @val /){3}/ @ed
+                $recordAllGroups: true
+                $1: "io"
+            : @bg /(draw)/ @_ /(?:(c(?:lear|ol(?:or)?)|stroke|line(?:Rect|Poly)?|rect|poly|triangle|image)|/ @err /)(?:/ @_ @val /){6}/ @ed
+                $recordAllGroups: true
+                $1: "io"
+                $2: "io"
+            : @bg /(print)/ @_ @val @ed
+                $recordAllGroups: true
+                $1: "io"
+        }
+
+        logic-lines-block := {
+            : @bg /((?:draw|print)flush)/ @_ @val @ed
+                $recordAllGroups: true
+                $1: "block"
+            : @bg /(getlink)/ @_ @var @_ @val @ed
+                $recordAllGroups: true
+                $1: "block"
+            : @bg /(control)/ @_ /(?:(enabled|shootp?|co(?:nfig|lor))|/ @err /)(?:/ @_ @val /){5}/ @ed
+                $recordAllGroups: true
+                $1: "block"
+                $2: "block"
+            : @bg /(radar)/ ((?:@_ @radar-selecter){3} @_ @radar-order) @_ @val @_ @val @_ @var @ed
+                $recordAllGroups: true
+                $1: "block"
+                $2: "block"
+            : @bg /(sensor)/ @_ @var @_ @val @_ @val @ed
+                $recordAllGroups: true
+                $1: "block"
+        }
+
+        logic-lines-operation := {
+            : @bg /(set)/ @_ @var @_ @val @ed
+                $recordAllGroups: true
+                $1: "operation"
+            : @bg /(op)/ @_ (?:
+                    (@op-operator1) @_ @var @_ @val @_ @fill
+                    | (@op-operator2) @_ @var @_ @val @_ @val
+                    | @err (?:@_ @val){3}
+                    ) @ed
+                $recordAllGroups: true
+                $1: "operation"
+                $2: "operation"
+                $3: "operation"
+            : @bg /(lookup)/ @_ /(?:(item|block|unit|liquid)|/ @err /)/ @_ @var @_ @val @ed
+                $recordAllGroups: true
+                $1: "operation"
+                $2: "operation"
+            : @bg /(packcolor)/ @_ @var /(?:/ @_ @val /){4}/
+                $recordAllGroups: true
+                $1: "operation"
+        }
+
+        logic-lines-control := {
+            : @bg /(jump/ @_ /:?)/ (@val) @_ (?:
+                    /(always)/ (?:@_ @fill){2}
+                    | (@jump-cmper) @_ @val @_ @val
+                    ) @ed
+                $recordAllGroups: true
+                $1: "control"
+                $2: "label"
+                $3: "control"
+                $4: "control"
+            : @bg /(end|stop)/ @ed
+                $1: "control"
+            : @bg /(wait)/ @_ @val @ed
+                $recordAllGroups: true
+                $1: "control"
+        }
+
+        logic-lines-unit := {
+            : @bg /(ubind)/ @_ @val @ed
+                $recordAllGroups: true
+                $1: "unit"
+            : @bg /(ucontrol)/ @_ (?:@ucontrol-normal | @ucontrol-extend | @ucontrol-failed) @ed
+                $recordAllGroups: true
+                $1: "unit"
+                $2: "unit"
+            : @bg /(uradar)/ ((?:@_ @radar-selecter){3} @_ @radar-order) (?:@_ @val){2} @_ @var @ed
+                $recordAllGroups: true
+                $1: "unit"
+                $2: "unit"
+            : @bg /(ulocate)/ @_ (?:
+                    /(ore)/ @_ @ulocate-type @_ @fill @_ @val (?:@_ @var){3} @_ @val
+                    | /(building)/ @_ @ulocate-type @_ @val @_ @fill (?:@_ @var){4}
+                    | /(spawn|damaged)/ @_ @ulocate-type (?:@_ @fill){2} (?:@_ @var){4}
+                    | @err @_ @ulocate-type (?:@_ @val){6}
+                    ) @ed
+                $recordAllGroups: true
+                $1: "unit"
+                $2: "unit"
+                $3: "unit"
+                $4: "unit"
+        }
+
+        logic-lines := {
+            ::logic-lines-label
+            ::logic-lines-io
+            ::logic-lines-block
+            ::logic-lines-operation
+            ::logic-lines-control
+            ::logic-lines-unit
+        }
+        //!includeEnd
     ]
     contains: [
-        {
-            match: include("bg")+/(/+include("val")+/:)/+include("ed")
-            1: "label"
-        }
-        {
-            match: include("bg")+/(noop)/+include("ed")
-            1: "control"
-        }
-        {
-            match: include("bg")+/(read)/+include("ws")+/+(/+include("val")+/)(?:/+include("ws")+/+/+include("val")+/){2}/+include("ed")
-            1: "io"
-            2: "resultVar"
-        }
-        {
-            match: include("bg")+/(write)(?:/+include("ws")+/+/+include("val")+/){3}/+include("ed")
-            1: "io"
-        }
-        {
-            match: include("bg")+/(draw)/+include("ws")+/+(?:(c(?:lear|ol(?:or)?)|stroke|line(?:Rect|Poly)?|rect|poly|triangle|image)|(/+include("val")+/))(?:/+include("ws")+/+/+include("val")+/){6}/+include("ed")
-            1: "io"
-            2: "io"
-            3: "error"
-        }
-        {
-            match: include("bg")+/(print)/+include("ws")+/+/+include("val")+include("ed")
-            1: "io"
-        }
-        {
-            match: include("bg")+/(drawflush)/+include("ws")+/+/+include("val")+include("ed")
-            1: "block"
-        }
-        {
-            match: include("bg")+/(printflush)/+include("ws")+/+/+include("val")+include("ed")
-            1: "block"
-        }
-        {
-            match: include("bg")+/(getlink)/+include("ws")+/+(/+include("val")+/)/+include("ws")+/+/+include("val")+include("ed")
-            1: "block"
-            2: "resultVar"
-        }
-        {
-            match: include("bg")+/(control)/+include("ws")+/+(?:(enabled|shootp?|co(?:nfig|lor))|(/+include("val")+/))(?:/+include("ws")+/+/+include("val")+/){5}/+include("ed")
-            1: "block"
-            2: "block"
-            3: "error"
-        }
-        {
-            match: include("bg")+/(radar)(?:(?:/+include("ws")+/+(?:(a(?:ny|lly|ttacker)|enemy|player|flying|boss|ground)|(/+include("val")+/))){3})/+include("ws")+/+(?:(distance|health|shield|armor|maxHealth)|(/+include("val")+/))(?:/+include("ws")+/+/+include("val")+/){2}/+include("ws")+/+(/+include("val")+/)/+include("ed")
-            recordAllGroups: true
-            1: "block"
-            2: "block"
-            3: "error"
-            4: "block"
-            5: "error"
-            6: "resultVar"
-        }
-        {
-            match: include("bg")+/(sensor)/+include("ws")+/+(/+include("val")+/)(?:/+include("ws")+/+/+include("val")+/){2}/+include("ed")
-            1: "block"
-            2: "resultVar"
-        }
-        {
-            match: include("bg")+/(set)/+include("ws")+/+(/+include("val")+/)/+include("ws")+/+/+include("val")+include("ed")
-            1: "operation"
-            2: "resultVar"
-        }
-        {
-            match: include("bg")+/(op)/+include("ws")+/+(?:(a(?:bs|cos|dd|n(?:d|gle(?:Diff)?)|sin|tan)|c(?:eil|os)|div|equal|floor|greaterThan(?:Eq)?|idiv|l(?:and|e(?:n|ssThan(?:Eq)?)|og(?:10)?)|m(?:ax|in|od|ul)|no(?:ise|t(?:Equal)?)|or|pow|rand|s(?:h(?:l|r)|in|qrt|trictEqual|ub)|tan|xor)|(/+include("val")+/))/+include("ws")+/+(/+include("val")+/)/+include("ws")+/+/+include("val")+include("ws")+/+/+include("val")+include("ed")
-            1: "operation"
-            2: "operation"
-            3: "error"
-            4: "resultVar"
-        }
-        {
-            match: include("bg")+/(wait)/+include("ws")+/+/+include("val")+include("ed")
-            1: "control"
-        }
-        {
-            match: include("bg")+/(stop)/+include("ed")
-            1: "control"
-        }
-        {
-            match: include("bg")+/(lookup)/+include("ws")+/+(?:(item|block|unit|liquid)|(/+include("val")+/))/+include("ws")+/+(/+include("val")+/)/+include("ws")+/+/+include("val")+include("ed")
-            1: "operation"
-            2: "operation"
-            3: "error"
-            4: "resultVar"
-        }
-        {
-            match: include("bg")+/(packcolor)/+include("ws")+/+(/+include("val")+/)(?:/+include("ws")+/+/+include("val")+/){4}/+include("ed")
-            1: "operation"
-            2: "resultVar"
-        }
-        {
-            match: include("bg")+/(end)/+include("ed")
-            1: "control"
-        }
-        {
-            match: include("bg")+/(jump)/+include("ws")+/+(/+include("val")+/)/+include("ws")+/+(?:(equal|notEqual|lessThan(?:Eq)?|greaterThan(?:Eq)?|strictEqual|always)|(/+include("val")+/))(?:/+include("ws")+/+/+include("val")+/){2}/+include("ed")
-            1: "control"
-            2: "control"
-            3: "control"
-            4: "error"
-        }
-        {
-            match: include("bg")+/(ubind)/+include("ws")+/+/+include("val")+include("ed")
-            1: "unit"
-        }
-        {
-            match: include("bg")+/(ucontrol)/+include("ws")+/+(?:(getBlock)(?:/+include("ws")+/+/+include("val")+/){2}((?:/+include("ws")+/+/+include("val")+/){3})|(within)(?:/+include("ws")+/+/+include("val")+/){3}/+include("ws")+/+(/+include("val")+/)/+include("ws")+/+/+include("val")+/|(i(?:dle|tem(?:Drop|Take))|stop|m(?:ove|ine)|a(?:pproach|utoPathfind)|pa(?:thfind|y(?:Drop|Take|Enter))|b(?:oost|uild)|targetp?|flag|unbind)(?:/+include("ws")+/+/+include("val")+/){5}|(/+include("val")+/)(?:/+include("ws")+/+/+include("val")+/){5})/+include("ed")
-            1: "unit"
-            2: "unit"
-            3: "resultVar"
-            4: "unit"
-            5: "resultVar"
-            6: "unit"
-            7: "error"
-        }
-        {
-            match: include("bg")+/(uradar)(?:(?:/+include("ws")+/+(?:(a(?:ny|lly|ttacker)|enemy|player|flying|boss|ground)|(/+include("val")+/))){3})/+include("ws")+/+(?:(distance|health|shield|armor|maxHealth)|(/+include("val")+/))(?:/+include("ws")+/+/+include("val")+/){2}/+include("ws")+/+(/+include("val")+/)/+include("ed")
-            recordAllGroups: true
-            1: "unit"
-            2: "block"
-            3: "error"
-            4: "block"
-            5: "error"
-            6: "resultVar"
-        }
-        {
-            match: include("bg")+/(ulocate)/+include("ws")+/+(?:(ore)/+include("ws")+/+(?:(core|storage|generator|turret|factory|r(?:e(?:pair|actor)|ally)|battery)|(/+include("val")+/))(?:/+include("ws")+/+/+include("val")+/){2}((?:/+include("ws")+/+/+include("val")+/){3})/+include("ws")+/+/+include("val")+/|(building|spawn|damaged)/+include("ws")+/+(?:(core|storage|generator|turret|factory|r(?:e(?:pair|actor)|ally)|battery)|(/+include("val")+/))(?:/+include("ws")+/+/+include("val")+/){2}((?:/+include("ws")+/+/+include("val")+/){4})|(/+include("val")+/)/+include("ws")+/+(?:(core|storage|generator|turret|factory|r(?:e(?:pair|actor)|ally)|battery)|(/+include("val")+/))(?:/+include("ws")+/+/+include("val")+/){6})/+include("ed")
-            1: "unit"
-            2: "unit"
-            3: "unit"
-            4: "error"
-            5: "resultVar"
-            6: "unit"
-            7: "unit"
-            8: "error"
-            9: "resultVar"
-            10: "error"
-            11: "unit"
-            12: "error"
-        }
-        // TODO 以下世界处理器专属未完成
-        {
-            match: include("bg")+/(getblock)/+include("ws")+/+.*/+include("ed")
-            1: "world"
-        }
-        {
-            match: include("bg")+/(setblock)/+include("ws")+/+.*/+include("ed")
-            1: "world"
-        }
-        {
-            match: include("bg")+/(spawn)/+include("ws")+/+.*/+include("ed")
-            1: "world"
-        }
-        {
-            match: include("bg")+/(status)/+include("ws")+/+.*/+include("ed")
-            1: "world"
-        }
-        {
-            match: include("bg")+/(spawnwave)/+include("ws")+/+.*/+include("ed")
-            1: "world"
-        }
-        {
-            match: include("bg")+/(setrule)/+include("ws")+/+.*/+include("ed")
-            1: "world"
-        }
-        {
-            match: include("bg")+/(message)/+include("ws")+/+.*/+include("ed")
-            1: "world"
-        }
-        {
-            match: include("bg")+/(cutscene)/+include("ws")+/+.*/+include("ed")
-            1: "world"
-        }
-        {
-            match: include("bg")+/(effect)/+include("ws")+/+.*/+include("ed")
-            1: "world"
-        }
-        {
-            match: include("bg")+/(explosion)/+include("ws")+/+.*/+include("ed")
-            1: "world"
-        }
-        {
-            match: include("bg")+/(setrate)/+include("ws")+/+.*/+include("ed")
-            1: "world"
-        }
-        {
-            match: include("bg")+/(fetch)/+include("ws")+/+.*/+include("ed")
-            1: "world"
-        }
-        {
-            match: include("bg")+/(sync)/+include("ws")+/+.*/+include("ed")
-            1: "world"
-        }
-        {
-            match: include("bg")+/(getflag)/+include("ws")+/+.*/+include("ed")
-            1: "world"
-        }
-        {
-            match: include("bg")+/(setflag)/+include("ws")+/+.*/+include("ed")
-            1: "world"
-        }
-        {
-            match: include("bg")+/(setprop)/+include("ws")+/+.*/+include("ed")
-            1: "world"
-        }
+        {include: "logic-lines"}
     ]
 }

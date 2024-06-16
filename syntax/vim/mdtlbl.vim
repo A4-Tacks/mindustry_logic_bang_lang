@@ -63,7 +63,7 @@ syn cluster	mdtlblStringContains				contains=mdtlblSpecialChar,mdtlblStringFaile
 syn region	mdtlblString start=/"/ end=/"/			contains=@mdtlblStringContains
 
 syn match mdtlblOIdent /@\I\i*\%(-\i*\)*/
-syn match mdtlblOtherVar /'[^' \t]\+'/
+syn match mdtlblOtherVar /'[^' \t]\+'/ contains=mdtlblStringColor
 syn match mdtlblNumber /\v(<0%(x\-?[0-9a-fA-F][0-9a-fA-F_]*|b\-?[01][_01]*)|\-?<\d[0-9_]*%(\.\d[0-9_]*|e[+-]?\d[0-9_]*)?)>/
 syn match mdtlblBoolean /\v<%(true|false)>/
 syn match mdtlblNull /\<null\>/
@@ -73,7 +73,7 @@ syn match mdtlblResultHandle /\$/
 " Label And ResultH {{{1
 syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<=-=_@![0-9_]+%(\._@![0-9_]+|e[+-]=-=_@![0-9_]+)=>:/
 syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<=0%(x-=_@![0-9a-fA-F_]+|b-=_@![01_]+)>:/
-syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<=%(\I\i*|\@\I\i*%(-\i*)*|'[^' \t]+'):/
+syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<=%(\I\i*|\@\I\i*%(-\i*)*|'[^' \t]+'):/  contains=mdtlblStringColor
 syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<="[^"]*":/ contains=@mdtlblStringContains
 
 syn match mdtlblQuickDExpTakeIdent /\v\@\I\i*%(-\i*)*%(%(-\>)=\[)@=/
@@ -81,12 +81,12 @@ syn match mdtlblQuickDExpTakeIdent /\v\I\i*%(%(-\>)=\[)@=/
 syn match mdtlblQuickDExpTakeIdent /\v'[^' \t]+'%(%(-\>)=\[)@=/
 syn match mdtlblQuickDExpTakeIdent /->/
 
-syn match  mdtlblIdentLabel /\v%(^|\W@1<=):%(\I\i*|\@\I\i*%(-\i*)*|'[^' \t]+')/			nextgroup=mdtlblIdentLabelRest
+syn match  mdtlblIdentLabel /\v%(^|\W@1<=):%(\I\i*|\@\I\i*%(-\i*)*|'[^' \t]+')/			nextgroup=mdtlblIdentLabelRest		contains=mdtlblStringColor
 syn match  mdtlblIdentLabel /\v%(^|\W@1<=):-=_@![0-9_]+%(\._@![0-9_]+|e[+-]=-=_@![0-9_]+)=>/	nextgroup=mdtlblIdentLabelRest
 syn match  mdtlblIdentLabel /\v%(^|\W@1<=):0%(x-=_@![0-9a-fA-F_]+|b-=_@![01_]+)>/		nextgroup=mdtlblIdentLabelRest
 syn region mdtlblIdentLabel start=/\v%(^|\W@1<=):"/ end=/"/					contains=@mdtlblStringContains
 
-syn match  mdtlblIdentLabelRest /\v:%(\I\i*|\@\I\i*%(-\i*)*|'[^' \t]+')/		nextgroup=mdtlblIdentLabelRest contained
+syn match  mdtlblIdentLabelRest /\v:%(\I\i*|\@\I\i*%(-\i*)*|'[^' \t]+')/		nextgroup=mdtlblIdentLabelRest contained	contains=mdtlblStringColor
 syn match  mdtlblIdentLabelRest /\v:-=_@![0-9_]+%(\._@![0-9_]+|e[+-]=-=_@![0-9_]+)=>/	nextgroup=mdtlblIdentLabelRest contained
 syn match  mdtlblIdentLabelRest /\v:0%(x-=_@![0-9a-fA-F_]+|b-=_@![01_]+)>/		nextgroup=mdtlblIdentLabelRest contained
 syn region mdtlblIdentLabelRest start=/:"/ end=/"/					contains=@mdtlblStringContains contained
