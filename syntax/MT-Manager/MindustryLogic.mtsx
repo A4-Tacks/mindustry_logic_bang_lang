@@ -20,20 +20,23 @@
         _ = @ws /+/
         bg = /(?:(?:[\n;]|^)/ @ws /*)/
         ed = /(?:/ @ws /*(?=;|(?:#[^\n]*)?(?:\n|$)))/
-        string = /(?:"(?:(\[\[|\\n)|[^"\n])*(?:"|/ @ed /))/
-            $0: "string"
+        raw-string = /(?:"(?:(\[\[|\\n)|[^"\n])*(?:"|/ @ed /))/
             $1: "strEscape"
+        string = @raw-string
+            $0: "string"
 
-        hex-oct = /0(?:x-?[\da-fA-F]+|b-?[01]+)/
-        val = /(?:/ @string /|(true|false|/ @hex-oct
-                /|-?\d+(?:\.\d+|e[+\-]?\d+)?)|(?:(?!/ @ws /)[^"#;\n])+)/
-            $1: "number"
-        var = @val
+        arg-body = /(?:[^ \t"#;\n]+)/
+
+        hex-oct = (?:/0(?:x-?[\da-fA-F]+|b-?[01]+)/)
+        normal-number = (?:/-?\d+(?:\.\d+|e[+\-]?\d+)?/)
+        number = ($number /true|false/ | @hex-oct | @normal-number)
+        val = (?:@string | @number | @arg-body)
+        var = (?:@raw-string | @arg-body)
             $0: "resultVar"
-        err = @val
-            $0: "error"
-        fill = @val
+        fill = (?:@raw-string | @arg-body)
             $0: "comment"
+        err = (?:@raw-string | @arg-body)
+            $0: "error"
 
 
         radar-selecter = /(?:(?:a(?:ny|lly|ttacker)|enemy|player|flying|boss|ground)|/ @err /)/
@@ -54,6 +57,15 @@
 
         ulocate-type = (?:/(core|storage|generator|turret|factory|r(?:e(?:pair|actor)|ally)|battery)/ | @err)
             $1: "unit"
+
+        status-effects = (?:
+                /(?:b(?:urning|lasted|oss)|f(?:reezing|ast)|unmoving|s(?:low|apped|h(?:ielded|ocked)|poreSlowed)|wet|m(?:uddy|elting)|tarred|over(?:drive|clock)|corroded|disarmed|electrified|invincible)/
+                | @err
+                )
+        logic-rules = (?:
+                /(?:currentWaveTime|wave(?:Timer|s|S(?:pacing|ending))?|a(?:ttackMode|mbientLight)|enemyCoreBuildRadius|dropZoneRadius|unit(?:C(?:ap|ost)|Health|BuildSpeed|Damage)|mapArea|lighting|solarMultiplier|b(?:uildSpeed|lock(?:Health|Damage))|rtsMin(?:Weight|Squad))/
+                | @err
+                )
 
 
         logic-lines-label := {
@@ -164,6 +176,42 @@
                 $4: "unit"
         }
 
+        logic-lines-world := {
+            : @bg (/getblock/ @_ (?:/floor|ore|block|building/ | @err))
+                    @_ @var (?:@_ @val){2} @ed
+                $recordAllGroups: true
+                $1: "world"
+            : @bg /(setblock)/ @_ (?:
+                    ($world /floor|ore/) (?:@_ @val){3} (?:@_ @fill){2}
+                    | ($world /block/) (?:@_ @val){5}
+                    | @err (?:@_ @val){5}
+                    ) @ed
+                $recordAllGroups: true
+                $1: "world"
+            : @bg /(spawn)/ (?:@_ @val){5} @_ @var @ed
+                $recordAllGroups: true
+                $1: "world"
+            : @bg /(status)/ @_ (?:
+                    ($world /false/ @_ @status-effects) (?:@_ @val){2}
+                    | ($world (?:/true/ | @err) @_ @status-effects) @_ @val @_ @fill
+                    ) @ed
+                $recordAllGroups: true
+                $1: "world"
+            : @bg /(spawnwave)/ (?:@_ @val){3} @ed
+                $recordAllGroups: true
+                $1: "world"
+            : @bg /(setrule)/ @_ ($world @logic-rules) (?:@_ @val){5} @ed
+                $recordAllGroups: true
+                $1: "world"
+            : @bg /(message)/ @_ (?:
+                    ($world /announce|toast/) @_ @val
+                    | ($world /mission|notify/) @_ @fill
+                    | @err @_ @val
+                    ) @ed
+                $recordAllGroups: true
+                $1: "world"
+        }
+
         logic-lines := {
             ::logic-lines-label
             ::logic-lines-io
@@ -171,6 +219,7 @@
             ::logic-lines-operation
             ::logic-lines-control
             ::logic-lines-unit
+            ::logic-lines-world
         }
         //!includeEnd
     ]
@@ -178,3 +227,4 @@
         {include: "logic-lines"}
     ]
 }
+// vim:nowrap

@@ -20,12 +20,16 @@
         "_": include("ws") + /+/
         "bg": /(?:(?:[\n;]|^)/ + include("ws") + /*)/
         "ed": /(?:/ + include("ws") + /*(?=;|(?:#[^\n]*)?(?:\n|$)))/
-        "string": /((?:"(?:(\[\[|\\n)|[^"\n])*(?:"|/ + include("ed") + /)))/
-        "hex-oct": /0(?:x-?[\da-fA-F]+|b-?[01]+)/
-        "val": /(?:/ + include("string") + /|(true|false|/ + include("hex-oct") + /|-?\d+(?:\.\d+|e[+\-]?\d+)?)|(?:(?!/ + include("ws") + /)[^"#;\n])+)/
-        "var": /(/ + include("val") + /)/
-        "err": /(/ + include("val") + /)/
-        "fill": /(/ + include("val") + /)/
+        "raw-string": /(?:"(?:(\[\[|\\n)|[^"\n])*(?:"|/ + include("ed") + /))/
+        "string": /(/ + include("raw-string") + /)/
+        "arg-body": /(?:[^ \t"#;\n]+)/
+        "hex-oct": /(?:0(?:x-?[\da-fA-F]+|b-?[01]+))/
+        "normal-number": /(?:-?\d+(?:\.\d+|e[+\-]?\d+)?)/
+        "number": /(true|false|/ + include("hex-oct") + /|/ + include("normal-number") + /)/
+        "val": /(?:/ + include("string") + /|/ + include("number") + /|/ + include("arg-body") + /)/
+        "var": /((?:/ + include("raw-string") + /|/ + include("arg-body") + /))/
+        "fill": /((?:/ + include("raw-string") + /|/ + include("arg-body") + /))/
+        "err": /((?:/ + include("raw-string") + /|/ + include("arg-body") + /))/
         "radar-selecter": /(?:(?:a(?:ny|lly|ttacker)|enemy|player|flying|boss|ground)|/ + include("err") + /)/
         "radar-order": /(?:(?:distance|health|shield|armor|maxHealth)|/ + include("err") + /)/
         "op-operator1": /(?:not|a(?:bs|sin|cos|tan)|log(?:10)?|floor|c(?:eil|os)|s(?:qrt|in)|rand|tan)/
@@ -35,6 +39,8 @@
         "ucontrol-extend": /(?:(getBlock)(?:/ + include("_") + include("val") + /){2}(?:/ + include("_") + include("var") + /){3}|(within)(?:/ + include("_") + include("val") + /){3}/ + include("_") + include("var") + include("_") + include("val") + /)/
         "ucontrol-failed": include("err") + /(?:/ + include("_") + include("val") + /){5}/
         "ulocate-type": /(?:(core|storage|generator|turret|factory|r(?:e(?:pair|actor)|ally)|battery)|/ + include("err") + /)/
+        "status-effects": /(?:(?:b(?:urning|lasted|oss)|f(?:reezing|ast)|unmoving|s(?:low|apped|h(?:ielded|ocked)|poreSlowed)|wet|m(?:uddy|elting)|tarred|over(?:drive|clock)|corroded|disarmed|electrified|invincible)|/ + include("err") + /)/
+        "logic-rules": /(?:(?:currentWaveTime|wave(?:Timer|s|S(?:pacing|ending))?|a(?:ttackMode|mbientLight)|enemyCoreBuildRadius|dropZoneRadius|unit(?:C(?:ap|ost)|Health|BuildSpeed|Damage)|mapArea|lighting|solarMultiplier|b(?:uildSpeed|lock(?:Health|Damage))|rtsMin(?:Weight|Squad))|/ + include("err") + /)/
         "logic-lines-label": {
             match: include("bg") + /(/ + include("val") + /:)/ + include("ed")
             recordAllGroups: true
@@ -53,12 +59,10 @@
                 recordAllGroups: true
                 1: "io"
                 2: "resultVar"
-                3: "string"
-                4: "strEscape"
-                5: "number"
-                6: "string"
-                7: "strEscape"
-                8: "number"
+                3: "strEscape"
+                4: "string"
+                5: "strEscape"
+                6: "number"
             }
             {
                 match: include("bg") + /(write)(?:/ + include("_") + include("val") + /){3}/ + include("ed")
@@ -74,12 +78,10 @@
                 1: "io"
                 2: "io"
                 3: "error"
-                4: "string"
-                5: "strEscape"
-                6: "number"
-                7: "string"
-                8: "strEscape"
-                9: "number"
+                4: "strEscape"
+                5: "string"
+                6: "strEscape"
+                7: "number"
             }
             {
                 match: include("bg") + /(print)/ + include("_") + include("val") + include("ed")
@@ -104,12 +106,10 @@
                 recordAllGroups: true
                 1: "block"
                 2: "resultVar"
-                3: "string"
-                4: "strEscape"
-                5: "number"
-                6: "string"
-                7: "strEscape"
-                8: "number"
+                3: "strEscape"
+                4: "string"
+                5: "strEscape"
+                6: "number"
             }
             {
                 match: include("bg") + /(control)/ + include("_") + /(?:(enabled|shootp?|co(?:nfig|lor))|/ + include("err") + /)(?:/ + include("_") + include("val") + /){5}/ + include("ed")
@@ -117,12 +117,10 @@
                 1: "block"
                 2: "block"
                 3: "error"
-                4: "string"
-                5: "strEscape"
-                6: "number"
-                7: "string"
-                8: "strEscape"
-                9: "number"
+                4: "strEscape"
+                5: "string"
+                6: "strEscape"
+                7: "number"
             }
             {
                 match: include("bg") + /(radar)((?:/ + include("_") + include("radar-selecter") + /){3}/ + include("_") + include("radar-order") + /)/ + include("_") + include("val") + include("_") + include("val") + include("_") + include("var") + include("ed")
@@ -130,38 +128,30 @@
                 1: "block"
                 2: "block"
                 3: "error"
-                4: "string"
-                5: "strEscape"
-                6: "number"
-                7: "error"
-                8: "string"
-                9: "strEscape"
-                10: "number"
-                11: "string"
-                12: "strEscape"
-                13: "number"
-                14: "string"
-                15: "strEscape"
-                16: "number"
-                17: "resultVar"
-                18: "string"
-                19: "strEscape"
-                20: "number"
+                4: "strEscape"
+                5: "error"
+                6: "strEscape"
+                7: "string"
+                8: "strEscape"
+                9: "number"
+                10: "string"
+                11: "strEscape"
+                12: "number"
+                13: "resultVar"
+                14: "strEscape"
             }
             {
                 match: include("bg") + /(sensor)/ + include("_") + include("var") + include("_") + include("val") + include("_") + include("val") + include("ed")
                 recordAllGroups: true
                 1: "block"
                 2: "resultVar"
-                3: "string"
-                4: "strEscape"
-                5: "number"
-                6: "string"
-                7: "strEscape"
-                8: "number"
-                9: "string"
-                10: "strEscape"
-                11: "number"
+                3: "strEscape"
+                4: "string"
+                5: "strEscape"
+                6: "number"
+                7: "string"
+                8: "strEscape"
+                9: "number"
             }
         ]
         "logic-lines-operation": [
@@ -170,12 +160,10 @@
                 recordAllGroups: true
                 1: "operation"
                 2: "resultVar"
-                3: "string"
-                4: "strEscape"
-                5: "number"
-                6: "string"
-                7: "strEscape"
-                8: "number"
+                3: "strEscape"
+                4: "string"
+                5: "strEscape"
+                6: "number"
             }
             {
                 match: include("bg") + /(op)/ + include("_") + /(?:(/ + include("op-operator1") + /)/ + include("_") + include("var") + include("_") + include("val") + include("_") + include("fill") + /|(/ + include("op-operator2") + /)/ + include("_") + include("var") + include("_") + include("val") + include("_") + include("val") + /|/ + include("err") + /(?:/ + include("_") + include("val") + /){3})/ + include("ed")
@@ -183,34 +171,26 @@
                 1: "operation"
                 2: "operation"
                 3: "resultVar"
-                4: "string"
-                5: "strEscape"
-                6: "number"
-                7: "string"
-                8: "strEscape"
-                9: "number"
-                10: "comment"
-                11: "string"
+                4: "strEscape"
+                5: "string"
+                6: "strEscape"
+                7: "number"
+                8: "comment"
+                9: "strEscape"
+                10: "operation"
+                11: "resultVar"
                 12: "strEscape"
-                13: "number"
-                14: "operation"
-                15: "resultVar"
+                13: "string"
+                14: "strEscape"
+                15: "number"
                 16: "string"
                 17: "strEscape"
                 18: "number"
-                19: "string"
+                19: "error"
                 20: "strEscape"
-                21: "number"
-                22: "string"
-                23: "strEscape"
-                24: "number"
-                25: "error"
-                26: "string"
-                27: "strEscape"
-                28: "number"
-                29: "string"
-                30: "strEscape"
-                31: "number"
+                21: "string"
+                22: "strEscape"
+                23: "number"
             }
             {
                 match: include("bg") + /(lookup)/ + include("_") + /(?:(item|block|unit|liquid)|/ + include("err") + /)/ + include("_") + include("var") + include("_") + include("val") + include("ed")
@@ -218,28 +198,22 @@
                 1: "operation"
                 2: "operation"
                 3: "error"
-                4: "string"
-                5: "strEscape"
-                6: "number"
-                7: "resultVar"
-                8: "string"
-                9: "strEscape"
-                10: "number"
-                11: "string"
-                12: "strEscape"
-                13: "number"
+                4: "strEscape"
+                5: "resultVar"
+                6: "strEscape"
+                7: "string"
+                8: "strEscape"
+                9: "number"
             }
             {
                 match: include("bg") + /(packcolor)/ + include("_") + include("var") + /(?:/ + include("_") + include("val") + /){4}/
                 recordAllGroups: true
                 1: "operation"
                 2: "resultVar"
-                3: "string"
-                4: "strEscape"
-                5: "number"
-                6: "string"
-                7: "strEscape"
-                8: "number"
+                3: "strEscape"
+                4: "string"
+                5: "strEscape"
+                6: "number"
             }
         ]
         "logic-lines-control": [
@@ -253,20 +227,16 @@
                 5: "number"
                 6: "control"
                 7: "comment"
-                8: "string"
-                9: "strEscape"
-                10: "number"
-                11: "control"
-                12: "error"
-                13: "string"
-                14: "strEscape"
-                15: "number"
-                16: "string"
-                17: "strEscape"
-                18: "number"
-                19: "string"
-                20: "strEscape"
-                21: "number"
+                8: "strEscape"
+                9: "control"
+                10: "error"
+                11: "strEscape"
+                12: "string"
+                13: "strEscape"
+                14: "number"
+                15: "string"
+                16: "strEscape"
+                17: "number"
             }
             {
                 match: include("bg") + /(end|stop)/ + include("ed")
@@ -303,27 +273,21 @@
                 8: "strEscape"
                 9: "number"
                 10: "resultVar"
-                11: "string"
-                12: "strEscape"
-                13: "number"
-                14: "unit"
-                15: "string"
-                16: "strEscape"
-                17: "number"
-                18: "resultVar"
-                19: "string"
-                20: "strEscape"
-                21: "number"
-                22: "string"
-                23: "strEscape"
-                24: "number"
-                25: "error"
-                26: "string"
-                27: "strEscape"
-                28: "number"
-                29: "string"
-                30: "strEscape"
-                31: "number"
+                11: "strEscape"
+                12: "unit"
+                13: "string"
+                14: "strEscape"
+                15: "number"
+                16: "resultVar"
+                17: "strEscape"
+                18: "string"
+                19: "strEscape"
+                20: "number"
+                21: "error"
+                22: "strEscape"
+                23: "string"
+                24: "strEscape"
+                25: "number"
             }
             {
                 match: include("bg") + /(uradar)((?:/ + include("_") + include("radar-selecter") + /){3}/ + include("_") + include("radar-order") + /)(?:/ + include("_") + include("val") + /){2}/ + include("_") + include("var") + include("ed")
@@ -331,20 +295,14 @@
                 1: "unit"
                 2: "unit"
                 3: "error"
-                4: "string"
-                5: "strEscape"
-                6: "number"
-                7: "error"
-                8: "string"
-                9: "strEscape"
-                10: "number"
-                11: "string"
-                12: "strEscape"
-                13: "number"
-                14: "resultVar"
-                15: "string"
-                16: "strEscape"
-                17: "number"
+                4: "strEscape"
+                5: "error"
+                6: "strEscape"
+                7: "string"
+                8: "strEscape"
+                9: "number"
+                10: "resultVar"
+                11: "strEscape"
             }
             {
                 match: include("bg") + /(ulocate)/ + include("_") + /(?:(ore)/ + include("_") + include("ulocate-type") + include("_") + include("fill") + include("_") + include("val") + /(?:/ + include("_") + include("var") + /){3}/ + include("_") + include("val") + /|(building)/ + include("_") + include("ulocate-type") + include("_") + include("val") + include("_") + include("fill") + /(?:/ + include("_") + include("var") + /){4}|(spawn|damaged)/ + include("_") + include("ulocate-type") + /(?:/ + include("_") + include("fill") + /){2}(?:/ + include("_") + include("var") + /){4}|/ + include("err") + include("_") + include("ulocate-type") + /(?:/ + include("_") + include("val") + /){6})/ + include("ed")
@@ -353,66 +311,145 @@
                 2: "unit"
                 3: "unit"
                 4: "error"
-                5: "string"
-                6: "strEscape"
-                7: "number"
-                8: "comment"
+                5: "strEscape"
+                6: "comment"
+                7: "strEscape"
+                8: "string"
+                9: "strEscape"
+                10: "number"
+                11: "resultVar"
+                12: "strEscape"
+                13: "string"
+                14: "strEscape"
+                15: "number"
+                16: "unit"
+                17: "unit"
+                18: "error"
+                19: "strEscape"
+                20: "string"
+                21: "strEscape"
+                22: "number"
+                23: "comment"
+                24: "strEscape"
+                25: "resultVar"
+                26: "strEscape"
+                27: "unit"
+                28: "unit"
+                29: "error"
+                30: "strEscape"
+                31: "comment"
+                32: "strEscape"
+                33: "resultVar"
+                34: "strEscape"
+                35: "error"
+                36: "strEscape"
+                37: "unit"
+                38: "error"
+                39: "strEscape"
+                40: "string"
+                41: "strEscape"
+                42: "number"
+            }
+        ]
+        "logic-lines-world": [
+            {
+                match: include("bg") + /(getblock/ + include("_") + /(?:floor|ore|block|building|/ + include("err") + /))/ + include("_") + include("var") + /(?:/ + include("_") + include("val") + /){2}/ + include("ed")
+                recordAllGroups: true
+                1: "world"
+                2: "error"
+                3: "strEscape"
+                4: "resultVar"
+                5: "strEscape"
+                6: "string"
+                7: "strEscape"
+                8: "number"
+            }
+            {
+                match: include("bg") + /(setblock)/ + include("_") + /(?:(floor|ore)(?:/ + include("_") + include("val") + /){3}(?:/ + include("_") + include("fill") + /){2}|(block)(?:/ + include("_") + include("val") + /){5}|/ + include("err") + /(?:/ + include("_") + include("val") + /){5})/ + include("ed")
+                recordAllGroups: true
+                1: "world"
+                2: "world"
+                3: "string"
+                4: "strEscape"
+                5: "number"
+                6: "comment"
+                7: "strEscape"
+                8: "world"
                 9: "string"
                 10: "strEscape"
                 11: "number"
-                12: "string"
+                12: "error"
                 13: "strEscape"
-                14: "number"
-                15: "resultVar"
-                16: "string"
+                14: "string"
+                15: "strEscape"
+                16: "number"
+            }
+            {
+                match: include("bg") + /(spawn)(?:/ + include("_") + include("val") + /){5}/ + include("_") + include("var") + include("ed")
+                recordAllGroups: true
+                1: "world"
+                2: "string"
+                3: "strEscape"
+                4: "number"
+                5: "resultVar"
+                6: "strEscape"
+            }
+            {
+                match: include("bg") + /(status)/ + include("_") + /(?:(false/ + include("_") + include("status-effects") + /)(?:/ + include("_") + include("val") + /){2}|((?:true|/ + include("err") + /)/ + include("_") + include("status-effects") + /)/ + include("_") + include("val") + include("_") + include("fill") + /)/ + include("ed")
+                recordAllGroups: true
+                1: "world"
+                2: "world"
+                3: "error"
+                4: "strEscape"
+                5: "string"
+                6: "strEscape"
+                7: "number"
+                8: "world"
+                9: "error"
+                10: "strEscape"
+                11: "error"
+                12: "strEscape"
+                13: "string"
+                14: "strEscape"
+                15: "number"
+                16: "comment"
                 17: "strEscape"
-                18: "number"
-                19: "string"
-                20: "strEscape"
-                21: "number"
-                22: "unit"
-                23: "unit"
-                24: "error"
-                25: "string"
-                26: "strEscape"
-                27: "number"
-                28: "string"
-                29: "strEscape"
-                30: "number"
-                31: "comment"
-                32: "string"
-                33: "strEscape"
-                34: "number"
-                35: "resultVar"
-                36: "string"
-                37: "strEscape"
-                38: "number"
-                39: "unit"
-                40: "unit"
-                41: "error"
-                42: "string"
-                43: "strEscape"
-                44: "number"
-                45: "comment"
-                46: "string"
-                47: "strEscape"
-                48: "number"
-                49: "resultVar"
-                50: "string"
-                51: "strEscape"
-                52: "number"
-                53: "error"
-                54: "string"
-                55: "strEscape"
-                56: "number"
-                57: "unit"
-                58: "error"
-                59: "string"
-                60: "strEscape"
-                61: "number"
-                62: "string"
-                63: "strEscape"
-                64: "number"
+            }
+            {
+                match: include("bg") + /(spawnwave)(?:/ + include("_") + include("val") + /){3}/ + include("ed")
+                recordAllGroups: true
+                1: "world"
+                2: "string"
+                3: "strEscape"
+                4: "number"
+            }
+            {
+                match: include("bg") + /(setrule)/ + include("_") + /(/ + include("logic-rules") + /)(?:/ + include("_") + include("val") + /){5}/ + include("ed")
+                recordAllGroups: true
+                1: "world"
+                2: "world"
+                3: "error"
+                4: "strEscape"
+                5: "string"
+                6: "strEscape"
+                7: "number"
+            }
+            {
+                match: include("bg") + /(message)/ + include("_") + /(?:(announce|toast)/ + include("_") + include("val") + /|(mission|notify)/ + include("_") + include("fill") + /|/ + include("err") + include("_") + include("val") + /)/ + include("ed")
+                recordAllGroups: true
+                1: "world"
+                2: "world"
+                3: "string"
+                4: "strEscape"
+                5: "number"
+                6: "world"
+                7: "comment"
+                8: "strEscape"
+                9: "error"
+                10: "strEscape"
+                11: "string"
+                12: "strEscape"
+                13: "number"
             }
         ]
         "logic-lines": [
@@ -422,6 +459,7 @@
             {include: "logic-lines-operation"}
             {include: "logic-lines-control"}
             {include: "logic-lines-unit"}
+            {include: "logic-lines-world"}
         ]
         // Generated by mtsyntax-plus end
     ]
@@ -429,3 +467,4 @@
         {include: "logic-lines"}
     ]
 }
+// vim:nowrap
