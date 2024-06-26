@@ -41,6 +41,7 @@
         "ulocate-type": /(?:(core|storage|generator|turret|factory|r(?:e(?:pair|actor)|ally)|battery)|/ + include("err") + /)/
         "status-effects": /(?:(?:b(?:urning|lasted|oss)|f(?:reezing|ast)|unmoving|s(?:low|apped|h(?:ielded|ocked)|poreSlowed)|wet|m(?:uddy|elting)|tarred|over(?:drive|clock)|corroded|disarmed|electrified|invincible)|/ + include("err") + /)/
         "logic-rules": /(?:(?:currentWaveTime|wave(?:Timer|s|S(?:pacing|ending))?|a(?:ttackMode|mbientLight)|enemyCoreBuildRadius|dropZoneRadius|unit(?:C(?:ap|ost)|Health|BuildSpeed|Damage)|mapArea|lighting|solarMultiplier|b(?:uildSpeed|lock(?:Health|Damage))|rtsMin(?:Weight|Squad))|/ + include("err") + /)/
+        "fetch-type": /(?:(?:unit(?:Count)?|player(?:Count)?|core(?:Count)?|build(?:Count)?)|/ + include("err") + /)/
         "logic-lines-label": {
             match: include("bg") + /(/ + include("val") + /:)/ + include("ed")
             recordAllGroups: true
@@ -450,6 +451,180 @@
                 11: "string"
                 12: "strEscape"
                 13: "number"
+            }
+            {
+                match: include("bg") + /(cutscene)/ + include("_") + /(?:(pan)/ + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + /|(zoom)/ + include("_") + include("val") + include("_") + include("fill") + include("_") + include("fill") + include("_") + include("fill") + /|(stop)/ + include("_") + include("fill") + include("_") + include("fill") + include("_") + include("fill") + include("_") + include("fill") + /|/ + include("err") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + /)/ + include("ed")
+                recordAllGroups: true
+                1: "world"
+                2: "world"
+                3: "string"
+                4: "strEscape"
+                5: "number"
+                6: "string"
+                7: "strEscape"
+                8: "number"
+                9: "string"
+                10: "strEscape"
+                11: "number"
+                12: "string"
+                13: "strEscape"
+                14: "number"
+                15: "world"
+                16: "string"
+                17: "strEscape"
+                18: "number"
+                19: "comment"
+                20: "strEscape"
+                21: "comment"
+                22: "strEscape"
+                23: "comment"
+                24: "strEscape"
+                25: "world"
+                26: "comment"
+                27: "strEscape"
+                28: "comment"
+                29: "strEscape"
+                30: "comment"
+                31: "strEscape"
+                32: "comment"
+                33: "strEscape"
+                34: "error"
+                35: "strEscape"
+                36: "string"
+                37: "strEscape"
+                38: "number"
+                39: "string"
+                40: "strEscape"
+                41: "number"
+                42: "string"
+                43: "strEscape"
+                44: "number"
+                45: "string"
+                46: "strEscape"
+                47: "number"
+            }
+            {
+                match: include("bg") + /(effect)/ + include("_") + /(/ + include("val") + /)/ + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + /(?:/ + include("_") + include("val") + /)?/ + include("ed")
+                recordAllGroups: true
+                1: "world"
+                2: "world"
+                3: "string"
+                4: "strEscape"
+                5: "number"
+                6: "string"
+                7: "strEscape"
+                8: "number"
+                9: "string"
+                10: "strEscape"
+                11: "number"
+                12: "string"
+                13: "strEscape"
+                14: "number"
+                15: "string"
+                16: "strEscape"
+                17: "number"
+                18: "string"
+                19: "strEscape"
+                20: "number"
+            }
+            {
+                match: include("bg") + /(explosion)/ + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("ed")
+                recordAllGroups: true
+                1: "world"
+                2: "string"
+                3: "strEscape"
+                4: "number"
+                5: "string"
+                6: "strEscape"
+                7: "number"
+                8: "string"
+                9: "strEscape"
+                10: "number"
+                11: "string"
+                12: "strEscape"
+                13: "number"
+                14: "string"
+                15: "strEscape"
+                16: "number"
+                17: "string"
+                18: "strEscape"
+                19: "number"
+                20: "string"
+                21: "strEscape"
+                22: "number"
+                23: "string"
+                24: "strEscape"
+                25: "number"
+            }
+            {
+                match: include("bg") + /(setrate)/ + include("_") + include("val") + include("ed")
+                recordAllGroups: true
+                1: "world"
+                2: "string"
+                3: "strEscape"
+                4: "number"
+            }
+            {
+                match: include("bg") + /(fetch)/ + include("_") + /(/ + include("fetch-type") + /)/ + include("_") + include("var") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("ed")
+                recordAllGroups: true
+                1: "world"
+                2: "world"
+                3: "error"
+                4: "strEscape"
+                5: "resultVar"
+                6: "strEscape"
+                7: "string"
+                8: "strEscape"
+                9: "number"
+                10: "string"
+                11: "strEscape"
+                12: "number"
+                13: "string"
+                14: "strEscape"
+                15: "number"
+            }
+            {
+                match: include("bg") + /(sync)/ + include("_") + include("val") + include("ed")
+                recordAllGroups: true
+                1: "world"
+                2: "string"
+                3: "strEscape"
+                4: "number"
+            }
+            {
+                match: include("bg") + /(getflag)/ + include("_") + include("var") + include("_") + include("val") + include("ed")
+                recordAllGroups: true
+                1: "world"
+                2: "resultVar"
+                3: "strEscape"
+                4: "string"
+                5: "strEscape"
+                6: "number"
+            }
+            {
+                match: include("bg") + /(setflag)/ + include("_") + include("val") + include("_") + include("val") + include("ed")
+                recordAllGroups: true
+                1: "world"
+                2: "string"
+                3: "strEscape"
+                4: "number"
+                5: "string"
+                6: "strEscape"
+                7: "number"
+            }
+            {
+                match: include("bg") + /(setprop)/ + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("ed")
+                recordAllGroups: true
+                1: "world"
+                2: "string"
+                3: "strEscape"
+                4: "number"
+                5: "string"
+                6: "strEscape"
+                7: "number"
+                8: "string"
+                9: "strEscape"
+                10: "number"
             }
         ]
         "logic-lines": [

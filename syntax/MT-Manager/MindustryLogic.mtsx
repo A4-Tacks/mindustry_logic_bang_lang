@@ -66,6 +66,10 @@
                 /(?:currentWaveTime|wave(?:Timer|s|S(?:pacing|ending))?|a(?:ttackMode|mbientLight)|enemyCoreBuildRadius|dropZoneRadius|unit(?:C(?:ap|ost)|Health|BuildSpeed|Damage)|mapArea|lighting|solarMultiplier|b(?:uildSpeed|lock(?:Health|Damage))|rtsMin(?:Weight|Squad))/
                 | @err
                 )
+        fetch-type = (?:
+                /(?:unit(?:Count)?|player(?:Count)?|core(?:Count)?|build(?:Count)?)/
+                | @err
+                )
 
 
         logic-lines-label := {
@@ -208,6 +212,40 @@
                     | ($world /mission|notify/) @_ @fill
                     | @err @_ @val
                     ) @ed
+                $recordAllGroups: true
+                $1: "world"
+            : @bg /(cutscene)/ @_ (?:
+                    ($world /pan/) @_ @val @_ @val @_ @val @_ @val
+                    | ($world /zoom/) @_ @val @_ @fill @_ @fill @_ @fill
+                    | ($world /stop/) @_ @fill @_ @fill @_ @fill @_ @fill
+                    | @err @_ @val @_ @val @_ @val @_ @val
+                    ) @ed
+                $recordAllGroups: true
+                $1: "world"
+            : @bg /(effect)/ @_ (@val) @_ @val @_ @val @_ @val @_ @val (?:@_ @val)? @ed
+                $recordAllGroups: true
+                $1: "world"
+                $2: "world"
+            : @bg /(explosion)/ @_ @val @_ @val @_ @val @_ @val @_ @val @_ @val @_ @val @_ @val @ed
+                $recordAllGroups: true
+                $1: "world"
+            : @bg /(setrate)/ @_ @val @ed
+                $recordAllGroups: true
+                $1: "world"
+            : @bg /(fetch)/ @_ (@fetch-type) @_ @var @_ @val @_ @val @_ @val @ed
+                $recordAllGroups: true
+                $1: "world"
+                $2: "world"
+            : @bg /(sync)/ @_ @val @ed
+                $recordAllGroups: true
+                $1: "world"
+            : @bg /(getflag)/ @_ @var @_ @val @ed
+                $recordAllGroups: true
+                $1: "world"
+            : @bg /(setflag)/ @_ @val @_ @val @ed
+                $recordAllGroups: true
+                $1: "world"
+            : @bg /(setprop)/ @_ @val @_ @val @_ @val @ed
                 $recordAllGroups: true
                 $1: "world"
         }
