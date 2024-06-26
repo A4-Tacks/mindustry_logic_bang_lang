@@ -121,14 +121,14 @@
                 $recordAllGroups: true
                 $1: "operation"
             : @bg /(op)/ @_ (?:
-                    (@op-operator1) @_ @var @_ @val @_ @fill
-                    | (@op-operator2) @_ @var @_ @val @_ @val
+                    ($operation @op-operator1) @_ (/?<a1>/ @var)
+                        @_ (?:($resultVar /\k<a1>/) | @val) @_ @fill
+                    | ($operation @op-operator2) @_ (/?<a2>/ @var)
+                        (?:@_ (?:($resultVar /\k<a2>/) | @val)){2}
                     | @err (?:@_ @val){3}
                     ) @ed
                 $recordAllGroups: true
                 $1: "operation"
-                $2: "operation"
-                $3: "operation"
             : @bg /(lookup)/ @_ /(?:(item|block|unit|liquid)|/ @err /)/ @_ @var @_ @val @ed
                 $recordAllGroups: true
                 $1: "operation"
