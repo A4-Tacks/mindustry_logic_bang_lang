@@ -2496,6 +2496,31 @@ fn op_expr_test() {
         take Foo = (m: $ = a+b;);
         "#).unwrap(),
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a, b += 2;
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            take ___0 = 2;
+            {take ___1 = a; ___1 = ___1 + ___0;}
+            {take ___2 = b; ___2 = ___2 + ___0;}
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a, b += 2, 3;
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            a += 2;
+            b += 3;
+        }
+        "#).unwrap(),
+    );
 }
 
 #[test]

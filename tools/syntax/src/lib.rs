@@ -4635,8 +4635,11 @@ impl OpExprInfo {
 }
 impl_enum_froms!(impl From for OpExprInfo {
     Value => Value;
+    Value => Var;
     Op => Op;
 });
+
+pub type OpExprAOperFun = fn(&mut Meta, Value, OpExprInfo) -> LogicLine;
 
 /// 构建一个op运算
 pub fn op_expr_build_op<F>(f: F) -> OpExprInfo
@@ -4648,6 +4651,7 @@ pub fn op_expr_build_results(
     meta: &mut Meta,
     mut results: Vec<Value>,
     mut values: Vec<OpExprInfo>,
+    f: OpExprAOperFun,
 ) -> LogicLine {
     match (results.len(), values.len()) {
         e @ ((0, _) | (_, 0)) => unreachable!("len by zero, {e:?}"),
@@ -4656,9 +4660,9 @@ pub fn op_expr_build_results(
                 results.pop().unwrap(),
                 values.pop().unwrap(),
             );
-            value.into_logic_line(meta, result)
+            f(meta, result, value)
         },
-        (len, 1) => {
+        (len, 1) if f == op_expr_tools::top_assign_oper => {
             let mut lines = Vec::with_capacity(len + 1);
             let value = values.pop().unwrap();
             let mut results = results.into_iter();
@@ -4678,6 +4682,18 @@ pub fn op_expr_build_results(
             assert_eq!(lines.len(), len + 1);
             Expand(lines).into()
         },
+        (len, 1) => {
+            let mut lines = Vec::with_capacity(len + 1);
+            let value = values.pop().unwrap()
+                .into_value(meta);
+            let tmp = meta.get_tmp_var();
+            lines.push(Take(tmp.clone().into(), value).into());
+            for result in results {
+                let line = f(meta, result, tmp.clone().into());
+                lines.push(line);
+            }
+            Expand(lines).into()
+        },
         (res_len, val_len) => {
             assert_eq!(res_len, val_len);
 
@@ -4686,10 +4702,22 @@ pub fn op_expr_build_results(
                 = results.into_iter().zip(values);
 
             for (result, value) in ziped {
-                let line = value.into_logic_line(meta, result);
+                let line = f(meta, result, value);
                 lines.push(line)
             }
             Expand(lines).into()
         },
+    }
+}
+
+pub mod op_expr_tools {
+    use super::{Meta, Value, OpExprInfo, LogicLine};
+
+    pub fn top_assign_oper(
+        meta: &mut Meta,
+        res: Value,
+        value: OpExprInfo,
+    ) -> LogicLine {
+        value.into_logic_line(meta, res)
     }
 }

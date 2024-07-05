@@ -1,5 +1,6 @@
 // this is a lalrpop file
 
+#![allow(unused_braces)]
 #![allow(clippy::just_underscores_and_digits)]
 #![allow(clippy::needless_lifetimes)]
 #![allow(clippy::deprecated_cfg_attr)]
@@ -22,7 +23,9 @@ use ::syntax::{
     ClosuredValueMethod,
     op_expr_build_op,
     op_expr_build_results,
+    op_expr_tools::top_assign_oper,
     OpExprInfo,
+    OpExprAOperFun,
     JumpCmp,
     CmpTree,
     Goto,
@@ -547,58 +550,64 @@ Args2: Vec<Value> = {
 
 OpExpr: LogicLine = {
     <OpExprMultipleResult> LEnd => {
-        let (mut results, value) = <>;
+        let (mut results, value, oper) = <>;
         results.reverse();
-        op_expr_build_results(meta, results, vec![value])
+        op_expr_build_results(meta, results, vec![value], oper)
     },
     <OpExprDoMultiple> LEnd => {
-        let (mut results, values) = <>;
+        let (mut results, values, oper) = <>;
         results.reverse();
-        op_expr_build_results(meta, results, values)
+        op_expr_build_results(meta, results, values, oper)
     },
-    <IOpExpr> LEnd => <>.into(),
 }
 #[inline]
 OpExprBodySetR: Expand = OpExprBody => {
-    let line = op_expr_build_results(meta, vec![ResultHandle], vec![<>]);
+    let line = op_expr_build_results(
+        meta,
+        vec![ResultHandle], vec![<>],
+        |meta, res, v| v.into_logic_line(meta, res),
+    );
     vec![line].into()
 };
 OpExprDExp: DExp = METuple<MakeDExpBody<OpExprBodySetR>>;
 
-IOpExpr: Expand = {
-    <v:Value> "+="  <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Add (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
-    <v:Value> "-="  <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Sub (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
-    <v:Value> "*="  <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Mul (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
-    <v:Value> "/="  <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Div (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
-    <v:Value> "//=" <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Idiv(tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
-    <v:Value> "%="  <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Mod (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
-    <v:Value> "**=" <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Pow (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
-    <v:Value> "&&=" <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Land(tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
-    <v:Value> "<<=" <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Shl (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
-    <v:Value> ">>=" <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Shr (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
-    <v:Value> "|="  <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Or  (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
-    <v:Value> "&="  <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::And (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
-    <v:Value> "^="  <r:OpExprBody> => { let tmp = meta.get_tmp_var(); vec![Take(tmp.clone().into(), v).into(), Op::Xor (tmp.clone().into(), tmp.into(), r.into_value(meta)).into()].into() },
+OpExprAssignOper: OpExprAOperFun = {
+    "+="  => { |meta, res, v| { let tres = meta.get_tmp_var(); Expand(vec![Take(tres.clone().into(), res).into(), Op::Add (tres.clone().into(), tres.into(), v.into_value(meta)).into()]).into() } },
+    "-="  => { |meta, res, v| { let tres = meta.get_tmp_var(); Expand(vec![Take(tres.clone().into(), res).into(), Op::Sub (tres.clone().into(), tres.into(), v.into_value(meta)).into()]).into() } },
+    "*="  => { |meta, res, v| { let tres = meta.get_tmp_var(); Expand(vec![Take(tres.clone().into(), res).into(), Op::Mul (tres.clone().into(), tres.into(), v.into_value(meta)).into()]).into() } },
+    "/="  => { |meta, res, v| { let tres = meta.get_tmp_var(); Expand(vec![Take(tres.clone().into(), res).into(), Op::Div (tres.clone().into(), tres.into(), v.into_value(meta)).into()]).into() } },
+    "//=" => { |meta, res, v| { let tres = meta.get_tmp_var(); Expand(vec![Take(tres.clone().into(), res).into(), Op::Idiv(tres.clone().into(), tres.into(), v.into_value(meta)).into()]).into() } },
+    "%="  => { |meta, res, v| { let tres = meta.get_tmp_var(); Expand(vec![Take(tres.clone().into(), res).into(), Op::Mod (tres.clone().into(), tres.into(), v.into_value(meta)).into()]).into() } },
+    "**=" => { |meta, res, v| { let tres = meta.get_tmp_var(); Expand(vec![Take(tres.clone().into(), res).into(), Op::Pow (tres.clone().into(), tres.into(), v.into_value(meta)).into()]).into() } },
+    "&&=" => { |meta, res, v| { let tres = meta.get_tmp_var(); Expand(vec![Take(tres.clone().into(), res).into(), Op::Land(tres.clone().into(), tres.into(), v.into_value(meta)).into()]).into() } },
+    "<<=" => { |meta, res, v| { let tres = meta.get_tmp_var(); Expand(vec![Take(tres.clone().into(), res).into(), Op::Shl (tres.clone().into(), tres.into(), v.into_value(meta)).into()]).into() } },
+    ">>=" => { |meta, res, v| { let tres = meta.get_tmp_var(); Expand(vec![Take(tres.clone().into(), res).into(), Op::Shr (tres.clone().into(), tres.into(), v.into_value(meta)).into()]).into() } },
+    "|="  => { |meta, res, v| { let tres = meta.get_tmp_var(); Expand(vec![Take(tres.clone().into(), res).into(), Op::Or  (tres.clone().into(), tres.into(), v.into_value(meta)).into()]).into() } },
+    "&="  => { |meta, res, v| { let tres = meta.get_tmp_var(); Expand(vec![Take(tres.clone().into(), res).into(), Op::And (tres.clone().into(), tres.into(), v.into_value(meta)).into()]).into() } },
+    "^="  => { |meta, res, v| { let tres = meta.get_tmp_var(); Expand(vec![Take(tres.clone().into(), res).into(), Op::Xor (tres.clone().into(), tres.into(), v.into_value(meta)).into()]).into() } },
+    "="   => { top_assign_oper },
 }
 
 // 多个接收者的OpExpr, 例如`a, b, c = 1;`
-OpExprMultipleResult: (Vec<Value>, OpExprInfo) = {
-    <result:Value> "=" <value:OpExprBody> => {
-        (vec![result], value)
+OpExprMultipleResult: (Vec<Value>, OpExprInfo, OpExprAOperFun) = {
+    <result:Value> <oper:OpExprAssignOper> <value:OpExprBody> => {
+        (vec![result], value, oper)
     },
-    <result:Value> "," <body:OpExprMultipleResult> => {
-        let (mut results, value) = body;
-        results.push(result);
-        (results, value)
+    <result:Value> "," <mut body:OpExprMultipleResult> => {
+        body.0.push(result);
+        body
     },
 }
 
 // 例如`a, b = 1, 2`返回`([b, a], [1, 2])`
-OpExprDoMultiple: (Vec<Value>, Vec<OpExprInfo>) = {
-    <res1:Value> "," <res2:Value> "=" <val1:OpExprBody> "," <val2:OpExprBody>
-        => (vec![res2, res1], vec![val1, val2]),
+OpExprDoMultiple: (Vec<Value>, Vec<OpExprInfo>, OpExprAOperFun) = {
+    <res1:Value> "," <res2:Value>
+    <oper:OpExprAssignOper>
+    <val1:OpExprBody> "," <val2:OpExprBody>
+        => (vec![res2, res1], vec![val1, val2], oper),
+
     <result:Value> "," <mut mid:OpExprDoMultiple> "," <value:OpExprBody> => {
-        let (results, values) = &mut mid;
+        let (results, values, _) = &mut mid;
         results.push(result);
         values.push(value);
         mid
@@ -1296,3 +1305,4 @@ ControlWithOptionalEnd: LogicLine = {
         Expand(res).into()
     },
 }
+// vim:nowrap
