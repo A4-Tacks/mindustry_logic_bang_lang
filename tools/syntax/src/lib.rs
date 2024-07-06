@@ -274,6 +274,7 @@ pub const COUNTER: &str = "@counter";
 pub const FALSE_VAR: &str = "false";
 pub const ZERO_VAR: &str = "0";
 pub const UNUSED_VAR: &str = "0";
+pub const UNNAMED_VAR: &str = "__";
 
 pub trait TakeHandle: Sized {
     /// 编译依赖并返回句柄
@@ -1036,15 +1037,21 @@ pub struct Meta {
     defined_labels: Vec<HashSet<Var>>,
     break_labels: Vec<Option<Var>>,
     continue_labels: Vec<Option<Var>>,
+    /// 用于op-expr的引用栈, 可以使用占位表达式引用最顶层的句柄
+    op_expr_refs: Vec<Var>,
+    unnamed_var: Var,
 }
 impl Default for Meta {
     fn default() -> Self {
+        let unnamed_var = Var::from(UNNAMED_VAR);
         Self {
             tmp_var_count: 0,
             tag_number: 0,
             defined_labels: vec![HashSet::new()],
             break_labels: Vec::new(),
             continue_labels: Vec::new(),
+            op_expr_refs: vec![unnamed_var.clone()],
+            unnamed_var,
         }
     }
 }
@@ -1213,6 +1220,17 @@ impl Meta {
                 var,
                 value,
         ]))
+    }
+
+    pub fn unnamed_var(&self) -> Var {
+        self.unnamed_var.clone()
+    }
+
+    pub fn op_expr_ref(&self) -> Var {
+        self.op_expr_refs
+            .last()
+            .cloned()
+            .unwrap()
     }
 }
 
@@ -4546,6 +4564,7 @@ pub fn line_first_add(lines: &mut Vec<String>, insert: &str) {
     }
 }
 
+#[derive(Debug)]
 pub enum OpExprInfo {
     Value(Value),
     Op(Op),
@@ -4555,6 +4574,13 @@ pub enum OpExprInfo {
         true_line: LogicLine,
         false_line: LogicLine,
     },
+    SufSelfOp {
+        op: Op,
+        value: Value,
+        ext: Option<Box<OpExprInfo>>,
+        handle: Var,
+    },
+    Ref(Var),
 }
 impl OpExprInfo {
     pub fn new_if_else(
@@ -4570,6 +4596,26 @@ impl OpExprInfo {
             true_line: true_line.into_logic_line(meta, result.clone().into()),
             false_line: false_line.into_logic_line(meta, result.into()),
         }
+    }
+
+    pub fn new_suf_selfop(
+        meta: &mut Meta,
+        op: Op,
+        value: Value,
+        ext: Option<Box<OpExprInfo>>,
+    ) -> Self {
+        Self::SufSelfOp {
+            op,
+            value,
+            ext,
+            handle: meta.op_expr_refs.pop().unwrap(),
+        }
+    }
+
+    pub fn add_suf_selfop_handle_to_meta(meta: &mut Meta) -> Var {
+        let tmp = meta.get_tmp_var();
+        meta.op_expr_refs.push(tmp.clone());
+        tmp
     }
 
     pub fn into_value(self, meta: &mut Meta) -> Value {
@@ -4599,6 +4645,28 @@ impl OpExprInfo {
                     LogicLine::Label(skip_lab),
                 ].into()).into()
             },
+            Self::SufSelfOp {
+                mut op,
+                value,
+                ext,
+                handle,
+            } => {
+                let op_info = op.get_info_mut();
+                *op_info.result = handle.clone().into();
+                *op_info.arg1 = handle.clone().into();
+
+                let set_line = ext
+                    .map(|ext| *ext)
+                    .unwrap_or_else(|| Self::Value(handle.clone().into()))
+                    .into_logic_line(meta, Value::ResultHandle);
+
+                DExp::new_nores(vec![
+                    Take(handle.into(), value).into(),
+                    set_line,
+                    op.into(),
+                ].into()).into()
+            },
+            Self::Ref(var) => var.into(),
         }
     }
 
@@ -4629,6 +4697,31 @@ impl OpExprInfo {
                     true_line,
                     LogicLine::Label(skip_lab),
                 ]).into()
+            },
+            Self::SufSelfOp {
+                mut op,
+                value,
+                ext,
+                handle,
+            } => {
+                let op_info = op.get_info_mut();
+                *op_info.result = handle.clone().into();
+                *op_info.arg1 = handle.clone().into();
+
+                let set_line = ext
+                    .map(|ext| *ext)
+                    .unwrap_or_else(|| Self::Value(handle.clone().into()))
+                    .into_logic_line(meta, result);
+
+                Expand(vec![
+                    Take(handle.into(), value).into(),
+                    set_line,
+                    op.into(),
+                ]).into()
+            },
+            Self::Ref(var) => {
+                Self::Value(var.into())
+                    .into_logic_line(meta, result)
             },
         }
     }

@@ -100,6 +100,8 @@ MakeDExpBody<T>: DExp = {
     "`" <var:Var> "`" ":" <value:T>
         => DExp::new_notake(var, value.into()),
 }
+#[inline]
+Boxed<T>: Box<T> = T => Box::new(<>);
 
 CtrlBreakStart: () = () => meta.add_control_break_level(None);
 CtrlContinueStart: () = () => meta.add_control_continue_level(None);
@@ -160,7 +162,7 @@ NonConstRangeValue: Value = {
     "$" => ResultHandle,
     <value:NonConstRangeValue> <args:MList<Args?>> => {
         // QuickDExpTake
-        DExp::new("__".into(), vec![
+        DExp::new(meta.unnamed_var(), vec![
             LogicLine::SetArgs(args.unwrap_or_default()),
             LogicLine::SetResultHandle(value),
         ].into()).into()
@@ -183,7 +185,7 @@ NonConstRangeValue: Value = {
     },
     <value:NonConstRangeValue> "->" <args:MList<Args?>> => {
         // Refed QuickDExpTake
-        let value = DExp::new("__".into(), vec![
+        let value = DExp::new(meta.unnamed_var(), vec![
             LogicLine::SetArgs(args.unwrap_or_default()),
             LogicLine::SetResultHandle(value),
         ].into()).into();
@@ -202,7 +204,7 @@ pub Value: Value = {
     "const" ConstStart <value:Or<ValueDExp, ("!" <Value>)>> <labels:ConstStop> => {
         let tmp_name = meta.get_tmp_var();
         let dexp_const = Const(tmp_name.clone().into(), value.into(), labels);
-        DExp::new("__".into(), vec![
+        DExp::new(meta.unnamed_var(), vec![
             dexp_const.into(),
             LogicLine::SetResultHandle(tmp_name.into()),
         ].into()).into()
@@ -416,7 +418,7 @@ ConstMatchPatAtom: ConstMatchPatAtom = {
         ConstMatchPatAtom::new_guard(
             dotake,
             name.unwrap_or_default(),
-            DExp::new("__".into(), vec![
+            DExp::new(meta.unnamed_var(), vec![
                 LogicLine::from(Match::new(
                     Args::GLOB_ONLY,
                     vec![
@@ -559,6 +561,7 @@ OpExpr: LogicLine = {
         results.reverse();
         op_expr_build_results(meta, results, values, oper)
     },
+    <OpExprTopSelfOps> LEnd,
 }
 #[inline]
 OpExprBodySetR: Expand = OpExprBody => {
@@ -813,8 +816,57 @@ OpExprCallOp: OpExprInfo = {
 
 OpExprAtom: OpExprInfo = {
     Value => OpExprInfo::Value(<>),
+    OpExprValueSelfOps,
     MTuple<OpExprBody>,
     OpExprCallOp,
+    "_" => OpExprInfo::Ref(meta.op_expr_ref()),
+}
+OpExprTopSelfOps: LogicLine = {
+    <Value> "++" => {
+        let tmp = meta.get_tmp_var();
+        Expand(vec![
+            Take(tmp.clone().into(), <>).into(),
+            Op::Add(tmp.clone().into(), tmp.into(), ReprVar("1".into())).into(),
+        ]).into()
+    },
+    <Value> "--" => {
+        let tmp = meta.get_tmp_var();
+        Expand(vec![
+            Take(tmp.clone().into(), <>).into(),
+            Op::Sub(tmp.clone().into(), tmp.into(), ReprVar("1".into())).into(),
+        ]).into()
+    },
+}
+OpExprSelfOpsSuf<O>: () = O => {
+    OpExprInfo::add_suf_selfop_handle_to_meta(meta);
+};
+OpExprValueSelfOps: OpExprInfo = {
+    "++" <Value> => {
+        OpExprInfo::Value(DExp::new(meta.unnamed_var(), vec![
+            LogicLine::SetResultHandle(<>),
+            Op::Add(ResultHandle, ResultHandle, ReprVar("1".into())).into(),
+        ].into()).into())
+    },
+    "--" <Value> => {
+        OpExprInfo::Value(DExp::new(meta.unnamed_var(), vec![
+            LogicLine::SetResultHandle(<>),
+            Op::Sub(ResultHandle, ResultHandle, ReprVar("1".into())).into(),
+        ].into()).into())
+    },
+    <Value> OpExprSelfOpsSuf<"++"> <MTuple<Boxed<OpExprBody>>?> => {
+        OpExprInfo::new_suf_selfop(
+            meta,
+            Op::Add(ResultHandle, ResultHandle, ReprVar("1".into())),
+            <>,
+        )
+    },
+    <Value> OpExprSelfOpsSuf<"--"> <MTuple<Boxed<OpExprBody>>?> => {
+        OpExprInfo::new_suf_selfop(
+            meta,
+            Op::Sub(ResultHandle, ResultHandle, ReprVar("1".into())),
+            <>,
+        )
+    },
 }
 
 // 开始一个const, 开启了必须负责清理
@@ -842,7 +894,7 @@ pub BuiltinCommand: LogicLine = {
 
         Take::new(
             args.unwrap_or_default(),
-            var.unwrap_or_else(|| "__".into()),
+            var.unwrap_or_else(|| meta.unnamed_var()),
             do_leak_res,
             value
         )
@@ -853,12 +905,12 @@ pub BuiltinCommand: LogicLine = {
     LEnd => {
         if takes.len() == 1 {
             let (res, value) = takes.pop().unwrap();
-            let res = res.unwrap_or_else(|| "__".into());
+            let res = res.unwrap_or_else(|| meta.unnamed_var().into());
             return Take(res, value).into();
         }
         let mut lines = Vec::with_capacity(takes.len());
         for (res, value) in takes.into_iter() {
-            let res = res.unwrap_or_else(|| "__".into());
+            let res = res.unwrap_or_else(|| meta.unnamed_var().into());
             let take = Take(res, value);
             lines.push(take.into())
         }

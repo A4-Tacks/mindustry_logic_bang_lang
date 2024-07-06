@@ -2472,15 +2472,6 @@ fn op_expr_test() {
 
     assert_eq!(
         parse!(parser, r#"
-        x = y--2;
-        "#).unwrap(),
-        parse!(parser, r#"
-        x = y - -2;
-        "#).unwrap(),
-    );
-
-    assert_eq!(
-        parse!(parser, r#"
         take Foo = (?a+b);
         "#).unwrap(),
         parse!(parser, r#"
@@ -2519,6 +2510,123 @@ fn op_expr_test() {
             a += 2;
             b += 3;
         }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = ++i;
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = (__:
+            setres i;
+            $ = $ + `1`;
+        );
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = --i;
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = (__:
+            setres i;
+            $ = $ - `1`;
+        );
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = i++;
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            take ___0 = i;
+            x = ___0;
+            ___0 = ___0 + `1`;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = 2 + ++i;
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = 2 + (__:
+            setres i;
+            $ = $ + `1`;
+        );
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = 2 + --i;
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = 2 + (__:
+            setres i;
+            $ = $ - `1`;
+        );
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = 2 + i++;
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = 2 + (
+            take ___0 = i;
+            $ = ___0;
+            ___0 = ___0 + `1`;
+        );
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = i++(2+_);
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            take ___0 = i;
+            x = 2 + ___0;
+            ___0 = ___0 + `1`;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = 8+i++(2+_);
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = 8 + (
+            take ___0 = i;
+            $ = 2 + ___0;
+            ___0 = ___0 + `1`;
+        );
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = 8+i++(j++(_) + _);
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = 8 + (
+            take ___0 = i;
+            $ = (
+                take ___1 = j;
+                $ = ___1;
+                ___1 = ___1 + `1`;
+            ) + ___0;
+            ___0 = ___0 + `1`;
+        );
         "#).unwrap(),
     );
 }
