@@ -4755,7 +4755,8 @@ pub fn op_expr_build_results(
             );
             f(meta, result, value)
         },
-        (len, 1) if f == op_expr_tools::top_assign_oper => {
+        (len, 1)
+        if f as *const () == op_expr_tools::top_assign_oper as *const () => {
             let mut lines = Vec::with_capacity(len + 1);
             let value = values.pop().unwrap();
             let mut results = results.into_iter();
