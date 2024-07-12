@@ -43,7 +43,10 @@ syn keyword mdtlblOpFunKeyword
             \ floor ceil sqrt rand sin cos tan
             \ asin acos atan lnot
 
+syn match mdtlblOpExprCtrl "\%(//\|\*\*\|&&\|<<\|>>\|[+\-*/%|&^]\)\=="
+syn match mdtlblOpExprCtrl /++\|--/
 syn match mdtlblCmpTreeOper /&&\|||\|!\|=>/
+syn match mdtlblCmpOper /[<>]=\=\|[=!]==\=/
 syn match mdtlblArgsExpand /@/
 
 " 注释 {{{1
@@ -92,12 +95,12 @@ syn match  mdtlblIdentLabelRest /\v:0%(x-=_@![0-9a-fA-F_]+|b-=_@![01_]+)>/		next
 syn region mdtlblIdentLabelRest start=/:"/ end=/"/					contains=@mdtlblStringContains contained
 
 " Fold {{{1
-setlocal foldmethod=syntax
-syn region mdtlblBlock	start=/{/	end=/}/		transparent fold
-syn region mdtlblDExp	start=/(\[\@!/	end=/)/		transparent fold
-syn region mdtlblArgs	start=/(\@<!\[/	end=/]/		transparent fold matchgroup=mdtlblArgsBracket
-syn region mdtlblClos	start=/(\[\@=/	end=/)/		transparent
-syn region mdtlblClos	start=/(\@<=\[/	end=/]/		transparent fold
+setlocal foldmethod=indent
+"syn region mdtlblBlock					start=/{/	end=/}/		transparent
+"syn region mdtlblDExp					start=/(\[\@!/	end=/)/		transparent
+syn region mdtlblArgs	matchgroup=mdtlblArgsBracket	start=/(\@<!\[/	end=/]/		transparent
+"syn region mdtlblClos					start=/(\[\@=/	end=/)/		transparent
+syn region mdtlblClos					start=/(\@<=\[/	end=/]/		transparent
 
 " Indent (缩进控制) {{{1
 function! <SID>lineFilter(line)
@@ -159,6 +162,8 @@ hi def link mdtlblKeyword		Keyword
 hi def link mdtlblStar			Keyword
 hi def link mdtlblOpFunKeyword		Operator
 hi def link mdtlblCmpTreeOper		Operator
+hi def link mdtlblCmpOper		NONE
+hi def link mdtlblOpExprCtrl		Operator
 hi def link mdtlblComment		Comment
 hi def link mdtlblLongComment		Comment
 hi def link mdtlblCommentMeta		Todo
