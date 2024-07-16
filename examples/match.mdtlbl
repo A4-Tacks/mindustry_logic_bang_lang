@@ -357,3 +357,26 @@ print "b"
 print "empty"
 *#
 # 在这里, `Foo`和`Foo[]`的作用已经不同了
+
+
+# 在0.16.18版本给重复块增加了一个语法糖, 如下
+inline@ A B *C {
+    print A", "B", "C"\n";
+}
+#* A >>>
+inline 3@{
+    const match @ {
+        A B *C {
+            {
+                `'print'` A;
+                `'print'` ", ";
+                `'print'` B;
+                `'print'` ", ";
+                `'print'` C;
+                `'print'` "\n";
+            }
+        }
+    }
+}
+*#
+# 由上述展开可以看到它的运作方式, 很容易理解

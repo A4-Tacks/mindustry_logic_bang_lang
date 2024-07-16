@@ -3172,6 +3172,9 @@ impl ConstMatchPat {
         }
     }
 }
+impl_enum_froms!(impl From for ConstMatchPat {
+    Normal => Vec<ConstMatchPatAtom>;
+});
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ConstMatchPatAtom {

@@ -459,13 +459,22 @@ Args: Args = {
         args.into()
     },
 }
-ArgsRepeatBlock: ArgsRepeat
-= <l:@L><chunk:LiteralUInt?><r:@R> "@" <block:MBlock<LogicLine*>> =>? {
-    if chunk == Some(0) {
-        return Err(Error::from((l, Errors::ArgsRepeatChunkByZero, r)).into())
-    }
-    Ok(ArgsRepeat::new(chunk.unwrap_or(1), block.into()))
-};
+ArgsRepeatBlock: ArgsRepeat = {
+    <l:@L><chunk:LiteralUInt?><r:@R>
+    "@" <block:NoPrefixInlineBlock> =>? {
+        if chunk == Some(0) {
+            return Err(Error::from((l, Errors::ArgsRepeatChunkByZero, r)).into())
+        }
+        Ok(ArgsRepeat::new(chunk.unwrap_or(1), block))
+    },
+    "@" <pats:ConstMatchPatAtom+> <block:NoPrefixInlineBlock> => {
+        ArgsRepeat::new(pats.len(), vec![
+            ConstMatch::new(Args::GLOB_ONLY, vec![
+                (pats.into(), block),
+            ]).into()
+        ].into())
+    },
+}
 
 Print: LogicLine = "print" <Args?> LEnd => {
     let Some(args) = <> else {

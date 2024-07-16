@@ -5052,6 +5052,23 @@ fn match_test() {
             "print nouse",
         ],
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+        inline@ A B *C {
+            print A B C;
+        }
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline 3@{
+            const match @ {
+                A B *C {
+                    print A B C;
+                }
+            }
+        }
+        "#).unwrap(),
+    );
 }
 
 #[test]
