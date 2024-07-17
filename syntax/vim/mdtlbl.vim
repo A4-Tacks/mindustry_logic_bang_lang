@@ -71,6 +71,7 @@ syn match mdtlblNumber /\v(<0%(x\-?[0-9a-fA-F][0-9a-fA-F_]*|b\-?[01][_01]*)|\-?<
 syn match mdtlblBoolean /\v<%(true|false)>/
 syn match mdtlblNull /\<null\>/
 syn region mdtlblSubParenNum matchgroup=mdtlblSubParenNumParen start=/\v-@<=\(\ze\d[0-9_]*%(\.\d[0-9_]*|e[+-]?\d[0-9_]*)?\)/ end=/)/ contains=mdtlblNumber concealends
+syn match mdtlblSubSpaceNum /-\zs \%(\S- \)\@<=\ze\d/ conceal
 
 syn match mdtlblResultHandle /\$/
 
