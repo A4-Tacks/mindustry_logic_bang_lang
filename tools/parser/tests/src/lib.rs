@@ -2629,6 +2629,24 @@ fn op_expr_test() {
         );
         "#).unwrap(),
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+        print (?++i);
+        "#).unwrap(),
+        parse!(parser, r#"
+        print ($ = (__: setres i; $ = $ + `1`;););
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        print (*++i);
+        "#).unwrap(),
+        parse!(parser, r#"
+        print (__: setres i; $ = $ + `1`;);
+        "#).unwrap(),
+    );
 }
 
 #[test]

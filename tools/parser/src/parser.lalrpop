@@ -200,6 +200,7 @@ NonConstRangeValue: Value = {
 pub Value: Value = {
     NonConstRangeValue,
     DExp => <>.into(),
+    OpExprToValue,
     // consted-dexp
     "const" ConstStart <value:Or<ValueDExp, ("!" <Value>)>> <labels:ConstStop> => {
         let tmp_name = meta.get_tmp_var();
@@ -581,7 +582,12 @@ OpExprBodySetR: Expand = OpExprBody => {
     );
     vec![line].into()
 };
+#[inline]
+OpExprBodyToValue: Value = OpExprBody => {
+    <>.into_value(meta)
+};
 OpExprDExp: DExp = METuple<MakeDExpBody<OpExprBodySetR>>;
+OpExprToValue: Value = MTuple<("*" <OpExprBodyToValue>)>;
 
 OpExprAssignOper: OpExprAOperFun = {
     "+="  => { |meta, res, v| { let tres = meta.get_tmp_var(); Expand(vec![Take(tres.clone().into(), res).into(), Op::Add (tres.clone().into(), tres.into(), v.into_value(meta)).into()]).into() } },
