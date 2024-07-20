@@ -1,7 +1,7 @@
 " Vim syntax file
 " Language:		mindustry_logic_bang_lang (mdtlbl)
 " Maintainer:		A4-Tacks <wdsjxhno1001@163.com>
-" Last Change:		2024-05-27
+" Last Change:		2024-07-20
 " URL:			https://github.com/A4-Tacks/mindustry_logic_bang_lang
 scriptencoding utf-8
 
@@ -128,7 +128,7 @@ function! <SID>getMdtlblIndent()
 
     let diff = 0
 
-    if preline =~# '\%(([%?]\=\|\[[*?]\=\|[{[:]\)$'
+    if preline =~# '\%(([%?*]\=\|\[[*?]\=\|[{[:]\)$'
         let diff += 1
     endif
 
