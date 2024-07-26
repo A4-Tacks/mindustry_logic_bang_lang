@@ -1,0 +1,128 @@
+#**
+* 一个简单的可动态调试pid参数、pid曲线的逻辑
+*#
+
+const MRead = (match @ {
+    @ Mem Idx {
+        inline@{
+            read @ Mem Idx;
+            take Idx = (?Idx+1);
+        }
+    }
+});
+
+const NumSetter = (match @ { Idx {
+    skip @links < 2 {
+        sensor bx display1 @x;
+        sensor by display1 @y;
+
+        const I = goto(
+            {
+                prev_i = cur_i;
+            } => (
+                prev_i != (cur_i: sensor $ arc1 @shooting;)
+            )
+        );
+        const S = (
+            inline@ [x] X {
+                X = (sensor $ arc1 @shootX;) - bx;
+            }
+            inline@ [y] Y {
+                Y = (sensor $ arc1 @shootY;) - by;
+            }
+        );
+
+        take Scale = 0.05; # 调节倍率, PID使用(0.05, 0.005, 0.1), dt使用4
+
+        if I && !prev_i
+        && ({ take S[x x y y]; } => (*len(x, y)) < 1.5)
+        {
+            read num cell1 Idx;
+            ang = angle(x, y);
+            do {
+                take S[x x y y];
+                prev_ang, ang = ang, angle(x, y);
+
+                diff = ((540 - prev_ang + ang) % 360) - 180;
+                num += diff / (*-360/Scale);
+
+                draw clear 0 0 0 0 0 0;
+                draw line 40 40 (*40+cos(ang)*80) (*40+sin(ang)*80) 0 0;
+                drawflush display1;
+
+                write num cell1 Idx;
+            } while !I;
+        }
+    }
+} });
+const ControlTarget = (
+    #**
+    * 设置起点终点
+    *#
+    const Display = `BigScreen1`;
+
+    do {
+        prev = true;
+        do { } while (prev = $; sensor $ arc1 @shooting;) == prev || prev;
+
+        bx = (sensor $ Display @x;) - 8;
+        by = (sensor $ Display @y;) - 8;
+
+        x = (sensor $ arc1 @shootX;) - bx;
+        y = (sensor $ arc1 @shootY;) - by;
+    } while x < 0 || y < 0 || x >= 16 || y >= 16;
+
+    dy = y*32;
+
+    if x < 8 {
+        write dy cell1 4;
+    } else {
+        write dy cell1 5;
+    }
+);
+const ShowAndPID = (
+    if !x {
+        # init
+        take MRead[kp ki kd dt sy ty cell1 0];
+        y, py = sy;
+        is, pe, tspeed, speed = 0;
+        g, drag = 0.98, 0.8;
+        dt = floor(dt);
+        max_speed_c = 0.13;
+    }
+
+    if !(*x % dt) {
+        e = ty-y;
+        p = e*kp;
+        i = is*ki*dt;
+        d = (e-pe)*kd/dt;
+        tspeed = p+i+d;
+
+        pe = e;
+        is += e;
+    }
+
+    speed += max(-max_speed_c, min(max_speed_c, tspeed-speed));
+    py = y;
+    y += (speed - g) * drag;
+
+    draw color 0 0 0 0 0 0;
+    draw rect x 0 1 511 0 0;
+
+    draw color 0xff 0xff 0xff 0 0 0;
+    draw rect x sy 1 1 0 0;
+
+    draw color 0x7f 0 0xff 0 0 0;
+    draw rect x ty 1 1 0 0;
+
+    draw color 0 0xff 0 0 0 0;
+    draw line (*x- 1) py x y 0 0;
+
+    drawflush BigScreen1;
+
+    x++; x %= 512;
+);
+
+#take NumSetter[2];
+#take ControlTarget;
+take ShowAndPID;
