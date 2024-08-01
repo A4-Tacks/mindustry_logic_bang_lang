@@ -76,10 +76,10 @@ syn match mdtlblSubSpaceNum /-\zs \%(\S- \)\@<=\ze\d/ conceal
 syn match mdtlblResultHandle /\$/
 
 " Label And ResultH {{{1
-syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<=-=_@![0-9_]+%(\._@![0-9_]+|e[+-]=-=_@![0-9_]+)=>:/
-syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<=0%(x-=_@![0-9a-fA-F_]+|b-=_@![01_]+)>:/
-syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<=%(\I\i*|\@\I\i*%(-\i*)*|'[^' \t]+'):/  contains=mdtlblStringColor
-syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<="[^"]*":/ contains=@mdtlblStringContains
+syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<=(`=)-=_@![0-9_]+%(\._@![0-9_]+|e[+-]=-=_@![0-9_]+)=>\1:/
+syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<=(`=)0%(x-=_@![0-9a-fA-F_]+|b-=_@![01_]+)>\1:/
+syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<=(`=)%(\I\i*|\@\I\i*%(-\i*)*|'[^' \t]+')\1:/  contains=mdtlblStringColor
+syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<=(`=)"[^"]*"\1:/ contains=@mdtlblStringContains
 
 syn match mdtlblQuickDExpTakeIdent /\v\@\I\i*%(-\i*)*%(%(-\>)=\[)@=/
 syn match mdtlblQuickDExpTakeIdent /\v\I\i*%(%(-\>)=\[)@=/

@@ -665,6 +665,7 @@ where I: IntoIterator,
     }
 }
 
+#[allow(dead_code)]
 trait BoolOpsExtend: Sized {
     fn and_then<F, U>(self, f: F) -> Option<U>
     where F: FnOnce() -> Option<U>;
@@ -969,6 +970,10 @@ impl DExp {
 
     pub fn lines_mut(&mut self) -> &mut Expand {
         &mut self.lines
+    }
+
+    pub fn take_result(&self) -> bool {
+        self.take_result
     }
 }
 impl TakeHandle for DExp {

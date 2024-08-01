@@ -176,7 +176,9 @@ impl DisplaySource for DExp {
         meta.push("(");
         let has_named_res = !self.result().is_empty();
         if has_named_res {
+            if !self.take_result() { meta.push("`"); }
             self.result().display_source(meta);
+            if !self.take_result() { meta.push("`"); }
             meta.push(":");
         }
         match self.lines().len() {
@@ -1159,5 +1161,14 @@ fn display_source_test() {
             .unwrap()
             .display_source_and_get(&mut meta),
         "const X = ([A:A B:B | :c :d]2);"
+    );
+
+    assert_eq!(
+        parse!(line_parser, r#"
+        (a:) (`b`:);
+        "#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "(a:) (`b`:);"
     );
 }
