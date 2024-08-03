@@ -637,6 +637,9 @@ impl DisplaySource for ConstMatchPatAtom {
             .map(|pats| !pats.is_empty())
             .unwrap_or_default()
             || self.pattern().is_right();
+        if self.set_res() {
+            meta.push("$")
+        }
         if self.do_take() {
             meta.push("*")
         }
@@ -1131,6 +1134,11 @@ fn display_source_test() {
             X @ Y {}
             @ Z {}
             @ {}
+            $_ {}
+            $M {}
+            $*M {}
+            $M:[2] {}
+            $[2] {}
         }
         "#)
             .unwrap()
@@ -1141,6 +1149,11 @@ fn display_source_test() {
      \x20   X @ Y {}\n\
      \x20   @ Z {}\n\
      \x20   @ {}\n\
+     \x20   $_ {}\n\
+     \x20   $M {}\n\
+     \x20   $*M {}\n\
+     \x20   $M:[2] {}\n\
+     \x20   $[2] {}\n\
         }\
         "
     );

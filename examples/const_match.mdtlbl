@@ -50,3 +50,24 @@ take For[0 10 (
 take For[0 10 2 (
     print "b: "_0;
 )];
+
+
+# 在0.16.21版本, 增加了快捷的类似setres的表示方法,
+# 使用上类似匹配成功后对匹配到的额外编译一次setres
+const Read = (const match @ {
+    $*Res Addr {
+        read Res cell1 Addr;
+    }
+});
+# 产生的结果类似如下
+const Read = (const match @ {
+    *Res Addr {
+        setres Res;
+        read Res cell1 Addr;
+    }
+});
+
+# 注意, 在捕获之后take的话, 除非真的需要,
+# 否则尽量避免编写如 `$Res`, 也就是未添加`*`的情况
+# 不然按以上的展开示例, 会在setres和之后使用时产生对原始值多次take,
+# 这通常不是预期的

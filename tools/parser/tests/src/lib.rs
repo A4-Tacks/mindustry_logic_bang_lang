@@ -5441,6 +5441,124 @@ fn const_match_test() {
             "print yes",
         ],
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        foo (const match (h: print taked;) {
+            $_ {
+                print body;
+            }
+        });
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print taked",
+            "print body",
+            "foo h",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        foo (const match (h: print taked;) {
+            $*M {
+                print body M;
+            }
+        });
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print taked",
+            "print body",
+            "print h",
+            "foo h",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        foo (const match (h: print taked;) {
+            $*M {
+                setres M;
+                print body M;
+            }
+        });
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print taked",
+            "print body",
+            "print h",
+            "foo h",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        foo (const match (h: print taked;) {
+            $*M:[h] {
+                print body M;
+            }
+        });
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "foo __0",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        foo (const match (h: print taked;) {
+            $*M:[*h] {
+                setres M;
+                print body M;
+            }
+        });
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print taked",
+            "print taked",
+            "print body",
+            "print h",
+            "foo h",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        foo (const match (h: print taked;) {
+            $M:[*h] {
+                setres M;
+                print body M;
+            }
+        });
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print taked",
+            "print taked",
+            "print taked",
+            "print body",
+            "print taked",
+            "print h",
+            "foo h",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        foo (const match (h: print taked;) {
+            $M {
+                setres M;
+                print body M;
+            }
+        });
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print taked",
+            "print taked",
+            "print body",
+            "print taked",
+            "print h",
+            "foo h",
+        ],
+    );
 }
 
 #[test]

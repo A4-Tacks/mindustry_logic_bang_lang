@@ -405,50 +405,56 @@ ConstMatchPat: ConstMatchPat = {
 }
 
 ConstMatchPatAtom: ConstMatchPatAtom = {
-    <dotake:Opt<"*">> <name:(<Var> ":")?> <pat:MList<Args1>> => {
-        ConstMatchPatAtom::new(dotake, name.unwrap_or_default(), pat)
+    <sr:Opt<"$">> <dotake:Opt<"*">> <name:(<Var> ":")?> <pat:MList<Args1>> => {
+        ConstMatchPatAtom::new(dotake, name.unwrap_or_default(), pat, sr)
     },
-    <dotake:Opt<"*">> <name:(<Var> ":")?> <pat:MList<("?" <OpExprBody>)>> => {
+    <sr:Opt<"$">> <dotake:Opt<"*">> <name:(<Var> ":")?> <pat:MList<("?" <OpExprBody>)>> => {
         ConstMatchPatAtom::new_guard(
             dotake,
             name.unwrap_or_default(),
             pat.into_value(meta),
+            sr,
         )
     },
-    <dotake:Opt<"*">> <name:(<Var> ":")?> <pat:MList<("*" <Args0>)>> => {
+    <sr:Opt<"$">> <dotake:Opt<"*">> <name:(<Var> ":")?> <pat:MList<("*" <Args0>)>> => {
+        let dexp = DExp::new(meta.unnamed_var(), vec![
+            LogicLine::from(Match::new(
+                Args::GLOB_ONLY,
+                vec![
+                    (
+                        vec![MatchPatAtom::new_unamed(pat)].into(),
+                        vec![
+                            LogicLine::SetResultHandle(
+                                Value::ReprVar("1".into())
+                            ),
+                        ].into(),
+                    ),
+                    (
+                        vec![MatchPatAtom::default()].into(),
+                        vec![
+                            LogicLine::SetResultHandle(
+                                Value::ReprVar("0".into())
+                            ),
+                        ].into(),
+                    ),
+                ]
+            )),
+        ].into());
         ConstMatchPatAtom::new_guard(
             dotake,
             name.unwrap_or_default(),
-            DExp::new(meta.unnamed_var(), vec![
-                LogicLine::from(Match::new(
-                    Args::GLOB_ONLY,
-                    vec![
-                        (
-                            vec![MatchPatAtom::new_unamed(pat)].into(),
-                            vec![
-                                LogicLine::SetResultHandle(
-                                    Value::ReprVar("1".into())
-                                ),
-                            ].into(),
-                        ),
-                        (
-                            vec![MatchPatAtom::default()].into(),
-                            vec![
-                                LogicLine::SetResultHandle(
-                                    Value::ReprVar("0".into())
-                                ),
-                            ].into(),
-                        ),
-                    ]
-                )),
-            ].into()).into()
+            dexp.into(),
+            sr,
         )
     },
-    <dotake:Opt<"*">> <name:Var> => {
-        ConstMatchPatAtom::new(dotake, name, vec![])
+    <sr:Opt<"$">> <dotake:Opt<"*">> <name:Var> => {
+        ConstMatchPatAtom::new(dotake, name, vec![], sr)
+    },
+    "$" "_" => {
+        ConstMatchPatAtom::new(false, Default::default(), vec![], true)
     },
     <dotake:Opt<"*">> "_" => {
-        ConstMatchPatAtom::new(dotake, Default::default(), vec![])
+        ConstMatchPatAtom::new(dotake, Default::default(), vec![], false)
     },
 }
 

@@ -3106,33 +3106,48 @@ impl ConstMatchPat {
             iter: impl IntoIterator<Item = ConstMatchPatAtom>,
             meta: &mut CompileMeta,
             handles: &'a [Var],
-        ) -> Option<Vec<(bool, Var, &'a Var)>> {
+        ) -> Option<Vec<(bool, bool, Var, &'a Var)>> {
             iter.into_iter()
                 .zip(handles)
                 .map(|(pat, handle)| {
                     pat.pat(meta, handle)
-                        .map(|(do_take, name)| (do_take, name, handle))
+                        .map(|(do_take, set_res, name)| (
+                            do_take,
+                            set_res,
+                            name,
+                            handle,
+                        ))
                 })
                 .collect()
         }
         fn make(
-            (do_take, name, handle): (bool, Var, &Var),
+            (do_take, set_res, name, handle): (
+                bool,
+                bool,
+                Var,
+                &Var
+            ),
             meta: &mut CompileMeta,
         ) {
-            if do_take {
-                Take(
-                    name.is_empty()
-                        .then(|| "__".into())
-                        .unwrap_or(name)
-                        .into(),
-                    handle.into(),
-                ).compile(meta);
-            } else if !name.is_empty() {
-                Const(
-                    name.into(),
-                    handle.clone().into(),
-                    vec![],
-                ).compile(meta);
+            let target = name
+                .is_empty()
+                .then(|| {
+                    if do_take {
+                        Take((&name).into(), handle.into()).compile(meta);
+                    }
+                    handle
+                })
+                .unwrap_or_else(|| {
+                    let key = (&name).into();
+                    if do_take {
+                        Take(key, handle.into()).compile(meta);
+                    } else {
+                        Const(key, handle.into(), vec![]).compile(meta);
+                    }
+                    &name
+                });
+            if set_res {
+                LogicLine::SetResultHandle(target.into()).compile(meta);
             }
         }
 
@@ -3186,39 +3201,52 @@ pub struct ConstMatchPatAtom {
     do_take: bool,
     name: Var,
     pattern: Either<Vec<Value>, Value>,
+    set_res: bool,
 }
 impl ConstMatchPatAtom {
-    pub fn new(do_take: bool, name: Var, pattern: Vec<Value>) -> Self {
+    pub fn new(
+        do_take: bool,
+        name: Var,
+        pattern: Vec<Value>,
+        set_res: bool,
+    ) -> Self {
         Self {
             do_take,
             name,
             pattern: Either::Left(pattern),
+            set_res,
         }
     }
 
-    pub fn new_guard(do_take: bool, name: Var, pattern: Value) -> Self {
+    pub fn new_guard(
+        do_take: bool,
+        name: Var,
+        pattern: Value,
+        set_res: bool,
+    ) -> Self {
         Self {
             do_take,
             name,
             pattern: Either::Right(pattern),
+            set_res,
         }
     }
 
-    pub fn new_unamed(do_take: bool, pattern: Vec<Value>) -> Self {
-        Self::new(do_take, "".into(), pattern)
-    }
-
-    pub fn new_unamed_guard(do_take: bool, pattern: Value) -> Self {
-        Self::new_guard(do_take, "".into(), pattern)
-    }
-
     /// 尝试和某个句柄匹配, 返回是否take和需要给到的量
+    ///
+    /// result: (do_take, set_res, name)
     pub fn pat(
         self,
         meta: &mut CompileMeta,
         handle: &Var,
-    ) -> Option<(bool, Var)> {
-        match self.pattern {
+    ) -> Option<(bool, bool, Var)> {
+        let Self {
+            do_take,
+            name,
+            pattern,
+            set_res,
+        } = self;
+        match pattern {
             Either::Left(pats) => {
                 pats.is_empty() || {
                     let var = meta.get_const_value(handle)
@@ -3240,7 +3268,7 @@ impl ConstMatchPatAtom {
                 });
                 res
             },
-        }.then_some((self.do_take, self.name))
+        }.then_some((do_take, set_res, name))
     }
 
     pub fn do_take(&self) -> bool {
@@ -3253,6 +3281,10 @@ impl ConstMatchPatAtom {
 
     pub fn pattern(&self) -> &Either<Vec<Value>, Value> {
         &self.pattern
+    }
+
+    pub fn set_res(&self) -> bool {
+        self.set_res
     }
 }
 
