@@ -27,11 +27,12 @@ syn case match
 " 一些关键字 {{{1
 syn keyword mdtlblKeyword
             \ while gwhile do skip if elif else switch gswitch break continue
-            \ const take setres select match
+            \ const setres select match
             \ inline
             \ op noop print
 syn keyword mdtlblKeyword goto nextgroup=mdtlblIdentLabelRest
 syn keyword mdtlblKeyword case nextgroup=mdtlblStar skipwhite
+syn keyword mdtlblKeyword take nextgroup=mdtlblStar skipwhite
 syn match mdtlblStar /\*/ contained
 
 syn keyword mdtlblOpFunKeyword

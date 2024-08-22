@@ -883,6 +883,20 @@ fn take_test() {
                "print 2",
                "print 2",
     ]);
+
+    assert_eq!(
+        parse!(parser, r#"
+        take+A+B+C+D;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take A = ();
+            take B = ();
+            take C = ();
+            take D = ();
+        }
+        "#).unwrap(),
+    );
 }
 
 #[test]
@@ -2645,6 +2659,17 @@ fn op_expr_test() {
         "#).unwrap(),
         parse!(parser, r#"
         print (__: setres i; $ = $ + `1`;);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        take*A, B = x+y, i++;
+        take*C = j--;
+        "#).unwrap(),
+        parse!(parser, r#"
+        take A = (*x+y) B = (*i++);
+        take C = (*j--);
         "#).unwrap(),
     );
 }

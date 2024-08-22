@@ -921,24 +921,52 @@ pub BuiltinCommand: LogicLine = {
         )
     },
 
-    "take"
-    <mut takes:(<(<ConstKey> "=")?> <Value>)+>
-    LEnd => {
-        if takes.len() == 1 {
-            let (res, value) = takes.pop().unwrap();
-            let res = res.unwrap_or_else(|| meta.unnamed_var().into());
-            return Take(res, value).into();
+    "take" <lines:TakeAtom+> LEnd => {
+        if lines.len() == 1 {
+            lines.into_iter().next().unwrap()
+        } else {
+            InlineBlock(lines).into()
         }
-        let mut lines = Vec::with_capacity(takes.len());
-        for (res, value) in takes.into_iter() {
-            let res = res.unwrap_or_else(|| meta.unnamed_var().into());
-            let take = Take(res, value);
-            lines.push(take.into())
+    },
+
+    "take" "*" <inner:TakeOpExprMultInner> LEnd => {
+        let (keys, vals) = inner;
+        assert_eq!(keys.len(), vals.len());
+
+        let lines = keys.into_iter()
+            .rev()
+            .zip(vals)
+            .map(|(key, val)| {
+                Take(key, val).into()
+            })
+            .collect::<Vec<LogicLine>>();
+
+        if lines.len() == 1 {
+            lines.into_iter().next().unwrap()
+        } else {
+            InlineBlock(lines).into()
         }
-        InlineBlock(lines).into()
     },
 
     "setres" <Value> LEnd => LogicLine::SetResultHandle(<>),
+}
+TakeOpExprMultInner: (Vec<ConstKey>, Vec<Value>) = {
+    <key:ConstKey> "=" <val:OpExprBodyToValue> => (vec![key], vec![val]),
+    <key:ConstKey> "," <mut inner:TakeOpExprMultInner> "," <val:OpExprBodyToValue> => {
+        inner.0.push(key);
+        inner.1.push(val);
+        inner
+    },
+}
+#[inline]
+TakeAtom: LogicLine = {
+    "+" <key:ConstKey> => {
+        Take(key, DExp::new_nores(vec![].into()).into()).into()
+    },
+    <key:(<ConstKey> "=")?> <val:Value> => {
+        let key = key.unwrap_or_else(|| meta.unnamed_var().into());
+        Take(key, val).into()
+    },
 }
 
 BlockExpand: Expand = MBlock<Expand> => <>;
