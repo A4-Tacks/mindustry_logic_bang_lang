@@ -4,8 +4,8 @@ use std::{
         stdin,
         Read
     },
+    mem,
     process::exit,
-    str::FromStr,
     collections::HashMap,
     ops::Deref,
     fmt::Display,
@@ -23,7 +23,7 @@ use syntax::{
     Errors,
     Expand,
     Meta,
-    line_first_add, CompileMetaExtends,
+    CompileMetaExtends,
 };
 use parser::{
     TopLevelParser,
@@ -32,7 +32,9 @@ use parser::{
         ParseError
     },
 };
-use tag_code::TagCodes;
+use tag_code::{
+    logic_parser::{parser as tparser, ParseLines}, TagCodes,
+};
 use logic_lint::Source;
 
 /// 带有错误前缀, 并且文本为红色的eprintln
@@ -52,29 +54,6 @@ macro_rules! concat_lines {
         concat!( $( $($s ,)* "\n" ),* )
     };
 }
-
-pub const HELP_MSG: &str = concat_lines! {
-    "<MODE...>";
-    "Author: A4-Tacks A4的钉子";
-    "Version: ", env!("CARGO_PKG_VERSION");
-    "https://github.com/A4-Tacks/mindustry_logic_bang_lang";
-    "MODE:";
-    "\t", "c: compile MdtBangLang to MdtLogicCode";
-    "\t", "a: compile MdtBangLang to AST Debug";
-    "\t", "A: compile MdtBangLang to MdtBangLang";
-    "\t", "t: compile MdtBangLang to MdtTagCode";
-    "\t", "T: compile MdtBangLang to MdtTagCode (Builded TagDown)";
-    "\t", "f: compile MdtLogicCode to MdtTagCode";
-    "\t", "F: compile MdtLogicCode to MdtTagCode (Builded TagDown)";
-    "\t", "r: compile MdtLogicCode to MdtBangLang";
-    "\t", "R: compile MdtLogicCode to MdtBangLang (Builded TagDown)";
-    "\t", "C: compile MdtTagCode to MdtLogicCode";
-    "\t", "l: lint MdtLogicCode";
-    ;
-    "input from stdin";
-    "output to stdout";
-    "error to stderr";
-};
 
 const MAX_INVALID_TOKEN_VIEW: usize = 5;
 
@@ -117,18 +96,22 @@ enum CompileMode {
     BangToASTDisplay,
     BangToMdtTagCode { tag_down: bool },
     MdtLogicToMdtTagCode { tag_down: bool },
-    MdtLogicToBang { tag_down: bool },
+    MdtLogicToBang,
     MdtTagCodeToMdtLogic,
     LintLogic,
+    IndentLogic,
+    BangToMdtLabel,
 }
 impl CompileMode {
     fn compile(&self, src: String) -> String {
         match *self {
             Self::BangToMdtLogic => {
                 let ast = build_ast(&src);
-                let mut meta = compile_ast(ast, src);
-                build_tag_down(&mut meta);
-                let logic_lines = meta.tag_codes_mut().compile().unwrap();
+                let mut meta = compile_ast(ast, src.clone());
+                let logic_codes = mem::take(meta.parse_lines_mut());
+                let mut tag_codes = logic_to_tagcode(logic_codes, &src);
+                build_tag_down(&mut tag_codes);
+                let logic_lines = tag_codes.compile().unwrap();
                 logic_lines.join("\n")
             },
             Self::BangToASTDebug => {
@@ -141,61 +124,33 @@ impl CompileMode {
             },
             Self::BangToMdtTagCode { tag_down } => {
                 let ast = build_ast(&src);
-                let mut meta = compile_ast(ast, src);
-                if tag_down { build_tag_down(&mut meta); }
-                meta.tag_codes().to_string()
+                let mut meta = compile_ast(ast, src.clone());
+                let mut tag_codes = logic_to_tagcode(mem::take(meta.parse_lines_mut()), &src);
+                if tag_down { build_tag_down(&mut tag_codes); }
+                tag_codes.to_string()
             },
             Self::MdtLogicToMdtTagCode { tag_down } => {
-                match TagCodes::from_str(&src) {
-                    Ok(mut lines) => {
-                        if tag_down {
-                            lines.build_tagdown().unwrap();
-                            lines.tag_up();
-                        }
-                        lines.to_string()
-                    },
-                    Err((line, e)) => {
-                        err!("line: {}, {:?}", line, e);
-                        exit(4);
-                    },
+                let mut lines = logic_src_to_tagcode(&src);
+                if tag_down {
+                    lines.build_tagdown().unwrap();
+                    lines.tag_up();
                 }
+                lines.to_string()
             },
-            Self::MdtLogicToBang { tag_down } => {
-                match TagCodes::from_str(&src) {
-                    Ok(mut lines) => {
-                        if tag_down {
-                            lines.build_tagdown().unwrap();
-                            lines.tag_up();
-                        }
-                        let ast = Expand::try_from(&lines)
-                            .unwrap_or_else(|(idx, e)| {
-                                let mut lines_str = lines.iter()
-                                    .map(ToString::to_string)
-                                    .collect::<Vec<_>>();
-                                line_first_add(&mut lines_str, "    ");
-                                err!(
-                                    "在构建第{}行时出错: {}\n\
-                                    已构建的行:\n\
-                                    {}",
-                                    lines_str.join("\n"),
-                                    idx + 1,
-                                    e
-                                );
-                                exit(4);
-                            });
-                        display_ast(&ast)
-                    },
-                    Err((line, e)) => {
-                        err!("line: {}, {:?}", line, e);
-                        exit(4);
-                    },
-                }
+            Self::MdtLogicToBang => {
+                let logic_lines = logic_parse(&src);
+                let ast = Expand::try_from(logic_lines)
+                    .unwrap_or_else(|e| {
+                        let (line, col) = e.location(&src);
+                        err!("MdtLogicToBang {line}:{col} {}", e.value);
+                        exit(4)
+                    });
+                display_ast(&ast)
             },
             Self::MdtTagCodeToMdtLogic => {
-                let tag_codes = TagCodes::from_tag_lines(&src);
-                let mut meta = CompileMeta::with_tag_codes(tag_codes);
-                build_tag_down(&mut meta);
-                let logic_lines = meta.tag_codes_mut().compile().unwrap();
+                let mut tag_codes = logic_src_to_tagcode(&src);
+                build_tag_down(&mut tag_codes);
+                let logic_lines = tag_codes.compile().unwrap();
                 logic_lines.join("\n")
             },
             Self::LintLogic => {
@@ -203,9 +158,75 @@ impl CompileMode {
                 linter.show_lints();
                 src
             },
+            Self::IndentLogic => {
+                let mut logic_lines = logic_parse(&src);
+                logic_lines.index_label_popup();
+                format!("{logic_lines:#}")
+            },
+            Self::BangToMdtLabel => {
+                let ast = build_ast(&src);
+                let mut meta = compile_ast(ast, src.clone());
+                meta.parse_lines_mut().index_label_popup();
+                format!("{}", meta.parse_lines())
+            },
         }
     }
 }
+
+fn logic_to_tagcode<'a>(lines: ParseLines<'a>, src: &str) -> TagCodes {
+    let tagcodes = match TagCodes::try_from(lines) {
+        Ok(tagcode) => tagcode,
+        Err(e) => {
+            let (line, column) = e.location(src);
+            let prefix = format!("ParseTagCode {line}:{column}");
+            err!("{prefix} {e}");
+            exit(10)
+        },
+    };
+    tagcodes
+}
+
+fn logic_parse(src: &str) -> ParseLines<'_> {
+    match tparser::lines(src) {
+        Ok(lines) => lines,
+        Err(e) => {
+            err!("ParseLogicCode {}:{} expected {}",
+                e.location.line,
+                e.location.column,
+                e.expected,
+            );
+            exit(9)
+        },
+    }
+}
+
+fn logic_src_to_tagcode(src: &str) -> TagCodes {
+    let lines = logic_parse(src);
+    logic_to_tagcode(lines, src)
+}
+pub const HELP_MSG: &str = concat_lines! {
+    "<MODE...>";
+    "Author: A4-Tacks A4的钉子";
+    "Version: ", env!("CARGO_PKG_VERSION");
+    "https://github.com/A4-Tacks/mindustry_logic_bang_lang";
+    "MODE:";
+    "\t", "c: compile MdtBangLang to MdtLogicCode";
+    "\t", "a: compile MdtBangLang to AST Debug";
+    "\t", "A: compile MdtBangLang to MdtBangLang";
+    "\t", "t: compile MdtBangLang to MdtTagCode";
+    "\t", "T: compile MdtBangLang to MdtTagCode (Builded TagDown)";
+    "\t", "f: compile MdtLogicCode to MdtTagCode";
+    "\t", "F: compile MdtLogicCode to MdtTagCode (Builded TagDown)";
+    "\t", "r: compile MdtLogicCode to MdtBangLang";
+    "\t", "C: compile MdtTagCode to MdtLogicCode";
+    "\t", "l: lint MdtLogicCode";
+    "\t", "i: indent MdtLogicCode";
+    "\t", "L: compile MdtBangLang to MdtLabelCode";
+    ;
+    "input from stdin";
+    "output to stdout";
+    "error to stderr";
+};
 impl TryFrom<char> for CompileMode {
     type Error = char;
 
@@ -218,10 +239,11 @@ impl TryFrom<char> for CompileMode {
             'T' => Self::BangToMdtTagCode { tag_down: true },
             'f' => Self::MdtLogicToMdtTagCode { tag_down: false },
             'F' => Self::MdtLogicToMdtTagCode { tag_down: true },
-            'r' => Self::MdtLogicToBang { tag_down: false },
-            'R' => Self::MdtLogicToBang { tag_down: true },
+            'r' => Self::MdtLogicToBang,
             'C' => Self::MdtTagCodeToMdtLogic,
             'l' => Self::LintLogic,
+            'i' => Self::IndentLogic,
+            'L' => Self::BangToMdtLabel,
             mode => return Err(mode),
         })
     }
@@ -234,29 +256,10 @@ fn display_ast(ast: &Expand) -> String {
     meta.buffer().into()
 }
 
-fn build_tag_down(meta: &mut CompileMeta) {
-    let result = meta.tag_codes_mut().build_tagdown();
-    result.unwrap_or_else(|(_line, tag)| {
-        let (tag_str, _id) = meta.tags_map()
-            .iter()
-            .filter(|&(_k, v)| *v == tag)
-            .take(1)
-            .last()
-            .unwrap();
-        let mut tags_map = meta.debug_tags_map();
-        let mut tag_codes = meta.tag_codes().iter().map(ToString::to_string).collect();
-        line_first_add(&mut tags_map, "    ");
-        line_first_add(&mut tag_codes, "    ");
-        err!(
-            "重复的标记: {:?}\n\
-            TagCode:\n\
-            {}\n\
-            TagsMap:\n\
-            {}",
-            tag_str,
-            tag_codes.join("\n"),
-            tags_map.join("\n"),
-        );
+fn build_tag_down(tag_codes: &mut TagCodes) {
+    let result = tag_codes.build_tagdown();
+    result.unwrap_or_else(|(line, tag)| {
+        err!("重复的标记: {tag:?} (line {line})");
         exit(4)
     })
 }

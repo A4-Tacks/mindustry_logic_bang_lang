@@ -1,9 +1,13 @@
+mod var;
+
 use lazy_regex::{regex, Lazy, Regex};
 use std::{
     collections::HashSet,
     num::IntErrorKind,
     thread_local,
 };
+
+pub use var::Var;
 
 /// 判断是否是一个标识符(包括数字)
 pub fn is_ident(s: &str) -> bool {

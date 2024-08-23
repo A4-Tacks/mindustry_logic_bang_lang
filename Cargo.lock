@@ -108,9 +108,9 @@ dependencies = [
 
 [[package]]
 name = "either"
-version = "1.10.0"
+version = "1.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11157ac094ffbdde99aa67b23417ebdd801842852b500e395a45a9c0aac03e4a"
+checksum = "60b1af1c220855b6ceac025d3f6ecdd2b7c4894bfe9cd9bda4fbb4bc7c0d4cf0"
 
 [[package]]
 name = "ena"
@@ -191,6 +191,12 @@ dependencies = [
  "rustix",
  "windows-sys",
 ]
+
+[[package]]
+name = "itermaps"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb8d95feba9d17d04af7e885aa60ee9721bcd3c770f287dbd4ff494b720e2c5a"
 
 [[package]]
 name = "itertools"
@@ -301,7 +307,7 @@ checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
 
 [[package]]
 name = "mindustry_logic_bang_lang"
-version = "0.16.22"
+version = "0.17.0"
 dependencies = [
  "display_source",
  "logic_lint",
@@ -358,12 +364,40 @@ dependencies = [
 
 [[package]]
 name = "parser-tests"
-version = "0.1.34"
+version = "0.1.35"
 dependencies = [
+ "either",
  "parser",
  "syntax",
  "tag_code",
 ]
+
+[[package]]
+name = "peg"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "295283b02df346d1ef66052a757869b2876ac29a6bb0ac3f5f7cd44aebe40e8f"
+dependencies = [
+ "peg-macros",
+ "peg-runtime",
+]
+
+[[package]]
+name = "peg-macros"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bdad6a1d9cf116a059582ce415d5f5566aabcd4008646779dab7fdc2a9a9d426"
+dependencies = [
+ "peg-runtime",
+ "proc-macro2",
+ "quote",
+]
+
+[[package]]
+name = "peg-runtime"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3aeb8f54c078314c2065ee649a7241f46b9d8e418e1a9581ba0546657d7aa3a"
 
 [[package]]
 name = "petgraph"
@@ -535,9 +569,10 @@ dependencies = [
 
 [[package]]
 name = "syntax"
-version = "0.2.38"
+version = "0.2.39"
 dependencies = [
  "either",
+ "itermaps",
  "tag_code",
  "utils",
  "var_utils",
@@ -545,7 +580,12 @@ dependencies = [
 
 [[package]]
 name = "tag_code"
-version = "0.1.7"
+version = "0.2.0"
+dependencies = [
+ "either",
+ "peg",
+ "var_utils",
+]
 
 [[package]]
 name = "term"
@@ -605,7 +645,7 @@ version = "0.1.2"
 
 [[package]]
 name = "var_utils"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "lazy-regex",
 ]

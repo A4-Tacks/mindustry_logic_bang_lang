@@ -1,14 +1,27 @@
 #![cfg(test)]
-use std::str::FromStr;
 use ::parser::*;
 use ::syntax::*;
 use ::tag_code::*;
+use ::either::Either::{self, Left, Right};
+use logic_parser::{ParseLine, IdxBox};
 
 /// 快捷的创建一个新的`Meta`并且`parse`
 macro_rules! parse {
     ( $parser:expr, $src:expr ) => {
         ($parser).parse(&mut Meta::new(), $src)
     };
+}
+
+trait PCompile {
+    type E;
+    fn compile(self) -> Result<Vec<String>, Self::E>;
+}
+impl<'a> PCompile for tag_code::logic_parser::ParseLines<'a> {
+    type E = Either<IdxBox<ParseTagCodesError>, (usize, Tag)>;
+    fn compile(self) -> Result<Vec<String>, Self::E> {
+        let mut tagcodes = TagCodes::try_from(self).map_err(Left)?;
+        tagcodes.compile().map_err(Right)
+    }
 }
 
 #[test]
@@ -509,7 +522,7 @@ fn switch_test() {
             ])
         ).into()
     );
-    let mut tag_codes = CompileMeta::new()
+    let tag_codes = CompileMeta::new()
         .compile(Expand(vec![ast]).into());
     let lines = tag_codes
         .compile()
@@ -629,7 +642,7 @@ fn comments_test() {
 fn op_generate_test() {
     assert_eq!(
         Op::Add("x".into(), "y".into(), "z".into()).generate_args(&mut Default::default()),
-        vec!["op", "add", "x", "y", "z"],
+        args!["op", "add", "x", "y", "z"],
     );
 }
 
@@ -648,7 +661,7 @@ fn compile_test() {
     "#;
     let ast = parse!(parser, src).unwrap();
     let meta = CompileMeta::new();
-    let mut tag_codes = meta.compile(ast);
+    let tag_codes = meta.compile(ast);
     let logic_lines = tag_codes.compile().unwrap();
     assert_eq!(logic_lines, [
         r#"op add x 1 2"#,
@@ -671,16 +684,16 @@ fn compile_take_test() {
     let parser = LogicLineParser::new();
     let ast = parse!(parser, "op x ({}op $ 1 + 2;) + 3;").unwrap();
     let mut meta = CompileMeta::new();
-    meta.push(TagLine::Line("noop".to_string().into()));
+    meta.push(ParseLine::Args(args!("noop")));
     assert_eq!(
         ast.compile_take(&mut meta),
         vec![
-            TagLine::Line("op add __0 1 2".to_string().into()),
-            TagLine::Line("op add x __0 3".to_string().into()),
+            ParseLine::Args(args!("op", "add", "__0", "1", "2")),
+            ParseLine::Args(args!("op", "add", "x", "__0", "3")),
         ]
     );
-    assert_eq!(meta.tag_codes().len(), 1);
-    assert_eq!(meta.tag_codes().lines(), &vec![TagLine::Line("noop".to_string().into())]);
+    assert_eq!(meta.parse_lines().len(), 1);
+    assert_eq!(meta.parse_lines().lines(), &vec![ParseLine::Args(args!("noop"))]);
 }
 
 #[test]
@@ -694,7 +707,7 @@ fn const_value_test() {
     "#;
     let ast = parse!(parser, src).unwrap();
     let meta = CompileMeta::new();
-    let mut tag_codes = meta.compile(ast);
+    let tag_codes = meta.compile(ast);
     let logic_lines = tag_codes.compile().unwrap();
     assert_eq!(logic_lines, vec![
                "set x C",
@@ -709,7 +722,7 @@ fn const_value_test() {
     "#;
     let ast = parse!(parser, src).unwrap();
     let meta = CompileMeta::new();
-    let mut tag_codes = meta.compile(ast);
+    let tag_codes = meta.compile(ast);
     let logic_lines = tag_codes.compile().unwrap();
     assert_eq!(logic_lines, vec![
                "set x C",
@@ -724,7 +737,7 @@ fn const_value_test() {
     "#;
     let ast = parse!(parser, src).unwrap();
     let meta = CompileMeta::new();
-    let mut tag_codes = meta.compile(ast);
+    let tag_codes = meta.compile(ast);
     let logic_lines = tag_codes.compile().unwrap();
     assert_eq!(logic_lines, vec![
                "set x C",
@@ -739,7 +752,7 @@ fn const_value_test() {
     "#;
     let ast = parse!(parser, src).unwrap();
     let meta = CompileMeta::new();
-    let mut tag_codes = meta.compile(ast);
+    let tag_codes = meta.compile(ast);
     let logic_lines = tag_codes.compile().unwrap();
     assert_eq!(logic_lines, vec![
                "read m cell1 0",
@@ -752,7 +765,7 @@ fn const_value_test() {
     "#;
     let ast = parse!(parser, src).unwrap();
     let meta = CompileMeta::new();
-    let mut tag_codes = meta.compile(ast);
+    let tag_codes = meta.compile(ast);
     let logic_lines = tag_codes.compile().unwrap();
     assert_eq!(logic_lines, vec![
                "read i cell2 0",
@@ -781,7 +794,7 @@ fn const_value_block_range_test() {
     "#;
     let ast = parse!(parser, src).unwrap();
     let meta = CompileMeta::new();
-    let mut tag_codes = meta.compile(ast);
+    let tag_codes = meta.compile(ast);
     let logic_lines = tag_codes.compile().unwrap();
     assert_eq!(logic_lines, vec![
                "set x C",
@@ -812,7 +825,7 @@ fn take_test() {
     "#;
     let ast = parse!(parser, src).unwrap();
     let meta = CompileMeta::new();
-    let mut tag_codes = meta.compile(ast);
+    let tag_codes = meta.compile(ast);
     let logic_lines = tag_codes.compile().unwrap();
     assert_eq!(logic_lines, vec![
                "print start",
@@ -831,7 +844,7 @@ fn take_test() {
     "#;
     let ast = parse!(parser, src).unwrap();
     let meta = CompileMeta::new();
-    let mut tag_codes = meta.compile(ast);
+    let tag_codes = meta.compile(ast);
     let logic_lines = tag_codes.compile().unwrap();
     assert_eq!(logic_lines, vec![
                "read m cell1 0",
@@ -846,7 +859,7 @@ fn take_test() {
     "#;
     let ast = parse!(parser, src).unwrap();
     let meta = CompileMeta::new();
-    let mut tag_codes = meta.compile(ast);
+    let tag_codes = meta.compile(ast);
     let logic_lines = tag_codes.compile().unwrap();
     assert_eq!(logic_lines, vec![
                "print X",
@@ -861,7 +874,7 @@ fn take_test() {
     "#;
     let ast = parse!(parser, src).unwrap();
     let meta = CompileMeta::new();
-    let mut tag_codes = meta.compile(ast);
+    let tag_codes = meta.compile(ast);
     let logic_lines = tag_codes.compile().unwrap();
     assert_eq!(logic_lines, vec![
                "print 2",
@@ -877,7 +890,7 @@ fn take_test() {
     "#;
     let ast = parse!(parser, src).unwrap();
     let meta = CompileMeta::new();
-    let mut tag_codes = meta.compile(ast);
+    let tag_codes = meta.compile(ast);
     let logic_lines = tag_codes.compile().unwrap();
     assert_eq!(logic_lines, vec![
                "print 2",
@@ -908,7 +921,7 @@ fn print_test() {
     "#;
     let ast = parse!(parser, src).unwrap();
     let meta = CompileMeta::new();
-    let mut tag_codes = meta.compile(ast);
+    let tag_codes = meta.compile(ast);
     let logic_lines = tag_codes.compile().unwrap();
     assert_eq!(logic_lines, vec![
                r#"print "abc""#,
@@ -968,7 +981,7 @@ fn const_expand_label_rename_test() {
         take __ = X;
     "#).unwrap();
     let compile_meta = CompileMeta::new();
-    let mut tag_codes = compile_meta.compile(ast);
+    let tag_codes = compile_meta.compile(ast);
     let logic_lines = tag_codes.compile().unwrap();
     assert_eq!(
         logic_lines,
@@ -1006,7 +1019,7 @@ fn const_expand_label_rename_test() {
         take __ = A;
     "#).unwrap();
     let compile_meta = CompileMeta::new();
-    let mut tag_codes = compile_meta.compile(ast);
+    let tag_codes = compile_meta.compile(ast);
     let logic_lines = tag_codes.compile().unwrap();
     assert_eq!(
         logic_lines,
@@ -1035,7 +1048,7 @@ fn dexp_result_handle_use_const_test() {
     print (R: $ = 2;);
     "#).unwrap();
     let meta = CompileMeta::new();
-    let mut tag_codes = meta.compile(ast);
+    let tag_codes = meta.compile(ast);
     let logic_lines = tag_codes.compile().unwrap();
     assert_eq!(logic_lines, vec![
                "set R 2",
@@ -1066,7 +1079,7 @@ fn in_const_const_label_rename_test() {
     take __ = X;
     "#).unwrap();
     let meta = CompileMeta::new();
-    let mut tag_codes = meta.compile(ast);
+    let tag_codes = meta.compile(ast);
     let _logic_lines = tag_codes.compile().unwrap();
 }
 
@@ -1089,7 +1102,7 @@ fn const_value_leak_test() {
         LogicLine::Other(vec!["print".into(), "N".into()].into()),
     ].into();
     let meta = CompileMeta::new();
-    let mut tag_codes = meta.compile(ast);
+    let tag_codes = meta.compile(ast);
     let logic_lines = tag_codes.compile().unwrap();
     assert_eq!(logic_lines, vec![
                "print N",
@@ -1107,7 +1120,7 @@ fn const_value_leak_test() {
         LogicLine::Other(vec!["print".into(), "N".into()].into()),
     ].into();
     let meta = CompileMeta::new();
-    let mut tag_codes = meta.compile(ast);
+    let tag_codes = meta.compile(ast);
     let logic_lines = tag_codes.compile().unwrap();
     assert_eq!(logic_lines, vec![
                "print N",
@@ -1160,7 +1173,7 @@ fn take_args_test() {
     print R;
     "#).unwrap();
     let meta = CompileMeta::new();
-    let mut tag_codes = meta.compile(ast);
+    let tag_codes = meta.compile(ast);
     let logic_lines = tag_codes.compile().unwrap();
     assert_eq!(logic_lines, vec![
                "print 1",
@@ -1194,7 +1207,7 @@ fn take_args_test() {
     take["loop" F] DO;
     "#).unwrap();
     let meta = CompileMeta::new();
-    let mut tag_codes = meta.compile(ast);
+    let tag_codes = meta.compile(ast);
     let logic_lines = tag_codes.compile().unwrap();
     assert_eq!(logic_lines, vec![
                r#"print "loop""#,
@@ -1223,7 +1236,7 @@ fn sets_test() {
     a b c = 1 2 ({}op $ 2 + 1;);
     "#).unwrap();
     let meta = CompileMeta::new();
-    let mut tag_codes = meta.compile(ast);
+    let tag_codes = meta.compile(ast);
     let logic_lines = tag_codes.compile().unwrap();
     assert_eq!(logic_lines, vec![
                "set a 1",
@@ -2287,23 +2300,23 @@ fn no_string_var_test() {
 #[test]
 fn jumpcmp_from_str_test() {
     let datas = [
-        ("always", Err(JumpCmpRParseError::ArgsCountError(
+        (args!("always"), Err(JumpCmpRParseError::ArgsCountError(
             vec!["always".into()]
         ).into())),
-        ("always 0", Err(JumpCmpRParseError::ArgsCountError(
+        (args!("always", "0"), Err(JumpCmpRParseError::ArgsCountError(
             vec!["always".into(), "0".into()]
         ).into())),
-        ("add 1 2", Err(JumpCmpRParseError::UnknownComparer(
+        (args!("add", "1", "2"), Err(JumpCmpRParseError::UnknownComparer(
             "add".into(),
             ["1".into(), "2".into()]
         ).into())),
-        ("equal a b", Ok(JumpCmp::Equal("a".into(), "b".into()))),
-        ("lessThan a b", Ok(JumpCmp::LessThan("a".into(), "b".into()))),
-        ("always 0 0", Ok(JumpCmp::Always)),
+        (args!("equal", "a", "b"), Ok(JumpCmp::Equal("a".into(), "b".into()))),
+        (args!("lessThan", "a", "b"), Ok(JumpCmp::LessThan("a".into(), "b".into()))),
+        (args!("always", "0", "0"), Ok(JumpCmp::Always)),
     ];
 
     for (src, expect) in datas {
-        assert_eq!(JumpCmp::from_mdt_args(&mdt_logic_split(src).unwrap()), expect)
+        assert_eq!(JumpCmp::from_mdt_args(src), expect)
     }
 }
 
@@ -2327,11 +2340,9 @@ fn logic_line_from() {
         ),
     ];
     for (src, lines2) in datas {
-        let mut tag_codes = TagCodes::from_str(src).unwrap();
-        tag_codes.build_tagdown().unwrap();
-        tag_codes.tag_up();
+        let logic_lines = logic_parser::parser::lines(src).unwrap();
         assert_eq!(
-            (&tag_codes).try_into(),
+            Expand::try_from(logic_lines).map_err(|e| (e.index, e.value)),
             lines2.map(Expand)
         );
     }
@@ -2749,6 +2760,7 @@ fn consted_dexp() {
             ].into()),
         ]).into()
     );
+    dbg!(1);
 
     let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
     const Do2 = (
@@ -2776,6 +2788,7 @@ fn consted_dexp() {
                "jump 0 always 0 0",
                "print 1",
     ]);
+    dbg!(2);
 
     let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
     const Do2 = (
@@ -2803,6 +2816,7 @@ fn consted_dexp() {
                "jump 0 always 0 0",
                "print 1",
     ]);
+    dbg!(3);
 
     assert!(CompileMeta::new().compile(parse!(parser, r#"
     const Do2 = (
@@ -2820,6 +2834,7 @@ fn consted_dexp() {
         )
     ] Do2;
     "#).unwrap()).compile().is_err());
+    dbg!(4);
 
     assert_eq!(
         parse!(parser, r#"
@@ -7111,6 +7126,41 @@ fn non_take_result_handle_dexp_test() {
         vec![
             r#"set n 2"#,
             r#"print n"#,
+        ],
+    );
+}
+
+#[test]
+fn to_label_code_test() {
+    let parser = TopLevelParser::new();
+
+    let mut lines = CompileMeta::new().compile(parse!(parser, r#"
+        :2
+        goto :2;
+        goto :end;
+        :end
+        :end1
+    "#).unwrap());
+
+    assert_eq!(
+        lines.to_string().lines().collect::<Vec<_>>(),
+        vec![
+            r#":2:"#,
+            r#"jump :2 always 0 0"#,
+            r#"jump end always 0 0"#,
+            r#"end:"#,
+            r#"end1:"#,
+        ],
+    );
+    lines.index_label_popup();
+    assert_eq!(
+        lines.to_string().lines().collect::<Vec<_>>(),
+        vec![
+            r#"end1:"#,
+            r#"end:"#,
+            r#":2:"#,
+            r#"jump :2 always 0 0"#,
+            r#"jump end always 0 0"#,
         ],
     );
 }

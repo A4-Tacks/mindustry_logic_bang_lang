@@ -4,26 +4,30 @@ mod tests;
 
 use std::{
     borrow::{Borrow, Cow},
+    cell::Cell,
     collections::{HashMap, HashSet},
     convert::identity,
     fmt::{self, Debug, Display},
     hash::Hash,
-    iter::{repeat_with, zip, once},
+    iter::{once, repeat_with, zip},
     mem::{self, replace},
     num::ParseIntError,
-    ops::{self, Deref},
+    ops,
     process::exit,
-    rc::Rc,
-    cell::Cell,
 };
 
 use builtins::{build_builtins, BuiltinFunc};
 use either::Either;
-use tag_code::{Jump, TagCodes, TagLine, mdt_logic_split};
+use itermaps::{fields, MapExt, Unpack};
+use tag_code::{
+    args,
+    logic_parser::{Args as LArgs, IdxBox, ParseLine, ParseLines},
+};
 use utils::counter::Counter;
 use var_utils::{string_unescape, AsVarType};
 
 pub use either;
+pub use var_utils::Var;
 
 macro_rules! impl_enum_froms {
     (impl From for $ty:ty { $(
@@ -157,114 +161,9 @@ macro_rules! err {
     };
 }
 
-#[derive(Debug, Default, Clone)]
-pub struct Var {
-    value: Rc<String>,
-}
-impl Var {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn display_src<'a>(&'a self, meta: &'a CompileMeta) -> Cow<'a, str> {
-        meta.extender.as_ref()
-            .map(|ext| ext
-                .display_value(&Value::Var(self.clone())))
-            .unwrap_or(self.as_str().into())
-    }
-}
-impl FromIterator<char> for Var {
-    fn from_iter<T: IntoIterator<Item = char>>(iter: T) -> Self {
-        String::from_iter(iter).into()
-    }
-}
-impl From<&'_ Var> for Var {
-    fn from(value: &'_ Var) -> Self {
-        value.clone()
-    }
-}
-impl From<Var> for String {
-    fn from(mut value: Var) -> Self {
-        Rc::make_mut(&mut value.value);
-        Rc::try_unwrap(value.value).unwrap()
-    }
-}
-impl From<Var> for Rc<String> {
-    fn from(value: Var) -> Self {
-        value.value
-    }
-}
-impl Display for Var {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Display::fmt(&self.value, f)
-    }
-}
-impl Hash for Var {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.value.hash(state)
-    }
-}
-impl Borrow<String> for Var {
-    fn borrow(&self) -> &String {
-        &self.value
-    }
-}
-impl Borrow<str> for Var {
-    fn borrow(&self) -> &str {
-        &***self
-    }
-}
-impl AsRef<String> for Var {
-    fn as_ref(&self) -> &String {
-        self.borrow()
-    }
-}
-impl AsRef<str> for Var {
-    fn as_ref(&self) -> &str {
-        self.borrow()
-    }
-}
-impl From<String> for Var {
-    fn from(value: String) -> Self {
-        Self { value: value.into() }
-    }
-}
-impl From<&'_ str> for Var {
-    fn from(value: &'_ str) -> Self {
-        Self { value: Rc::new(value.into()) }
-    }
-}
-impl Deref for Var {
-    type Target = String;
-
-    fn deref(&self) -> &Self::Target {
-        &*self.value
-    }
-}
-impl Eq for Var { }
-impl PartialEq for Var {
-    fn eq(&self, other: &Self) -> bool {
-        self.value == other.value
-    }
-}
-impl PartialEq<String> for Var {
-    fn eq(&self, other: &String) -> bool {
-        &**self == other
-    }
-}
-impl PartialEq<str> for Var {
-    fn eq(&self, other: &str) -> bool {
-        **self == other
-    }
-}
-impl PartialEq<&str> for Var {
-    fn eq(&self, other: &&str) -> bool {
-        **self == *other
-    }
-}
-
 pub type Location = usize;
 pub type Float = f64;
+type Line = IdxBox<ParseLine<'static>>;
 
 fn default<T: Default>() -> T {
     T::default()
@@ -275,6 +174,15 @@ pub const FALSE_VAR: &str = "false";
 pub const ZERO_VAR: &str = "0";
 pub const UNUSED_VAR: &str = "0";
 pub const UNNAMED_VAR: &str = "__";
+
+trait DisplaySrc {
+    fn display_src<'a>(&self, meta: &'a CompileMeta) -> Cow<'a, str>;
+}
+impl DisplaySrc for Var {
+    fn display_src<'a>(&self, meta: &'a CompileMeta) -> Cow<'a, str> {
+        Value::Var(self.clone()).display_src(meta)
+    }
+}
 
 pub trait TakeHandle: Sized {
     /// 编译依赖并返回句柄
@@ -573,7 +481,7 @@ impl Value {
                         let Value::ReprVar(cmd) = &args[0] else {
                             return None;
                         };
-                        match &***cmd {
+                        match &**cmd {
                             "set"
                             if args.len() == 3
                             && args[1].is_result_handle()
@@ -854,7 +762,7 @@ impl ClosuredValue {
             .collect();
         let bindh = meta.get_tmp_var();
         for catch in catch_values {
-            catch.do_catch(meta, &**bindh);
+            catch.do_catch(meta, &*bindh);
         }
 
         let key = Self::make_valkey(bindh.clone());
@@ -999,7 +907,7 @@ impl TakeHandle for DExp {
                         ),
                         meta.err_info().join("\n"),
                         value.display_src(meta),
-                        result.display_src(meta),
+                        Value::Var(result).display_src(meta),
                     );
                     exit(5);
                 }
@@ -1239,13 +1147,11 @@ impl Meta {
     }
 }
 
-pub trait FromMdtArgs
-where Self: Sized
-{
+pub trait FromMdtArgs<'a>: Sized {
     type Err;
 
     /// 从逻辑参数构建
-    fn from_mdt_args(args: &[&str]) -> Result<Self, Self::Err>;
+    fn from_mdt_args(args: LArgs<'a>) -> Result<Self, Self::Err>;
 }
 
 /// `jump`可用判断条件枚举
@@ -1459,15 +1365,20 @@ impl Display for JumpCmpRParseError {
         }
     }
 }
-impl FromMdtArgs for JumpCmp {
+impl FromMdtArgs<'_> for JumpCmp {
     type Err = LogicLineFromTagError;
 
-    fn from_mdt_args(args: &[&str]) -> Result<Self, Self::Err> {
-        let &[oper, a, b] = args else {
+    fn from_mdt_args(args: LArgs<'_>) -> Result<Self, Self::Err>
+    {
+        let Ok(args): Result<&[_; 3], _> = args[..].try_into() else {
             return Err(JumpCmpRParseError::ArgsCountError(
-                args.iter().cloned().map(Into::into).collect()
+                args.iter()
+                    .map_as_ref::<str>()
+                    .map_into()
+                    .collect()
             ).into());
         };
+        let [oper, a, b] = args.unpack().map(AsRef::as_ref);
 
         macro_rules! build_match {
             ( $( $name:ident , $str:pat ),* $(,)? ) => {
@@ -1543,10 +1454,6 @@ impl Display for OpRParseError {
 pub enum LogicLineFromTagError {
     JumpCmpRParseError(JumpCmpRParseError),
     OpRParseError(OpRParseError),
-    StringNoStop {
-        str: String,
-        char_num: usize,
-    },
 }
 impl Display for LogicLineFromTagError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -1555,14 +1462,6 @@ impl Display for LogicLineFromTagError {
                 Display::fmt(&e, f),
             Self::OpRParseError(e) =>
                 Display::fmt(&e, f),
-            Self::StringNoStop { str, char_num } => {
-                write!(
-                    f,
-                    "未闭合的字符串, 在第{}个字符处起始, 行:[{}]",
-                    char_num,
-                    str
-                )
-            },
         }
     }
 }
@@ -1640,7 +1539,7 @@ impl CmpTree {
                                 lines
                             }),
                             ..
-                        }) => take_result.then_some(&***s)
+                        }) => take_result.then_some(&**s)
                             .or_else(|| lines.is_empty()
                                 .and_then(|| f(meta, s))),
                         Some(_) => None,
@@ -1651,7 +1550,7 @@ impl CmpTree {
                     take_result,
                     result: s,
                     lines,
-                }) => take_result.then_some(&***s)
+                }) => take_result.then_some(&**s)
                     .or_else(|| lines.is_empty()
                         .and_then(|| f(meta, s))),
                 | V::ReprVar(s)
@@ -1659,7 +1558,7 @@ impl CmpTree {
                 | V::ResultHandle
                 => Some(&**meta.dexp_handle()),
                 | V::Binder
-                => Some(meta.get_dexp_expand_binder().map(|s| &***s).unwrap_or("__")),
+                => Some(meta.get_dexp_expand_binder().map(|s| &**s).unwrap_or("__")),
                 | V::ValueBind(_)
                 | V::ValueBindRef(_)
                 | V::Cmper(_)
@@ -1759,8 +1658,7 @@ impl CmpTree {
                 let end = meta.get_tmp_tag();
                 a.reverse().build(meta, end.clone());
                 b.build(meta, do_tag_expanded);
-                let tag_id = meta.get_tag(end);
-                meta.push(TagLine::TagDown(tag_id));
+                meta.push(end.to_string().into());
             },
             Expand(handle, cmp) => {
                 meta.const_expand_enter(&handle);
@@ -1775,11 +1673,10 @@ impl CmpTree {
                 let cmp_str = cmp.cmp_str();
                 let (a, b) = cmp.build_value(meta);
 
-                let jump = Jump(
-                    meta.get_tag(do_tag_expanded).into(),
-                    format!("{} {} {}", cmp_str, a, b)
-                );
-                meta.push(jump.into())
+                meta.push(ParseLine::Jump(
+                    do_tag_expanded.to_string().into(),
+                    args!(cmp_str, &a, &b).into_owned(),
+                ))
             },
         }
     }
@@ -2016,7 +1913,7 @@ impl Op {
         info.oper_sym.unwrap_or(info.oper_str)
     }
 
-    pub fn generate_args(self, meta: &mut CompileMeta) -> Vec<String> {
+    pub fn generate_args(self, meta: &mut CompileMeta) -> LArgs<'static> {
         let info = self.into_info();
         let mut args: Vec<String> = Vec::with_capacity(5);
 
@@ -2024,15 +1921,14 @@ impl Op {
         args.push(info.oper_str.into());
         args.push(info.result.take_handle(meta).into());
         args.push(info.arg1.take_handle(meta).into());
-        args.push(
-            info.arg2
+        args.push(info.arg2
                 .map(|arg| arg.take_handle(meta))
                 .map(Into::into)
                 .unwrap_or(UNUSED_VAR.into())
         );
 
         debug_assert!(args.len() == 5);
-        args
+        args.try_into().unwrap()
     }
 
     /// 根据自身运算类型尝试获取一个比较器
@@ -2137,18 +2033,24 @@ impl Op {
 impl Compile for Op {
     fn compile(self, meta: &mut CompileMeta) {
         let args = self.generate_args(meta);
-        meta.tag_codes.push(args.join(" ").into())
+        meta.parse_lines.push((0, args.into()).into())
     }
 }
-impl FromMdtArgs for Op {
+impl FromMdtArgs<'_> for Op {
     type Err = OpRParseError;
 
-    fn from_mdt_args(args: &[&str]) -> Result<Self, Self::Err> {
-        let &[oper, res, a, b] = args else {
+    fn from_mdt_args(args: LArgs<'_>) -> Result<Self, Self::Err>
+    {
+        let Ok(args): Result<&[_; 5], _> = args[..].try_into() else {
             return Err(OpRParseError::ArgsCountError(
-                args.iter().cloned().map(Into::into).collect()
+                args.iter()
+                    .map_as_ref::<str>()
+                    .map_into()
+                    .collect()
             ));
         };
+        let [_, oper, res, a, b] = args.unpack()
+            .map(AsRef::as_ref);
 
         macro_rules! build_match {
             {
@@ -2275,15 +2177,17 @@ impl<const N: usize> From<[LogicLine; N]> for Expand {
         Self(value.into())
     }
 }
-impl TryFrom<&TagCodes> for Expand {
-    type Error = (usize, LogicLineFromTagError);
+impl TryFrom<ParseLines<'_>> for Expand {
+    type Error = IdxBox<LogicLineFromTagError>;
 
-    fn try_from(codes: &TagCodes) -> Result<Self, Self::Error> {
-        let mut lines = Vec::with_capacity(codes.lines().len());
-        for (idx, code) in codes.lines().iter().enumerate() {
-            lines.push(code.try_into().map_err(|e| (idx, e))?)
-        }
-        Ok(Self(lines))
+    fn try_from(mut codes: ParseLines<'_>) -> Result<Self, Self::Error> {
+        codes.index_label_popup();
+        codes.into_iter()
+            .map(fields!(index, value.try_into()))
+            .map(|(i, res)|
+                res.map_err(|e| (i, e)))
+            .map(|res| res.map_err(Into::into))
+            .collect()
     }
 }
 impl FromIterator<LogicLine> for Expand {
@@ -2316,7 +2220,7 @@ impl_derefs!(impl for InlineBlock => (self: self.0): Vec<LogicLine>);
 pub struct Select(pub Value, pub Expand);
 impl Compile for Select {
     fn compile(self, meta: &mut CompileMeta) {
-        let mut cases: Vec<Vec<TagLine>> = self.1.0
+        let mut cases: Vec<Vec<IdxBox<ParseLine>>> = self.1.0
             .into_iter()
             .map(
                 |line| line.compile_take(meta)
@@ -2324,7 +2228,7 @@ impl Compile for Select {
         let lens: Vec<usize> = cases.iter()
             .map(|lines| {
                 lines.iter()
-                    .filter(|line| line.can_generate_line())
+                    .filter(|line| line.is_solid())
                     .count()
             }).collect();
         let max_len = lens.iter().copied().max().unwrap_or_default();
@@ -2333,7 +2237,7 @@ impl Compile for Select {
         if let 0 | 1 = cases.len() {
             Take("__".into(), target).compile(meta);
             if let Some(case) = cases.pop() {
-                meta.tag_codes_mut().extend(case)
+                meta.parse_lines_mut().extend(case)
             }
             assert!(cases.is_empty(), "{}", cases.len());
             return
@@ -2354,36 +2258,37 @@ impl Compile for Select {
         };
 
         #[cfg(debug_assertions)]
-        let old_tag_codes_len = meta.tag_codes.count_no_tag();
+        let old_tag_codes_len = meta.parse_lines.solid_count();
         // 因为跳转表式的穿透更加高效, 所以长度相同时优先选择
         if simple_select_len < goto_table_select_len {
             Self::build_simple_select(target, max_len, meta, lens, cases);
             #[cfg(debug_assertions)]
             assert_eq!(
-                meta.tag_codes.count_no_tag(),
+                meta.parse_lines.solid_count(),
                 old_tag_codes_len + simple_select_len,
-                "预期长度公式错误\n{}",
-                meta.tag_codes,
+                "预期长度公式错误\n{:#?}",
+                meta.parse_lines,
             );
         } else {
             Self::build_goto_table_select(target, max_len, meta, lens, cases);
             #[cfg(debug_assertions)]
             assert_eq!(
-                meta.tag_codes.count_no_tag(),
+                meta.parse_lines.solid_count(),
                 old_tag_codes_len + goto_table_select_len,
-                "预期长度公式错误\n{}",
-                meta.tag_codes,
+                "预期长度公式错误\n{:#?}",
+                meta.parse_lines,
             );
         }
     }
 }
+
 impl Select {
     fn build_goto_table_select(
         target: Value,
         max_len: usize,
         meta: &mut CompileMeta,
         lens: Vec<usize>,
-        cases: Vec<Vec<TagLine>>,
+        cases: Vec<Vec<Line>>,
     ) {
         let counter = Value::ReprVar(COUNTER.into());
 
@@ -2410,7 +2315,7 @@ impl Select {
         for case in cases {
             let tag = tags_iter.next().unwrap();
             LogicLine::Label(tag).compile(meta);
-            meta.tag_codes.lines_mut().extend(case);
+            meta.parse_lines.lines_mut().extend(case);
         }
     }
 
@@ -2419,7 +2324,7 @@ impl Select {
         max_len: usize,
         meta: &mut CompileMeta,
         lens: Vec<usize>,
-        mut cases: Vec<Vec<TagLine>>,
+        mut cases: Vec<Vec<Line>>,
     ) {
         let counter = Value::ReprVar(COUNTER.into());
 
@@ -2466,10 +2371,9 @@ impl Select {
                 0 => continue,
                 insert_counts => {
                     let end_tag = meta.get_tmp_tag();
-                    let end_tag = meta.get_tag(end_tag);
-                    case.push(TagLine::Jump(
-                            tag_code::Jump::new_always(end_tag).into()
-                    ));
+                    case.push(Line::new(0, ParseLine::new_always(
+                        end_tag.to_string().into(),
+                    )));
                     case.extend(
                         repeat_with(||
                             LogicLine::NoOp
@@ -2477,12 +2381,12 @@ impl Select {
                             .take(insert_counts - 1)
                             .flatten()
                     );
-                    case.push(TagLine::TagDown(end_tag));
+                    case.push((0, end_tag.to_string().into()).into());
                 },
             }
         }
 
-        let lines = meta.tag_codes.lines_mut();
+        let lines = meta.parse_lines.lines_mut();
         lines.extend(cases.into_iter().flatten());
     }
 }
@@ -2742,6 +2646,15 @@ pub enum Args {
     Normal(Vec<Value>),
     /// 夹杂一个展开的参数
     Expanded(Vec<Value>, Vec<Value>),
+}
+impl From<tag_code::logic_parser::Args<'_>> for Args {
+    fn from(value: tag_code::logic_parser::Args<'_>) -> Self {
+        let args = value.into_iter()
+            .map_into::<String>()
+            .map_into()
+            .collect();
+        Self::Normal(args)
+    }
 }
 impl Args {
     pub const GLOB_ONLY: Self = Self::Expanded(vec![], vec![]);
@@ -3554,16 +3467,21 @@ pub enum LogicLine {
 impl Compile for LogicLine {
     fn compile(self, meta: &mut CompileMeta) {
         match self {
-            Self::NoOp => meta.push(meta.noop_line.clone().into()),
+            Self::NoOp => meta.push(args!(&*meta.noop_line).into()),
             Self::Label(mut lab) => {
                 // 如果在常量展开中, 尝试将这个标记替换
                 lab = meta.get_in_const_label(lab);
-                let data = TagLine::TagDown(meta.get_tag(lab));
-                meta.push(data)
+                meta.push(lab.to_string().into())
             },
             Self::Other(args) => {
                 let handles: Vec<Var> = args.into_taked_args_handle(meta);
-                meta.push(TagLine::Line(handles.join(" ").into()));
+                let args = handles.into_iter()
+                    .map_to_string()
+                    .map_into()
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .unwrap();
+                meta.push(args);
             },
             Self::SetResultHandle(value) => {
                 let new_dexp_handle = value.take_handle(meta);
@@ -3723,50 +3641,28 @@ impl_enum_froms!(impl From for LogicLine {
     Match => Match;
     ConstMatch => ConstMatch;
 });
-impl TryFrom<&TagLine> for LogicLine {
+impl TryFrom<ParseLine<'_>> for LogicLine {
     type Error = LogicLineFromTagError;
 
-    fn try_from(line: &TagLine) -> Result<Self, Self::Error> {
-        type Error = LogicLineFromTagError;
-        fn mdt_logic_split_2(s: &str) -> Result<Vec<&str>, Error> {
-            mdt_logic_split(s)
-                .map_err(|char_num| Error::StringNoStop {
-                    str: s.into(),
-                    char_num
-                })
+    fn try_from(line: ParseLine<'_>) -> Result<Self, Self::Error> {
+        fn run_lab(mut s: String) -> String {
+            if s.starts_with(':') { s.remove(0); }
+            s
         }
         match line {
-            TagLine::Jump(jump) => {
-                assert!(jump.tag().is_none());
-                let jump = jump.data();
-                let str = &jump.1;
-                let (to_tag, args) = (
-                    jump.0,
-                    mdt_logic_split_2(&str)?
-                );
-                Ok(Goto(
-                    to_tag.to_string().into(),
-                    match JumpCmp::from_mdt_args(&args) {
-                        Ok(cmp) => cmp.into(),
-                        Err(e) => return Err(e.into()),
-                    }
-                ).into())
+            ParseLine::Label(lab) => {
+                Ok(Self::Label(run_lab(lab.into_owned()).into()))
             },
-            TagLine::TagDown(tag) => Ok(Self::Label(tag.to_string().into())),
-            TagLine::Line(line) => {
-                assert!(line.tag().is_none());
-                let line = line.data();
-                let args = mdt_logic_split_2(line)?;
-                match args[0] {
-                    "op" => Op::from_mdt_args(&args[1..])
-                        .map(Into::into)
-                        .map_err(Into::into),
-                    _ => {
-                        let mut args_value = Vec::with_capacity(args.len());
-                        args_value.extend(args.into_iter().map(Into::into));
-                        Ok(Self::Other(Args::Normal(args_value)))
-                    },
-                }
+            ParseLine::Jump(target, args) => {
+                let target = run_lab(target.into_owned()).into();
+                let cmp = JumpCmp::from_mdt_args(args)?;
+                Ok(Goto(target, cmp.into()).into())
+            },
+            ParseLine::Args(args) => {
+                Ok(match args.first() {
+                    "op" => Op::from_mdt_args(args)?.into(),
+                    _ => Self::Other(args.into()),
+                })
             },
         }
     }
@@ -3781,12 +3677,12 @@ pub trait Compile {
     /// 使用时需要考虑其副作用, 例如`compile`并不止做了`push`至尾部,
     /// 它还可能做了其他事
     #[must_use]
-    fn compile_take(self, meta: &mut CompileMeta) -> Vec<TagLine>
+    fn compile_take(self, meta: &mut CompileMeta) -> Vec<Line>
     where Self: Sized
     {
-        let start = meta.tag_codes.len();
+        let start = meta.parse_lines.len();
         self.compile(meta);
-        meta.tag_codes.lines_mut().split_off(start)
+        meta.parse_lines.lines_mut().split_off(start)
     }
 }
 
@@ -3915,10 +3811,7 @@ pub trait CompileMetaExtends {
 
 pub struct CompileMeta {
     extender: Option<Box<dyn CompileMetaExtends>>,
-    /// 标记与`id`的映射关系表
-    tags_map: HashMap<String, usize>,
-    tag_count: usize,
-    tag_codes: TagCodes,
+    parse_lines: ParseLines<'static>,
     tmp_var_count: Counter<fn(&mut usize) -> Var>,
     /// 每层Expand的环境, 也包括顶层
     expand_env: Vec<ExpandEnv>,
@@ -3950,9 +3843,7 @@ impl Debug for CompileMeta {
             }
         }
         f.debug_struct("CompileMeta")
-            .field("tags_map", &self.tags_map)
-            .field("tag_count", &self.tag_count)
-            .field("tag_codes", &self.tag_codes)
+            .field("parse_lines", &self.parse_lines)
             .field("tmp_var_count", &self.tmp_var_count.counter())
             .field("expand_env", &self.expand_env)
             .field("env_args", &self.env_args)
@@ -3969,7 +3860,7 @@ impl Debug for CompileMeta {
 }
 impl Default for CompileMeta {
     fn default() -> Self {
-        Self::with_tag_codes(TagCodes::new())
+        Self::with_tag_codes(ParseLines::new(vec![]))
     }
 }
 impl CompileMeta {
@@ -3979,12 +3870,10 @@ impl CompileMeta {
         Self::default()
     }
 
-    pub fn with_tag_codes(tag_codes: TagCodes) -> Self {
+    pub fn with_tag_codes(tag_codes: ParseLines<'static>) -> Self {
         let mut meta = Self {
             extender: None,
-            tags_map: HashMap::new(),
-            tag_count: 0,
-            tag_codes,
+            parse_lines: tag_codes,
             tmp_var_count: Counter::new(Self::tmp_var_getter),
             expand_env: vec![ExpandEnv::new(vec![], HashMap::new())],
             env_args: Vec::new(),
@@ -4017,16 +3906,6 @@ impl CompileMeta {
             ));
         }
         meta
-    }
-
-    /// 获取一个标记的编号, 如果不存在则将其插入并返回新分配的编号.
-    /// 注: `Tag`与`Label`是混用的, 表示同一个意思
-    pub fn get_tag(&mut self, label: Var) -> usize {
-        *self.tags_map.entry(label.to_string()).or_insert_with(|| {
-            let id = self.tag_count;
-            self.tag_count += 1;
-            id
-        })
     }
 
     fn tmp_tag_getter(id: &mut usize) -> Var {
@@ -4083,46 +3962,43 @@ impl CompileMeta {
     }
 
     /// 向已生成代码`push`
-    pub fn push(&mut self, data: TagLine) {
-        self.tag_codes.push(data)
+    pub fn push(&mut self, mut data: ParseLine<'static>) {
+        match data {
+            ParseLine::Label(ref mut lab)
+                if matches!(lab.chars().next(), Some('0'..='9'))
+                => lab.to_mut().insert(0, ':'),
+            ParseLine::Jump(ref mut lab, _)
+                if matches!(lab.chars().next(), Some('0'..='9'))
+                => lab.to_mut().insert(0, ':'),
+            ParseLine::Label(_)
+            | ParseLine::Jump(_, _)
+            | ParseLine::Args(_) => (),
+        }
+        self.parse_lines.push((0, data).into())
     }
 
     /// 向已生成代码`pop`
-    pub fn pop(&mut self) -> Option<TagLine> {
-        self.tag_codes.pop()
+    pub fn pop(&mut self) -> Option<ParseLine<'static>> {
+        self.parse_lines.pop().map(fields!(value))
     }
 
-    /// 获取已生成的代码条数
-    pub fn tag_code_count(&self) -> usize {
-        self.tag_codes.len()
-    }
-
-    /// 获取已生成的非`TagDown`代码条数
-    pub fn tag_code_count_no_tag(&self) -> usize {
-        self.tag_codes.count_no_tag()
-    }
-
-    pub fn compile(self, lines: Expand) -> TagCodes {
-        self.compile_res_self(lines).tag_codes
+    pub fn compile(self, lines: Expand) -> ParseLines<'static> {
+        self.compile_res_self(lines).parse_lines
     }
 
     pub fn compile_res_self(mut self, lines: Expand) -> Self {
-        self.tag_codes.clear();
+        self.parse_lines.clear();
 
         lines.compile(&mut self);
         self
     }
 
-    pub fn tag_codes(&self) -> &TagCodes {
-        &self.tag_codes
+    pub fn parse_lines(&self) -> &ParseLines<'static> {
+        &self.parse_lines
     }
 
-    pub fn tag_codes_mut(&mut self) -> &mut TagCodes {
-        &mut self.tag_codes
-    }
-
-    pub fn tags_map(&self) -> &HashMap<String, usize> {
-        &self.tags_map
+    pub fn parse_lines_mut(&mut self) -> &mut ParseLines<'static> {
+        &mut self.parse_lines
     }
 
     /// 进入一个拥有子命名空间的子块
@@ -4287,20 +4163,8 @@ impl CompileMeta {
     }
 
     pub fn debug_tag_codes(&self) -> Vec<String> {
-        self.tag_codes().lines().iter()
+        self.parse_lines().lines().iter()
             .map(ToString::to_string)
-            .collect()
-    }
-
-    pub fn debug_tags_map(&self) -> Vec<String> {
-        let mut tags_map: Vec<_> = self
-            .tags_map()
-            .iter()
-            .collect();
-        tags_map.sort_unstable_by_key(|(_, &k)| k);
-        tags_map
-            .into_iter()
-            .map(|(tag, id)| format!("{} \t-> {}", id, tag))
             .collect()
     }
 
@@ -4415,13 +4279,9 @@ impl CompileMeta {
     pub fn err_info(&self) -> Vec<String> {
         let mut res = Vec::new();
 
-        let mut tags_map = self.debug_tags_map();
         let mut tag_lines = self.debug_tag_codes();
-        line_first_add(&mut tags_map, "\t");
         line_first_add(&mut tag_lines, "\t");
 
-        res.push("Id映射Tag:".into());
-        res.extend(tags_map);
         res.push("已生成代码:".into());
         res.extend(tag_lines);
         res

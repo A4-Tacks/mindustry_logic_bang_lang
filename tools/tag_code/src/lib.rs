@@ -1,19 +1,15 @@
 use std::{
-    collections::{
-        HashMap,
-        HashSet
-    },
-    mem::{swap, replace},
-    ops::{
-        Deref,
-        DerefMut
-    },
-    str::FromStr,
-    num::ParseIntError,
+    collections::HashMap,
     fmt::Display,
+    mem::{replace, swap},
+    ops::{Deref, DerefMut},
     panic::catch_unwind,
     process::exit,
 };
+
+use logic_parser::{IdxBox, ParseLine, ParseLines};
+
+pub mod logic_parser;
 
 pub type Tag = usize;
 pub type TagsTable = Vec<usize>;
@@ -25,7 +21,6 @@ macro_rules! err {
         eprintln!(concat!("\x1b[1;31m", "TagCodeError: ", $fmtter, "\x1b[22;39m"), $($args),*);
     };
 }
-
 
 /// 传入`TagsTable`, 生成逻辑代码
 pub trait Compile {
@@ -460,69 +455,75 @@ impl Compile for TagLine {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ParseTagCodesError {
-    ParseIntError(ParseIntError),
+    RepeatLabel(String),
+    MissedLabel(String),
+}
+impl Display for ParseTagCodesError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParseTagCodesError::RepeatLabel(lab) => {
+                write!(f, "重复的标签 `{lab}`")
+            },
+            ParseTagCodesError::MissedLabel(lab) => {
+                write!(f, "未命中的标签 `{lab}`")
+            },
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct TagCodes {
     lines: Vec<TagLine>,
 }
-impl FromStr for TagCodes {
-    type Err = (usize, ParseTagCodesError);
+impl<'a> TryFrom<ParseLines<'a>> for TagCodes {
+    type Error = IdxBox<ParseTagCodesError>;
 
-    /// 从逻辑语言中构建
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // K: jump所在行, jump所用tag为第n个jump
-        let mut jumps: HashSet<usize> = HashSet::new();
-        // K: 被跳转行, V: tag
-        let mut tags: HashMap<usize, Vec<Tag>> = HashMap::new();
-        let lines =
-            || s.lines().filter(|s| !s.trim().is_empty());
+    fn try_from(mut codes: ParseLines<'a>) -> Result<Self, Self::Error> {
+        codes.index_label_popup();
 
-        for (i, line) in lines().enumerate() {
-            if line.starts_with("jump") {
-                let target = take_jump_target(line);
-                if target == "-1" {
-                    // no target jump
-                    continue;
-                }
-                let tag = jumps.len();
-                jumps.insert(i);
-                let target_idx = target
-                    .parse::<usize>()
-                    .map_err(|e| (
-                            i,
-                            ParseTagCodesError::ParseIntError(e)
-                    ))?;
-                tags.entry(target_idx).or_default().push(tag);
+        let mut lab2idx = HashMap::with_capacity(codes.modif_count());
+        codes.iter()
+            .filter_map(|x| x.as_ref()
+                .and_then(|x| x.as_label()))
+            .try_for_each(|label|
+        {
+            if lab2idx.insert(*label, lab2idx.len()).is_some() {
+                return Err(label.as_ref().map(|_| {
+                    ParseTagCodesError::RepeatLabel(
+                        label.to_string()
+                    )
+                }));
             }
-        }
+            Ok(())
+        })?;
 
-        let mut res_lines: Vec<TagLine> = Vec::new();
-        let mut jump_count = 0;
-        for (i, line) in lines().enumerate() {
-            if let Some(self_tags) = tags.get(&i) {
-                for &tag in self_tags {
-                    res_lines.push(TagLine::TagDown(tag))
-                }
+        let get = |lab: IdxBox<&str>| {
+            lab2idx.get(*lab)
+                .copied()
+                .ok_or_else(|| {
+                    lab.as_ref().map(|_| ParseTagCodesError::MissedLabel(
+                        lab.to_string()
+                    ))
+                })
+        };
+
+        let lines = codes.iter().map(|line| {
+            match *line.as_ref() {
+                ParseLine::Label(lab) => {
+                    let tag = get(line.as_ref().map(|_| lab.as_ref()))?;
+                    Ok(TagLine::TagDown(tag))
+                },
+                ParseLine::Jump(tgt, args) => {
+                    let tag = get(line.as_ref().map(|_| tgt.as_ref()))?;
+                    Ok(TagLine::Jump(Jump(tag, args.join(" ")).into()))
+                },
+                ParseLine::Args(args) => {
+                    Ok(TagLine::Line(args.join(" ").into()))
+                },
             }
-            if jumps.get(&i).is_some() {
-                // 该行为一个jump
-                let jump_body = take_jump_body(line);
-                res_lines.push(TagLine::Jump(
-                        Jump(jump_count, jump_body).into()
-                ));
-                jump_count += 1;
-            } else {
-                res_lines.push(TagLine::Line(line.to_string().into()))
-            }
-        }
-        // 需要先给jump建立索引
-        // 记录每个被跳转点, 记录每个jump及其跳转目标标记
-        //
-        // 遍历每行, 如果是一个被记录的jump行则构建jump
-        // 同时, 如果该行为一个被跳转点, 那么构建时在其上增加一个`TagDown`
-        Ok(res_lines.into())
+        }).collect::<Result<_, IdxBox<ParseTagCodesError>>>()?;
+
+        Ok(Self { lines })
     }
 }
 impl From<Vec<TagLine>> for TagCodes {
@@ -581,7 +582,7 @@ impl TagCodes {
         self.lines.clear()
     }
 
-    /// 构建, 将[`TagDown`]消除, 如果是最后一行裸`Tag`则被丢弃
+    /// 构建, 将[`TagDown`]消除,
     /// 如果目标`Tag`重复则将其返回
     ///
     /// > jump :a
@@ -888,7 +889,6 @@ impl Display for TagCodes {
     }
 }
 
-
 fn take_jump_target(line: &str) -> String {
     debug_assert!(line.starts_with("jump"));
 
@@ -1088,10 +1088,9 @@ mod tests {
 
     #[test]
     fn from_str_test() {
-        let mut tag_lines: TagCodes = MY_INSERT_SORT_LOGIC_LINES
-            .join("\n")
-            .parse()
-            .unwrap();
+        let src = MY_INSERT_SORT_LOGIC_LINES.join("\n");
+        let logic_lines = logic_parser::parser::lines(&src).unwrap();
+        let mut tag_lines: TagCodes = logic_lines.try_into().unwrap();
         let lines = tag_lines.compile().unwrap();
         assert_eq!(lines, &MY_INSERT_SORT_LOGIC_LINES);
     }
