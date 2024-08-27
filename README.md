@@ -124,37 +124,43 @@ printflush message1;
 ```
 **以上代码将被编译为**
 ```
-set id 0
-set count id
-jump 22 greaterThanEq id @unitCount
-lookup unit unit_type id
-ubind unit_type
-jump 20 strictEqual @unit null
-set first @unit
-set icount 1
-ubind unit_type
-jump 15 equal @unit first
-sensor __0 first @dead
-jump 4 notEqual __0 false
-op add icount icount 1
-ubind unit_type
-jump 10 notEqual @unit first
-op add count count icount
-print unit_type
-print ": "
-print icount
-print "\n"
-op add id id 1
-jump 3 lessThan id @unitCount
-print "unit total: "
-print count
-printflush message1
+    set id 0
+    set count id
+    jump ___3 greaterThanEq id @unitCount
+___4:
+    lookup unit unit_type id
+restart:
+    ubind unit_type
+    jump ___2 strictEqual @unit null
+    set first @unit
+    set icount 1
+    ubind unit_type
+    jump ___0 equal @unit first
+___1:
+    sensor __0 first @dead
+    jump restart notEqual __0 false
+    op add icount icount 1
+    ubind unit_type
+    jump ___1 notEqual @unit first
+___0:
+    op add count count icount
+    print unit_type
+    print ": "
+    print icount
+    print "\n"
+___2:
+    op add id id 1
+    jump ___4 lessThan id @unitCount
+___3:
+    print "unit total: "
+    print count
+    printflush message1
 ```
 
 # 项目构建
 构建这个项目将会比较慢, 原因如下:
 1. 使用`rustc`进行编译, 而它略慢, 相对于`gcc` `clang`
-2. 使用了大型语法分析框架`lalrpop`, 它会生成五十多万行代码, 再叠加上`rustc`编译更慢
+2. 使用了大型语法分析框架`lalrpop`, 它会生成近六十万行代码, 再叠加上`rustc`编译更慢
 
 你可以先翻一翻Releases, 看一看有没有已构建的程序, 如果没有或无法使用再尝试自己构建.
 
@@ -204,7 +210,8 @@ cargo install --path . # 执行这个你可以在你的shell中直接使用它(�
 就算你塞几千行代码也基本是瞬间完成, 不用担心什么性能.
 
 # 报错
-基本没有什么报错位置, 不怎么友好, 不过基本也没啥报错, 信息也差不多够找出错误
+报错不怎么友好, 不过报错也比较少, 信息也差不多够找出错误\
+~~就是可能使用高级功能时调试起来过于地狱~~
 
 # 如何使用
 我们先说明本示例程序的文件名为`mindustry_logic_bang_lang`,
@@ -217,12 +224,13 @@ cargo install --path . # 执行这个你可以在你的shell中直接使用它(�
 以下为一个示例:
 
 ```shell
-mindustry_logic_bang_lang c < my_source.mdtlbl > out.logic
+mindustry_logic_bang_lang Lli < my_source.mdtlbl > out.logic
 ```
 
 这个示例中, 我们使用了几乎所有shell都会有的语法, `<`和`>`.
 
-- 参数`c`代表将输入的`Bang`语言编译为`逻辑语言`
+- 参数`Lli`代表参数`L`先将输入的`Bang`语言编译为`带标记的逻辑语言`,
+  然后参数`l`执行lint做一些检查, 最终参数`i`将其稍微转换后美化输出
 - `<`后面跟着一个文件, 将这个文件作为程序的标准输入,
 - `>`后面跟着一个文件, 并将这个文件作为程序标准输出, 也就是标准输出被覆写进这个文件
 
