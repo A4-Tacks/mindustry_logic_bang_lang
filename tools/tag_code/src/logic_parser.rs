@@ -307,12 +307,19 @@ impl<'a> Display for ParseLine<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ParseLine::Label(lab) => {
+                if let Some('0'..='9') = lab.chars().next() {
+                    f.write_str(":")?;
+                }
                 f.write_str(&*lab)?;
                 f.write_str(":")
             },
             ParseLine::Jump(target, args) => {
                 if f.alternate() { f.write_str("    ")? }
-                f.write_fmt(format_args!("jump {target} {args}"))
+                f.write_str("jump ")?;
+                if let Some('0'..='9') = target.chars().next() {
+                    f.write_str(":")?;
+                }
+                f.write_fmt(format_args!("{target} {args}"))
             },
             ParseLine::Args(args) => {
                 if f.alternate() { f.write_str("    ")? }
