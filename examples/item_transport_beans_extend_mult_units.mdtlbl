@@ -93,20 +93,12 @@ const GetTarget = (
     take Return = $;
 
     if !is_invert {
-        # 不是反转模式, 选择第一个没有满的放
-        # 如果每个都满那么选择最后一个
-        # 这需要被放的是容器才可以获取其物品上限及对应物品数
+        # 不是反转模式, 选择随机一个放
         # 连接一个时也就是总链接数为2时直接返回它
         if links == 2 {
             getlink Return 1;
         } else {
-            i = 1;
-            while i < links {
-                # 链接了一个分类器和多个目标
-                getlink Return i;
-                break (sensor $ Return my_item;) < (sensor $ Return @itemCapacity;);
-                op i i + 1;
-            }
+            getlink Return (?max(1, rand(links)));
         }
         take[Return] BuildXY;
     } else ulocate building core false 0 $.x $.y 0 $;
