@@ -1,0 +1,140 @@
+#**
+* 一个简单好读易扩展的分类器显数逻辑
+* 1 2 3
+* 4   5
+* 6 7 8
+* 9   10
+  111213
+*#
+
+enable, disable = @metaglass, @coal;
+
+const DisplayPx = (inline@ *N {
+    const C = enable;
+    match N {
+        [1  -1]  { const B = sorter1; }
+        [2  -2]  { const B = sorter2; }
+        [3  -3]  { const B = sorter3; }
+        [4  -4]  { const B = sorter4; }
+        [5  -5]  { const B = sorter5; }
+        [6  -6]  { const B = sorter6; }
+        [7  -7]  { const B = sorter7; }
+        [8  -8]  { const B = sorter8; }
+        [9  -9]  { const B = sorter9; }
+        [10 -10] { const B = sorter10; }
+        [11 -11] { const B = sorter11; }
+        [12 -12] { const B = sorter12; }
+        [13 -13] { const B = sorter13; }
+    }
+    const match N {
+        [?_0 < 0] { const C = disable; }
+    }
+    control config B C 0 0 0;
+});
+
+const DisplayPixels = (
+    const I = 1;
+    inline@ *N {
+        match N {
+            [0] { take*R = -I; }
+            [x] { take R = I; }
+            Err { take Builtin.Err[err];}
+        }
+        take DisplayPx[R];
+        take*I = I+1;
+    }
+);
+
+
+const Display = (match @ {
+    Num {
+        take N = (?Num%10);
+
+        switch N {
+            break;
+        case 0:
+            take DisplayPixels[
+                x x x
+                x   x
+                x 0 x
+                x   x
+                x x x
+            ];
+        case 1:
+            take DisplayPixels[
+                0 0 x
+                0   x
+                0 0 x
+                0   x
+                0 0 x
+            ];
+        case 2:
+            take DisplayPixels[
+                x x x
+                0   x
+                x x x
+                x   0
+                x x x
+            ];
+        case 3:
+            take DisplayPixels[
+                x x x
+                0   x
+                x x x
+                0   x
+                x x x
+            ];
+        case 4:
+            take DisplayPixels[
+                x 0 x
+                x   x
+                x x x
+                0   x
+                0 0 x
+            ];
+        case 5:
+            take DisplayPixels[
+                x x x
+                x   0
+                x x x
+                0   x
+                x x x
+            ];
+        case 6:
+            take DisplayPixels[
+                x x x
+                x   0
+                x x x
+                x   x
+                x x x
+            ];
+        case 7:
+            take DisplayPixels[
+                x x x
+                0   x
+                0 0 x
+                0   x
+                0 0 x
+            ];
+        case 8:
+            take DisplayPixels[
+                x x x
+                x   x
+                x x x
+                x   x
+                x x x
+            ];
+        case 9:
+            take DisplayPixels[
+                x x x
+                x   x
+                x x x
+                0   x
+                x x x
+            ];
+        }
+    }
+});
+
+read num cell1 0;
+take Display[num];
