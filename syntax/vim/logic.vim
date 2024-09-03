@@ -47,15 +47,15 @@ syn match	logicMeta		/\v<\@[^ \t\r;:#]+>/
 syn keyword	logicCommentMeta	TODO Todo HINT Hint		contained
 
 " Jump Compare Operator {{{
-syn match	logicJumpOperEqPosifix	/./							contained conceal cchar==
-syn match	logicJumpOperEqPosifix2	/./							contained conceal cchar== nextgroup=logicJumpOperEqPosifix
+syn match	logicJumpOperEqPostfix	/./							contained conceal cchar==
+syn match	logicJumpOperEqPostfix2	/./							contained conceal cchar== nextgroup=logicJumpOperEqPostfix
 syn match	logicJumpOper		/\<lessThan\>/						contained conceal cchar=<
 syn match	logicJumpOper		/\<greaterThan\>/					contained conceal cchar=>
-syn match	logicJumpOper		/\<lessThanE\zeq\>/					contained conceal cchar=< nextgroup=logicJumpOperEqPosifix
-syn match	logicJumpOper		/\<greaterThanE\zeq\>/					contained conceal cchar=> nextgroup=logicJumpOperEqPosifix
-syn match	logicJumpOper		/\<equa\zel\>/						contained conceal cchar== nextgroup=logicJumpOperEqPosifix
-syn match	logicJumpOper		/\<notEqua\zel\>/					contained conceal cchar=! nextgroup=logicJumpOperEqPosifix
-syn match	logicJumpOper		/\<strictEqu\zeal\>/					contained conceal cchar== nextgroup=logicJumpOperEqPosifix2
+syn match	logicJumpOper		/\<lessThanE\zeq\>/					contained conceal cchar=< nextgroup=logicJumpOperEqPostfix
+syn match	logicJumpOper		/\<greaterThanE\zeq\>/					contained conceal cchar=> nextgroup=logicJumpOperEqPostfix
+syn match	logicJumpOper		/\<equa\zel\>/						contained conceal cchar== nextgroup=logicJumpOperEqPostfix
+syn match	logicJumpOper		/\<notEqua\zel\>/					contained conceal cchar=! nextgroup=logicJumpOperEqPostfix
+syn match	logicJumpOper		/\<strictEqu\zeal\>/					contained conceal cchar== nextgroup=logicJumpOperEqPostfix2
 syn match	logicJumpOper		/\<notEqual\s\+\(:*\<[^ \t\r;:#]\+\>:*\)\s\+\1\>:\@!/	contained conceal cchar=!
 syn match	logicJumpAlways		/\<always\>/						contained conceal cchar=_
 " }}}
@@ -102,8 +102,8 @@ hi def link logicMeta			Identifier
 hi def link logicCommentMeta		Todo
 hi def link logicJumpOper		Operator
 hi def link logicJumpAlways		logicJumpOper
-hi def link logicJumpOperEqPosifix	logicJumpOper
-hi def link logicJumpOperEqPosifix2	logicJumpOper
+hi def link logicJumpOperEqPostfix	logicJumpOper
+hi def link logicJumpOperEqPostfix2	logicJumpOper
 hi def link logicOpOper			Operator
 hi def link logicOpOperStar		logicOpOper
 hi def link logicOpOperLt		logicOpOper
