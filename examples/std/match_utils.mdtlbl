@@ -33,7 +33,7 @@ const MatchUtils.ForC = ([MU:MatchUtils](const match @ {
         take MU.ForC[Start Stop 1 F];
     }
     *Start *Stop *Step F {
-        MU.AssertEvalable[Start Stop Step];
+        take MU.AssertEvalable[Start Stop Step];
         const Do = (const match @ {
             I:[?_0 < Stop] {
                 take F[I];
