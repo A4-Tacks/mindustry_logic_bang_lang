@@ -30,13 +30,17 @@ syn case match
 setlocal iskeyword=!,36-57,60-126
 setlocal foldmethod=indent
 
-syn match	logicEOL		/^\|;/				transparent nextgroup=logicHead,logicJump,logicOp	skipwhite
+syn match	logicEOL		/^\|;/				transparent nextgroup=logicHead,logicJump,logicOp,logicPrint		skipwhite
 syn match	logicComment		/#.*/				contains=logicCommentMeta
 syn match	logicHead		/[^ \t\r;:#]\+/			contained
-syn match	logicOp			/op /				contained nextgroup=logicOpOper,logicJumpOper		skipwhite
-syn match	logicJump		/jump /				contained nextgroup=logicJumpLabel			skipwhite
-syn match	logicJumpLabel		/\s*:\=[^ \t\r;:#]\+ /		contained nextgroup=logicJumpOper,logicJumpAlways	skipwhite
+syn match	logicOp			/op[ \t]/			contained nextgroup=logicOpOper,logicJumpOper		skipwhite
+syn match	logicJump		/jump[ \t]/			contained nextgroup=logicJumpLabel			skipwhite
+syn match	logicJumpLabel		/\s*:\=[^ \t\r;:#]\+[ \t]/	contained nextgroup=logicJumpOper,logicJumpAlways	skipwhite
 syn match	logicHeadLabel		/\%(^\|;\)\@1<=\s*:\=[^ \t\r;:#]\+:\ze\s*[;#\n]/
+syn match	logicPrint		/print[ \t]/			contained nextgroup=logicPrintBody,logicPrintBodyVar	skipwhite
+syn match	logicPrintBody		/"[^"\n]*"/			contained nextgroup=logicPrintRest			skipwhite contains=logicStringEscape,logicStringColor
+syn match	logicPrintBodyVar	/[^ \t\r;:#"]\+/		contained nextgroup=logicPrintRest			skipwhite
+syn match	logicPrintRest		/;[ \t]*print[ \t]/	contained nextgroup=logicPrintBody,logicPrintBodyVar	skipwhite conceal
 syn region	logicString		start=/"/ end=/"/		contains=logicStringEscape,logicStringColor
 syn match	logicStringColor					contained /\[\v%(#\x{6,8}|%(c%(lear|yan|oral)|b%(l%(ack|ue)|r%(own|ick))|white|li%(ghtgray|me)|g%(r%(ay|een)|old%(enrod)?)|darkgray|navy|r%(oyal|ed)|s%(late|ky|carlet|almon)|t%(eal|an)|acid|forest|o%(live|range)|yellow|p%(ink|urple)|ma%(genta|roon)|violet))=\]/
 syn match	logicStringEscape	/\\n\|\[\[/			contained
@@ -89,6 +93,9 @@ syn keyword	logicOpOper	contained
 
 hi def link logicComment		Comment
 hi def link logicHead			Structure
+hi def link logicPrint			logicHead
+hi def link logicPrintRest		logicPrint
+hi def link logicPrintBody		logicString
 hi def link logicOp			logicHead
 hi def link logicJump			Label
 hi def link logicJumpLabel		Tag
