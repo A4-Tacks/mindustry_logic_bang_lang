@@ -488,11 +488,9 @@ impl<'a> TryFrom<ParseLines<'a>> for TagCodes {
             .try_for_each(|label|
         {
             if lab2idx.insert(*label, lab2idx.len()).is_some() {
-                return Err(label.as_ref().map(|_| {
-                    ParseTagCodesError::RepeatLabel(
-                        label.to_string()
-                    )
-                }));
+                return Err(label.new_value(ParseTagCodesError::RepeatLabel(
+                    label.to_string()
+                )));
             }
             Ok(())
         })?;
@@ -501,7 +499,7 @@ impl<'a> TryFrom<ParseLines<'a>> for TagCodes {
             lab2idx.get(*lab)
                 .copied()
                 .ok_or_else(|| {
-                    lab.as_ref().map(|_| ParseTagCodesError::MissedLabel(
+                    lab.new_value(ParseTagCodesError::MissedLabel(
                         lab.to_string()
                     ))
                 })
@@ -510,11 +508,11 @@ impl<'a> TryFrom<ParseLines<'a>> for TagCodes {
         let lines = codes.iter().map(|line| {
             match *line.as_ref() {
                 ParseLine::Label(lab) => {
-                    let tag = get(line.as_ref().map(|_| lab.as_ref()))?;
+                    let tag = get(line.new_value(lab.as_ref()))?;
                     Ok(TagLine::TagDown(tag))
                 },
                 ParseLine::Jump(tgt, args) => {
-                    let tag = get(line.as_ref().map(|_| tgt.as_ref()))?;
+                    let tag = get(line.new_value(tgt.as_ref()))?;
                     Ok(TagLine::Jump(Jump(tag, args.join(" ")).into()))
                 },
                 ParseLine::Args(args) => {

@@ -100,6 +100,7 @@ enum CompileMode {
     MdtTagCodeToMdtLogic,
     LintLogic,
     IndentLogic,
+    RenameLabel,
     BangToMdtLabel,
 }
 impl CompileMode {
@@ -163,6 +164,13 @@ impl CompileMode {
                 logic_lines.index_label_popup();
                 format!("{logic_lines:#}")
             },
+            Self::RenameLabel => {
+                let mut logic_lines = logic_parse(&src);
+                logic_lines.for_each_inner_label_mut(|mut lab| {
+                    lab.to_mut().push_str("_RENAME");
+                });
+                format!("{logic_lines:#}")
+            },
             Self::BangToMdtLabel => {
                 let ast = build_ast(&src);
                 let mut meta = compile_ast(ast, src.clone());
@@ -221,6 +229,7 @@ pub const HELP_MSG: &str = concat_lines! {
     "\t", "C: compile MdtTagCode to MdtLogicCode";
     "\t", "l: lint MdtLogicCode";
     "\t", "i: indent MdtLogicCode";
+    "\t", "n: rename MdtLogicCode";
     "\t", "L: compile MdtBangLang to MdtLabelCode";
     ;
     "input from stdin";
@@ -243,6 +252,7 @@ impl TryFrom<char> for CompileMode {
             'C' => Self::MdtTagCodeToMdtLogic,
             'l' => Self::LintLogic,
             'i' => Self::IndentLogic,
+            'n' => Self::RenameLabel,
             'L' => Self::BangToMdtLabel,
             mode => return Err(mode),
         })

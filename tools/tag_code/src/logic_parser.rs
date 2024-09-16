@@ -275,6 +275,22 @@ impl<'a> ParseLine<'a> {
             None
         }
     }
+
+    pub fn as_inner_label(&self) -> Option<&str> {
+        match self {
+            ParseLine::Label(lab) => Some(lab),
+            ParseLine::Jump(lab, _) => Some(lab),
+            ParseLine::Args(_) => None,
+        }
+    }
+
+    pub fn as_inner_label_mut(&mut self) -> Option<&mut Cow<'a, str>> {
+        match self {
+            ParseLine::Label(lab) => Some(lab),
+            ParseLine::Jump(lab, _) => Some(lab),
+            ParseLine::Args(_) => None,
+        }
+    }
 }
 impl<'a> TryFrom<Vec<Var>> for ParseLine<'a> {
     type Error = <Args<'a> as TryFrom<Vec<Var>>>::Error;
@@ -414,6 +430,10 @@ impl<T> IdxBox<T> {
         let Self { index, value } = self;
         Some(IdxBox { index, value: f(value)? })
     }
+
+    pub fn new_value<U>(&self, new_value: U) -> IdxBox<U> {
+        self.as_ref().map(|&_| new_value)
+    }
 }
 impl<T> Deref for IdxBox<T> {
     type Target = T;
@@ -489,37 +509,47 @@ impl<'a> ParseLines<'a> {
         &mut self.lines
     }
 
-pub fn index_label_popup(&mut self) {
-    let mut lines = mem::take(self.lines_mut());
-    let poped: HashSet<usize> = lines.iter()
-        .filter_map(|x| x.as_label())
-        .filter_map(|x| x.parse().ok())
-        .collect();
-    let indexs: HashSet<usize> = lines.iter()
-        .filter_map(|x| x.as_jump_idx())
-        .collect();
-    let pop_idxs = &indexs - &poped;
-    while Some(true) == lines.last()
-        .map(|x| x.is_label()) // move last label to first
-    {
-        self.lines.push(lines.pop().unwrap());
+    pub fn index_label_popup(&mut self) {
+        let mut lines = mem::take(self.lines_mut());
+        let poped: HashSet<usize> = lines.iter()
+            .filter_map(|x| x.as_label())
+            .filter_map(|x| x.parse().ok())
+            .collect();
+        let indexs: HashSet<usize> = lines.iter()
+            .filter_map(|x| x.as_jump_idx())
+            .collect();
+        let pop_idxs = &indexs - &poped;
+        while Some(true) == lines.last()
+            .map(|x| x.is_label()) // move last label to first
+        {
+            self.lines.push(lines.pop().unwrap());
+        }
+        self.lines.extend(lines.into_iter()
+            .scan(0, |i, line| {
+                Some((line.is_solid().then(|| i!(*i++)), line))
+            })
+            .flat_map(|(i, line)| {
+                i.and_then(|i| {
+                    pop_idxs.contains(&i).then(|| {
+                        IdxBox::new(
+                            line.index,
+                            ParseLine::Label(i.to_string().into()),
+                        )
+                    })
+                }).into_iter().chain(once(line))
+            })
+        );
     }
-    self.lines.extend(lines.into_iter()
-        .scan(0, |i, line| {
-            Some((line.is_solid().then(|| i!(*i++)), line))
-        })
-        .flat_map(|(i, line)| {
-            i.and_then(|i| {
-                pop_idxs.contains(&i).then(|| {
-                    IdxBox::new(
-                        line.index,
-                        ParseLine::Label(i.to_string().into()),
-                    )
-                })
-            }).into_iter().chain(once(line))
-        })
-    );
-}
+
+    pub fn for_each_inner_label_mut<'b, F>(&'b mut self, f: F)
+    where F: FnMut(IdxBox<&'b mut Cow<'a, str>>),
+    {
+        self.iter_mut()
+            .filter_map(|line| {
+                line.as_mut().and_then(ParseLine::as_inner_label_mut)
+            })
+            .for_each(f)
+    }
 }
 impl<'a> From<Vec<IdxBox<ParseLine<'a>>>> for ParseLines<'a> {
     fn from(lines: Vec<IdxBox<ParseLine<'a>>>) -> Self {
