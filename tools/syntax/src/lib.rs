@@ -4164,7 +4164,7 @@ impl CompileMeta {
 
     pub fn debug_tag_codes(&self) -> Vec<String> {
         self.parse_lines().lines().iter()
-            .map(ToString::to_string)
+            .map(|line| format!("{line:#}"))
             .collect()
     }
 
