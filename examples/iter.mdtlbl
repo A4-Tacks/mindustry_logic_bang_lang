@@ -67,7 +67,7 @@ const Memory = (
             take I = ...i;
             if I < ...End {
                 take ...Run[F];
-                op I I + 1;
+                I++;
             }
         );
         const $.ForEach = (
@@ -76,7 +76,7 @@ const Memory = (
             take I = ...i;
             while I < ...End {
                 take ...Run[F];
-                op I I + 1;
+                I++;
             }
         );
     );

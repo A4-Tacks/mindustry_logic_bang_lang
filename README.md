@@ -108,7 +108,7 @@ while id < @unitCount {
         while Bind != first {
             # 若头单位死亡, 则重新统计该类单位
             goto :restart (sensor $ first @dead;);
-            icount += 1;
+            icount++;
         }
         count += icount; # 将该单位数累加到总单位数
 
@@ -116,7 +116,7 @@ while id < @unitCount {
         print unit_type ": " icount "\n";
     }
 
-    id += 1; # 推进单位id
+    id++; # 推进单位id
 }
 
 print "unit total: " count;

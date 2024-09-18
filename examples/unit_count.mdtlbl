@@ -17,16 +17,50 @@ while id < @unitCount {
         while Bind != first {
             # 若头单位死亡, 则重新统计该类单位
             goto :restart (sensor $ first @dead;);
-            icount = icount + 1;
+            icount++;
         }
-        count = count + icount; # 将该单位数累加到总单位数
+        count += icount; # 将该单位数累加到总单位数
 
         # 打印每种存在的单位
         print unit_type ": " icount "\n";
     }
 
-    id = id + 1; # 推进单位id
+    id++; # 推进单位id
 }
 
 print "unit total: " count;
 printflush message1;
+
+#* Li >>>
+    set id 0
+    set count id
+    jump ___3 greaterThanEq id @unitCount
+___4:
+    lookup unit unit_type id
+restart:
+    ubind unit_type
+    jump ___2 strictEqual @unit null
+    set first @unit
+    set icount 1
+    ubind unit_type
+    jump ___0 equal @unit first
+___1:
+    sensor __0 first @dead
+    jump restart notEqual __0 false
+    op add icount icount 1
+    ubind unit_type
+    jump ___1 notEqual @unit first
+___0:
+    op add count count icount
+    print unit_type
+    print ": "
+    print icount
+    print "\n"
+___2:
+    op add id id 1
+    jump ___4 lessThan id @unitCount
+___3:
+    print "unit total: "
+    print count
+    printflush message1
+*#

@@ -1,7 +1,7 @@
 " Vim syntax file
 " Language:		mindustry logic (logic)
 " Maintainer:		A4-Tacks <wdsjxhno1001@163.com>
-" Last Change:		2024-08-29
+" Last Change:		2024-09-18
 " URL:			https://github.com/A4-Tacks/mindustry_logic_bang_lang
 scriptencoding utf-8
 
@@ -40,7 +40,7 @@ syn match	logicHeadLabel		/\%(^\|;\)\@1<=\s*:\=[^ \t\r;:#]\+:\ze\s*[;#\n]/
 syn match	logicPrint		/print[ \t]/			contained nextgroup=logicPrintBody,logicPrintBodyVar	skipwhite
 syn match	logicPrintBody		/"[^"\n]*"/			contained nextgroup=logicPrintRest			skipwhite contains=logicStringEscape,logicStringColor
 syn match	logicPrintBodyVar	/[^ \t\r;:#"]\+/		contained nextgroup=logicPrintRest			skipwhite
-syn match	logicPrintRest		/;[ \t]*print[ \t]/	contained nextgroup=logicPrintBody,logicPrintBodyVar	skipwhite conceal
+syn match	logicPrintRest		/;[ \t]*print[ \t]/		contained nextgroup=logicPrintBody,logicPrintBodyVar	skipwhite conceal
 syn region	logicString		start=/"/ end=/"/		contains=logicStringEscape,logicStringColor
 syn match	logicStringColor					contained /\[\v%(#\x{6,8}|%(c%(lear|yan|oral)|b%(l%(ack|ue)|r%(own|ick))|white|li%(ghtgray|me)|g%(r%(ay|een)|old%(enrod)?)|darkgray|navy|r%(oyal|ed)|s%(late|ky|carlet|almon)|t%(eal|an)|acid|forest|o%(live|range)|yellow|p%(ink|urple)|ma%(genta|roon)|violet))=\]/
 syn match	logicStringEscape	/\\n\|\[\[/			contained
