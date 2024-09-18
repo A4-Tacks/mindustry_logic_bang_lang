@@ -53,10 +53,30 @@ if check_unit == null {
 
 
 if unit == null {
-    ubind @flare;
-    skip (sensor $ @unit @controlled;) {
-        unit = @unit;
-    }
+    const UnitType = @flare;
+    take (
+        const Fail = (sensor $ @unit @controlled;);
+
+        const Repeat = (const match @ {
+            [0] F {}
+            *N F {
+                take*I = N - 1;
+                take Repeat[I F] F[I];
+            }
+        });
+
+        # 在每轮重复绑定多次以提高绑定推进效率
+        take Repeat[4 (
+            ubind UnitType;
+            goto :end !Fail;
+        )];
+
+        ubind UnitType;
+        skip Fail {
+            :end
+            unit = @unit;
+        }
+    );
 }
 
 if (sensor $ unit @dead;)
