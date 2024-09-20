@@ -2540,6 +2540,55 @@ fn op_expr_test() {
 
     assert_eq!(
         parse!(parser, r#"
+        a, b min= 2, 3;
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            a min= 2;
+            b min= 3;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a, b max= 2, 3;
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            a max= 2;
+            b max= 3;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x min= 2;
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            take ___0 = x;
+            op ___0 min ___0 2;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a, b min= 2;
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            take ___0 = 2;
+            {take ___1 = a; op ___1 min ___1 ___0;}
+            {take ___2 = b; op ___2 min ___2 ___0;}
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
         x = ++i;
         "#).unwrap(),
         parse!(parser, r#"

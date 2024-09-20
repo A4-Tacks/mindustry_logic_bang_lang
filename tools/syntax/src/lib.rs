@@ -4656,7 +4656,7 @@ pub fn op_expr_build_results(
             f(meta, result, value)
         },
         (len, 1)
-        if f as *const () == op_expr_tools::top_assign_oper as *const () => {
+        if f as *const () == op_expr_tools::TOP_ASSIGN_OPER as *const () => {
             let mut lines = Vec::with_capacity(len + 1);
             let value = values.pop().unwrap();
             let mut results = results.into_iter();
@@ -4704,8 +4704,28 @@ pub fn op_expr_build_results(
     }
 }
 
+#[macro_export]
+macro_rules! make_assign_oper {
+    ($oper:path) => {
+        |meta, res, v| {
+            let tres = meta.get_tmp_var();
+            $crate::Expand(::std::vec![
+                $crate::Take(tres.clone().into(), res).into(),
+                $oper(
+                    tres.clone().into(),
+                    tres.into(),
+                    v.into_value(meta),
+                ).into(),
+            ]).into()
+        }
+    };
+}
+
 pub mod op_expr_tools {
-    use super::{Meta, Value, OpExprInfo, LogicLine};
+    use super::{LogicLine, Meta, OpExprInfo, Value};
+
+    pub const TOP_ASSIGN_OPER: fn(&mut Meta, Value, OpExprInfo) -> LogicLine
+        = top_assign_oper;
 
     pub fn top_assign_oper(
         meta: &mut Meta,
