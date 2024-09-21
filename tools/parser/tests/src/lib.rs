@@ -644,6 +644,10 @@ fn op_generate_test() {
         Op::Add("x".into(), "y".into(), "z".into()).generate_args(&mut Default::default()),
         args!["op", "add", "x", "y", "z"],
     );
+    assert_eq!(
+        Op::AngleDiff("x".into(), "y".into(), "z".into()).generate_args(&mut Default::default()),
+        args!["op", "angleDiff", "x", "y", "z"],
+    );
 }
 
 #[test]

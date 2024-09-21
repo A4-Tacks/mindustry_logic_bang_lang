@@ -41,7 +41,7 @@ syn keyword mdtlblOpFunKeyword
             \ equal notEqual land lessThan lessThanEq greaterThan greaterThanEq
             \ strictEqual strictNotEqual always _
             \ shl shr or and xor max
-            \ min angle len noise not abs log log10
+            \ min angle angleDiff len noise not abs log log10
             \ floor ceil sqrt rand sin cos tan
             \ asin acos atan lnot
 

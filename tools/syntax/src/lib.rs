@@ -1785,6 +1785,7 @@ pub enum Op {
     Max(Value, Value, Value),
     Min(Value, Value, Value),
     Angle(Value, Value, Value),
+    AngleDiff(Value, Value, Value),
     Len(Value, Value, Value),
     Noise(Value, Value, Value),
 
@@ -1889,6 +1890,7 @@ impl Op {
                     Max => "max",
                     Min => "min",
                     Angle => "angle",
+                    AngleDiff => "angleDiff",
                     Len => "len",
                     Noise => "noise",
                 ]
@@ -2024,6 +2026,7 @@ impl Op {
             // Not Impl
             | Op::StrictEqual(..)
             | Op::Angle(..)
+            | Op::AngleDiff(..)
             | Op::Len(..)
             | Op::Noise(..)
             | Op::Rand(..) => None?,
@@ -2108,6 +2111,7 @@ impl FromMdtArgs<'_> for Op {
                 Max "max",
                 Min "min",
                 Angle "angle",
+                AngleDiff "angleDiff",
                 Len "len",
                 Noise "noise",
             ],

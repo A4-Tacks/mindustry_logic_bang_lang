@@ -349,7 +349,7 @@ impl DisplaySource for Op {
                 Shl, Shr, Or, And, Xor,
             ]
             op2l: [
-                Max, Min, Angle, Len, Noise,
+                Max, Min, Angle, AngleDiff, Len, Noise,
             ]
         };
         meta.push(";");

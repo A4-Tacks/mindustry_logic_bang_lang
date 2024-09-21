@@ -63,3 +63,28 @@ set x __0
 
 # 可以看到, 此处__0就是一个自动分配的变量,
 # 不用管它的变量名, 只要好好用`$`就行
+
+
+# 简而言之, 就是可以在 DExp 中放一些逻辑语句,
+# 然后使用这个 DExp 时这些语句总是会在使用之前执行,
+# 并且如果需要传递值, DExp 中的语句给 $ 赋值就行,
+# 表示了当前这一层 DExp 代表的句柄
+
+print "core: ";
+print (
+    ulocate building core false @copper outx outy found $;
+    print "pos: " outx ", " outy;
+);
+printflush message1;
+
+# 以下为上述代码编译的结果
+#* >>>
+print "core: "
+ulocate building core false @copper outx outy found __0
+print "pos: "
+print outx
+print ", "
+print outy
+print __0
+printflush message1
+*#

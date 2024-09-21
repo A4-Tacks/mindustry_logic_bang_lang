@@ -80,7 +80,7 @@
 		}
 		{ // operator
 			match: keywordsToRegex(
-				"abs acos add always and angle asin atan ceil"
+				"abs acos add always and angle angleDiff asin atan ceil"
 				"cos div equal floor greaterThan greaterThanEq"
 				"idiv land len lessThan lessThanEq lnot log"
 				"max min mod mul noise not notEqual or"

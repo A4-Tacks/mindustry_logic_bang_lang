@@ -312,6 +312,7 @@ pub Op: Op = {
     <OrSwap<"max", <Value>>> <Value> <Value> => Op::Max(<>),
     <OrSwap<"min", <Value>>> <Value> <Value> => Op::Min(<>),
     <OrSwap<"angle", <Value>>> <Value> <Value> => Op::Angle(<>),
+    <OrSwap<"angleDiff", <Value>>> <Value> <Value> => Op::AngleDiff(<>),
     <OrSwap<"len", <Value>>> <Value> <Value> => Op::Len(<>),
     <OrSwap<"noise", <Value>>> <Value> <Value> => Op::Noise(<>),
 
@@ -772,6 +773,11 @@ OpExprCallOp: OpExprInfo = {
         let (a, b) = <>;
         op_expr_build_op(
             || Op::Angle(ResultHandle, a.into_value(meta), b.into_value(meta)))
+    },
+    OpExprFun2<"angleDiff"> => {
+        let (a, b) = <>;
+        op_expr_build_op(
+            || Op::AngleDiff(ResultHandle, a.into_value(meta), b.into_value(meta)))
     },
     OpExprFun2<"len"> => {
         let (a, b) = <>;
