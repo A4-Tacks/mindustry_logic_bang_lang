@@ -149,37 +149,31 @@ printflush message1;
 **The above code will be compiled as**:
 
 ```
-    set id 0
-    set count id
-    jump ___3 greaterThanEq id @unitCount
-___4:
-    lookup unit unit_type id
-restart:
-    ubind unit_type
-    jump ___2 strictEqual @unit null
-    set first @unit
-    set icount 1
-    ubind unit_type
-    jump ___0 equal @unit first
-___1:
-    sensor __0 first @dead
-    jump restart notEqual __0 false
-    op add icount icount 1
-    ubind unit_type
-    jump ___1 notEqual @unit first
-___0:
-    op add count count icount
-    print unit_type
-    print ": "
-    print icount
-    print "\n"
-___2:
-    op add id id 1
-    jump ___4 lessThan id @unitCount
-___3:
-    print "unit total: "
-    print count
-    printflush message1
+set id 0
+set count id
+jump 22 greaterThanEq id @unitCount
+lookup unit unit_type id
+ubind unit_type
+jump 20 strictEqual @unit null
+set first @unit
+set icount 1
+ubind unit_type
+jump 15 equal @unit first
+sensor __0 first @dead
+jump 4 notEqual __0 false
+op add icount icount 1
+ubind unit_type
+jump 10 notEqual @unit first
+op add count count icount
+print unit_type
+print ": "
+print icount
+print "\n"
+op add id id 1
+jump 3 lessThan id @unitCount
+print "unit total: "
+print count
+printflush message1
 ```
 
 # Project Build
@@ -259,16 +253,21 @@ And we can use the redirection function of the shell to take the file as the inp
 Here is an example:
 
 ```shell
-mindustry_logic_bang_lang Lli < my_source.mdtlbl > out.logic
+mindustry_logic_bang_lang cl < my_source.mdtlbl > out.logic
 ```
 
 In this example, we used syntax that is common to almost all shells, such as `<` and `>`
 
-- The parameter `L` represents compiling the input `BangLang` into `LabeledLogicLang`,
-  parameter `l` run lint, and parameter `i` run indent
+- The parameter `c` represents compiling the input `BangLang` into `LogicLang`
+  and parameter `l` run lints
 - Following `<` is a file, which is used as standard input for the program
 - `>` followed by a file and used as program standard output,
   which means that the standard output is overwritten into this file
+
+If you sometimes need to visually see the expanded form of the label,
+you can change the `c` parameter to the `Li` parameter,
+which will become a logically importable form with labels
+It will just throw away some jump optimizations.
 
 If your file name or its path contains spaces or special characters,
 you may need to wrap it in single or double quotation marks.

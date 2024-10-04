@@ -124,37 +124,31 @@ printflush message1;
 ```
 **以上代码将被编译为**
 ```
-    set id 0
-    set count id
-    jump ___3 greaterThanEq id @unitCount
-___4:
-    lookup unit unit_type id
-restart:
-    ubind unit_type
-    jump ___2 strictEqual @unit null
-    set first @unit
-    set icount 1
-    ubind unit_type
-    jump ___0 equal @unit first
-___1:
-    sensor __0 first @dead
-    jump restart notEqual __0 false
-    op add icount icount 1
-    ubind unit_type
-    jump ___1 notEqual @unit first
-___0:
-    op add count count icount
-    print unit_type
-    print ": "
-    print icount
-    print "\n"
-___2:
-    op add id id 1
-    jump ___4 lessThan id @unitCount
-___3:
-    print "unit total: "
-    print count
-    printflush message1
+set id 0
+set count id
+jump 22 greaterThanEq id @unitCount
+lookup unit unit_type id
+ubind unit_type
+jump 20 strictEqual @unit null
+set first @unit
+set icount 1
+ubind unit_type
+jump 15 equal @unit first
+sensor __0 first @dead
+jump 4 notEqual __0 false
+op add icount icount 1
+ubind unit_type
+jump 10 notEqual @unit first
+op add count count icount
+print unit_type
+print ": "
+print icount
+print "\n"
+op add id id 1
+jump 3 lessThan id @unitCount
+print "unit total: "
+print count
+printflush message1
 ```
 
 # 项目构建
@@ -224,15 +218,17 @@ cargo install --path . # 执行这个你可以在你的shell中直接使用它(�
 以下为一个示例:
 
 ```shell
-mindustry_logic_bang_lang Lli < my_source.mdtlbl > out.logic
+mindustry_logic_bang_lang cl < my_source.mdtlbl > out.logic
 ```
 
 这个示例中, 我们使用了几乎所有shell都会有的语法, `<`和`>`.
 
-- 参数`Lli`代表参数`L`先将输入的`Bang`语言编译为`带标记的逻辑语言`,
-  然后参数`l`执行lint做一些检查, 最终参数`i`将其稍微转换后美化输出
+- 参数`c`代表将输入的`Bang`语言编译为`逻辑语言`, 然后参数`l`执行lint做一些检查
 - `<`后面跟着一个文件, 将这个文件作为程序的标准输入,
 - `>`后面跟着一个文件, 并将这个文件作为程序标准输出, 也就是标准输出被覆写进这个文件
+
+如果有时需要直观的看到标记展开的形式, 可以将`c`参数改为`Li`参数,
+将变成逻辑可导入的含标记形式. 就是会丢掉一些跳转优化.
 
 如果你的文件名或者其路径包含空格或特殊字符, 那么你可能需要使用单引号或双引号将其包裹.
 
