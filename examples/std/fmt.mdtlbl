@@ -193,3 +193,16 @@ const PrintOctal = (
         op Base Base - 3;
     }
 );
+
+const PrintF = (match @ {
+    #**
+    * 使用高版本API format进行方便的格式化填入
+    * 例如 take PrintF["a: {0}, b: {1}" 233 255];
+    *#
+    Fmt @ {
+        print Fmt;
+        inline@ Arg {
+            format Arg;
+        }
+    }
+});
