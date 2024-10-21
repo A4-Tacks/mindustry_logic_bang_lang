@@ -1,0 +1,38 @@
+#**
+* This is code in the Mindcode language
+*
+* Write this code to compare the differences between various compiler styles.
+* As I am a temporary learning Mindcode,
+* You can create a PR to fix errors or make it more concise
+*#
+
+const TRIANGLE_SIZE = 10;
+currentLine = cell1;
+previousLine = cell2;
+
+print("1\n1 1\n");
+
+lastSize = 2;
+
+previousLine[0] = 1;
+previousLine[1] = 1;
+
+for i in 3...TRIANGLE_SIZE do
+    currentLine[0] = 1
+    for j in 1..lastSize do
+        currentLine[j] = previousLine[j - 1] + previousLine[j];
+    end;
+    currentLine[lastSize] = 1;
+    lastSize += 1;
+
+    for c in 0..lastSize do
+        print(currentLine[c]);
+        previousLine[c] = currentLine[c];
+        if c < lastSize - 1 then
+            print(" ");
+        end;
+    end;
+    print("\n");
+end;
+
+printflush(message1);

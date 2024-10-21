@@ -240,7 +240,9 @@ without worrying about any performance
 There is basically no error location information generated,
 and the entire error mechanism is very poor However,
 error reporting is not common. Usually,
-we can still find the source of the error through a small amount of error information
+we can still find the source of the error through a small amount of error information.
+
+Fortunately, you won't encounter those terrifying advanced errors when using more basic functions
 
 # How To Use
 Let's first explain that the file name of this sample program is `mindustry_logic_bang_lang`,
@@ -277,3 +279,20 @@ Other compilation options can view their help without passing in any parameters:
 ```shell
 mindustry_logic_bang_lang
 ```
+
+# Comparison with other compilers
+In addition to Bang's compiler, there are many useful compilers that can compile easy to write languages into `LogicLang`, such as:
+
+- [mindcode](https://github.com/cardillan/mindcode)
+- [mlogjs](https://github.com/mlogjs/mlogjs)
+
+A simple example for comparison
+
+1. **Bang**:
+   [code-and-compiled](./examples/pascals_triangle.mdtlbl)
+2. **mlogjs**:
+   [code](https://github.com/mlogjs/mlogjs/blob/e17c84769a14c59ae0607db3c71db31d52ea8ad8/compiler/test/examples/pascals_triangle.js)
+   [compiled](https://github.com/mlogjs/mlogjs/blob/e17c84769a14c59ae0607db3c71db31d52ea8ad8/compiler/test/examples/pascals_triangle.mlog)
+3. **mindcode**:
+   [code](./examples/pascals_triangle.mnd)
+   *Currently not compiled*

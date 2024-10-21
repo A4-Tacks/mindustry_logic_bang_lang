@@ -1,0 +1,128 @@
+# pre define macros
+const ForC = (const match @ {
+    #**
+    * Static expand for loop impl
+    *#
+    *Stop F {
+        take ForC[0 Stop F];
+    }
+    *Start *Stop F {
+        take ForC[Start Stop 1 F];
+    }
+    *Start *Stop *Step F {
+        const Do = (const match @ {
+            I:[?_0 < Stop] {
+                take F[I];
+                take Do[(?I+Step)->$];
+            }
+        });
+        take Do[Start];
+    }
+});
+const ForD = (const match @ {
+    #**
+    * Dynamic for loop
+    *#
+    *Stop F {
+        take ForD[0 Stop F];
+    }
+    *Start *Stop F {
+        take ForD[Start Stop 1 F];
+    }
+    *Start *Stop *Step F {
+        # Dynamic Running impl
+        take+I(?I:Start);
+
+        while I < Stop {
+            take F[I];
+            I += Step;
+        }
+    }
+});
+const MakeMemMethods = (inline@ *Mem {
+    const Mem.Read = (match @ {
+        Addr {
+            read $ .. Addr;
+        }
+        Result Addr {
+            setres Result;
+            read Result .. Addr;
+        }
+    });
+    const Mem.Write = (setres ..; match @ {
+        @ Value {
+            inline@ Addr {
+                write Value .. Addr;
+            }
+        }
+    });
+});
+
+# codes
+const TriangleSize = 10;
+const CurLine = cell1;
+const PrevLine = cell2;
+take MakeMemMethods[CurLine PrevLine];
+
+print"\
+1
+1 1
+";
+
+lastSize = 2;
+
+take PrevLine.Write[0 1 1]; # like `PrevLine[0, 1] = 1`
+
+take ForD[3 (%(*TriangleSize+1))->$ const(match @ { I {
+    take CurLine.Write[0 1];
+
+    take ForD[1 lastSize const(match @ { J {
+        take CurLine.Write[J (*PrevLine.Read[(*J- 1)] + PrevLine.Read[J])];
+    }})];
+    take CurLine.Write[lastSize 1];
+    lastSize++;
+
+    take ForD[lastSize const(match @ { C {
+        print CurLine.Read[cur_c C];
+        take PrevLine.Write[C cur_c];
+        if C < (*lastSize- 1) { print " "; }
+    }})];
+    print "\n";
+}})];
+
+printflush message1;
+
+#* >>>
+print "1\n1 1\n"
+set lastSize 2
+write 1 cell2 0
+write 1 cell2 1
+set __26 3
+jump 31 greaterThanEq __26 11
+write 1 cell1 0
+set __43 1
+jump 16 greaterThanEq __43 lastSize
+op sub __52 __43 1
+read __51 cell2 __52
+read __54 cell2 __43
+op add __49 __51 __54
+write __49 cell1 __43
+op add __43 __43 1
+jump 9 lessThan __43 lastSize
+write 1 cell1 lastSize
+op add lastSize lastSize 1
+set __74 0
+jump 28 greaterThanEq __74 lastSize
+read cur_c cell1 __74
+print cur_c
+write cur_c cell2 __74
+op sub __85 lastSize 1
+jump 26 greaterThanEq __74 __85
+print " "
+op add __74 __74 1
+jump 20 lessThan __74 lastSize
+print "\n"
+op add __26 __26 1
+jump 6 lessThan __26 11
+printflush message1
+*#

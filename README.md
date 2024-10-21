@@ -207,6 +207,8 @@ cargo install --path . # 执行这个你可以在你的shell中直接使用它(�
 报错不怎么友好, 不过报错也比较少, 信息也差不多够找出错误\
 ~~就是可能使用高级功能时调试起来过于地狱~~
 
+不过好在, 你使用较为基本的功能并不会遇到那些恐怖的高级错误
+
 # 如何使用
 我们先说明本示例程序的文件名为`mindustry_logic_bang_lang`,
 因为可能由于平台原因或个人进行的重命名带来名称不同,
@@ -237,3 +239,21 @@ mindustry_logic_bang_lang cl < my_source.mdtlbl > out.logic
 ```shell
 mindustry_logic_bang_lang
 ```
+
+# 关于其它编译器的对比
+除了 bang 的编译器, 还有不少好用的编译器可以将易于编写的语言编译到`逻辑语言`,
+例如:
+
+- [mindcode](https://github.com/cardillan/mindcode)
+- [mlogjs](https://github.com/mlogjs/mlogjs)
+
+一个简单的用于对比的例子
+
+1. **Bang**:
+   [code-and-compiled](./examples/pascals_triangle.mdtlbl)
+2. **mlogjs**:
+   [code](https://github.com/mlogjs/mlogjs/blob/e17c84769a14c59ae0607db3c71db31d52ea8ad8/compiler/test/examples/pascals_triangle.js)
+   [compiled](https://github.com/mlogjs/mlogjs/blob/e17c84769a14c59ae0607db3c71db31d52ea8ad8/compiler/test/examples/pascals_triangle.mlog)
+3. **mindcode**:
+   [code](./examples/pascals_triangle.mnd)
+   *目前暂未编译*
