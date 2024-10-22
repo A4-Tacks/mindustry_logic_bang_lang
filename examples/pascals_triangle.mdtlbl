@@ -84,24 +84,24 @@ print"\
 
 lastSize = 2;
 
-take PrevLine[0 1 1]; # like `PrevLine[0, 1] = 1`
+PrevLine! 0 1 1; # like `PrevLine[0, 1] = 1`
 
-take ForD[3 (%(*TriangleSize+1))->$ const(match @ { I {
-    take CurLine[0 1];
+ForD! 3 (%(*TriangleSize+1))->$ const(match @ => I {
+    CurLine! 0 1;
 
-    take ForD[1 lastSize const(match @ { J {
-        take CurLine[J (*PrevLine[(*J- 1)] + PrevLine[J])];
-    }})];
-    take CurLine[lastSize 1];
+    ForD! 1 lastSize (match @ => J {
+        CurLine! J (*PrevLine[(*J- 1)] + PrevLine[J]);
+    });
+    CurLine! lastSize 1;
     lastSize++;
 
-    take ForD[lastSize const(match @ { C {
+    ForD! lastSize (match @ => C {
         print CurLine[].Read[cur_c C];
-        take PrevLine[C cur_c];
+        PrevLine! C cur_c;
         if C < (*lastSize- 1) { print " "; }
-    }})];
+    });
     print "\n";
-}})];
+});
 
 printflush message1;
 

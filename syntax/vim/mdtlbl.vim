@@ -83,9 +83,9 @@ syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<=(`=)0%(x-=_@![0-9a-fA-F_]+|b
 syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<=(`=)%(\I\i*|\@\I\i*%(-\i*)*|'[^' \t]+')\1:/  contains=mdtlblStringColor
 syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<=(`=)"[^"]*"\1:/ contains=@mdtlblStringContains
 
-syn match mdtlblQuickDExpTakeIdent /\v\@\I\i*%(-\i*)*%(%(-\>)=\[)@=/
-syn match mdtlblQuickDExpTakeIdent /\v\I\i*%(%(-\>)=\[)@=/
-syn match mdtlblQuickDExpTakeIdent /\v'[^' \t]+'%(%(-\>)=\[)@=/
+syn match mdtlblQuickDExpTakeIdent /\v\@\I\i*%(-\i*)*%(%(-\>)=[[!])@=/
+syn match mdtlblQuickDExpTakeIdent /\v\I\i*%(%(-\>)=[[!])@=/
+syn match mdtlblQuickDExpTakeIdent /\v'[^' \t]+'%(%(-\>)=[[!])@=/
 syn match mdtlblQuickDExpTakeIdent /->/
 
 syn match  mdtlblIdentLabel /\v%(^|\W@1<=):%(\I\i*|\@\I\i*%(-\i*)*|'[^' \t]+')/			nextgroup=mdtlblIdentLabelRest		contains=mdtlblStringColor

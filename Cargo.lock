@@ -307,7 +307,7 @@ checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
 
 [[package]]
 name = "mindustry_logic_bang_lang"
-version = "0.17.6"
+version = "0.17.7"
 dependencies = [
  "display_source",
  "logic_lint",
@@ -353,7 +353,7 @@ dependencies = [
 
 [[package]]
 name = "parser"
-version = "0.3.21"
+version = "0.3.22"
 dependencies = [
  "lalrpop",
  "lalrpop-util",
@@ -364,7 +364,7 @@ dependencies = [
 
 [[package]]
 name = "parser-tests"
-version = "0.1.36"
+version = "0.1.37"
 dependencies = [
  "either",
  "parser",

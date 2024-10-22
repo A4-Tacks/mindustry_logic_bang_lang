@@ -365,25 +365,51 @@ pub LogicLine: LogicLine = {
     OpExpr,
     Print,
     <Args> LEnd => LogicLine::Other(<>),
+    QuickTake,
     "inline" <ArgsRepeatBlock> => <>.into(),
     Match => <>.into(),
     ConstMatch => <>.into(),
 }
 
-Match: Match = "match" <args:Args?> <cases:MBlock<(
-    <MatchPat*> <("@" <MatchPat*>)?> <MBlock<LogicLine*>>
-)*>> => {
-    Match::new(args.unwrap_or_default(), cases.into_iter()
-        .map(|(prep, sufp, body)| {
-            (if let Some(sufp) = sufp {
-                MatchPat::Expanded(prep, sufp)
-            } else {
-                MatchPat::Normal(prep)
-            }, body.into())
-        })
-        .collect()
-    )
+#[inline]
+QuickTake: LogicLine = <value:NonConstRangeValue> "!" <args:Args?> LEnd => {
+    let dexp = DExp::new(meta.unnamed_var(), vec![
+        LogicLine::SetArgs(args.unwrap_or_default()),
+        LogicLine::SetResultHandle(value),
+    ].into());
+    Take(meta.unnamed_var().into(), dexp.into()).into()
 };
+
+Match: Match = {
+    "match" <args:Args?> <cases:MBlock<(
+        <MatchPat*> <("@" <MatchPat*>)?> <MBlock<LogicLine*>>
+    )*>> => {
+        Match::new(args.unwrap_or_default(), cases.into_iter()
+            .map(|(prep, sufp, body)| {
+                (if let Some(sufp) = sufp {
+                    MatchPat::Expanded(prep, sufp)
+                } else {
+                    MatchPat::Normal(prep)
+                }, body.into())
+            })
+            .collect()
+        )
+    },
+    "match" <args:Args?> "=>" <case:(
+        <MatchPat*> <("@" <MatchPat*>)?> <MBlock<LogicLine*>>
+    )> => {
+        Match::new(args.unwrap_or_default(), vec![case].into_iter()
+            .map(|(prep, sufp, body)| {
+                (if let Some(sufp) = sufp {
+                    MatchPat::Expanded(prep, sufp)
+                } else {
+                    MatchPat::Normal(prep)
+                }, body.into())
+            })
+            .collect()
+        )
+    },
+}
 
 MatchPat: MatchPatAtom = {
     MList<Args1> => MatchPatAtom::new_unamed(<>),
@@ -391,14 +417,18 @@ MatchPat: MatchPatAtom = {
     <name:Var> ":" <pat:MList<Args1>> => MatchPatAtom::new(name, pat),
 }
 
-ConstMatch: ConstMatch
-    = "const" "match" <args:Args?>
-    <cases:MBlock<(
+ConstMatch: ConstMatch = {
+    "const" "match" <args:Args?> <cases:MBlock<(
         ConstMatchPat NoPrefixInlineBlock
-    )*>>
-=> {
-    ConstMatch::new(args.unwrap_or_default(), cases)
-};
+    )*>> => {
+        ConstMatch::new(args.unwrap_or_default(), cases)
+    },
+    "const" "match" <args:Args?> "=>" <case:(
+        ConstMatchPat NoPrefixInlineBlock
+    )> => {
+        ConstMatch::new(args.unwrap_or_default(), vec![case])
+    },
+}
 
 ConstMatchPat: ConstMatchPat = {
     ConstMatchPatAtom* => ConstMatchPat::Normal(<>),

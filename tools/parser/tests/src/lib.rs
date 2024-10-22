@@ -2214,6 +2214,15 @@ fn quick_dexp_take_test() {
         "#).unwrap(),
     );
 
+    assert_eq!(
+        parse!(parser, r#"
+        Foo! a b c @ d;
+        "#).unwrap(),
+        parse!(parser, r#"
+        take Foo[a b c @ d];
+        "#).unwrap(),
+    );
+
 }
 
 #[test]
@@ -5176,6 +5185,51 @@ fn match_test() {
                 A B *C {
                     print A B C;
                 }
+            }
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        match x @ y => a @ b {
+            body;
+        }
+        "#).unwrap(),
+        parse!(parser, r#"
+        match x @ y {
+            a @ b {
+                body;
+            }
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        const match x @ y => a @ b {
+            body;
+        }
+        "#).unwrap(),
+        parse!(parser, r#"
+        const match x @ y {
+            a @ b {
+                body;
+            }
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        const match x @ y => *a @ [b] {
+            body;
+        }
+        "#).unwrap(),
+        parse!(parser, r#"
+        const match x @ y {
+            *a @ [b] {
+                body;
             }
         }
         "#).unwrap(),
