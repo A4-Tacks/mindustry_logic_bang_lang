@@ -39,7 +39,11 @@ macro_rules! make_lints {
                     },
                 )*
                 [] => unreachable!(),
-                [_, ..] => (),
+                [cmd, ..] => {
+                    if let Some(lint) = check_cmd($src, $line, cmd) {
+                        $lints.push(lint)
+                    }
+                },
             }
             $lints
         }
@@ -269,6 +273,17 @@ fn check_vars<'a>(
 ) -> impl Iterator<Item = Lint<'a>> + 'a {
     vars.into_iter()
         .filter_map(|var| check_var(src, line, var))
+}
+fn check_cmd<'a>(
+    _src: &'a crate::Source<'a>,
+    _line: &'a crate::Line<'a>,
+    var: &'a Var<'a>,
+) -> Option<Lint<'a>> {
+    if regex_is_match!(r"^__", var) && !regex_is_match!(r".__$", var) {
+        return Some(Lint::new(var, WarningLint::SuspectedVarCmd))
+    }
+
+    None
 }
 #[must_use]
 fn check_argc<'a>(
@@ -546,6 +561,8 @@ pub enum WarningLint {
     AssignLiteral,
     /// 从命名来看疑似是未被替换的常量
     SuspectedConstant,
+    /// 从命名来看疑似将变量作为命令执行
+    SuspectedVarCmd,
     /// 未被使用
     NeverUsed,
     NoTargetJump,
@@ -567,6 +584,9 @@ impl ShowLint for WarningLint {
             WarningLint::AssignLiteral => write!(f, "对字面量进行操作")?,
             WarningLint::SuspectedConstant => {
                 write!(f, "命名疑似未被替换的常量")?
+            },
+            WarningLint::SuspectedVarCmd => {
+                write!(f, "命令疑似将变量作为命令执行")?
             },
             WarningLint::NeverUsed => write!(f, "未被使用到的量")?,
             WarningLint::NoTargetJump => write!(f, "没有目标的跳转")?,
