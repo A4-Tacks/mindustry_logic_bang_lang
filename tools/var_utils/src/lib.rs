@@ -18,7 +18,7 @@ pub fn is_ident(s: &str) -> bool {
 }
 
 pub const VAR_KEYWORDS: &[&str] = {&[
-    "_", "abs", "acos", "add", "always", "and", "angle",
+    "_", "abs", "acos", "add", "always", "and", "angle", "angleDiff",
     "asin", "atan", "break", "case", "ceil", "const", "continue",
     "cos", "div", "do", "elif", "else", "equal", "floor",
     "goto", "greaterThan", "greaterThanEq", "gwhile", "idiv", "if", "inline",
