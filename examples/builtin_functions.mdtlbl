@@ -10,7 +10,8 @@
 * * `Info[var]`: 以info级日志形式将传入Var输出
 * * `Err[var]`: 以err级日志形式将传入Var输出
 * * `Unbind[var]`: 传入一个值绑定, 返回绑定者
-* * `Const[name value]`: 动态目标的进行一个const, 并泄露到上层
+* * `Const[name value]`: 动态目标的进行一个const, 并泄露到上层,
+*   调用者需要保证被泄漏的expand不会展开次数不同, 比如直接位于重复块中操作重复块外
 * * `Binder[name value]`: 传入一个值绑定, 将其被绑定值const给给定名称
 * * `BindHandle[value]`: 直接获取值绑定的句柄, 但是不进行最后一层全局常量域追踪
 * * `BindHandle2[value name]`: 直接获取值绑定的句柄, 但是不进行最后一层全局常量域追踪.

@@ -4171,6 +4171,28 @@ fn cmper_test() {
         print __;
         "#).unwrap()).compile().unwrap(),
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        break ({match 1 2 3 => @ {}} => _);
+        print _0 @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "jump 0 always 0 0",
+            "print _0",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        break (=>[1 2 3] _);
+        print _0 @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "jump 0 always 0 0",
+            "print _0",
+        ]
+    );
 }
 
 #[test]
@@ -5234,6 +5256,44 @@ fn match_test() {
         }
         "#).unwrap(),
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        match 1 2 => @ {
+            print _0 _1 @;
+        }
+        print _0 _1 @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 1",
+            "print 2",
+            "print 1",
+            "print 2",
+            "print 1",
+            "print 2",
+            "print 1",
+            "print 2",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const match 1 2 => @ {
+            print _0 _1 @;
+        }
+        print _0 _1 @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 1",
+            "print 2",
+            "print 1",
+            "print 2",
+            "print 1",
+            "print 2",
+            "print 1",
+            "print 2",
+        ],
+    );
 }
 
 #[test]
@@ -6099,12 +6159,14 @@ fn builtin_func_test() {
                 const Value = (i:);
                 match Name Value { @ {} }
                 take Builtin.Const;
+                print Y;
             }
             print Y;
         }
         "#).unwrap()).compile().unwrap(),
         vec![
             "print h",
+            "print i",
             "print i",
         ],
     );

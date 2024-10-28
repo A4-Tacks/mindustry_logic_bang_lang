@@ -1645,7 +1645,7 @@ impl CmpTree {
 
         match self {
             Deps(deps, cmp) => {
-                meta.with_block(|meta| {
+                meta.with_block_and_env_args(|meta| {
                     deps.compile(meta);
                     cmp.build(meta, do_tag_expanded);
                 });
@@ -2162,12 +2162,10 @@ impl Compile for Goto {
 pub struct Expand(pub Vec<LogicLine>);
 impl Compile for Expand {
     fn compile(self, meta: &mut CompileMeta) {
-        meta.with_block(|this| {
-            this.with_env_args_block(|this| {
-                for line in self.0 {
-                    line.compile(this)
-                }
-            });
+        meta.with_block_and_env_args(|meta| {
+            for line in self.0 {
+                line.compile(meta)
+            }
         });
     }
 }
@@ -2908,7 +2906,10 @@ impl MatchPat {
                         for ((name, _), arg) in a.chain(b) {
                             binds(name, arg, meta)
                         }
-                        meta.set_env_args(extracted)
+                        let extracted = extracted.iter()
+                            .map_into()
+                            .collect::<Vec<_>>();
+                        LogicLine::SetArgs(extracted.into()).compile(meta);
                     }).is_some()
             },
             _ => false,
@@ -3102,7 +3103,10 @@ impl ConstMatchPat {
                 for ele in right_datas {
                     make(ele, meta);
                 }
-                meta.set_env_args(&handles[mid_rng]);
+                let expand_args = handles[mid_rng].iter()
+                    .map_into()
+                    .collect::<Vec<_>>();
+                LogicLine::SetArgs(expand_args.into()).compile(meta);
                 code.compile(meta);
                 Ok(())
             },
@@ -3305,7 +3309,7 @@ impl Compile for GSwitch {
     fn compile(self, meta: &mut CompileMeta) {
         use GSwitchCase as GSC;
 
-        meta.with_block(|meta| {
+        meta.with_block_and_env_args(|meta| {
             let mut missed_lab = self
                 .case_lab_with_cond(GSwitchCase::is_missed, meta);
             let underflow_lab = self
@@ -4043,6 +4047,19 @@ impl CompileMeta {
         block_enter(self);
         f(self);
         block_exit(self)
+    }
+
+    /// like `with_block(|meta| meta.with_env_args_block(f))`
+    pub fn with_block_and_env_args<F>(&mut self, f: F)
+    -> (HashMap<Var, ConstData>, Option<Vec<Var>>)
+    where F: FnOnce(&mut Self)
+    {
+        let mut inner_res = None;
+        let block_res = self.with_block(|meta| {
+            inner_res = Some(meta.with_env_args_block(f))
+        });
+
+        (block_res, inner_res.unwrap())
     }
 
     /// 添加一个需泄露的const
