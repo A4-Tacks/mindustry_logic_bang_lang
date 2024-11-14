@@ -1028,16 +1028,18 @@ ClosuredValue: ClosuredValue = {
     MLTuple<
         (
             ClosuredValueCatch*
+            Opt<"@">
             ("|" <Label*>)?
         ),
         (ConstStart <Value> <ConstStop>),
     > => {
-        let ((catchs, catch_labels), (value, labels)) = <>;
+        let ((catchs, catch_args, catch_labels), (value, labels)) = <>;
         ClosuredValue::Uninit {
             catch_values: catchs,
             catch_labels: catch_labels.unwrap_or_default(),
             value: value.into(),
             labels,
+            catch_args,
         }
     },
 }

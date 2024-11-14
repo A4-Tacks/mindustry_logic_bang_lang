@@ -7333,3 +7333,177 @@ fn to_label_code_test() {
         ],
     );
 }
+
+#[test]
+fn closure_catch_args_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        match a b c => @ {}
+        const Clos = ([@](
+            print @;
+        ));
+        take Clos[];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print a"#,
+            r#"print b"#,
+            r#"print c"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        match a b c => @ {}
+        const Clos = ([@](
+            print @;
+        ));
+        match d e f => @ {}
+        take Clos[];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print a"#,
+            r#"print b"#,
+            r#"print c"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        match a b c => @ {}
+        const Clos = ([@](
+            print @;
+        ));
+        match d e f => @ {}
+        take Clos[];
+        print @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print a"#,
+            r#"print b"#,
+            r#"print c"#,
+            r#"print d"#,
+            r#"print e"#,
+            r#"print f"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        match a b c => @ {}
+        const Clos = ([@](
+            print @;
+        ));
+        const a = 2;
+        take Clos[];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print a"#,
+            r#"print b"#,
+            r#"print c"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        match a b c => @ {}
+        const Clos = ([@](
+            print @;
+        ));
+        take Clos[1 2];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print a"#,
+            r#"print b"#,
+            r#"print c"#,
+        ],
+    );
+
+    assert_eq!( // moved value owned test
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Builder = (
+            const $.F = ([@](
+                print @;
+            ));
+        );
+        match 1 2 3 => @ {}
+        const Clos = Builder[a b c]->F;
+        match 4 5 6 => @ {}
+        take Clos;
+        take Clos[];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print a"#,
+            r#"print b"#,
+            r#"print c"#,
+            r#"print a"#,
+            r#"print b"#,
+            r#"print c"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Builder = (
+            const $.F = ([@](
+                print @;
+            ));
+        );
+        const Clos = Builder[a b c]->F;
+        const a = 1;
+        take Clos;
+        const b = 2;
+        take Clos[];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print a"#,
+            r#"print b"#,
+            r#"print c"#,
+            r#"print a"#,
+            r#"print b"#,
+            r#"print c"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Builder = (
+            const $.F = ([@](
+                print @;
+            ));
+        );
+        const Clos = Builder[(x:
+            print run;
+        )]->F;
+        print split;
+        take Clos[];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print split"#,
+            r#"print run"#,
+            r#"print x"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Builder = (
+            const $.F = ([P:(print pre;) @](
+                print @;
+            ));
+        );
+        const Clos = Builder[(x:
+            print run;
+        )]->F;
+        print split;
+        take Clos[];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print pre"#,
+            r#"print split"#,
+            r#"print run"#,
+            r#"print x"#,
+        ],
+    );
+}

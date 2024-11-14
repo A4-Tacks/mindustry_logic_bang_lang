@@ -72,16 +72,18 @@ impl DisplaySource for ClosuredValue {
                 catch_labels,
                 value,
                 labels,
+                catch_args,
             } => {
                 meta.push("([");
-                meta.display_source_iter_by_splitter(
-                    |meta| {
-                        meta.add_space();
-                    },
-                    catch_values,
-                );
-                if !catch_labels.is_empty() {
+                meta.display_source_iter_by_space(catch_values);
+                if *catch_args {
                     if !catch_values.is_empty() {
+                        meta.add_space();
+                    }
+                    meta.push("@");
+                }
+                if !catch_labels.is_empty() {
+                    if !catch_values.is_empty() || *catch_args {
                         meta.add_space();
                     }
                     meta.push("|");
@@ -100,6 +102,7 @@ impl DisplaySource for ClosuredValue {
                 bind_handle,
                 rename_labels,
                 vars,
+                reset_argc: reset_args,
             } => {
                 struct CatchedVar<'a>(&'a Var);
                 impl DisplaySource for CatchedVar<'_> {
@@ -114,14 +117,17 @@ impl DisplaySource for ClosuredValue {
                 let catcheds = vars.iter()
                     .map(|var| CatchedVar(var));
                 meta.push("([");
-                meta.display_source_iter_by_splitter(
-                    |meta| {
-                        meta.add_space();
-                    },
-                    catcheds,
-                );
-                if !rename_labels.is_empty() {
+                meta.display_source_iter_by_space(catcheds);
+                if let Some(args) = reset_args {
                     if !vars.is_empty() {
+                        meta.add_space();
+                    }
+                    meta.push("@(");
+                    meta.push_fmt(args);
+                    meta.push(")");
+                }
+                if !rename_labels.is_empty() {
+                    if !vars.is_empty() || reset_args.is_some() {
                         meta.add_space();
                     }
                     meta.push("|");
@@ -525,8 +531,7 @@ impl DisplaySource for Args {
     fn display_source(&self, meta: &mut DisplaySourceMeta) {
         match self {
             Args::Normal(args) => {
-                meta.display_source_iter_by_splitter(
-                    DisplaySourceMeta::add_space, args);
+                meta.display_source_iter_by_space(args);
             },
             Args::Expanded(prefix, suffix) => {
                 prefix.iter().for_each(|arg| {
@@ -570,10 +575,7 @@ impl DisplaySource for MatchPatAtom {
         }
         if show_list {
             meta.push("[");
-            meta.display_source_iter_by_splitter(
-                DisplaySourceMeta::add_space,
-                self.pattern()
-            );
+            meta.display_source_iter_by_space(self.pattern());
             meta.push("]");
         }
     }
@@ -582,10 +584,7 @@ impl DisplaySource for MatchPat {
     fn display_source(&self, meta: &mut DisplaySourceMeta) {
         match self {
             MatchPat::Normal(args) => {
-                meta.display_source_iter_by_splitter(
-                    DisplaySourceMeta::add_space,
-                    args,
-                )
+                meta.display_source_iter_by_space(args)
             },
             MatchPat::Expanded(prefix, suffix) => {
                 for s in prefix {
@@ -654,8 +653,7 @@ impl DisplaySource for ConstMatchPatAtom {
             if self.pattern().is_right() {
                 meta.push("?");
             }
-            meta.display_source_iter_by_splitter(
-                DisplaySourceMeta::add_space,
+            meta.display_source_iter_by_space(
                 self.pattern()
                     .as_ref()
                     .map_right(Some)
@@ -669,10 +667,7 @@ impl DisplaySource for ConstMatchPat {
     fn display_source(&self, meta: &mut DisplaySourceMeta) {
         match self {
             ConstMatchPat::Normal(args) => {
-                meta.display_source_iter_by_splitter(
-                    DisplaySourceMeta::add_space,
-                    args,
-                )
+                meta.display_source_iter_by_space(args)
             },
             ConstMatchPat::Expanded(prefix, suffix) => {
                 for s in prefix {
@@ -1174,6 +1169,42 @@ fn display_source_test() {
             .unwrap()
             .display_source_and_get(&mut meta),
         "const X = ([A:A B:B | :c :d]2);"
+    );
+
+    assert_eq!(
+        parse!(line_parser, r#"
+        const X = ([@]2);
+        "#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "const X = ([@]2);"
+    );
+
+    assert_eq!(
+        parse!(line_parser, r#"
+        const X = ([A @]2);
+        "#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "const X = ([A:A @]2);"
+    );
+
+    assert_eq!(
+        parse!(line_parser, r#"
+        const X = ([A @ | :c]2);
+        "#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "const X = ([A:A @ | :c]2);"
+    );
+
+    assert_eq!(
+        parse!(line_parser, r#"
+        const X = ([@ | :c]2);
+        "#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "const X = ([@ | :c]2);"
     );
 
     assert_eq!(

@@ -96,3 +96,21 @@ print "expected"
 print "unexpected"
 jump 4 always 0 0
 *#
+
+
+# 在0.17.10版本添加了捕获环境参数的功能, 会在展开闭包前设置环境参数
+const Builder = (
+    const X = 2;
+    const $.F = ([X @](
+        print X @;
+    ));
+);
+
+const Clos = Builder[a b c]->F;
+take Clos[d e f];
+#* >>>
+print 2
+print a
+print b
+print c
+*#

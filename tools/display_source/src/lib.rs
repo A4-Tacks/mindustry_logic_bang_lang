@@ -1,4 +1,5 @@
-use std::{ops::Deref, mem};
+use core::fmt;
+use std::{fmt::Write, mem, ops::Deref};
 pub mod impls;
 
 pub const LF: char = '\n';
@@ -83,6 +84,12 @@ impl DisplaySourceMeta {
     pub fn push(&mut self, s: &str) {
         self.check_indent();
         self.buffer.push_str(s)
+    }
+
+    /// 添加字符串到缓冲区
+    pub fn push_fmt(&mut self, f: impl fmt::Display) {
+        self.check_indent();
+        self.buffer.write_fmt(format_args!("{f}")).unwrap()
     }
 
     /// 如果缩进标志位打开, 则向缓冲区加入缩进
@@ -178,6 +185,17 @@ impl DisplaySourceMeta {
             split(self);
             s.display_source(self)
         })
+    }
+
+    /// 从可迭代对象中生成, 以空格分割
+    pub fn display_source_iter_by_space<'a, T: DisplaySource + 'a>(
+        &mut self,
+        iter: impl IntoIterator<Item = T>
+    ) {
+        self.display_source_iter_by_splitter(
+            |meta| meta.add_space(),
+            iter,
+        )
     }
 }
 

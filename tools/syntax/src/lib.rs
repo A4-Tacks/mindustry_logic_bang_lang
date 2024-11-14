@@ -723,11 +723,13 @@ pub enum ClosuredValue {
         catch_labels: Vec<Var>,
         value: Box<Value>,
         labels: Vec<Var>,
+        catch_args: bool,
     },
     Inited {
         bind_handle: Var,
         rename_labels: HashMap<Var, Var>,
         vars: Vec<Var>,
+        reset_argc: Option<usize>,
     },
     /// 操作过程中使用, 过程外不能使用
     Empty,
@@ -752,6 +754,7 @@ impl ClosuredValue {
             catch_labels,
             value,
             labels,
+            catch_args,
         } = this else { panic!() };
 
         let vars = catch_values.iter()
@@ -769,18 +772,31 @@ impl ClosuredValue {
         let r#const = Const(key, *value, labels);
         r#const.compile(meta);
 
-        let mut rename_labels = catch_labels.into_iter()
+        let rename_labels = catch_labels.into_iter()
             .map(|name| (
                 name.clone(),
                 meta.get_in_const_label(name),
             ))
             .collect::<HashMap<_, _>>();
-        rename_labels.shrink_to_fit();
+
+        let reset_argc = catch_args.then(|| {
+            let args = meta.get_env_args().to_vec();
+            let len = args.len();
+            for (i, arg) in args.into_iter().enumerate() {
+                let key = ValueBind(
+                    Value::Var(bindh.clone()).into(),
+                    format!("_{i}").into(),
+                );
+                Const(key.into(), arg.into(), vec![]).compile(meta);
+            }
+            len
+        });
 
         *self = Self::Inited {
             bind_handle: bindh,
             rename_labels,
             vars,
+            reset_argc,
         };
     }
 
@@ -792,11 +808,12 @@ impl ClosuredValue {
             bind_handle,
             rename_labels,
             vars,
+            reset_argc,
         } = self else {
             panic!("closured value uninit, {:?}", self)
         };
         let mut result = None;
-        meta.with_block(|meta| {
+        let f = |meta: &mut CompileMeta| {
             for var in vars {
                 let handle = meta.get_value_binded(
                     bind_handle.clone(),
@@ -809,13 +826,27 @@ impl ClosuredValue {
                 rename_labels,
                 |meta| {
                     let binded = meta.get_value_binded(
-                        bind_handle,
+                        bind_handle.clone(),
                         Self::BINDED_VALUE_NAME.into(),
                     );
                     result = f(binded, meta).into();
                 },
             );
-        });
+        };
+        if let Some(argc) = reset_argc {
+            meta.with_block_and_env_args(|meta| {
+                meta.set_env_args((0..argc).map(|i| {
+                    let name = format!("_{i}").into();
+                    ValueBindRef::new(
+                        Box::new(bind_handle.clone().into()),
+                        ValueBindRefTarget::NameBind(name),
+                    )
+                }));
+                f(meta);
+            });
+        } else {
+            meta.with_block(f);
+        }
         result.unwrap()
 
     }
@@ -2795,7 +2826,7 @@ impl Compile for ArgsRepeat {
             .collect();
         for args in chunks {
             let args = Vec::from_iter(args.iter().cloned());
-            meta.with_env_args_block(|meta| {
+            meta.with_env_args_scope(|meta| {
                 meta.set_env_args(args);
                 self.block.clone().compile(meta)
             });
@@ -4052,11 +4083,11 @@ impl CompileMeta {
     /// like `with_block(|meta| meta.with_env_args_block(f))`
     pub fn with_block_and_env_args<F>(&mut self, f: F)
     -> (HashMap<Var, ConstData>, Option<Vec<Var>>)
-    where F: FnOnce(&mut Self)
+    where F: FnOnce(&mut Self),
     {
         let mut inner_res = None;
         let block_res = self.with_block(|meta| {
-            inner_res = Some(meta.with_env_args_block(f))
+            inner_res = Some(meta.with_env_args_scope(f))
         });
 
         (block_res, inner_res.unwrap())
@@ -4140,11 +4171,7 @@ impl CompileMeta {
                 if let Some(extra_binder) = extra_binder {
                     data = data.set_binder(extra_binder)
                 }
-                self.expand_env
-                    .last_mut()
-                    .unwrap()
-                    .consts
-                    .insert(var, data)
+                self.add_local_const_data(var, data)
             },
             ConstKey::ValueBind(ValueBind(binder, name)) => {
                 let binder_handle = binder.take_handle(self);
@@ -4153,12 +4180,31 @@ impl CompileMeta {
                         .unwrap_or_else(|| binder_handle.clone()));
                 let binded = self.get_value_binded(
                     binder_handle, name);
-                self.expand_env.first_mut() // global
-                    .unwrap()
-                    .consts_mut()
-                    .insert(binded, data)
+                self.add_global_const_data(binded, data)
             },
         }
+    }
+
+    pub fn add_global_const_data(
+        &mut self,
+        name: Var,
+        data: ConstData,
+    ) -> Option<ConstData> {
+        self.expand_env.first_mut() // global
+            .unwrap()
+            .consts_mut()
+            .insert(name, data)
+    }
+
+    pub fn add_local_const_data(
+        &mut self,
+        name: Var,
+        data: ConstData,
+    ) -> Option<ConstData> {
+        self.expand_env.last_mut() // global
+            .unwrap()
+            .consts_mut()
+            .insert(name, data)
     }
 
     /// 从当前作用域移除一个常量到值的映射
@@ -4395,7 +4441,7 @@ impl CompileMeta {
         self.set_env_second_args(args);
     }
 
-    pub fn with_env_args_block<F>(&mut self, f: F) -> Option<Vec<Var>>
+    pub fn with_env_args_scope<F>(&mut self, f: F) -> Option<Vec<Var>>
     where F: FnOnce(&mut Self)
     {
         self.env_args.push(None);
