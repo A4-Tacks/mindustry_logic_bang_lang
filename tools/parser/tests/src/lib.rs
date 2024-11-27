@@ -6374,6 +6374,33 @@ fn builtin_func_test() {
             r#"print 5"#,
         ],
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        take Builtin.BindSep[x];
+        print a.b;
+        const a.b = 2;
+        print a.b;
+        print axb;
+        take Builtin.BindSep[""];
+        print axb;
+        print c.d;
+        const c.d = 3;
+        print c.d;
+        print cxd;
+        print __2;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print axb"#,
+            r#"print 2"#,
+            r#"print 2"#,
+            r#"print 2"#,
+            r#"print __2"#,
+            r#"print 3"#,
+            r#"print cxd"#,
+            r#"print 3"#,
+        ],
+    );
 }
 
 #[test]

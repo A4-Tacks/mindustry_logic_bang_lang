@@ -32,6 +32,10 @@
 * * `RefArg`: 返回指定下标的上层参数句柄, 一般再用Const解开
 * * `MissesMatch[enable]`: 当enable非0时, 将match失配打印日志功能开启
 * * `NewBind[enable]`: 当enable非0时, 新建绑定量时将会打印日志
+* * `BindSep[sep]`: 当sep非空字符串时, 绑定量将以指定分隔的形式输出
+*   例如: take BindSep["%"]; a.b = 2;的a.b在take后的句柄会变成'a%b'
+*   NOTE: 注意, 如果选择的分隔符分隔后结果和现有var冲突可能会产生奇怪的问题,
+*       或者在字符串上绑定等
 * * `SetNoOp[line]`: 根据给定的字串设置noop语句生成的行,
 *   包含一层简单的反斜杠解释规则:
 *     `\\` => `\`

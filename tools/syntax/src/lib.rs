@@ -3871,6 +3871,8 @@ pub struct CompileMeta {
     enable_misses_match_log_info: bool,
     enable_misses_bind_info: bool,
     noop_line: String,
+    /// 保证不会是字符串
+    bind_custom_sep: Option<Var>,
 }
 impl Debug for CompileMeta {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -3927,6 +3929,7 @@ impl CompileMeta {
             enable_misses_match_log_info: false,
             enable_misses_bind_info: false,
             noop_line: "noop".into(),
+            bind_custom_sep: None,
         };
         let builtin = Var::from(Self::BUILTIN_FUNCS_BINDER);
         for builtin_func in build_builtins() {
@@ -3982,7 +3985,12 @@ impl CompileMeta {
                     *warn = true;
                 }
                 show_new_bind = self.enable_misses_bind_info;
-                self.tmp_var_count.get()
+                if let Some(ref sep) = self.bind_custom_sep {
+                    debug_assert!(! Value::is_string(sep), "{sep:?}");
+                    format!("{handle}{sep}{bind}").into()
+                } else {
+                    self.tmp_var_count.get()
+                }
             }).clone();
         if warn_builtin == Some(true) {
             self.log_info(format!(

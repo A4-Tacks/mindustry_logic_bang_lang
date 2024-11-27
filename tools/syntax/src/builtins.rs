@@ -427,5 +427,23 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
                 Ok("__".into())
             })
         }
+
+        fn bind_sep:BindSep(meta) [v:sep] {
+            check_type!("var" Value::Var(sep) = sep.value() => {
+                match sep.as_var_type().as_string() {
+                    Some(&"") => {
+                        meta.bind_custom_sep = None;
+                    },
+                    Some(s) => {
+                        return Err((2, format!(
+                            "expected empty string, found: {s:?}")));
+                    },
+                    None => {
+                        meta.bind_custom_sep = sep.to_owned().into();
+                    },
+                }
+                Ok("__".into())
+            })
+        }
     }
 }
