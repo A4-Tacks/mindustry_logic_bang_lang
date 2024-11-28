@@ -1,0 +1,91 @@
+#**
+* 模拟星球运转, 无碰撞, 仅考虑万有引力
+*#
+
+take Builtin.BindSep['.'];
+
+const PI = 3.141592653589793;
+
+密度常数 = 0.4;
+惯性常数 = 1.4;
+万有引力常数 = 0.2;
+
+
+const loop = (const match @ => Body {
+    do {
+        take Body[];
+    } while;
+});
+
+const GetSimpleColor = ([N:0](
+    match N {
+        [0] { setres '%ff0000'; }
+        [1] { setres '%00ff00'; }
+        [2] { setres '%0000ff'; }
+    }
+    take* ...N = (N + 1) % 3;
+));
+
+const MakeItem = (match @ {
+    Res Mass X Y {
+        take MakeItem[Res Mass X Y 0 0];
+    }
+    Res Mass X Y SX SY {
+        take Res.Color = GetSimpleColor[];
+        take Res.Mass = Mass;
+
+        Res.size = max(1.5, sqrt(Mass / 密度常数)*sqrt(1/PI));
+        Res.speed_scale = Mass * 惯性常数;
+        Res.x, Res.y = X, Y;
+        Res.speed_x, Res.speed_y = SX, SY;
+    }
+});
+const EvalTwo = (match @ => A B {
+    take*VLen = len(A.x - B.x, A.y - B.y);
+    take*F = A.Mass * B.Mass / VLen**2 * 万有引力常数;
+    take*AS = F / A.speed_scale;
+    take*BS = F / B.speed_scale;
+
+    take*Angle = angle(A.x - B.x, A.y - B.y);
+    take*DX, DY = cos(Angle), sin(Angle);
+    take*ADX, ADY = DX*AS, DY*AS;
+    take*BDX, BDY = DX*BS, DY*BS;
+
+    A.speed_x, A.speed_y -= ADX, ADY;
+    B.speed_x, B.speed_y += BDX, BDY;
+});
+
+const EvalWorldItems = (inline@ Item {
+    Item.x, Item.y += Item.speed_x, Item.speed_y;
+});
+const DisplayWorldItems = (
+    draw clear 0 0 0 0 0 0;
+    inline@ Item {
+        draw col Item.Color 0 0 0 0 0;
+        draw poly Item.x Item.y 72 Item.size 0 0;
+    }
+    drawflush display1;
+);
+const Run = (
+    const EachTwo = (match @ => Fst @ {
+        inline@ Rest {
+            take EvalTwo[Fst Rest];
+        }
+        take EachTwo[@];
+    });
+    take EachTwo[@];
+    take EvalWorldItems[@];
+    take DisplayWorldItems[@];
+);
+
+MakeItem! sun 400 68 88 0 0;
+MakeItem! earth 10 68 158 0.9 0;
+MakeItem! moon 1 68 162 1.54 0;
+
+getlink display1 0;
+
+loop! (
+    take Run[sun earth moon];
+    read wait_time cell1 0;
+    i = 0; do { } while (*++i) < wait_time;
+);
