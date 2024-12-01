@@ -41,15 +41,18 @@ const MakeItem = (match @ {
     }
 });
 const EvalTwo = (match @ => A B {
-    take*VLen = len(A.x - B.x, A.y - B.y);
-    take*F = A.Mass * B.Mass / VLen**2 * 万有引力常数;
+    take AMass=A.Mass BMass=B.Mass;
+
+    take*DX, DY = A.x - B.x, A.y - B.y;
+    take*VLen = len(DX, DY);
+    take*UDX, UDY = DX/VLen, DY/VLen;
+
+    take*F = AMass * BMass / VLen**2 * 万有引力常数;
     take*AS = F / A.speed_scale;
     take*BS = F / B.speed_scale;
 
-    take*Angle = angle(A.x - B.x, A.y - B.y);
-    take*DX, DY = cos(Angle), sin(Angle);
-    take*ADX, ADY = DX*AS, DY*AS;
-    take*BDX, BDY = DX*BS, DY*BS;
+    take*ADX, ADY = UDX*AS, UDY*AS;
+    take*BDX, BDY = UDX*BS, UDY*BS;
 
     A.speed_x, A.speed_y -= ADX, ADY;
     B.speed_x, B.speed_y += BDX, BDY;
