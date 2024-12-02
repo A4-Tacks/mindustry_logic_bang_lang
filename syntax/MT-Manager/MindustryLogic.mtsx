@@ -94,6 +94,9 @@
             : @bg /(print)/ @_ @val @ed
                 $recordAllGroups: true
                 $1: "io"
+            : @bg /(format)/ @_ @val @ed
+                $recordAllGroups: true
+                $1: "io"
         }
 
         logic-lines-block := {
@@ -201,6 +204,12 @@
                     ) @ed
                 $recordAllGroups: true
                 $1: "world"
+            : @bg /(weathersense)/ @_ @var @_ @val (?:) @ed
+                $recordAllGroups: true
+                $1: "world"
+            : @bg /(weatherset)/ @_ @val @_ @val (?:) @ed
+                $recordAllGroups: true
+                $1: "world"
             : @bg /(spawnwave)/ (?:@_ @val){3} @ed
                 $recordAllGroups: true
                 $1: "world"
@@ -211,7 +220,7 @@
                     ($world /announce|toast/) @_ @val
                     | ($world /mission|notify/) @_ @fill
                     | @err @_ @val
-                    ) @ed
+                    ) (?:@_ @val)? @ed
                 $recordAllGroups: true
                 $1: "world"
             : @bg /(cutscene)/ @_ (?:
@@ -226,7 +235,7 @@
                 $recordAllGroups: true
                 $1: "world"
                 $2: "world"
-            : @bg /(explosion)/ @_ @val @_ @val @_ @val @_ @val @_ @val @_ @val @_ @val @_ @val @ed
+            : @bg /(explosion)/ (?:@_ @val){8,9} @ed
                 $recordAllGroups: true
                 $1: "world"
             : @bg /(setrate)/ @_ @val @ed
@@ -246,6 +255,25 @@
                 $recordAllGroups: true
                 $1: "world"
             : @bg /(setprop)/ @_ @val @_ @val @_ @val @ed
+                $recordAllGroups: true
+                $1: "world"
+            : @bg /(playsound)/ @_ (?:
+                    ($world /false/)  (?:@_ @val){4} (?:@_ @fill){2}
+                    | ($world /true/) (?:@_ @val){3} @_ @fill (?:@_ @val){2}
+                    | @err  (?:@_ @val){6}
+                    ) @_ @val @ed
+                $recordAllGroups: true
+                $1: "world"
+                $2: "world"
+            : @bg /(setmarker)/ @_ (@val) (?:@_ @val){4} @ed
+                $recordAllGroups: true
+                $1: "world"
+                $2: "world"
+            : @bg /(makemarker)/ @_ (@val) (?:@_ @val){4} @ed
+                $recordAllGroups: true
+                $1: "world"
+                $2: "world"
+            : @bg /(localeprint)/ @_ @val @ed
                 $recordAllGroups: true
                 $1: "world"
         }

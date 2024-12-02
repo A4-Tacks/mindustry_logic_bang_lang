@@ -82,6 +82,9 @@ impl<'a> Source<'a> {
         ][..];
         let lines = s.lines().enumerate()
             .map(|(lineno, line)| Line::from_line(lineno, line))
+            .filter(|line| {
+                line.args().len() != 1 || !line.args()[0].ends_with(':')
+            })
             .collect::<Vec<_>>();
 
         let readonly_used_vars = lines.iter()

@@ -92,6 +92,14 @@
                 3: "strEscape"
                 4: "number"
             }
+            {
+                match: include("bg") + /(format)/ + include("_") + include("val") + include("ed")
+                recordAllGroups: true
+                1: "io"
+                2: "string"
+                3: "strEscape"
+                4: "number"
+            }
         ]
         "logic-lines-block": [
             {
@@ -416,6 +424,27 @@
                 17: "strEscape"
             }
             {
+                match: include("bg") + /(weathersense)/ + include("_") + include("var") + include("_") + include("val") + /(?:)/ + include("ed")
+                recordAllGroups: true
+                1: "world"
+                2: "resultVar"
+                3: "strEscape"
+                4: "string"
+                5: "strEscape"
+                6: "number"
+            }
+            {
+                match: include("bg") + /(weatherset)/ + include("_") + include("val") + include("_") + include("val") + /(?:)/ + include("ed")
+                recordAllGroups: true
+                1: "world"
+                2: "string"
+                3: "strEscape"
+                4: "number"
+                5: "string"
+                6: "strEscape"
+                7: "number"
+            }
+            {
                 match: include("bg") + /(spawnwave)(?:/ + include("_") + include("val") + /){3}/ + include("ed")
                 recordAllGroups: true
                 1: "world"
@@ -435,7 +464,7 @@
                 7: "number"
             }
             {
-                match: include("bg") + /(message)/ + include("_") + /(?:(announce|toast)/ + include("_") + include("val") + /|(mission|notify)/ + include("_") + include("fill") + /|/ + include("err") + include("_") + include("val") + /)/ + include("ed")
+                match: include("bg") + /(message)/ + include("_") + /(?:(announce|toast)/ + include("_") + include("val") + /|(mission|notify)/ + include("_") + include("fill") + /|/ + include("err") + include("_") + include("val") + /)(?:/ + include("_") + include("val") + /)?/ + include("ed")
                 recordAllGroups: true
                 1: "world"
                 2: "world"
@@ -450,6 +479,9 @@
                 11: "string"
                 12: "strEscape"
                 13: "number"
+                14: "string"
+                15: "strEscape"
+                16: "number"
             }
             {
                 match: include("bg") + /(cutscene)/ + include("_") + /(?:(pan)/ + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + /|(zoom)/ + include("_") + include("val") + include("_") + include("fill") + include("_") + include("fill") + include("_") + include("fill") + /|(stop)/ + include("_") + include("fill") + include("_") + include("fill") + include("_") + include("fill") + include("_") + include("fill") + /|/ + include("err") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + /)/ + include("ed")
@@ -527,33 +559,12 @@
                 20: "number"
             }
             {
-                match: include("bg") + /(explosion)/ + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("ed")
+                match: include("bg") + /(explosion)(?:/ + include("_") + include("val") + /){8,9}/ + include("ed")
                 recordAllGroups: true
                 1: "world"
                 2: "string"
                 3: "strEscape"
                 4: "number"
-                5: "string"
-                6: "strEscape"
-                7: "number"
-                8: "string"
-                9: "strEscape"
-                10: "number"
-                11: "string"
-                12: "strEscape"
-                13: "number"
-                14: "string"
-                15: "strEscape"
-                16: "number"
-                17: "string"
-                18: "strEscape"
-                19: "number"
-                20: "string"
-                21: "strEscape"
-                22: "number"
-                23: "string"
-                24: "strEscape"
-                25: "number"
             }
             {
                 match: include("bg") + /(setrate)/ + include("_") + include("val") + include("ed")
@@ -624,6 +635,66 @@
                 8: "string"
                 9: "strEscape"
                 10: "number"
+            }
+            {
+                match: include("bg") + /(playsound)/ + include("_") + /(?:(false)(?:/ + include("_") + include("val") + /){4}(?:/ + include("_") + include("fill") + /){2}|(true)(?:/ + include("_") + include("val") + /){3}/ + include("_") + include("fill") + /(?:/ + include("_") + include("val") + /){2}|/ + include("err") + /(?:/ + include("_") + include("val") + /){6})/ + include("_") + include("val") + include("ed")
+                recordAllGroups: true
+                1: "world"
+                2: "world"
+                3: "string"
+                4: "strEscape"
+                5: "number"
+                6: "comment"
+                7: "strEscape"
+                8: "world"
+                9: "string"
+                10: "strEscape"
+                11: "number"
+                12: "comment"
+                13: "strEscape"
+                14: "string"
+                15: "strEscape"
+                16: "number"
+                17: "error"
+                18: "strEscape"
+                19: "string"
+                20: "strEscape"
+                21: "number"
+                22: "string"
+                23: "strEscape"
+                24: "number"
+            }
+            {
+                match: include("bg") + /(setmarker)/ + include("_") + /(/ + include("val") + /)(?:/ + include("_") + include("val") + /){4}/ + include("ed")
+                recordAllGroups: true
+                1: "world"
+                2: "world"
+                3: "string"
+                4: "strEscape"
+                5: "number"
+                6: "string"
+                7: "strEscape"
+                8: "number"
+            }
+            {
+                match: include("bg") + /(makemarker)/ + include("_") + /(/ + include("val") + /)(?:/ + include("_") + include("val") + /){4}/ + include("ed")
+                recordAllGroups: true
+                1: "world"
+                2: "world"
+                3: "string"
+                4: "strEscape"
+                5: "number"
+                6: "string"
+                7: "strEscape"
+                8: "number"
+            }
+            {
+                match: include("bg") + /(localeprint)/ + include("_") + include("val") + include("ed")
+                recordAllGroups: true
+                1: "world"
+                2: "string"
+                3: "strEscape"
+                4: "number"
             }
         ]
         "logic-lines": [

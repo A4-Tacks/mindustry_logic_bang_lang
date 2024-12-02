@@ -169,6 +169,7 @@ thread_local! {
             ["draw" "triangle" v v v v v v]
             ["draw" "image" v v v v v]
             ["print" v]
+            ["format" v]
             ["drawflush" v]
             ["printflush" v]
             ["getlink" a v]
@@ -193,6 +194,8 @@ thread_local! {
             ["ulocate" "building" _ v _ a a a a]
             ["ulocate" "spawn" _ _ _ a a a a]
             ["ulocate" "damaged" _ _ _ a a a a]
+            ["getblock" _ a v v]
+            ["fetch" _ a v v v]
             // 兜底, 对未录入的语句参数统一为使用
             [_ v v v v v v v v v v v v v v v v v v]
         }
@@ -332,6 +335,12 @@ const UNIT_CONTROL_METHODS: &[&str] = &[
     "itemTake", "payDrop", "payTake", "payEnter", "mine",
     "flag", "build", "getBlock", "within", "unbind",
 ];
+const FETCH_METHODS: &[&str] = &[
+    "unit",     "unitCount",
+    "player",   "playerCount",
+    "core",     "coreCount",
+    "build",    "buildCount",
+];
 
 make_lints! {
     pub fn lint<'a>(src, line) -> Lint<'a>;
@@ -382,7 +391,7 @@ make_lints! {
         }
     }
     "end" | "stop" (0) {}
-    "print" | "printflush" | "drawflush" | "wait" | "ubind" (1) {
+    "print" | "format" | "printflush" | "drawflush" | "wait" | "ubind" (1) {
         if let [_, var, ..] = line.args() {
             lints.extend(check_vars(src, line, [var]))
         }
@@ -452,6 +461,23 @@ make_lints! {
             }
             lints.extend(check_oper(method, JUMP_METHODS));
             lints.extend(check_vars(src, line, [a, b]));
+        }
+    }
+    "getblock" (4) {
+        if let [_, method, result, x, y]
+        = line.args() {
+            lints.extend(check_oper(method, &[
+                    "floor", "ore", "block", "building"]));
+            lints.extend(check_assign_var(src, line, result));
+            lints.extend(check_vars(src, line, [x, y]));
+        }
+    }
+    "fetch" (5) {
+        if let [_, method, result, a, b, c]
+        = line.args() {
+            lints.extend(check_oper(method, FETCH_METHODS));
+            lints.extend(check_assign_var(src, line, result));
+            lints.extend(check_vars(src, line, [a, b, c]));
         }
     }
 }
