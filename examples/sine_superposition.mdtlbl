@@ -1,0 +1,55 @@
+#**
+* 简单的正弦波叠加可视化的有趣玩意
+*#
+
+take Builtin.BindSep['.'];
+
+const Draw = (match @ => H {
+    const B=H->Binder;
+
+    draw linePoly B.x B.y 72 H.Range 0 0;
+    draw poly H.x H.y 72 2 0 0;
+});
+
+const Make = (match @ => Binder Range Speed {
+    const $.Binder = Binder;
+    const $.Range = Range;
+    const $.Run = ([H:$ B:Binder &Draw Range Speed](
+        H.x, H.y = cos(H.i)*Range, sin(H.i)*Range;
+        H.x, H.y += B.x, B.y;
+
+        H.i += Speed;
+        H.i %= 360;
+
+        take Draw[H];
+    ));
+    const Binder.Run = ([&Run:Binder->Run Child:$](
+        take Run[] Child.Run[];
+    ));
+    const $.Make = (setres Make[.. @];);
+});
+
+take Tail
+    = Make[start 20 1]
+    ->Make[15 3]
+    ->Make[10 7]
+    ->Make[5 10];
+
+start.x, start.y = 88;
+
+i = 0;
+do {
+    draw clear 0 0 0 0 0 0;
+    draw color 0xFF 0xFF 0xFF 0 0 0;
+    take start.Run[];
+    draw rect 0 Tail.y 176 1 0 0;
+    drawflush display1;
+
+    draw color 0 0 0 0 0 0;
+    draw rect i 0 1 176 0 0;
+    draw color 0xFF 0xFF 0xFF 0 0 0;
+    draw rect i Tail.y 1 1 0 0;
+    drawflush display2;
+
+    i++; i %= 176;
+} while;
