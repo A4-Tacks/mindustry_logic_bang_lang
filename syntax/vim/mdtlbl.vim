@@ -138,7 +138,7 @@ function! <SID>getMdtlblIndent()
         let diff -= 1
     endif
 
-    let pat = '^\v%(\.\.@!|-\>)'
+    let pat = '^\v%(\.\.@!|-\>|\=)'
 
     if preline =~# pat && preline !~# '[:({\[]$'
         let diff -= 1
@@ -160,6 +160,7 @@ setlocal indentkeys+==)
 setlocal indentkeys+==:
 setlocal indentkeys+==.
 setlocal indentkeys+=0->
+setlocal indentkeys+=0=
 
 " END And Color Links {{{1
 hi def link mdtlblKeyword		Keyword
