@@ -7534,3 +7534,153 @@ fn closure_catch_args_test() {
         ],
     );
 }
+
+#[test]
+fn param_deref_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = (
+            const N = 2;
+            print @;
+        );
+        const N = 1;
+        take F[(setres N;)];
+        take F[*(setres N;)];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 2"#,
+            r#"print 1"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = (
+            const N = 2;
+            print @;
+        );
+        const match (setres N;) => @ {}
+        const N = 1;
+        take F[(setres N;) @];
+        take F[*(setres N;) @];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 2"#,
+            r#"print 2"#,
+            r#"print 1"#,
+            r#"print 2"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = (
+            const N = 2;
+            print @;
+        );
+        const match (setres N;) => @ {}
+        const N = 1;
+        take F[(setres N;) @];
+        match @ => @ {}
+        take F[*(setres N;) @];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 2"#,
+            r#"print 2"#,
+            r#"print 1"#,
+            r#"print 1"#,
+        ],
+    );
+}
+
+#[test]
+fn param_inf_len_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = (
+            print @;
+        );
+        F! 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+            16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 0"#,
+            r#"print 1"#,
+            r#"print 2"#,
+            r#"print 3"#,
+            r#"print 4"#,
+            r#"print 5"#,
+            r#"print 6"#,
+            r#"print 7"#,
+            r#"print 8"#,
+            r#"print 9"#,
+            r#"print 10"#,
+            r#"print 11"#,
+            r#"print 12"#,
+            r#"print 13"#,
+            r#"print 14"#,
+            r#"print 15"#,
+            r#"print 16"#,
+            r#"print 17"#,
+            r#"print 18"#,
+            r#"print 19"#,
+            r#"print 20"#,
+            r#"print 21"#,
+            r#"print 22"#,
+            r#"print 23"#,
+            r#"print 24"#,
+            r#"print 25"#,
+            r#"print 26"#,
+            r#"print 27"#,
+            r#"print 28"#,
+            r#"print 29"#,
+            r#"print 30"#,
+            r#"print 31"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        (%print @;%)! 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+            16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 0"#,
+            r#"print 1"#,
+            r#"print 2"#,
+            r#"print 3"#,
+            r#"print 4"#,
+            r#"print 5"#,
+            r#"print 6"#,
+            r#"print 7"#,
+            r#"print 8"#,
+            r#"print 9"#,
+            r#"print 10"#,
+            r#"print 11"#,
+            r#"print 12"#,
+            r#"print 13"#,
+            r#"print 14"#,
+            r#"print 15"#,
+            r#"print 16"#,
+            r#"print 17"#,
+            r#"print 18"#,
+            r#"print 19"#,
+            r#"print 20"#,
+            r#"print 21"#,
+            r#"print 22"#,
+            r#"print 23"#,
+            r#"print 24"#,
+            r#"print 25"#,
+            r#"print 26"#,
+            r#"print 27"#,
+            r#"print 28"#,
+            r#"print 29"#,
+            r#"print 30"#,
+            r#"print 31"#,
+        ],
+    );
+}

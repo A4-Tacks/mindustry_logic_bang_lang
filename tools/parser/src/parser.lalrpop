@@ -161,10 +161,10 @@ NonConstRangeValue: Value = {
     ConstKey => <>.into(),
     "`" <Var> "`" => ReprVar(<>), // 原始值
     "$" => ResultHandle,
-    <value:NonConstRangeValue> <args:MList<Args?>> => {
+    <value:NonConstRangeValue> <args:MList<ParamArgs>> => {
         // QuickDExpTake
         DExp::new(meta.unnamed_var(), vec![
-            LogicLine::SetArgs(args.unwrap_or_default()),
+            LogicLine::SetArgs(args),
             LogicLine::SetResultHandle(value),
         ].into()).into()
     },
@@ -184,10 +184,10 @@ NonConstRangeValue: Value = {
     <NonConstRangeValue> "->" "$" => {
         ValueBindRef::new(<>.into(), ValueBindRefTarget::ResultHandle).into()
     },
-    <value:NonConstRangeValue> "->" <args:MList<Args?>> => {
+    <value:NonConstRangeValue> "->" <args:MList<ParamArgs>> => {
         // Refed QuickDExpTake
         let value = DExp::new(meta.unnamed_var(), vec![
-            LogicLine::SetArgs(args.unwrap_or_default()),
+            LogicLine::SetArgs(args),
             LogicLine::SetResultHandle(value),
         ].into()).into();
 
@@ -257,10 +257,10 @@ AlwaysJumpCmp: CmpTree = JumpCmp? => <>.unwrap_or(JumpCmp::Always.into());
 CmpTree1: CmpTree = {
     <deps:MBlock<LogicLine*>> "=>" <cmp:CmpTree1>
         => CmpTree::Deps(deps.into(), cmp.into()),
-    <deps:MBlock<LogicLine*>?> "=>" <args:MList<Args?>> <cmp:CmpTree1> => {
+    <deps:MBlock<LogicLine*>?> "=>" <args:MList<ParamArgs>> <cmp:CmpTree1> => {
         CmpTree::Deps(vec![
             InlineBlock::from(deps.unwrap_or_default()).into(),
-            LogicLine::SetArgs(args.unwrap_or_default()),
+            LogicLine::SetArgs(args),
         ].into(), cmp.into())
     },
     CmpTree2,
@@ -372,19 +372,19 @@ pub LogicLine: LogicLine = {
 }
 
 #[inline]
-QuickTake: LogicLine = <value:NonConstRangeValue> "!" <args:Args?> LEnd => {
+QuickTake: LogicLine = <value:NonConstRangeValue> "!" <args:ParamArgs> LEnd => {
     let dexp = DExp::new(meta.unnamed_var(), vec![
-        LogicLine::SetArgs(args.unwrap_or_default()),
+        LogicLine::SetArgs(args),
         LogicLine::SetResultHandle(value),
     ].into());
     Take(meta.unnamed_var().into(), dexp.into()).into()
 };
 
 Match: Match = {
-    "match" <args:Args?> <cases:MBlock<(
+    "match" <args:ParamArgs> <cases:MBlock<(
         <MatchPat*> <("@" <MatchPat*>)?> <MBlock<LogicLine*>>
     )*>> => {
-        Match::new(args.unwrap_or_default(), cases.into_iter()
+        Match::new(args, cases.into_iter()
             .map(|(prep, sufp, body)| {
                 (if let Some(sufp) = sufp {
                     MatchPat::Expanded(prep, sufp)
@@ -395,10 +395,10 @@ Match: Match = {
             .collect()
         )
     },
-    "match" <args:Args?> "=>" <case:(
+    "match" <args:ParamArgs> "=>" <case:(
         <MatchPat*> <("@" <MatchPat*>)?> <MBlock<LogicLine*>>
     )> => {
-        Match::new(args.unwrap_or_default(), vec![case].into_iter()
+        Match::new(args, vec![case].into_iter()
             .map(|(prep, sufp, body)| {
                 (if let Some(sufp) = sufp {
                     MatchPat::Expanded(prep, sufp)
@@ -418,15 +418,15 @@ MatchPat: MatchPatAtom = {
 }
 
 ConstMatch: ConstMatch = {
-    "const" "match" <args:Args?> <cases:MBlock<(
+    "const" "match" <args:ParamArgs> <cases:MBlock<(
         ConstMatchPat NoPrefixInlineBlock
     )*>> => {
-        ConstMatch::new(args.unwrap_or_default(), cases)
+        ConstMatch::new(args, cases)
     },
-    "const" "match" <args:Args?> "=>" <case:(
+    "const" "match" <args:ParamArgs> "=>" <case:(
         ConstMatchPat NoPrefixInlineBlock
     )> => {
-        ConstMatch::new(args.unwrap_or_default(), vec![case])
+        ConstMatch::new(args, vec![case])
     },
 }
 
@@ -495,6 +495,20 @@ Args: Args = {
         Args::Expanded(prefix, suffix)
     },
     <args:Args1> => {
+        args.into()
+    },
+}
+ParamArgsAtom: Value = {
+    "*" <Value> => {
+        ValueBindRef::new(<>.into(), ValueBindRefTarget::ResultHandle).into()
+    },
+    Value,
+};
+ParamArgs: Args = {
+    <prefix:ParamArgsAtom*> "@" <suffix:ParamArgsAtom*> => {
+        Args::Expanded(prefix, suffix)
+    },
+    <args:ParamArgsAtom*> => {
         args.into()
     },
 }
