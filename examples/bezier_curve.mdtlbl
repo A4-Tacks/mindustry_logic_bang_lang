@@ -1,0 +1,221 @@
+#**
+* 有趣的贝塞尔曲线逻辑
+*#
+
+Builtin.BindSep! '.';
+Builtin.MissesMatch! 1;
+
+take MaxDraw = 240;
+
+const IntoMut = (match @ {
+    Value {
+        setres IntoMut[Value $];
+    }
+    Value OwnedH {
+        match Builtin.EvalNum[Value] {
+            [`__`] { setres Value; }
+            N { setres OwnedH; OwnedH = N; }
+        }
+    }
+});
+const NewVecUninit = (match @ {
+    {
+        setres NewVecUninit[$];
+    }
+    R {
+        take X = R.x;
+        take Y = R.y;
+        setres NewVec[R X Y];
+    }
+});
+const NewVec = (match @ {
+    X Y {
+        setres NewVec[$ X Y];
+    }
+    R X Y {
+        setres R;
+        take R.X = X;
+        take R.Y = Y;
+
+        const R.IntoMut = (match @ => {
+            take X=..->X Y=..->Y;
+            setres NewVec[
+                *IntoMut[X ...x]
+                *IntoMut[Y ...y]
+            ];
+        });
+
+        const R.New = (match @ => {
+            take X=..->X Y=..->Y;
+            setres NewVecUninit[].Store[*NewVec[X Y]];
+        });
+
+        const R.Op = (const match @ {
+            *Other F {
+                setres ...Op[$ Other F];
+            }
+            *R *Other F {
+                NewVecUninit! R;
+                F! R->X ..->X Other->X;
+                F! R->Y ..->Y Other->Y;
+                setres R;
+            }
+        });
+
+        const R.Store = (match @ => Other {
+            take X=Other->X Y=Other->Y;
+            ...X, ...Y = X, Y;
+            setres ..;
+        });
+
+        const R.Len = (match @ {
+            Other {
+                take X=..->X Y=..->Y;
+                take OX=Other->X OY=Other->Y;
+                setres (*len(X-OX, Y-OY));
+            }
+            {
+                take X=..->X Y=..->Y;
+                setres (*len(X, Y));
+            }
+        });
+    }
+});
+const DrawLine = (match @ => A B {
+    draw line A.X A.Y B.X B.Y 0 0;
+});
+const Reads = (match @ => Fst @ Mem Addr {
+    read Fst Mem Addr;
+    inline@ Res {
+        take*Addr = Addr+1;
+        read Res Mem Addr;
+    }
+});
+const Writes = (match @ => Fst @ Mem Addr {
+    write Fst Mem Addr;
+    inline@ Value {
+        take*Addr = Addr+1;
+        write Value Mem Addr;
+    }
+});
+const GetStep = (match @ => A B {
+    take X1=A->X Y1=A->Y;
+    take X2=B->X Y2=B->Y;
+
+    setres (*1/max(abs(X1-X2), abs(Y1-Y2)));
+});
+const Lerp = (match @ => A B T {
+    const F = (match @ => A B T {
+        $ = A+(B-A)*T;
+    });
+    setres NewVec[
+        *F[A->X B->X T]
+        *F[A->Y B->Y T]
+    ];
+});
+const ConvertDisplayPos = (match @ => X Y Display {
+    take+Size+DX+DY+Diff;
+    sensor DX Display @x;
+    sensor DY Display @y;
+    sensor Size Display @size;
+    Diff = Size*(32/2);
+    setres NewVec[
+        *(*(X-DX)*32+Diff- 8)
+        *(*(Y-DY)*32+Diff- 8)
+    ];
+});
+
+
+# mains
+const Drawer = (
+    Reads! x0 y0 x1 y1 x2 y2 x3 y3 cell1 0;
+
+    NewVec! a x0 y0;
+    NewVec! b x1 y1;
+    NewVec! c x2 y2;
+    NewVec! d x3 y3;
+
+    take+T+DrawCount;
+    take Prev = a.New[];
+
+    drawflush display1;
+    draw clear 0 0 0 0 0 0;
+
+    match a b c d => @ {}
+    inline@ P {
+        draw linePoly P.X P.Y 72 4 0 0;
+    }
+
+    DrawCount = 10;
+    take*Step = max(0.03, 1/(MaxDraw-DrawCount));
+    T = 0; do {
+        take Lp1=Lerp[a b T];
+        take Lp2=Lerp[b c T];
+        take Lp3=Lerp[c d T];
+
+        take Cur = Lerp[
+            *Lerp[Lp1 Lp2 T]
+            *Lerp[Lp2 Lp3 T]
+            T
+        ];
+        DrawLine! Prev Cur;
+        Prev.Store! Cur;
+        skip (*++DrawCount) < MaxDraw {
+            drawflush display1;
+            DrawCount = 0;
+        }
+        T += Step;
+    } while T <= 1;
+    DrawLine! Prev d;
+    DrawLine! a b;
+    DrawLine! c d;
+    drawflush display1;
+);
+const Controller = (break continue {
+    take MouseB = arc1;
+
+    Reads! x0 y0 cell1 0;
+
+    display_max = (sensor $ display1 @size;) * 32 - 16;
+    pci = ci;
+    sensor ci MouseB @shooting;
+
+    if pci != ci && ci {
+        sensor mx MouseB @shootX;
+        sensor my MouseB @shootY;
+        take Mouse = ConvertDisplayPos[mx my display1];
+        break Mouse.X < 0 || Mouse.Y < 0
+        || Mouse.X > display_max || Mouse.Y > display_max;
+
+        # 寻找最近的点锁定
+        NewVec! target () ();
+        target.Store! *NewVec[x0 y0];
+        target = 0;
+        target_len = target.Len[Mouse];
+        i = 2; do {
+            Reads! x y cell1 i;
+            take Cur = NewVec[x y];
+            take Len = Cur.Len[Mouse];
+            if Len < target_len {
+                target_len = Len;
+                target.Store! Cur;
+                target = i;
+            }
+        } while (i:i+=2;) < 8;
+
+        Mouse.Op! diff target (_0 = _1 - _2;);
+
+        do {
+            sensor mx MouseB @shootX;
+            sensor my MouseB @shootY;
+
+            take Pos = ConvertDisplayPos[mx my display1];
+            x, y = Pos.X - diff.X, Pos.Y - diff.Y;
+
+            Writes! x y cell1 target;
+        } while (sensor $ MouseB @shooting;);
+    }
+});
+
+take Drawer;
+#take Controller;
