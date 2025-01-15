@@ -1,0 +1,488 @@
+#**
+* 21点, 又称黑杰克, 是一种将牌组尽量靠近21点来取胜的游戏
+* 2-9点数为牌面数字, 10 J R K 点数为10也被称作T牌,
+* A点数在不超过21的情况下为11, 否则为1
+* 当通过仅两张牌组成21点, 称作黑杰克, 大过任何非黑杰克的牌组
+* 玩家可以选择要牌或停牌:
+* - 要牌从牌堆顶部抽取一张牌加入牌组,
+* - 停牌停止要牌轮到庄家回合
+* 如果牌组点数和超过21点为爆牌, 自动认输
+* 庄家回合, 庄家会持续要牌直到点数不小于17
+* 庄家停牌后, 比较点数大小, 谁点数更大且未爆牌谁获胜
+*
+* 可以使用作弊按钮标记手中的头两张牌,
+* 但是标记的牌数越多, 结束后整副牌被换新的概率就越大
+*#
+
+Builtin.BindSep! '.';
+Builtin.MissesMatch! 1;
+
+const Reads = (match @ => Fst @ Mem Addr {
+    read Fst Mem Addr;
+    inline@ Res {
+        take*Addr = Addr+1;
+        read Res Mem Addr;
+    }
+});
+const Writes = (match @ => Fst @ Mem Addr {
+    write Fst Mem Addr;
+    inline@ Value {
+        take*Addr = Addr+1;
+        write Value Mem Addr;
+    }
+});
+const Button = (const match @ => *ButtonBuilding F {
+    if !(sensor $ ButtonBuilding @enabled;) {
+        control enabled ButtonBuilding true 0 0 0;
+        take F[];
+    }
+});
+const Once = (
+    const $.F = _0;
+    const $.V = (__:
+        take Value = ...F;
+        take ...V = Value;
+        setres Value;
+    );
+);
+const DrawANum = (
+    # 粗细为2的牌号数显, 给定显示右下角, 用负方向显示
+    match @ {
+        X Y Num {}
+        @ {
+            take Builtin.Err["ShowNum argc err"];
+            take N=Builtin.ArgsLen[] Builtin.Err[N];
+        }
+    }
+    take S = 2; # Size
+
+    take OLen=(?S*2) NOLen=(?-OLen); # offset len
+    take Len=(?S*3) NLen=(?-Len) NS=(?-S);
+    take EWid = S; # 间距
+
+    const Display = (
+        take LBX=Once[(?X-OLen)]    LBY=Once[Y]
+             LMX=Once[LBX.V]        LMY=Once[(?Y+OLen)]
+             RBX=Once[X]            RBY=Once[Y]
+             RMX=Once[X]            RMY=Once[LMY.V]
+             RTX=Once[X]            RTY=Once[(?RMY.V+OLen)]
+             RCX=Once[X]            RCY=Once[(?RMY.V+S)]
+             AX =Once[(?X-S)]
+        ;
+
+        # t:y+2l, m:y+l, b:y, f:y+s[2s], c:m+s[2s]
+        # n=b[2s], a=m[2s], g=f[2s], upper=?[s]
+        # (a ?)=[2s] (a upper)=[1s]
+
+        inline@{
+            match @ {
+                [t]  { draw rect RTX.V RTY.V NLen S 0 0; }
+                [m]  { draw rect RMX.V RMY.V NLen S 0 0; }
+                [b]  { draw rect RBX.V RBY.V NLen S 0 0; }
+                [rb] { draw rect RBX.V RBY.V NS Len 0 0; }
+                [lb] { draw rect LBX.V LBY.V NS Len 0 0; }
+                [rt] { draw rect RMX.V RMY.V NS Len 0 0; }
+                [lt] { draw rect LMX.V LMY.V NS Len 0 0; }
+
+                [aT] { draw rect AX.V  RTY.V NS S    0 0; }
+                [at] { draw rect AX.V  RTY.V NOLen S 0 0; }
+                [am] { draw rect AX.V  RMY.V NOLen S 0 0; }
+                [la] { draw rect LMX.V LMY.V NS OLen 0 0; }
+                [lA] { draw rect LMX.V LMY.V NS S    0 0; }
+                [ra] { draw rect RMX.V RMY.V NS OLen 0 0; }
+                [rA] { draw rect RMX.V RMY.V NS S    0 0; }
+                [rc] { draw rect RCX.V RCY.V NS OLen 0 0; }
+                [rC] { draw rect RCX.V RCY.V NS S    0 0; }
+                [rn] { draw rect RBX.V RBY.V NS OLen 0 0; }
+                [rN] { draw rect RBX.V RBY.V NS S    0 0; }
+                Other {
+                    take Builtin.Err["Unknown line"];
+                    take Builtin.Err[Other];
+                }
+            }
+        }
+    );
+
+    take*Offset = Len+EWid;
+
+    switch Num {
+        break;
+    case 0:  stop; # undefined
+    case 1:  take Display[aT la ra m lb rb];
+    case 2:  take Display[t rt m lb b];
+    case 3:  take Display[t m b rt rb];
+    case 4:  take Display[lt m rt rb];
+    case 5:  take Display[t lt m rb b];
+    case 6:  take Display[t lt m lb rb b];
+    case 7:  take Display[t rt rb];
+    case 8:  take Display[t m b rb lb rt lt];
+    case 9:  take Display[t lt rt m rb b];
+    case 10: take Display[t lt rt b lb rb] X=(*X-Offset) Display[rt rb];
+    case 11: take Display[rt rb b];
+    case 12: take Display[at am lt lb rC rn];
+    case 13: take Display[lt lb am rn rc];
+    }
+);
+
+shadow_color            = '%000000a0';
+background              = '%1c1c1c';
+foreground              = '%ffffff';
+card_background         = '%4d4e58';
+card_background_side    = '%7b7b7b';
+hide_color              = '%989aa4';
+hide_color_side         = '%b0b9c0';
+fail_color              = '%ff0000';
+win_color               = '%00ff00';
+equation_color          = '%0000ff';
+
+const NewCard = (match @ {
+    Id Show {
+        take R = $;
+        R = (Id << 1) + Show;
+        setres NewCard[R];
+    }
+    R {
+        setres R;
+
+        const R.IsShow = (match @ => {
+            setres (*.. & 1);
+        });
+
+        const R.GetId = (match @ => {
+            setres (*.. >> 1);
+        });
+
+        const R.GetANum = (match @ => {
+            setres (*(.. >> 3) + 1);
+        });
+
+        const R.GetType = (match @ => {
+            take Id = ...GetId[];
+            setres (*Id >> 1 & 3);
+        });
+
+        const R.IncScore = (match @ => Num Extra {
+            take ANum = ...GetANum[];
+            Num += min(ANum, 10);
+            Extra += ANum == 1;
+            setres Num;
+        });
+    }
+});
+const FixAScore = (match @ => Sum ASum {
+    while ASum && Sum <= 11 {
+        ASum--;
+        Sum += 10;
+    }
+});
+const CardDrawWidth = 15;
+const CardDrawHigh = 25;
+const DrawCard = (match @ => X Y Card ForceShow {
+    take Width=CardDrawWidth High=CardDrawHigh;
+    take*ShadowX = X+2;
+    draw col shadow_color 0 0 0 0 0;
+    draw rect ShadowX (*Y- 2) Width High 0 0;
+    if Card.IsShow[] || ForceShow {
+        draw col card_background_side 0 0 0 0 0;
+        draw rect X Y Width High 0 0;
+        draw col card_background 0 0 0 0 0;
+        draw rect ShadowX Y (*Width- 2) (*High- 2) 0 0;
+
+        draw col foreground 0 0 0 0 0;
+        DrawANum! *(*X+(Width- 1)) *(*Y+1) *Card.GetANum[];
+        draw image (*X+(ceil(Width/2)+1)) (*Y+17) (
+            lookup unit $ (*Card.GetType[]*4+1);
+        ) (*Width- 4) 180 0;
+    } else {
+        draw col hide_color_side 0 0 0 0 0;
+        draw rect X Y Width High 0 0;
+        draw col hide_color 0 0 0 0 0;
+        draw rect ShadowX Y (*Width- 2) (*High- 2) 0 0;
+    }
+});
+const DrawNum = (
+    # 粗细为2的整数数显, 给定显示右下角, 用负方向显示
+    match @ {
+        X Y Num {}
+        @ {
+            take Builtin.Err["ShowNum argc err"];
+            take N=Builtin.ArgsLen[] Builtin.Err[N];
+        }
+    }
+    take X = ({$ = X;});
+    take Num = ({$ = Num;});
+    take S = 2; # Size
+
+    take OLen=(?S*2); # offset len
+    take Len=(?S*3) NLen=(?-Len) NS=(?-S);
+    take EWid = S; # 间距
+
+    const Display = (
+        take LBX=Once[(?X-OLen)]    LBY=Once[Y]
+             LMX=Once[LBX.V]        LMY=Once[(?Y+OLen)]
+             RBX=Once[X]            RBY=Once[Y]
+             RMX=Once[X]            RMY=Once[LMY.V]
+             RTX=Once[X]            RTY=Once[(?RMY.V+OLen)]
+        ;
+
+        inline@{
+            match @ {
+                [t]  { draw rect RTX.V RTY.V NLen S 0 0; }
+                [m]  { draw rect RMX.V RMY.V NLen S 0 0; }
+                [b]  { draw rect RBX.V RBY.V NLen S 0 0; }
+                [rb] { draw rect RBX.V RBY.V NS Len 0 0; }
+                [lb] { draw rect LBX.V LBY.V NS Len 0 0; }
+                [rt] { draw rect RMX.V RMY.V NS Len 0 0; }
+                [lt] { draw rect LMX.V LMY.V NS Len 0 0; }
+                Other {
+                    take Builtin.Err["Unknown line"];
+                    take Builtin.Err[Other];
+                }
+            }
+        }
+    );
+
+    do {
+        take N = (?Num%10);
+
+        switch N {
+            break;
+        case: take Display[t b lb rb lt rt];
+        case: take Display[rb rt];
+        case: take Display[t rt m lb b];
+        case: take Display[t m b rt rb];
+        case: take Display[lt m rt rb];
+        case: take Display[t lt m rb b];
+        case: take Display[t lt m lb rb b];
+        case: take Display[t rt rb];
+        case: take Display[t m b rb lb rt lt];
+        case: take Display[t lt rt m rb b];
+        }
+        Num //= 10;
+        X -= Len+EWid;
+    } while Num > 0;
+);
+
+take CardCount = 52;
+
+cardstack = cell1;
+playstack = cell2;
+enemystack = cell3;
+
+pull_card_button = switch1;
+stop_card_button = switch2;
+cheat_button = switch3;
+
+labeled_cards = 0;
+label_card = false;
+
+win, fail = 0;
+
+# init card stack
+i = 0; do {
+    write NewCard[i 0] cardstack i;
+} while (*++i) < CardCount;
+
+:no_init_card
+printflush message1;
+
+cardstack.i = CardCount;
+
+control enabled pull_card_button true 0 0 0;
+control enabled stop_card_button true 0 0 0;
+control enabled cheat_button true 0 0 0;
+
+if label_card {
+    # label prev game init cards
+    Reads! c0 c1 cardstack *(*CardCount- 4);
+    c0, c1 |= 1;
+    Writes! c0 c1 cardstack *(*CardCount- 4);
+    label_card = false;
+}
+
+# shuffle
+i = 0; do {
+    j = rand(52);
+    read a cardstack i;
+    read b cardstack j;
+
+    write b cardstack i;
+    write a cardstack j;
+} while (*++i) < cardstack.i;
+
+cardstack.i -= 4;
+
+# init dispatch
+Reads! c0 c1 c2 c3 cardstack *(*CardCount- 4);
+Writes! c2 c3 enemystack 0;
+Writes! c0 c1 playstack 0;
+
+playstack.i = 2;
+enemystack.i = 2;
+
+const ReadCard = (match @ => R Memory Addr {
+    read R Memory Addr;
+    NewCard! R;
+    setres R;
+});
+
+draw col background 0 0 0 0 0;
+draw rect 0 0 1023 1023 0 0;
+
+take*DrawOffset = CardDrawWidth+2;
+take*DrawOffsetY = CardDrawHigh+4;
+take*DrawLineBlcokHigh = DrawOffsetY*2;
+take*LineMaxCard = 176 // DrawOffset;
+take StatY = 70;
+take StatHigh = DrawOffsetY;
+player_control_stoped = false;
+finish = false;
+# main loop
+do {
+    # show playstack
+    draw col background 0 0 0 0 0;
+    draw rect 0 0 1023 DrawLineBlcokHigh 0 0;
+
+    playstack.sum, playstack.acount = 0;
+    x, y = 0, 1;
+    i = 0; do {
+        ReadCard! card playstack i;
+        DrawCard! x y card 1;
+
+        x += DrawOffset;
+        card.IncScore! playstack->sum playstack->acount;
+        i++;
+        if !(*i%LineMaxCard) { x = 0; y += DrawOffsetY; }
+    } while i < playstack.i;
+    FixAScore! playstack->sum playstack->acount;
+    drawflush display1;
+
+    # show enemystack
+    x, y = 176 - CardDrawWidth, 176 - CardDrawHigh;
+    draw col background 0 0 0 0 0;
+    draw rect 0 y 1023 DrawLineBlcokHigh 0 0;
+
+    enemystack.sum, enemystack.acount = 0;
+    enemystack.base_sum, enemystack.base_acount = 0;
+    i = 0; do {
+        ReadCard! card enemystack i;
+        take*ShowThis = !i | finish;
+        DrawCard! x y card ShowThis;
+
+        x -= DrawOffset;
+
+        card.IncScore! enemystack->sum enemystack->acount;
+        if ShowThis || card.IsShow[] {
+            card.IncScore! enemystack->base_sum enemystack->base_acount;
+        }
+        i++;
+        if !(*i%LineMaxCard) { x = 0; y -= DrawOffsetY; }
+    } while i < enemystack.i;
+    FixAScore! enemystack->sum enemystack->acount;
+    FixAScore! enemystack->base_sum enemystack->base_acount;
+    drawflush display1;
+
+    # show cardstack
+    draw col background 0 0 0 0 0;
+    draw rect 0 StatY 1023 DrawOffsetY 0 0;
+
+    x = 85;
+    i = max(0, cardstack.i- 3- 1); do {
+        ReadCard! card cardstack i;
+        DrawCard! x *(*StatY+2) card 0;
+        x -= 3;
+    } while (*++i) < cardstack.i;
+
+    # show scores
+    draw col foreground 0 0 0 0 0;
+    DrawNum! 46 StatY playstack.sum;
+    DrawNum! *(*176- 30) StatY enemystack.base_sum;
+    drawflush display1;
+
+    if finish {
+        switch finished_result {
+            break;
+        case 0:
+            left, right = equation_color;
+        case 1:
+            left, right = win_color, fail_color;
+            win++;
+        case 2:
+            left, right = fail_color, win_color;
+            fail++;
+        }
+
+        draw col left 0 0 0 0 0;
+        draw rect 0 StatY 20 StatHigh 0 0;
+        draw col right 0 0 0 0 0;
+        draw rect 176 StatY -20 StatHigh 0 0;
+        drawflush display1;
+        break;
+    }
+
+    # 爆牌检测, 玩家爆牌直接不考虑庄家是否会爆牌
+    if playstack.sum > 21 {
+        finished_result = 2;
+        finish = true;
+        continue;
+    }
+    if enemystack.sum > 21 {
+        finished_result = 1;
+        finish = true;
+        continue;
+    }
+    if playstack.sum == 21 || enemystack.sum == 21 && enemystack.i == 2 {
+        player_control_stoped = true;
+    }
+
+    # player control
+    Button! pull_card_button (
+        cardstack.i--;
+        ReadCard! card cardstack cardstack.i;
+        write card playstack playstack.i;
+        playstack.i++;
+        continue;
+    );
+    Button! stop_card_button (
+        player_control_stoped = true;
+    );
+    Button! cheat_button (
+        if !label_card {
+            labeled_cards += 2;
+            label_card = true;
+        }
+        print labeled_cards" labels!";
+        printflush message1;
+    );
+
+    if player_control_stoped {
+        if enemystack.sum < 17 {
+            cardstack.i--;
+            ReadCard! card cardstack cardstack.i;
+            write card enemystack enemystack.i;
+            enemystack.i++;
+        } else {
+            # 最终比较胜负
+            playstack.black = playstack.sum == 21 && playstack.i == 2;
+            enemystack.black = enemystack.sum == 21 && enemystack.i == 2;
+
+            goto :equation playstack.black && enemystack.black;
+
+            if playstack.sum > enemystack.sum || playstack.black {
+                finished_result = 1;
+            } elif enemystack.sum > playstack.sum || enemystack.black {
+                finished_result = 2;
+            } else {
+                # 平局
+                :equation
+                finished_result = 0;
+            }
+            finish = true;
+        }
+    }
+} while;
+# 二次确认防止结束后一不小心丢失对局
+do { } while (sensor $ pull_card_button @enabled;);
+do { } while (sensor $ stop_card_button @enabled;);
+
+goto :no_init_card (*rand(4/labeled_cards)) > (*win / (fail+0.5) / 4);
