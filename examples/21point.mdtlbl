@@ -45,82 +45,88 @@ const Once = (
         setres Value;
     );
 );
-const DrawANum = (
-    # 粗细为2的牌号数显, 给定显示右下角, 用负方向显示
-    match @ {
-        X Y Num {}
-        @ {
-            take Builtin.Err["ShowNum argc err"];
-            take N=Builtin.ArgsLen[] Builtin.Err[N];
-        }
-    }
-    take S = 2; # Size
+const DisplayCore = (match @ => S {
+    take*L2, L3, L4, L5 = S*2, S*3, S*4, S*5;
+    take*NS, NL2, NL3 = -S, -L2, -L3;
 
-    take OLen=(?S*2) NOLen=(?-OLen); # offset len
-    take Len=(?S*3) NLen=(?-Len) NS=(?-S);
-    take EWid = S; # 间距
-
-    const Display = (
-        take LBX=Once[(?X-OLen)]    LBY=Once[Y]
-             LMX=Once[LBX.V]        LMY=Once[(?Y+OLen)]
+    const $.Display = ([L2 L3 L4 L5 NS NL2 NL3](
+        take LBX=Once[(?X-L2)]      LBY=Once[Y]
+             LMX=Once[LBX.V]        LMY=Once[(?Y+L2)]
              RBX=Once[X]            RBY=Once[Y]
              RMX=Once[X]            RMY=Once[LMY.V]
-             RTX=Once[X]            RTY=Once[(?RMY.V+OLen)]
-             RCX=Once[X]            RCY=Once[(?RMY.V+S)]
+             RTX=Once[X]            RTY=Once[(?Y+L4)]
+             RCX=Once[X]            RCY=Once[(?Y+L3)]
              AX =Once[(?X-S)]
         ;
 
         # t:y+2l, m:y+l, b:y, f:y+s[2s], c:m+s[2s]
         # n=b[2s], a=m[2s], g=f[2s], upper=?[s]
-        # (a ?)=[2s] (a upper)=[1s]
+        # (a ?)=[2s] (a upper)=[1s] repeat=[5s] upper repeat=[4s]
 
         inline@{
             match @ {
-                [t]  { draw rect RTX.V RTY.V NLen S 0 0; }
-                [m]  { draw rect RMX.V RMY.V NLen S 0 0; }
-                [b]  { draw rect RBX.V RBY.V NLen S 0 0; }
-                [rb] { draw rect RBX.V RBY.V NS Len 0 0; }
-                [lb] { draw rect LBX.V LBY.V NS Len 0 0; }
-                [rt] { draw rect RMX.V RMY.V NS Len 0 0; }
-                [lt] { draw rect LMX.V LMY.V NS Len 0 0; }
+                [t]  { draw rect RTX.V RTY.V NL3 S 0 0; }
+                [m]  { draw rect RMX.V RMY.V NL3 S 0 0; }
+                [b]  { draw rect RBX.V RBY.V NL3 S 0 0; }
+                [rb] { draw rect RBX.V RBY.V NS L3 0 0; }
+                [lb] { draw rect LBX.V LBY.V NS L3 0 0; }
+                [rt] { draw rect RMX.V RMY.V NS L3 0 0; }
+                [lt] { draw rect LMX.V LMY.V NS L3 0 0; }
 
-                [aT] { draw rect AX.V  RTY.V NS S    0 0; }
-                [at] { draw rect AX.V  RTY.V NOLen S 0 0; }
-                [am] { draw rect AX.V  RMY.V NOLen S 0 0; }
-                [la] { draw rect LMX.V LMY.V NS OLen 0 0; }
-                [lA] { draw rect LMX.V LMY.V NS S    0 0; }
-                [ra] { draw rect RMX.V RMY.V NS OLen 0 0; }
-                [rA] { draw rect RMX.V RMY.V NS S    0 0; }
-                [rc] { draw rect RCX.V RCY.V NS OLen 0 0; }
-                [rC] { draw rect RCX.V RCY.V NS S    0 0; }
-                [rn] { draw rect RBX.V RBY.V NS OLen 0 0; }
-                [rN] { draw rect RBX.V RBY.V NS S    0 0; }
+                [aT] { draw rect AX.V  RTY.V NS  S 0 0; }
+                [at] { draw rect AX.V  RTY.V NL2 S 0 0; }
+                [am] { draw rect AX.V  RMY.V NL2 S 0 0; }
+                [la] { draw rect LMX.V LMY.V NS L2 0 0; }
+                [lA] { draw rect LMX.V LMY.V NS  S 0 0; }
+                [ra] { draw rect RMX.V RMY.V NS L2 0 0; }
+                [rA] { draw rect RMX.V RMY.V NS  S 0 0; }
+                [rc] { draw rect RCX.V RCY.V NS L2 0 0; }
+                [rC] { draw rect RCX.V RCY.V NS  S 0 0; }
+                [rn] { draw rect RBX.V RBY.V NS L2 0 0; }
+                [rN] { draw rect RBX.V RBY.V NS  S 0 0; }
+                [rr] { draw rect RBX.V RBY.V NS L5 0 0; }
+                [ll] { draw rect LBX.V LBY.V NS L5 0 0; }
+                [rR] { draw rect RBX.V RBY.V NS L4 0 0; }
+                [lL] { draw rect LBX.V LBY.V NS L4 0 0; }
                 Other {
                     take Builtin.Err["Unknown line"];
                     take Builtin.Err[Other];
                 }
             }
         }
-    );
+    ));
+});
+const DrawANum = (
+    # 粗细为2的牌号数显, 给定显示右下角, 用负方向显示
+    match @ {
+        X Y Num {}
+        @ {
+            take Builtin.Err["DrawNum argc err"];
+            take N=Builtin.ArgsLen[] Builtin.Err[N];
+        }
+    }
+    take S = 2; # Size
 
-    take*Offset = Len+EWid;
+    const Display = DisplayCore[S]->Display;
+
+    take*Offset = S*4;
 
     switch Num {
         break;
     case 0:  stop; # undefined
-    case 1:  take Display[aT la ra m lb rb];
+    case 1:  take Display[aT m lL rR];
     case 2:  take Display[t rt m lb b];
-    case 3:  take Display[t m b rt rb];
-    case 4:  take Display[lt m rt rb];
+    case 3:  take Display[t m b rr];
+    case 4:  take Display[lt m rr];
     case 5:  take Display[t lt m rb b];
-    case 6:  take Display[t lt m lb rb b];
-    case 7:  take Display[t rt rb];
-    case 8:  take Display[t m b rb lb rt lt];
-    case 9:  take Display[t lt rt m rb b];
-    case 10: take Display[t lt rt b lb rb] X=(*X-Offset) Display[rt rb];
-    case 11: take Display[rt rb b];
-    case 12: take Display[at am lt lb rC rn];
-    case 13: take Display[lt lb am rn rc];
+    case 6:  take Display[t ll m rb b];
+    case 7:  take Display[t rr];
+    case 8:  take Display[t m b ll rr];
+    case 9:  take Display[t lt rr m b];
+    case 10: take Display[t b ll rr] X=(*X-Offset) Display[rr];
+    case 11: take Display[rr b];
+    case 12: take Display[at am ll rC rn];
+    case 13: take Display[ll am rn rc];
     }
 );
 
@@ -205,61 +211,36 @@ const DrawNum = (
     match @ {
         X Y Num {}
         @ {
-            take Builtin.Err["ShowNum argc err"];
+            take Builtin.Err["DrawNum argc err"];
             take N=Builtin.ArgsLen[] Builtin.Err[N];
         }
     }
     take X = ({$ = X;});
     take Num = ({$ = Num;});
+
     take S = 2; # Size
+    take*Offset = S*4;
 
-    take OLen=(?S*2); # offset len
-    take Len=(?S*3) NLen=(?-Len) NS=(?-S);
-    take EWid = S; # 间距
-
-    const Display = (
-        take LBX=Once[(?X-OLen)]    LBY=Once[Y]
-             LMX=Once[LBX.V]        LMY=Once[(?Y+OLen)]
-             RBX=Once[X]            RBY=Once[Y]
-             RMX=Once[X]            RMY=Once[LMY.V]
-             RTX=Once[X]            RTY=Once[(?RMY.V+OLen)]
-        ;
-
-        inline@{
-            match @ {
-                [t]  { draw rect RTX.V RTY.V NLen S 0 0; }
-                [m]  { draw rect RMX.V RMY.V NLen S 0 0; }
-                [b]  { draw rect RBX.V RBY.V NLen S 0 0; }
-                [rb] { draw rect RBX.V RBY.V NS Len 0 0; }
-                [lb] { draw rect LBX.V LBY.V NS Len 0 0; }
-                [rt] { draw rect RMX.V RMY.V NS Len 0 0; }
-                [lt] { draw rect LMX.V LMY.V NS Len 0 0; }
-                Other {
-                    take Builtin.Err["Unknown line"];
-                    take Builtin.Err[Other];
-                }
-            }
-        }
-    );
+    const Display = DisplayCore[S]->Display;
 
     do {
         take N = (?Num%10);
 
         switch N {
             break;
-        case: take Display[t b lb rb lt rt];
-        case: take Display[rb rt];
+        case: take Display[t b ll rr];
+        case: take Display[rr];
         case: take Display[t rt m lb b];
-        case: take Display[t m b rt rb];
-        case: take Display[lt m rt rb];
+        case: take Display[t m b rr];
+        case: take Display[lt m rr];
         case: take Display[t lt m rb b];
-        case: take Display[t lt m lb rb b];
-        case: take Display[t rt rb];
-        case: take Display[t m b rb lb rt lt];
-        case: take Display[t lt rt m rb b];
+        case: take Display[t ll m rb b];
+        case: take Display[t rr];
+        case: take Display[t m b ll rr];
+        case: take Display[t lt rr m b];
         }
         Num //= 10;
-        X -= Len+EWid;
+        X -= Offset;
     } while Num > 0;
 );
 
@@ -283,7 +264,10 @@ i = 0; do {
     write NewCard[i 0] cardstack i;
 } while (*++i) < CardCount;
 
+print "card stack inited!\n";
+
 :no_init_card
+print win_sum" win / "fail_sum" fail";
 printflush message1;
 
 cardstack.i = CardCount;
@@ -360,7 +344,7 @@ do {
     # show enemystack
     x, y = 176 - CardDrawWidth, 176 - CardDrawHigh;
     draw col background 0 0 0 0 0;
-    draw rect 0 y 1023 DrawLineBlcokHigh 0 0;
+    draw rect 0 176 1023 (*-DrawLineBlcokHigh) 0 0;
 
     enemystack.sum, enemystack.acount = 0;
     enemystack.base_sum, enemystack.base_acount = 0;
@@ -395,8 +379,9 @@ do {
 
     # show scores
     draw col foreground 0 0 0 0 0;
-    DrawNum! 46 StatY playstack.sum;
-    DrawNum! *(*176- 30) StatY enemystack.base_sum;
+    enemy_base_sum_space = if enemystack.base_sum < 10 ? 32+8 : 32;
+    DrawNum! 46 *(*StatY+8) playstack.sum;
+    DrawNum! *(*176-enemy_base_sum_space) *(*StatY+8) enemystack.base_sum;
     drawflush display1;
 
     if finish {
@@ -406,10 +391,10 @@ do {
             left, right = equation_color;
         case 1:
             left, right = win_color, fail_color;
-            win++;
+            win++; win_sum++;
         case 2:
             left, right = fail_color, win_color;
-            fail++;
+            fail++; fail_sum++;
         }
 
         draw col left 0 0 0 0 0;
@@ -485,4 +470,5 @@ do {
 do { } while (sensor $ pull_card_button @enabled;);
 do { } while (sensor $ stop_card_button @enabled;);
 
-goto :no_init_card (*rand(4/labeled_cards)) > (*win / (fail+0.5) / 4);
+goto :no_init_card !labeled_cards
+|| (*rand(4/labeled_cards)) > (*win / (fail+0.5) / 4);

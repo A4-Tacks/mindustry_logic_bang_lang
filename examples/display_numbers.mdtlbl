@@ -11,14 +11,65 @@ const Once = (
     );
 );
 
-const ShowNum = (
+const DisplayCore = (match @ => S {
+    take*L2, L3, L4, L5 = S*2, S*3, S*4, S*5;
+    take*NS, NL2, NL3 = -S, -L2, -L3;
+
+    const $.Display = ([L2 L3 L4 L5 NS NL2 NL3](
+        take LBX=Once[(?X-L2)]      LBY=Once[Y]
+             LMX=Once[LBX.V]        LMY=Once[(?Y+L2)]
+             RBX=Once[X]            RBY=Once[Y]
+             RMX=Once[X]            RMY=Once[LMY.V]
+             RTX=Once[X]            RTY=Once[(?Y+L4)]
+             RCX=Once[X]            RCY=Once[(?Y+L3)]
+             AX =Once[(?X-S)]
+        ;
+
+        # t:y+2l, m:y+l, b:y, f:y+s[2s], c:m+s[2s]
+        # n=b[2s], a=m[2s], g=f[2s], upper=?[s]
+        # (a ?)=[2s] (a upper)=[1s] repeat=[5s] upper repeat=[4s]
+
+        inline@{
+            match @ {
+                [t]  { draw rect RTX.V RTY.V NL3 S 0 0; }
+                [m]  { draw rect RMX.V RMY.V NL3 S 0 0; }
+                [b]  { draw rect RBX.V RBY.V NL3 S 0 0; }
+                [rb] { draw rect RBX.V RBY.V NS L3 0 0; }
+                [lb] { draw rect LBX.V LBY.V NS L3 0 0; }
+                [rt] { draw rect RMX.V RMY.V NS L3 0 0; }
+                [lt] { draw rect LMX.V LMY.V NS L3 0 0; }
+
+                [aT] { draw rect AX.V  RTY.V NS  S 0 0; }
+                [at] { draw rect AX.V  RTY.V NL2 S 0 0; }
+                [am] { draw rect AX.V  RMY.V NL2 S 0 0; }
+                [la] { draw rect LMX.V LMY.V NS L2 0 0; }
+                [lA] { draw rect LMX.V LMY.V NS  S 0 0; }
+                [ra] { draw rect RMX.V RMY.V NS L2 0 0; }
+                [rA] { draw rect RMX.V RMY.V NS  S 0 0; }
+                [rc] { draw rect RCX.V RCY.V NS L2 0 0; }
+                [rC] { draw rect RCX.V RCY.V NS  S 0 0; }
+                [rn] { draw rect RBX.V RBY.V NS L2 0 0; }
+                [rN] { draw rect RBX.V RBY.V NS  S 0 0; }
+                [rr] { draw rect RBX.V RBY.V NS L5 0 0; }
+                [ll] { draw rect LBX.V LBY.V NS L5 0 0; }
+                [rR] { draw rect RBX.V RBY.V NS L4 0 0; }
+                [lL] { draw rect LBX.V LBY.V NS L4 0 0; }
+                Other {
+                    take Builtin.Err["Unknown line"];
+                    take Builtin.Err[Other];
+                }
+            }
+        }
+    ));
+});
+const DrawNum = (
     # 粗细为2的整数数显, 给定显示右下角, 用负方向显示
     # DoNeg参数控制是否考虑负数
     match @ {
         X Y Num { take DoNeg = 0; }
         X Y Num DoNeg {}
         @ {
-            take Builtin.Err["ShowNum argc err"];
+            take Builtin.Err["DrawNum argc err"];
             take N=Builtin.ArgsLen[] Builtin.Err[N];
         }
     }
@@ -26,56 +77,32 @@ const ShowNum = (
         take IsNeg = (?Num < 0);
         Num = abs(Num);
     } }
+
     take S = 2; # Size
+    take*Offset = S*4;
 
-    take OLen=(?S*2); # offset len
-    take Len=(?S*3) NLen=(?-Len) NS=(?-S);
-    take EWid = S; # 间距
-
-    const Display = (
-        take LBX=Once[(?X-OLen)]    LBY=Once[Y]
-             LMX=Once[LBX.V]        LMY=Once[(?Y+OLen)]
-             RBX=Once[X]            RBY=Once[Y]
-             RMX=Once[X]            RMY=Once[LMY.V]
-             RTX=Once[X]            RTY=Once[(?RMY.V+OLen)]
-        ;
-
-        inline@{
-            match @ {
-                [t]  { draw rect RTX.V RTY.V NLen S 0 0; }
-                [m]  { draw rect RMX.V RMY.V NLen S 0 0; }
-                [b]  { draw rect RBX.V RBY.V NLen S 0 0; }
-                [rb] { draw rect RBX.V RBY.V NS Len 0 0; }
-                [lb] { draw rect LBX.V LBY.V NS Len 0 0; }
-                [rt] { draw rect RMX.V RMY.V NS Len 0 0; }
-                [lt] { draw rect LMX.V LMY.V NS Len 0 0; }
-                Other {
-                    take Builtin.Err["Unknown line"];
-                    take Builtin.Err[Other];
-                }
-            }
-        }
-    );
+    const Display = DisplayCore[S]->Display;
 
     do {
         take N = (?Num%10);
 
         switch N {
             break;
-        case: take Display[t b lb rb lt rt];
-        case: take Display[rb rt];
+        case: take Display[t b ll rr];
+        case: take Display[rr];
         case: take Display[t rt m lb b];
-        case: take Display[t m b rt rb];
-        case: take Display[lt m rt rb];
+        case: take Display[t m b rr];
+        case: take Display[lt m rr];
         case: take Display[t lt m rb b];
-        case: take Display[t lt m lb rb b];
-        case: take Display[t rt rb];
-        case: take Display[t m b rb lb rt lt];
-        case: take Display[t lt rt m rb b];
+        case: take Display[t ll m rb b];
+        case: take Display[t rr];
+        case: take Display[t m b ll rr];
+        case: take Display[t lt rr m b];
         }
         Num //= 10;
-        X -= Len+EWid;
+        X -= Offset;
     } while Num > 0;
+
     match DoNeg { [1] {
         if IsNeg {
             take Display[m];
@@ -86,7 +113,7 @@ const ShowNum = (
 i = -40;
 do {
     draw clear 0 0 0 0 0 0;
-    take ShowNum[(?(80:)) (?(50:)) (?(i:)) 1];
+    take DrawNum[(?(80:)) (?(50:)) (?(i:)) 1];
     drawflush display1;
     i += 1;
 } while i < 10000;
