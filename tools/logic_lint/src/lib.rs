@@ -157,7 +157,7 @@ impl<'a> Source<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Var<'a> {
     lineno: usize,
     arg_idx: usize,
@@ -190,5 +190,45 @@ impl<'a> Var<'a> {
 
     pub fn lineno(&self) -> usize {
         self.lineno
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use lints::WarningLint;
+
+    use super::*;
+
+    #[test]
+    fn do_works() {
+        let s = "set x _1";
+        let src = Source::from_str(s);
+        assert_eq!(src.lint(), vec![
+            Lint::new(
+                &Var::new(0, 1, "x"),
+                WarningLint::NeverUsed,
+            ),
+            Lint::new(
+                &Var::new(0, 2, "_1"),
+                WarningLint::UsedRawArgs,
+            ),
+        ]);
+    }
+
+    #[test]
+    fn unknown_cmds() {
+        let s = "foo _0 A";
+        let src = Source::from_str(s);
+        assert_eq!(src.lint(), vec![
+            Lint::new(
+                &Var::new(0, 1, "_0"),
+                WarningLint::UsedRawArgs,
+            ),
+            Lint::new(
+                &Var::new(0, 2, "A"),
+                WarningLint::SuspectedConstant,
+            ),
+        ]);
     }
 }

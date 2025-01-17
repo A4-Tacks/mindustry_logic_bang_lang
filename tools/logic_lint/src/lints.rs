@@ -39,10 +39,8 @@ macro_rules! make_lints {
                     },
                 )*
                 [] => unreachable!(),
-                [cmd, ..] => {
-                    if let Some(lint) = check_cmd($src, $line, cmd) {
-                        $lints.push(lint)
-                    }
+                [cmd, args @ ..] => {
+                    $lints.extend(check_cmd($src, $line, cmd, args))
                 },
             }
             $lints
@@ -278,15 +276,15 @@ fn check_vars<'a>(
         .filter_map(|var| check_var(src, line, var))
 }
 fn check_cmd<'a>(
-    _src: &'a crate::Source<'a>,
-    _line: &'a crate::Line<'a>,
+    src: &'a crate::Source<'a>,
+    line: &'a crate::Line<'a>,
     var: &'a Var<'a>,
-) -> Option<Lint<'a>> {
-    if regex_is_match!(r"^__", var) && !regex_is_match!(r".__$", var) {
-        return Some(Lint::new(var, WarningLint::SuspectedVarCmd))
-    }
-
-    None
+    args: &'a [Var<'a>],
+) -> impl Iterator<Item = Lint<'a>> + 'a {
+    (regex_is_match!(r"^__", var) && !regex_is_match!(r".__$", var))
+        .then(|| Lint::new(var, WarningLint::SuspectedVarCmd))
+        .into_iter()
+        .chain(check_vars(src, line, args))
 }
 #[must_use]
 fn check_argc<'a>(
@@ -490,7 +488,7 @@ pub trait ShowLint {
     ) -> fmt::Result;
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Lint<'a> {
     arg: &'a Var<'a>,
     msg: LintType,
@@ -536,7 +534,7 @@ impl ShowLint for Lint<'_> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum LintType {
     Warning(WarningLint),
     Error(ErrorLint),
@@ -572,7 +570,7 @@ impl ShowLint for LintType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum WarningLint {
     /// 显式使用双下划线名称
     UsedDoubleUnderline,
@@ -621,7 +619,7 @@ impl ShowLint for WarningLint {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ErrorLint {
     InvalidOper {
         expected: &'static [&'static str],
