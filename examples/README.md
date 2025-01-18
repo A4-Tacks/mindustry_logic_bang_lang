@@ -52,3 +52,10 @@
 >
 > 且上述提到的教程目录是由远古版本一步步迭代而来, 风格非常不适合学习,
 > 如果有什么疑问建议直接在讨论中询问
+
+## 推荐的例子
+有一些大型且之后编写的例子, 可以作为参考
+> [`21point.mdtlbl`](./21point.mdtlbl)<br/>
+> [`bezier_curve.mdtlbl`](./bezier_curve.mdtlbl)<br/>
+> [`gravity_simulation.mdtlbl`](./gravity_simulation.mdtlbl)<br/>
+> [`sine_superposition.mdtlbl`](./sine_superposition.mdtlbl)<br/>
