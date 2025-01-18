@@ -5,6 +5,8 @@
 
 如果你满足了上述条件, 那么你只需要阅读这些示例即可.
 
+<details markdown='1'><summary>旧的推荐阅读索引</summary>
+
 ## 以下是推荐的阅读顺序 The following is the recommended reading order
 > [`value.mdtlbl`](./value.mdtlbl)<br/>
 > [`mult_line_string.mdtlbl`](./mult_line_string.mdtlbl)<br/>
@@ -53,9 +55,14 @@
 > 且上述提到的教程目录是由远古版本一步步迭代而来, 风格非常不适合学习,
 > 如果有什么疑问建议直接在讨论中询问
 
+</details>
+
+目前正在编写的小教程[learn](./learn.md)
+
 ## 推荐的例子
-有一些大型且之后编写的例子, 可以作为参考
-> [`21point.mdtlbl`](./21point.mdtlbl)<br/>
-> [`bezier_curve.mdtlbl`](./bezier_curve.mdtlbl)<br/>
-> [`gravity_simulation.mdtlbl`](./gravity_simulation.mdtlbl)<br/>
-> [`sine_superposition.mdtlbl`](./sine_superposition.mdtlbl)<br/>
+有一些大型且之后编写的例子, 熟练后可以作为参考
+
+- [`21point.mdtlbl`](./21point.mdtlbl)<br/>
+- [`bezier_curve.mdtlbl`](./bezier_curve.mdtlbl)<br/>
+- [`gravity_simulation.mdtlbl`](./gravity_simulation.mdtlbl)<br/>
+- [`sine_superposition.mdtlbl`](./sine_superposition.mdtlbl)<br/>
