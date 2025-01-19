@@ -1,0 +1,21 @@
+#**
+* 用来侦测当前逻辑实际执行速度的逻辑,
+* 可用于侦测大量逻辑造成的速度降低
+* (原版超核铺满地图都很难造成)
+*#
+
+sensor time_scale @this @timescale;
+expected_loop = @ipt * time_scale * 25;
+
+start = @tick;
+i = 1; do { } while (*++i) < expected_loop;
+elapsed = @tick - start;
+
+tick_lines = expected_loop*2 / elapsed;
+my_ipt_scale = tick_lines / @ipt / time_scale;
+
+# 取平均
+print "LogicSpeedScale: "(*(a+b+c+my_ipt_scale)//(1/90000*4))"/90000";
+printflush message1;
+
+a, b, c = b, c, my_ipt_scale;
