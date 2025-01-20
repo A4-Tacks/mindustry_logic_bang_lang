@@ -1,180 +1,56 @@
 # Introduction
-This is the compiler for language `MindustryLogicBangLang`,
-compilation target language is the `LogicLang` in game [`Mindustry`]
+This is the compiler for language `MindustryLogicBangLang`, compilation target language is the `LogicLang` in game [`Mindustry`], Referred to as Bang in the following text
 
 **This is the English version, which may not be updated in a timely manner**
 
-`LogicLang` here refers to the form of writing a language similar to assembly language in a building called logic-processor in the [`Mindustry`] game and serializing this language
+`LogicLang` here refers to the form of writing a language similar to assembly language in a building called logic-processor in the [`Mindustry`] game and serializing this language, Referred to as MLog in the following text
 
 [`Mindustry`]: https://github.com/Anuken/Mindustry
 
-# The advantages of this language
-1. ### **Process Control**
-   In `mindustry_logic_bang` language,
-   use statement such as `if` `elif` `else` `while` `do_while` `switch` ...
-   to complete process control
+The form of MLog itself is similar to assembly, using conditional jumps or assigning values to program counters to create control flow.
+However, this method can only be manually written, which can be very tedious and tiring.
+Function parameter passing also requires manual writing of repetitive and cumbersome code, which seriously slows down execution speed
 
-   ---
-   In `LogicLang`,
-   the only way to control a process is through `jump`, which means `goto`,
-   alternatively, set `@counter`, which is the location that the runtime decides to jump to,
-   both methods have poor readability.
+Moreover, MLog can only use a single operation instruction to perform calculations and write complex formulas, which is very scary
 
-2. ### **Code Reuse**
-   In `mindustry_logic_bang` language,
-   we can use `const-DExp` and `take`,
-   their behavior is similar to macro expansion,
-   which can achieve zero overhead code reuse.<br/>
-   This language is designed as a zero cost language,
-   where you can accomplish many things without any cost,
-   rather than making a trade-off between programming efficiency and running efficiency
+Bang extends and improves based on the style of MLog itself, with a focus on zero-cost metaprogramming, emphasizing static encapsulation abstraction, value passing, structured control flow unfolding, compile time evaluation, and more
+We also added op-expr, which can quickly expand familiar expressions in common language styles into multiple operation instructions
 
-   And it can achieve great flexibility by utilizing handle pattern matching, conditional compilation, and macro repetition.
-   It can also be combined with binding leakage and compiling calculation to achieve similar effects to structure methods, combining types, etc
-
-   ---
-   In `LogicLang`,
-   code reuse is not very strong either.
-   If you manually encapsulate it as a function, you need to accept:
-   1. Set return line address
-   2. Jump to function head
-   3. In function tail set `@counter` goto the return line
-
-   We need to accept at least three full lines of overhead,
-   which is completely unacceptable when writing small and fast functions.
-   And more complex scenarios require passing in parameters or even returning values,
-   which makes it even more expensive to achieve.
-
-3. ### **Conditional statements**
-   In `mindustry_logic_bang` language,
-   we can use symbols such as `<=` and `>=` for comparison,
-   and you can use `&&` `||` `!` to organize complex conditions.
-
-   ---
-   In `LogicLang`,
-   if we are in the game, we can use the built-in editor,
-   and we can choose symbols such as `<=` and `>=`.<br/>
-   But if we manually edit the `LogicLang`,
-   we will see `lessThanEq` and `greaterThanEq`,
-   which is very inconvenient to edit.<br/>
-   And it is difficult to organize complex conditions.
-   We all know that in `LogicLang`, `jump` is used, while `jump` is a single condition,
-   Therefore, we need to manually write short-circuit logic to jump to various designated positions,
-   which is too scary<br/>
-   (Due to the dense `jump` jumper lines, many complex `LogicLang` program are often referred to as 'spider caves')
-
-4. ### **Operation**
-   In `mindustry_logic_bang`,
-   We can use `DExp` to nest statements into one line,
-   multiple operations can be completed within one line.
-
-   And it has a simple calculation method like OpExpr, such as `print (?a+b*c+log(x));`
-
-   The generated intermediate variables are automatically named by the compiler,
-   of course, you can manually specify this variable to achieve zero overhead in scenarios where you need to use this intermediate variable later
-
-   If you manually write `LogicLang` instead of using the built-in editor in the game,
-   So for commonly used operations, serialization names such as `add` and `idiv` should still be used,
-   The Bang language assigns operational symbols to these commonly used operations,
-   which can improve the writing experience.
-
-   ---
-   In `LogicLang`, each row can only have one `op` for single step operations,
-   which often leads to many row operations and is very annoying,
-   And also pay attention to the complex relationships between intermediate variables
-
-5. ### **Learning costs**
-   **Note: To learn this language, one must first be familiar with `LogicLang`**
-
-   This language does not contain much content and provides an example for most grammars,
-   Learning by [examples] can quickly master this language
-
-   And in [`examples/std/`], there are some well written `const-DExp`,
-   It can help you know how to write `const-DExp` in a standardized manner
-
-   [examples]: ./examples/README.md
-   [`examples/std/`]: ./examples/std/
-
-6. ### **Special Statements**
-   For some commonly used special statements, such as `set` and `print`,
-   they are specifically processed
-
-   Examples:
-
-   | `BangLang`     | `LogicLang`             |
-   | -------------- | ----------------------- |
-   | `set a 2;`     | `set a 2`               |
-   | `a b = 1 2;`   | `set a 1`<br/>`set b 2` |
-   | `print 1 2;`   | `print 1`<br/>`print 2` |
-   | `op i i + 1;`  | `op add i i 1`          |
-   | `op + i i 1;`  | `op add i i 1`          |
-
-   So there's no need to write many lines of `print` to print anymore,
-   it can be placed in one or two lines.
-
-# This is an example of the code and compilation output
-**BangLang Source Code**:
+**Example**:
 ```
-id, count = 0;
-
-while id < @unitCount {
-    lookup unit unit_type id;
-    const Bind = (@unit: ubind unit_type;);
-
-    :restart # restart unit count
-
-    skip Bind === null {
-        # binded a nonnull unit
-        first icount = @unit 1;
-
-        while Bind != first {
-            # if the first unit dies, restart this type of counting
-            goto :restart (sensor $ first @dead;);
-            icount++;
-        }
-        # Accumulate the number of units to the total number of units
-        count += icount;
-
-        # Print units with units count not equal to zero
-        print unit_type ": " icount "\n";
-    }
-
-    id++; # plus units type id
-}
-
-print "unit total: " count;
-printflush message1;
+i = 0; do {
+    x, y = cos(i)*r, sin(i)*r;
+} while (*++i) < 360;
+```
+**Compile to**:
+```
+set i 0
+op cos __0 i 0
+op mul x __0 r
+op sin __1 i 0
+op mul y __1 r
+op add i i 1
+jump 1 lessThan i 360
 ```
 
-**The above code will be compiled as**:
+And as long as the foundation is good enough,
+the vast majority of MLog code can be rewritten in Bang without any performance loss,
+making it easy to read, modify, abstract, and add/delete codes
 
-```
-set id 0
-set count id
-jump 22 greaterThanEq id @unitCount
-lookup unit unit_type id
-ubind unit_type
-jump 20 strictEqual @unit null
-set first @unit
-set icount 1
-ubind unit_type
-jump 15 equal @unit first
-sensor __0 first @dead
-jump 4 notEqual __0 false
-op add icount icount 1
-ubind unit_type
-jump 10 notEqual @unit first
-op add count count icount
-print unit_type
-print ": "
-print icount
-print "\n"
-op add id id 1
-jump 3 lessThan id @unitCount
-print "unit total: "
-print count
-printflush message1
-```
+Bang provides a flexible large constant system that,
+when combined with compile-time arithmetic, DExp code passing, parameter system,
+and conditional compilation based on branch matching, can simulate overloading,
+compile-time data structures, simulate object-oriented features, chain calls, and more
+
+# Learn
+Please refer to the example [README](./examples/README.md), Or other instances of [example directory]
+
+[example directory]: ./examples
+
+# How To Install
+Releases provide pre built products, consider downloading the binary files of your platform from them first,
+If there are other requirements, consider building it yourself, refer to below [Project Build](#Project Build)
+
 
 # Project Build
 Building this project will be relatively slow due to the following reasons:
@@ -185,8 +61,9 @@ You can first check the Releases to see if there is a built program,
 and if it does not exist or cannot be used, try building it yourself
 
 ## Build Method
-Firstly, install the `rust` toolchain, as shown in <https://www.rust-lang.org/tools/install><br/>
-Please ensure that the toolchain you are using is a `stable` version.
+Firstly, install the `rust` toolchain, as shown in <https://www.rust-lang.org/tools/install>
+
+**Please ensure that the toolchain you are using is a `stable` version**
 
 The following construction requires updating the index and obtaining dependencies from `crates-io`.
 You should have a suitable network environment or configured image sources, etc

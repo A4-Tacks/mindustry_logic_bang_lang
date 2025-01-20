@@ -1,155 +1,56 @@
 English README, please click on [**README-en_US.md**](./README-en_US.md)
 
 # 简介
-这是语言`mindustry_logic_bang`的编译器, 编译目标语言是[`Mindustry`]游戏中的`逻辑语言`
+这是语言`mindustry_logic_bang`的编译器, 编译目标语言是[`Mindustry`]游戏中的`逻辑语言`,
+简称 Bang
 
 `逻辑语言`在这是指[`Mindustry`]
-游戏中的一种名为`逻辑处理器`的建筑中编写与汇编相似的代码并将其导出的形式
+游戏中的一种名为`逻辑处理器`的建筑中编写与汇编相似的代码并将其导出的形式,
+以下简称 MLog
 
 [`Mindustry`]: https://github.com/Anuken/Mindustry
 
-# 对比
-1. ### **流程控制**
-   在`mindustry_logic_bang`语言中,
-   可以使用`if` `elif` `else` `while` `do_while` `switch`等语句完成流程控制
+MLog 本身的形式类似汇编, 使用条件跳转和赋值程序计数器来进行控制流,
+而控制流需要全部手搓跳转, 非常的不友好, 函数传参等也要手搓且速度影响明显
 
-   ---
-   `逻辑语言`中, 跳转方式只有`jump`也就是`goto`,
-   又或者设置`@counter`也就是运行时决定跳转到的位置,
-   这两种方式的可读性都很差
+而且 MLog 想要进行计算等, 只能使用单条运算指令, 编写复杂公式等非常恐怖
 
-2. ### **代码复用**
-   在`mindustry_logic_bang`语言中, 我们可以使用`const-DExp`与`take`结合使用,
-   它的行为可以类似于宏, 并完成零开销的代码复用.<br/>
-   这门语言被设计为零开销语言, 你可以零开销的完成很多事, 而不是在编写效率与运行效率之间进行取舍.
+Bang 则基于MLog本身的风格进行扩展改进, 以零成本元编程为重点进行扩展,
+侧重静态封装抽象、值传递、结构化控制流展开、编译期算数等
+还增加了 op-expr, 可以将常见语言中熟悉的表达式快速展开为多条运算指令
 
-   并且可以利用句柄模式匹配条件编译和宏重复等获得极大的灵活度,
-   还可以配合绑定量泄露和编译期计算完成类似结构体和类型方法的效果, 将类型组合等
-
-   ---
-   在`逻辑语言`中, 代码复用也不是很强, 如果手动将其封装为一个函数, 则要接受:
-   1. 设置返回地址
-   2. 跳转至函数头部
-   3. 在函数尾部跳转回返回地址
-
-   我们起码需要接受这整整三行的开销, 这在编写小型快速的功能时完全不能接受.
-   并且更复杂的场景需要传入参数甚至返回值, 这想要做到开销就更大了.
-
-3. ### **条件语句**
-   在`mindustry_logic_bang`语言中, 我们可以使用`<=` `>=`等符号进行比较,
-   并且可以使用`&&` `||` `!`符号进行组织复杂逻辑
-
-   ---
-   在`逻辑语言`中, 我们如果在游戏内自带的编辑界面, 我们可以选择`<=` `>=`等符号.<br/>
-   但是如果是手动编辑`逻辑语言`, 我们将会看到`lessThanEq` `greaterThanEq`, 这编辑起来很不方便.<br/>
-   并且组织复杂条件困难, 我们都知道`逻辑语言`是直接用`jump`的, 而这个`jump`是单条件的,
-   我们需要手动编写短路逻辑来向指定位置各种跳转, 这太恐怖了!<br/>
-   (因为密密麻麻的`jump`, 很多复杂逻辑经常被称作"盘丝洞")
-
-4. ### **运算**
-   在`mindustry_logic_bang`语言中, 我们可以使用`DExp`来将语句嵌套的塞进一行,
-   可以在一行内完成多个计算.
-
-   且拥有OpExpr这种简单计算方式, 比如`print (?a+b*c+log(x));`
-
-   产生的中间变量完全由编译器自动生成名字,
-   当然, 在之后需要使用此中间变量的情况下，您可以手动指定此变量以实现零开销
-
-   如果你手动编写`逻辑语言`而不是使用内置的编辑器,
-   那么对于常用运算依旧要使用其序列化名称如`add` `idiv`等,
-   而本语言对于这些常用的运算都分配了运算符号, 可以提升编写体验.
-
-   ---
-   在`逻辑语言`中, 每一行只能有一个`op`来进行运算, 这经常会导致很多行的运算, 非常搞心态,
-   并且还要注意中间变量的复杂关系.
-
-5. ### **学习成本**
-   **注意**: 学习这门语言首先要对`逻辑语言`较为熟悉
-
-   这门语言包含的内容并不是很多, 并且为大多数语法提供了一个示例,
-   按照[示例]学习可以快速的掌握这门语言.
-
-   并且在[`examples/std/`]中, 有着一些编写好的`const-DExp`,
-   可以让你知道怎样规范的编写`const-DExp`.
-
-   [示例]: ./examples/README.md
-   [`examples/std/`]: ./examples/std/
-
-6. ### **特殊语句**
-   对于一些常用的特殊语句, 如`set` `print`, 是被专门处理的
-
-   例如:
-
-   | `bang语言`     | `逻辑语言`              |
-   | -------------- | ----------------------- |
-   | `set a 2;`     | `set a 2`               |
-   | `a b = 1 2;`   | `set a 1`<br/>`set b 2` |
-   | `print 1 2;`   | `print 1`<br/>`print 2` |
-   | `op i i + 1;`  | `op add i i 1`          |
-   | `op + i i 1;`  | `op add i i 1`          |
-
-   所以不用再编写十几行`print`来打印了, 可以放到一两行中了.
-
-# 这是一份示例的代码及编译结果
-**Bang语言代码**:
+例如
 ```
-id, count = 0;
-
-while id < @unitCount {
-    lookup unit unit_type id;
-    const Bind = (@unit: ubind unit_type;);
-
-    :restart # 用于开始统计该种单位的跳转点
-
-    skip Bind === null {
-        # 目前已经绑定了一个非空单位
-        first icount = @unit 1;
-
-        while Bind != first {
-            # 若头单位死亡, 则重新统计该类单位
-            goto :restart (sensor $ first @dead;);
-            icount++;
-        }
-        count += icount; # 将该单位数累加到总单位数
-
-        # 打印每种存在的单位
-        print unit_type ": " icount "\n";
-    }
-
-    id++; # 推进单位id
-}
-
-print "unit total: " count;
-printflush message1;
+i = 0; do {
+    x, y = cos(i)*r, sin(i)*r;
+} while (*++i) < 360;
 ```
-**以上代码将被编译为**
+编译为
 ```
-set id 0
-set count id
-jump 22 greaterThanEq id @unitCount
-lookup unit unit_type id
-ubind unit_type
-jump 20 strictEqual @unit null
-set first @unit
-set icount 1
-ubind unit_type
-jump 15 equal @unit first
-sensor __0 first @dead
-jump 4 notEqual __0 false
-op add icount icount 1
-ubind unit_type
-jump 10 notEqual @unit first
-op add count count icount
-print unit_type
-print ": "
-print icount
-print "\n"
-op add id id 1
-jump 3 lessThan id @unitCount
-print "unit total: "
-print count
-printflush message1
+set i 0
+op cos __0 i 0
+op mul x __0 r
+op sin __1 i 0
+op mul y __1 r
+op add i i 1
+jump 1 lessThan i 360
 ```
+
+并且只要功底够好, 可以将绝大多数的 MLog 以没有性能损失的方法,
+用 Bang 编写, 方便阅读、修改、抽象和增删
+
+Bang 提供了一个灵活的大型常量系统,
+配合编译期算数、DExp 代码传递、参数系统、基于分支匹配的条件编译,
+可以完成模拟重载、编译期数据结构、模拟面向对象特性、链式调用等
+
+# 学习
+请参考示例的 [README](./examples/README.md), 或[示例目录]的其它实例
+
+[示例目录]: ./examples
+
+# 安装
+Releases 提供了预构建产物, 考虑先从其中下载自己所在平台的二进制文件,
+如果有其它需求, 再考虑自己构建, 参考下面的[项目构建](#项目构建)
 
 # 项目构建
 构建这个项目将会比较慢, 原因如下:
@@ -159,8 +60,9 @@ printflush message1
 你可以先翻一翻Releases, 看一看有没有已构建的程序, 如果没有或无法使用再尝试自己构建.
 
 ## 构建方法
-首先安装`rust`工具链, 安装方式可以参考 <https://www.rust-lang.org/tools/install><br/>
-请确保你正在使用的工具链是`stable`版本的.<br/>
+首先安装`rust`工具链, 安装方式可以参考 <https://www.rust-lang.org/tools/install>
+
+**请确保你正在使用的工具链是最新`stable`版本的**
 
 接下来的构建需要更新索引并从`crates-io`中获取依赖, 你应该具有合适的网络环境或者配置了镜像源等
 
