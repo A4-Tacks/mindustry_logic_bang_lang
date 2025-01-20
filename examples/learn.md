@@ -1226,6 +1226,13 @@ const match a @ b => X @ Y { print X @ Y; }
 ```
 
 
+## Take 省略返回句柄
+```
+take __ = Value;
+take Value;
+```
+
+
 ## 重复块匹配语法
 ```
 inline 1@ { const match @ => V {
