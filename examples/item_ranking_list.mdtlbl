@@ -1,0 +1,117 @@
+#**
+* 物品数量的排行榜, 带一点动画
+* 内存存储物品索引, 低地址存储低物品
+*#
+
+Builtin.BindSep! '.';
+Builtin.MissesMatch! 1;
+
+const MakeItem = (const match @ {
+    *I { setres MakeItem[$ I]; }
+    $*Item *I {
+        read Item.id cell1 I;
+
+        lookup item Item Item.id;
+        sensor Item.count core Item;
+    }
+});
+const MakeItemColor = (inline@ Item {
+    sensor Item.color Item @color;
+});
+
+break @links < 2; # wait blueprint
+
+# init core and list
+while (sensor $ core @dead;) {
+    i = 0; do {
+        write i cell1 i;
+    } while (*++i) < @itemCount;
+
+    i = 0; do {
+        ubind (lookup unit $ i;);
+        if @unit {
+            ulocate building core false @copper core.x core.y core.found core;
+            break core.found;
+        }
+    } while (*++i) < @unitCount;
+
+    ucontrol unbind 0 0 0 0 0;
+}
+
+high = 16;
+step = high / 4;
+ext_high = high + step;
+neg_step = -step;
+solid_high = high - 1;
+image_offset = solid_high >> 1;
+background   = '%1c1c1c';
+foreground   = '%4c4c4c';
+shadow_color = '%000000a0';
+
+draw_count = 176 // high;
+top_base = @itemCount - draw_count;
+width_scale = 175 / MakeItem[(*@itemCount - 1)].count;
+
+drawflush display1;
+
+const DrawItemLine = (const match @ {
+    *Y *Item {
+        setres DrawItemLine[Y Item ()];
+    }
+    *Y *Item F {
+        take*Width = Item.count * width_scale;
+
+        draw col background 0 0 0 0 0;
+        draw rect 0 Y 176 high 0 0;
+        take F[Width];
+
+        draw col foreground 0 0 0 0 0;
+        draw rect 0 Y Width solid_high 0 0;
+
+        draw col Item.color 0 0 0 0 0;
+        draw rect 0 Y Width 4 0 0;
+
+        take*IX, SY = Width-image_offset, Y+image_offset;
+        take*SX, IY = IX - 2, SY + 1;
+
+        draw col shadow_color 0 0 0 0 0;
+        draw image SX SY Item solid_high 0 0;
+
+        draw col '%ffffff' 0 0 0 0 0;
+        draw image IX IY Item solid_high 0 0;
+    }
+});
+
+i = 1; do {
+    j = i - 1;
+    MakeItem! item i;
+    MakeItem! less j;
+    if item.count < less.count {
+        write item.id cell1 j;
+        write less.id cell1 i;
+    }
+    continue i < top_base;
+
+    MakeItemColor! item less;
+
+    y = high*(i - top_base);
+
+    if item.count < less.count {
+        end = y;
+        y1 = y-high; do {
+            y  -= step;
+            y1 += step;
+
+            DrawItemLine! y item (
+                draw rect 0 y 176 ext_high 0 0;
+            );
+            DrawItemLine! y1 less (
+                draw rect 0 y1 176 neg_step 0 0;
+            );
+            drawflush display1;
+        } while y1 < end;
+    }
+    DrawItemLine! y item;
+
+    drawflush display1;
+} while (*++i) < @itemCount;
