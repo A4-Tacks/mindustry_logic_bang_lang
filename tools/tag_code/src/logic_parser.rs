@@ -22,11 +22,11 @@ peg::parser!(pub grammar parser() for str {
         / expected!("string")
 
     rule norm_arg_ch() = [^' ' | '\t' | '\r' | '\n' | '"' | '#' | ';']
-    rule norm_arg_inner()
-        = norm_arg_ch() norm_arg_inner()
-        / !":" norm_arg_ch()
     rule norm_arg() -> &'input str
-        = quiet!{ $(norm_arg_inner()) }
+        = quiet!{ $(norm_arg_ch()+) }
+        / expected!("norm-arg")
+    pub rule nonlabel_arg() -> &'input str
+        = quiet!{ $((!":" norm_arg_ch() / ":"+ !":" norm_arg_ch())+) }
         / expected!("norm-arg")
 
     pub rule arg() -> &'input str
@@ -37,7 +37,7 @@ peg::parser!(pub grammar parser() for str {
         = args:(arg:arg() { Var::from(arg) }) ++ _ { args.try_into().unwrap() }
 
     pub rule label() -> &'input str
-        = quiet!{ s:arg() ":" { s } / $(":" arg()) }
+        = quiet!{ s:nonlabel_arg() ":" { s } / $(":" nonlabel_arg()) }
         / expected!("label")
 
     pub rule line() -> ParseLine<'input>
@@ -58,7 +58,7 @@ peg::parser!(pub grammar parser() for str {
 /// # use tag_code::{args, logic_parser::Args};
 /// # use std::borrow::Cow;
 /// assert_eq!(
-///     args!("a", "b"),
+///     args!["a", "b"],
 ///     Args::try_from(
 ///         Cow::Owned(vec!["a".into(), "b".into()])
 ///     ).unwrap(),
@@ -146,6 +146,13 @@ impl<'a> TryFrom<Vec<&'a str>> for Args<'a> {
             .map(Into::into)
             .collect();
         Ok(Self(Cow::Owned(args)))
+    }
+}
+impl<'a> TryFrom<&'a [Var]> for Args<'a> {
+    type Error = ();
+
+    fn try_from(value: &'a [Var]) -> Result<Self, Self::Error> {
+        Cow::Borrowed(value).try_into()
     }
 }
 impl<'a> TryFrom<Cow<'a, [Var]>> for Args<'a> {
@@ -579,6 +586,13 @@ mod tests {
     use crate::TagCodes;
     use super::*;
 
+    fn chain<A, B>(a: A, b: B) -> iter::Chain<A::IntoIter, B::IntoIter>
+    where A: IntoIterator,
+          B: IntoIterator<Item = A::Item>,
+    {
+        a.into_iter().chain(b)
+    }
+
     #[test]
     fn newline_test() {
         let datas = [
@@ -635,6 +649,8 @@ mod tests {
             "ab",
             "x",
             "A",
+        ];
+        let strings = [
             "\"\"",
             "\"x\"",
             "\"foo\"",
@@ -660,10 +676,13 @@ mod tests {
         ];
 
         for src in datas {
+            assert_eq!(parser::nonlabel_arg(src), Ok(src));
+        }
+        for src in chain(datas, strings) {
             assert_eq!(parser::arg(src), Ok(src));
         }
         for src in fails {
-            assert!(parser::arg(src).is_err());
+            assert!(parser::nonlabel_arg(src).is_err(), "{src}");
         }
     }
 
@@ -676,19 +695,47 @@ mod tests {
             (":foo", ":foo"),
             (":f:oo", ":f:oo"),
             ("fo:o:", "fo:o"),
+            ("fo::o:", "fo::o"),
             (":a:", ":a"),
+            ("::a:", "::a"),
         ];
         let fails = [
             ":",
             "::",
             ":::",
+            "a::",
+            "a:::",
+            ":a:::",
+            "::a:::",
         ];
 
         for (src, dst) in datas {
             assert_eq!(parser::label(src), Ok(dst), "{src}");
+            assert_eq!(parser::line(src), Ok(
+                    ParseLine::Label(Cow::Borrowed(dst))), "{src}");
         }
         for src in fails {
-            assert!(parser::label(src).is_err());
+            let result = parser::label(src);
+            assert!(result.is_err(), "{src} : {result:?}");
+        }
+    }
+
+    #[test]
+    fn line_test() {
+        let datas = [
+            ("foo", args!["foo"]),
+            ("foo bar", args!["foo", "bar"]),
+            ("foo bar:", args!["foo", "bar:"]),
+            ("fo:o bar:", args!["fo:o", "bar:"]),
+            ("fo::o bar:", args!["fo::o", "bar:"]),
+            ("foo b:ar:", args!["foo", "b:ar:"]),
+            ("foo \"b:ar:\"", args!["foo", "\"b:ar:\""]),
+            ("foo author: foo", args!["foo", "author:", "foo"]),
+            ("foo :author: foo", args!["foo", ":author:", "foo"]),
+        ];
+
+        for (src, dst) in datas {
+            assert_eq!(parser::line(src), Ok(dst.into()), "{src}");
         }
     }
 
@@ -745,7 +792,7 @@ mod tests {
     #[test]
     fn line_fmt_test() {
         let datas: [(ParseLine, _); 5] = [
-            (args!("read").into(), "read"),
+            (args!["read"].into(), "read"),
             (args!["read", "foo"].into(), "read foo"),
             (args!["read", "foo", "bar"].into(), "read foo bar"),
             (args!["read", "\"foo\"", "bar"].into(), "read \"foo\" bar"),
