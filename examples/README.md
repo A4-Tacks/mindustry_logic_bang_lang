@@ -1,7 +1,8 @@
 # 学习指南 Study Guide
 如果你想学习这门语言, 首先你需要对`Mindustry`的逻辑导出形式较为熟悉.
 
-而如果不熟悉可以阅读或参考[这篇教程](https://github.com/A4-Tacks/learn-mindustry-logic)
+而如果不熟悉可以阅读或参考
+[逻辑入门教程](https://github.com/A4-Tacks/learn-mindustry-logic)
 
 如果你满足了上述条件, 那么你只需要阅读[学习教程](./learn.md)即可,
 还可以看下面的旧版阅读索引, 比较乱和难读, 但是更全些
