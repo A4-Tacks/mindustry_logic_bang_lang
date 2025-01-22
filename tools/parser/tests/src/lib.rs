@@ -3150,6 +3150,87 @@ fn inline_cmp_op_test() {
         "#).unwrap()).compile().unwrap(),
     );
 
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const false = 2;
+        const Cmp = goto(a < b);
+        do {} while Cmp != (`false`:);
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Cmp = goto(a < b);
+        do {} while Cmp != (`false`:);
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const false = 2;
+        const Cmp = (?a < b);
+        break Cmp != (`false`:);
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "jump 0 lessThan a b"
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const false = 2;
+        const Cmp = (?a < b);
+        break Cmp != (false:);
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "op lessThan __0 a b",
+            "jump 0 notEqual __0 2",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const false = 2;
+        const Cmp = (?m: a < b);
+        break Cmp != (`false`:);
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "op lessThan m a b",
+            "jump 0 notEqual m false",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const false = 2;
+        const Cmp = (?a < b);
+        break Cmp != (`false`: {});
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "op lessThan __0 a b",
+            "jump 0 notEqual __0 false",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const false = 2;
+        const Cmp = (?a < b);
+        break Cmp == (`false`: {});
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "op lessThan __0 a b",
+            "jump 0 equal __0 false",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const false = 2;
+        const Cmp = (?a < b);
+        break Cmp == (`false`:);
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "jump 0 greaterThanEq a b",
+        ]
+    );
 }
 
 #[test]

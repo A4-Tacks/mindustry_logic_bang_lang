@@ -1572,9 +1572,10 @@ impl CmpTree {
                                 lines
                             }),
                             ..
-                        }) => take_result.then_some(&**s)
-                            .or_else(|| lines.is_empty()
-                                .and_then(|| f(meta, s))),
+                        }) if lines.is_empty() => take_result
+                            .and_then(|| f(meta, s))
+                            .unwrap_or(&**s)
+                            .into(),
                         Some(_) => None,
                         None => Some(&**s),
                     }
@@ -1583,15 +1584,17 @@ impl CmpTree {
                     take_result,
                     result: s,
                     lines,
-                }) => take_result.then_some(&**s)
-                    .or_else(|| lines.is_empty()
-                        .and_then(|| f(meta, s))),
+                }) if lines.is_empty() => take_result
+                    .and_then(|| f(meta, s))
+                    .unwrap_or(&**s)
+                    .into(),
                 | V::ReprVar(s)
                 => Some(&**s),
                 | V::ResultHandle
                 => Some(&**meta.dexp_handle()),
                 | V::Binder
                 => Some(meta.get_dexp_expand_binder().map(|s| &**s).unwrap_or("__")),
+                | V::DExp(_)
                 | V::ValueBind(_)
                 | V::ValueBindRef(_)
                 | V::Cmper(_)
