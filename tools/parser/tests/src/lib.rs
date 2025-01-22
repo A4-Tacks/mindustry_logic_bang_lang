@@ -7637,6 +7637,43 @@ fn closure_catch_args_test() {
             r#"print x"#,
         ],
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Builder = (
+            const $.F = ([@](
+                print @ _0;
+            ));
+        );
+        const Clos = Builder[m]->F;
+        print split;
+        take Clos[n];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print split"#,
+            r#"print m"#,
+            r#"print m"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Builder = (
+            const $.F = ([@](
+                print @ _0;
+            ));
+        );
+        const Clos = Builder[m]->F;
+        print split;
+        const m = 4;
+        take Clos[n];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print split"#,
+            r#"print m"#,
+            r#"print m"#,
+        ],
+    );
 }
 
 #[test]

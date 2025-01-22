@@ -836,13 +836,14 @@ impl ClosuredValue {
         };
         if let Some(argc) = reset_argc {
             meta.with_block_and_env_args(|meta| {
-                meta.set_env_args((0..argc).map(|i| {
+                let expand_args = (0..argc).map(|i| {
                     let name = format!("_{i}").into();
                     ValueBindRef::new(
                         Box::new(bind_handle.clone().into()),
                         ValueBindRefTarget::NameBind(name),
-                    )
-                }));
+                    ).into()
+                }).collect();
+                LogicLine::SetArgs(Args::Normal(expand_args)).compile(meta);
                 f(meta);
             });
         } else {
