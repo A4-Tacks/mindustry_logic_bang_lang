@@ -560,17 +560,17 @@ case 4:
 
 复合条件通常使用三种运算符来组织
 
-| 示例                      | 优先级      | 结合性      |
-| ---                       | ---         | ---         |
-| `!a < b`                  | 4           | 右结合      |
-| `a && b`                  | 3           | 左结合      |
-| `a || b`                  | 2           | 左结合      |
-| `({print 2;} => a < b)`   | 1           | 右结合      |
+| 示例                      | 优先级      | 结合性      | 命名    |
+| ---                       | ---         | ---         | ---     |
+| `!a < b`                  | 4           | 右结合      | CmpNot  |
+| `a && b`                  | 3           | 左结合      | CmpAnd  |
+| `a || b`                  | 2           | 左结合      | CmpOr   |
+| `({print 2;} => a < b)`   | 1           | 右结合      | CmpDeps |
 
 也可以使用括号来手动规定比如`(a < 2 || b < 2) && c < 2`
 
 > [!NOTE]
-> `({print 2;} => a < b)` 这种为 cmp-deps, 可以在比较某个条件前展开某些代码,
+> CmpDeps, 可以在比较某个条件前展开某些代码,
 > 和 DExp 有类似作用, 不过它的优先级是溢出的, 在许多地方需要加上括号使用
 >
 > `!` 运算并不实际存在, 它使用德摩根变换来反转内部条件, 直到反转到基本条件以结束
@@ -1606,4 +1606,94 @@ print Foo;
 
 条件依赖和条件内联
 ===============================================================================
-**TODO**
+在 [复合条件 (CmpTree)](#复合条件-CmpTree) 一章中,
+有说到 `({print 2;} => a < b)` 这种写法, 可以在使用一个条件前,
+插入一些代码, 主要是为了固定内联某个值时方便引用到量或给需要内联的传参等,
+
+在比较时, 如果用的是 `==` 或 `!=`, 且一方为`false` 或 `0`的时候,
+如果另一方再满足:
+
+- 只包含一条比较运算且匿名返回值的 op 的 DExp, 例如 `(op $ a < b;)`
+- 一个 Cmper, 例如 `goto(a < b)`
+
+如果满足, 那么条件将被内联, 此时如果是类似`? == false`时, 条件将被先反转.
+
+```
+break (op $ a < b;) != false;
+break (op $ a < b;) == false;
+break (op $ a < b;) != 0;
+break (op $ a < b;) == 0;
+break (op $ a < b;);
+break !(op $ a < b;);
+break goto(a < b) != false;
+break goto(a < b) == false;
+break goto(a < b) != 0;
+break goto(a < b) == 0;
+break goto(a < b);
+break !goto(a < b);
+```
+编译为
+```
+jump 0 lessThan a b
+jump 0 greaterThanEq a b
+jump 0 lessThan a b
+jump 0 greaterThanEq a b
+jump 0 lessThan a b
+jump 0 greaterThanEq a b
+jump 0 lessThan a b
+jump 0 greaterThanEq a b
+jump 0 lessThan a b
+jump 0 greaterThanEq a b
+jump 0 lessThan a b
+jump 0 greaterThanEq a b
+```
+可以看到, 它们都被内联了
+
+
+```
+break goto(a < b || c < d);
+print "split";
+break !goto(a < b || c < d);
+end;
+```
+编译为
+```
+jump 0 lessThan a b
+jump 0 lessThan c d
+print "split"
+jump 5 lessThan a b
+jump 0 greaterThanEq c d
+end
+```
+可以看到, 对于 Cmper, 可以存储更复杂的比较条件
+
+> [!WARNING]
+> Cmper 被求值时, 会直接触发严重报错退出, 因为 Cmper 是被设计为仅内联使用的
+
+同时, 内联也支持简单的常量交互,
+它可以使用 Var 在常量表里找到 DExp、Cmper、`false`、`0` 等,
+对于 `false` 或 `0` 还支持空 DExp 模拟二层追溯等
+
+```
+const F = false;
+const Cmp = goto(a < b);
+break Cmp != F;
+```
+编译为
+```
+jump 0 lessThan a b
+```
+
+同时你还可以利用 CmpDeps 来对 Cmper 进行老式形式传参, 使其更加灵活, 例如:
+
+```
+const Less = goto(_0 < _1);
+break (=>[1 2] Less);
+```
+编译为
+```
+jump 0 lessThan 1 2
+```
+
+<!-- vim:ts=8:sts=8
+-->
