@@ -492,7 +492,8 @@ impl Value {
                     _ => None,
                 }
             },
-            Value::Binder => num(meta.get_dexp_expand_binder()?, true),
+            // NOTE: 故意的不实现, 可能并没有正确的绑定者环境
+            Value::Binder => None,
             // NOTE: 故意的不实现, 常量求值应该'简单'
             Value::ValueBind(..) => None,
             Value::ValueBindRef(..) => None,
@@ -2889,36 +2890,46 @@ impl MatchPat {
     /// 进行匹配, 如果成功则直接将量绑定
     pub fn do_pattern(self, args: &[Var], meta: &mut CompileMeta) -> bool {
         fn to_vars(args: Vec<MatchPatAtom>, meta: &mut CompileMeta)
-        -> Vec<(Var, Vec<Var>)> {
+        -> Vec<(Var, Vec<Var>, bool)> {
             args.into_iter()
-                .map(|arg| (
-                        arg.name,
-                        arg.pattern.into_iter()
+                .map(|arg| {
+                    let collect = arg.pattern.into_iter()
                         .map(|pat| pat.take_handle(meta))
-                        .collect()
-                ))
+                        .collect();
+                    (
+                        arg.name,
+                        collect,
+                        arg.set_res,
+                    )
+                })
                 .collect()
         }
-        fn cmp(pats: &[(Var, Vec<Var>)], args: &[Var]) -> bool {
+        fn cmp(pats: &[(Var, Vec<Var>, bool)], args: &[Var]) -> bool {
             pats.iter()
-                .map(|(_, x)| &x[..])
+                .map(|(_, x, _)| &x[..])
                 .zip(args)
                 .all(|(pat, var)| {
                     pat.is_empty()
                         || pat.iter().any(|x| x == var)
                 })
         }
-        fn binds(name: Var, value: &Var, meta: &mut CompileMeta) {
+        fn binds(name: Var, value: &Var, set_res: bool, meta: &mut CompileMeta) {
             if !name.is_empty() {
                 meta.add_const_value(Const(name.into(), value.clone().into(), vec![]));
+            }
+            if set_res {
+                LogicLine::SetResultHandle(Value::ReprVar(value.clone())).compile(meta);
             }
         }
         match self {
             Self::Normal(iargs) if iargs.len() == args.len() => {
-                let pats: Vec<(Var, Vec<Var>)> = to_vars(iargs, meta);
+                let pats = to_vars(iargs, meta);
                 cmp(&pats, args).then(|| {
-                    for ((name, _), arg) in pats.into_iter().zip(args) {
-                        binds(name, arg, meta)
+                    for ((name, _, set_res), arg) in
+                        pats.into_iter()
+                            .zip(args)
+                    {
+                        binds(name, arg, set_res, meta)
                     }
                 }).is_some()
             },
@@ -2934,8 +2945,10 @@ impl MatchPat {
                             prefix.into_iter().zip(args),
                             suffix.into_iter().zip(&args[tl..]),
                         );
-                        for ((name, _), arg) in a.chain(b) {
-                            binds(name, arg, meta)
+                        for ((name, _, set_res), arg) in
+                            a.chain(b)
+                        {
+                            binds(name, arg, set_res, meta)
                         }
                         let extracted = extracted.iter()
                             .map_into()
@@ -2957,14 +2970,15 @@ impl From<Vec<MatchPatAtom>> for MatchPat {
 pub struct MatchPatAtom {
     name: Var,
     pattern: Vec<Value>,
+    set_res: bool,
 }
 impl MatchPatAtom {
-    pub fn new(name: Var, pattern: Vec<Value>) -> Self {
-        Self { name, pattern }
+    pub fn new(name: Var, pattern: Vec<Value>, set_res: bool) -> Self {
+        Self { name, pattern, set_res }
     }
 
-    pub fn new_unamed(pattern: Vec<Value>) -> Self {
-        Self::new("".into(), pattern)
+    pub fn new_unamed(pattern: Vec<Value>, set_res: bool) -> Self {
+        Self::new("".into(), pattern, set_res)
     }
 
     pub fn name(&self) -> &str {
@@ -2973,6 +2987,10 @@ impl MatchPatAtom {
 
     pub fn pattern(&self) -> &[Value] {
         self.pattern.as_ref()
+    }
+
+    pub fn set_res(&self) -> bool {
+        self.set_res
     }
 }
 

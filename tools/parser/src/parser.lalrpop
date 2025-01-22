@@ -412,9 +412,10 @@ Match: Match = {
 }
 
 MatchPat: MatchPatAtom = {
-    MList<Args1> => MatchPatAtom::new_unamed(<>),
-    Var => MatchPatAtom::new(<>, vec![]),
-    <name:Var> ":" <pat:MList<Args1>> => MatchPatAtom::new(name, pat),
+    <sr:Opt<"$">> <pat:MList<Args1>> => MatchPatAtom::new_unamed(pat, sr),
+    <sr:Opt<"$">> "_" => MatchPatAtom::new_unamed(vec![], sr),
+    <sr:Opt<"$">> <v:Var> => MatchPatAtom::new(v, vec![], sr),
+    <sr:Opt<"$">> <name:Var> ":" <pat:MList<Args1>> => MatchPatAtom::new(name, pat, sr),
 }
 
 ConstMatch: ConstMatch = {
@@ -454,7 +455,7 @@ ConstMatchPatAtom: ConstMatchPatAtom = {
                 Args::GLOB_ONLY,
                 vec![
                     (
-                        vec![MatchPatAtom::new_unamed(pat)].into(),
+                        vec![MatchPatAtom::new_unamed(pat, false)].into(),
                         vec![
                             LogicLine::SetResultHandle(
                                 Value::ReprVar("1".into())

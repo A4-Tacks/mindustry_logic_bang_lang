@@ -187,7 +187,7 @@ fn logic_to_tagcode<'a>(lines: ParseLines<'a>, src: &str) -> TagCodes {
         Err(e) => {
             let (line, column) = e.location(src);
             let prefix = format!("ParseTagCode {line}:{column}");
-            err!("{prefix} {e}");
+            err!("{prefix} {e}\n或许你可以使用`Li`选项编译来详细查看");
             exit(10)
         },
     };

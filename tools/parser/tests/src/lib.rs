@@ -5294,6 +5294,110 @@ fn match_test() {
             "print 2",
         ],
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Foo = (match @ {
+            { print 0; }
+            _ { print 1; }
+            _ _ { print 2; }
+        });
+        take Foo[] Foo[3] Foo[3 3];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 0",
+            "print 1",
+            "print 2",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Foo = (match @ {
+            $_ { print 1; }
+        });
+        print Foo[6];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 1",
+            "print 6",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Foo = (match @ {
+            $X { print 8 X 8; }
+        });
+        print Foo[6];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 8",
+            "print 6",
+            "print 8",
+            "print 6",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Foo = (match @ {
+            $X $Y { print 8 X 8; }
+        });
+        print Foo[6 9];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 8",
+            "print 6",
+            "print 8",
+            "print 9",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Foo = (match @ {
+            X $Y { print 8 X 8; }
+        });
+        print Foo[6 9];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 8",
+            "print 6",
+            "print 8",
+            "print 9",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Foo = (match @ {
+            $X Y { print 8 X 8; }
+        });
+        print Foo[6 9];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 8",
+            "print 6",
+            "print 8",
+            "print 6",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const Foo = (match @ {
+            X Y { print 8 X 8; }
+        });
+        print Foo[6 9];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 8",
+            "print 6",
+            "print 8",
+            "print __2",
+        ],
+    );
 }
 
 #[test]

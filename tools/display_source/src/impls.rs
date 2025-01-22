@@ -569,6 +569,9 @@ impl DisplaySource for MatchPatAtom {
     fn display_source(&self, meta: &mut DisplaySourceMeta) {
         let show_name = !self.name().is_empty();
         let show_list = !self.pattern().is_empty();
+        if self.set_res() {
+            meta.push("$");
+        }
         if show_name {
             meta.push(self.name());
             if show_list { meta.push(":") }
@@ -577,6 +580,9 @@ impl DisplaySource for MatchPatAtom {
             meta.push("[");
             meta.display_source_iter_by_space(self.pattern());
             meta.push("]");
+        }
+        if !show_name && !show_list {
+            meta.push("_");
         }
     }
 }
@@ -1065,6 +1071,46 @@ fn display_source_test() {
             .unwrap()
             .display_source_and_get(&mut meta),
         "match {}"
+    );
+    assert_eq!(
+        parse!(line_parser, r#"
+        match { $X {} }
+        "#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "match {\n    $X {}\n}"
+    );
+    assert_eq!(
+        parse!(line_parser, r#"
+        match { $X:[1] {} }
+        "#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "match {\n    $X:[1] {}\n}"
+    );
+    assert_eq!(
+        parse!(line_parser, r#"
+        match { $[1 2] {} }
+        "#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "match {\n    $[1 2] {}\n}"
+    );
+    assert_eq!(
+        parse!(line_parser, r#"
+        match { _ {} }
+        "#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "match {\n    _ {}\n}"
+    );
+    assert_eq!(
+        parse!(line_parser, r#"
+        match { $_ {} }
+        "#)
+            .unwrap()
+            .display_source_and_get(&mut meta),
+        "match {\n    $_ {}\n}"
     );
     assert_eq!(
         parse!(line_parser, r#"
