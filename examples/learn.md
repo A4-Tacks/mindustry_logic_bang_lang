@@ -367,7 +367,7 @@ i = 0; do {
     op add i i 1;
 } while i < 10;
 ```
-比如上面这份示例代码, 构建为标签形式可以直接看到其作用
+比如上面这份示例代码, 编译为标签形式可以直接看到其作用
 ```
 ___0:
     set i 0
@@ -449,7 +449,7 @@ select i {
     print 2 2;
 }
 ```
-比如以上代码构建为标签形式方便查看
+比如以上代码编译为标签形式方便查看
 ```
     op add @counter @counter i
     jump __0 always 0 0
@@ -1415,9 +1415,166 @@ take A=() B=() Foo[A B] C=();
 ```
 
 
+## Cmp Deps Quick Take
+```
+const C = goto({
+    inline { foo; }
+    # setArgs a b
+} => _0 < _1);
+const C = goto({ foo; }=>[a b] _0 < _1);
+```
+
+```
+const C = goto({
+    inline {}
+    # setArgs a b
+} => _0 < _1);
+const C = goto(=>[a b] _0 < _1);
+```
+
+这在之后会讲到
+
+
+## Packed DExp like
+一些 DExp 在语法上不能被直接使用, 需要使用包裹语法`(%)`
+
+这算是语法设计的妥协, 也可以提醒大 DExp 后面可能接着其它东西
+
+```
+print ().x; # syntax error
+print (%()).x; # passed
+```
+
+```
+print (%(v: $.x = 2;)).x;
+print (%v: $.x = 2;%).x;
+```
+
 各种高级的值
 ===============================================================================
-**TODO**
+
+- 比较者: 用于条件内联, 详见[条件依赖和条件内联](#条件依赖和条件内联)
+- 闭包值: 用于追溯时捕获环境, 详见[ClosuredValue (闭包值)](#ClosuredValue-闭包值)
+
+
+ClosuredValue (闭包值)
+===============================================================================
+这个值可以在追溯时在内部将一些追溯处的值进行提前绑定、求值,
+然后在自身求值前将提前绑定、求值的值在当前环境中使用
+
+可以以以下几种形式进行捕获:
+
+- 求值捕获: `A:Value` 相当于 `take Closure.A = Value;`
+- 追溯捕获: `&A:Value` 相当于 `const Closure.A = Value;`
+- 参数捕获: `@` 相当于 `const Closure._0 = _0; const Closure._1 = _1; ...`,
+  捕获个数为参数个数, 只能同时编写一个, 写在求值和追溯捕获后面, 标签捕获前面
+- 标签捕获: `| :a :b`, 可以使用捕获时的标签重命名, 方便一些灵活的跳转
+
+以上的 `Closure` 是闭包携带的句柄, 闭包包含一系列捕获和一个值,
+值也是绑定在闭包句柄上的, 也就是值在求值时可以改变自己捕获的值,
+给句柄上相对应的绑定进行 take 或 const 就行了
+
+> [!TIP]
+> 对于求值捕获和追溯捕获, 当名称相同时可以简写,
+> - `A:A` -> `A`
+> - `&A:A` -> `&A`
+
+```
+const N = 2;
+const F = ([&N](
+    print N;
+));
+const N = 3;
+print "split";
+take F;
+```
+编译为
+```
+print "split"
+print 2
+```
+
+可以看到, 闭包的确没有在追溯时展开, 捕获的`N`也没受外部`const N = 3;`所影响,
+因为闭包在对内部的值求值前, 先进行了类似`const N = Closure.N;`的操作,
+然后再求值内部包含的值, 类似`setres Closure.__Value;`
+
+
+参数捕获
+-------------------------------------------------------------------------------
+参数捕获可以让闭包捕获追溯处的参数, 并在内部值求值前设置参数(包括 `_0` `_1`)等
+
+```
+const Builder = (
+    const $.F = ([@](
+        print @ _0;
+    ));
+);
+print "split";
+const Clos = Builder[a b]->F;
+take Clos[c d];
+```
+编译为
+```
+print "split"
+print a
+print b
+print a
+```
+
+可以从编译结果看出, 它设置了参数, 也设置了老式参数, 并没有出现 `c d`
+
+
+标签捕获
+-------------------------------------------------------------------------------
+标签捕获可以捕获捕获处重命名后的标签,
+主要可以方便的从 DExp 外面跳进展开过的 DExp 里面,
+不至于获取不到内部重命名后的标签
+
+```
+print "start";
+const Builder = (
+    :x
+    comecode;
+    const $.Back = ([| :x](goto :x;));
+);
+const Back = Builder[]->Back;
+print "split";
+take Back[];
+end;
+```
+编译为
+```
+print "start"
+comecode
+print "split"
+jump 1 always 0 0
+end
+```
+
+可以看到, 成功的跳进了 DExp 里面, 我们可以看看不使用闭包为什么样子:
+
+```
+print "start";
+const Builder = (
+    :x
+    comecode;
+    const $.Back = (goto :x;);
+);
+const Back = Builder[]->Back;
+print "split";
+take Back[];
+end;
+```
+编译为标签形式
+```
+    print "start"
+__0_const_Builder_x:
+    comecode
+    print "split"
+    jump x always 0 0
+    end
+```
+明显能看到jump的标签和重命名后的标签不一致, 这样正常编译就会失败
 
 
 一些语句的扩展用法
