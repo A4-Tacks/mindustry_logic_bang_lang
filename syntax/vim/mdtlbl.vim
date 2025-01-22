@@ -99,7 +99,8 @@ syn match  mdtlblIdentLabelRest /\v:0%(x-=_@![0-9a-fA-F_]+|b-=_@![01_]+)>/		next
 syn region mdtlblIdentLabelRest start=/:"/ end=/"/					contains=@mdtlblStringContains contained
 
 " Fold {{{1
-setlocal foldmethod=indent
+setlocal foldmethod=expr foldexpr=indent(prevnonblank(v:lnum))/&sw " fixed indent fold"
+
 "syn region mdtlblBlock					start=/{/	end=/}/		transparent
 "syn region mdtlblDExp					start=/(\[\@!/	end=/)/		transparent
 syn region mdtlblArgs	matchgroup=mdtlblArgsBracket	start=/(\@<!\[/	end=/]/		transparent
