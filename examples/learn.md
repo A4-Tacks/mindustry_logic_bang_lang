@@ -456,6 +456,9 @@ __3:
 通常我们并不需要这样, 而是执行某一块结束后, 直接跳出整个部分,
 所以可以使用`select`的进阶, `switch`
 
+除了使用`case`来分隔每一块代码而不是每个 Statement 一块代码外,
+还可以将每个case前的代码附加到每块`case`的最后, 称为 switch-append
+
 ```
 switch i {
     break;
@@ -464,8 +467,6 @@ case: print 1;
 case: print 2 2;
 }
 ```
-除了使用`case`来分隔每一块代码而不是每个 Statement 一块代码外,
-还可以将每个case前的代码附加到每块`case`的最后,
 我们可以用`A`选项来看到(`switch` 在构建期就会展开为 `select`)
 ```
 {
@@ -529,6 +530,26 @@ case 4:
 `gswitch`和`switch`没多少不同, 区别只在于其运行在编译期而不是构建期,
 这可以拥有更多的高级操作, 不过它只会构建为跳转表形式而不是填充块形式,
 但这样也让它可以方便的让不同的代码块指向同一份代码, 而不需要将代码块重复一份
+
+
+简单条件 (CmpAtom)
+-------------------------------------------------------------------------------
+主要由可以在单条逻辑的 `jump` 语句中表示出来的条件组成,
+作为复合条件中最小的单元出现, 以下列举其算符形式
+
+- `_`: 无条件永远成立
+- Never: 无条件永不成立
+- `<` `>` `<=` `>=`: 基本的大小比较
+- `==` `!=`: 基本的相等和不相等比较
+- `===` `!==`: 基本的严格相等和严格不等比较
+
+> [!NOTE]
+> `!==` 是 Bang 额外扩展的算符, 在逻辑中并不存在,
+> 如果最终用它生成逻辑代码, 会额外使用一条 op 语句然后再反转其结果,
+> 所以需要注意
+>
+> Never 是 Bang 额外扩展的算符, 甚至你都无法在 简单条件 中编写出来,
+> 但是它可以出现, 通过复合条件对 `_` 反转得到, 如 `!_`
 
 
 复合条件 (CmpTree)
@@ -774,6 +795,8 @@ print 2
 
 值绑定 (ValueBind)
 -------------------------------------------------------------------------------
+这用于往句柄和量的组合上绑定 const
+
 这是在 const 常量系统中经常出现的一个重要的东西,
 在前面介绍了 const 可以把一个值绑定到一个量上,
 然后使用这个量进行追溯或求值时会替换成操作绑定到这个量上的值,
@@ -825,6 +848,11 @@ printflush message1
    在后面有详细介绍
 
 可以看到仅一个 const, 就可以把 X Y Print 的映射关系都传递到了 FooVec
+
+
+> [!TIP]
+> 对于可以被进行 const 的东西, 我们将其称之为 ConstKey,
+> 包含了上述提到的 Var 和 ValueBind
 
 
 Take 语句
@@ -1359,6 +1387,11 @@ print (?a);
 ```
 
 ```
+print (x: $ = a;);
+print (?x: a);
+```
+
+```
 print ($ = (__: setres a; $ += 1;);); # 这里需要额外赋值一次
 print ($ = ++a;);
 print (?++a);
@@ -1584,13 +1617,440 @@ __0_const_Builder_x:
 
 一些语句的扩展用法
 ===============================================================================
-**TODO 如 switch gswitch**
+一些语句有一些实用的扩展用法, 在这章进行简单介绍
+
+关于有序整数分支结构的穿透 (select switch)
+-------------------------------------------------------------------------------
+这些结构中, 有一个很好用的操作, 可以让某个 case 执行完接着执行另一个 case
+
+对于 select:
+```
+select n {
+    print 0; # 继续执行
+    { print 1; end; } # 结束执行
+    print 2;
+}
+```
+编译为
+```
+op mul __0 n 2
+op add @counter @counter __0
+print 0
+jump 4 always 0 0
+print 1
+end
+print 2
+```
+从结果很容易看出, 当`n`为`0`时, 会打印 `01`, 这执行了多个 case, 也就是所谓的穿透
+
+---
+而对于 switch, 它将代码简单的编译为 select, 这会导致一个问题,
+也就是想在 switch 中应用穿透时, 是按大小顺序穿透的, 例如:
+
+```
+switch n {
+case 1: print 1;
+case 0: print 0;
+}
+```
+构建为
+```
+select n {
+    {
+        `'print'` 0;
+    }
+    {
+        `'print'` 1;
+    }
+}
+```
+我们从代码顺序来看, 应该是 case 1 的代码执行完毕后, 穿透到 case 0,
+但是构建结果标明实际上是 case 0 在前面,
+所以 switch 按顺序直接构建到 select 有的时候使穿透并不是那么方便
+
+如果需要按编写顺序穿透的可以参考
+[#关于自由序整数分支结构的穿透 (gswitch)](#关于自由序整数分支结构的穿透-gswitch)
+
+
+关于自由序整数分支结构的穿透 (gswitch)
+-------------------------------------------------------------------------------
+在前面讲解了 select 和 switch 这种有序整数分支结构,
+在这一章讲解自由序整数分支结构
+
+使用 gswitch 可以使 case 代码按编写顺序自由的编排,
+因为 gswitch 使用的是跳转表形式, case 代码部分不受 select 的限制
+
+将前面的例子拿过来对比一下, 例如:
+
+```
+switch n {
+case 1: print 1;
+case 0: print 0;
+}
+
+print "split";
+
+gswitch n {
+case 1: print 1;
+case 0: print 0;
+}
+```
+编译为
+```
+op add @counter @counter n
+print 0
+print 1
+print "split"
+op add @counter @counter n
+jump 8 always 0 0
+jump 7 always 0 0
+print 1
+print 0
+```
+可以看到, 这下 case 的代码按编写顺序排布了,
+不过代价是 gswitch 总是会生成一张跳转表, 来完成这个功能,
+在有些时候行数可能比 switch 更多
+
+
+switch catch
+-------------------------------------------------------------------------------
+普通的 switch 语句支持将 未命中、下越界、上越界进行捕获,
+可以在 switch 头部附加任意个捕获语句, 展开为 switch 前的if
+
+- `<` 下越界
+- `!` 未命中
+- `>` 上越界
+- CmpTree 自定义条件
+
+以下是两个 switch 的对比
+
+```
+switch n {
+    break;
+case 0: print 0;
+case 3: print 3;
+}
+
+switch n {
+    break;
+case !: stop;
+case 0: print 0;
+case 3: print 3;
+}
+```
+构建为
+```
+{
+    select n {
+        {
+            `'print'` 0;
+            goto :___0 _;
+        }
+        {} # ignore line
+        {
+            goto :___0 _;
+        }
+        {
+            `'print'` 3;
+            goto :___0 _;
+        }
+    }
+    :___0
+}
+{
+    take ___0 = n;
+    {
+        {
+            goto :___3 _;
+            :___2
+            {
+                stop;
+            }
+            :___3
+        }
+    }
+    select ___0 {
+        {
+            `'print'` 0;
+            goto :___1 _;
+        }
+        {} # ignore line
+        goto :___2 _;
+        {
+            `'print'` 3;
+            goto :___1 _;
+        }
+    }
+    :___1
+}
+```
+可以看到, 如果使用了未命中捕获,
+会跳到 switch 头部的一个块中, 并运行捕获代码, 且不会被附加 switch-append
+
+如果没使用捕获, 则会在连续的未命中块中使用 switch-append
+
+如果同时使用多个捕获的话, 将会在 switch 头部对于每个捕获 case 都生成一个块
+
+```
+switch n {
+    break;
+case <!: stop;
+case >: end;
+case (a < 2): printflush message1;
+case 0: print 0;
+case 2: print 2;
+}
+```
+构建为
+```
+{
+    take ___0 = n;
+    {
+        {
+            goto :___2 ___0 >= `0`;
+            :___1
+            {
+                stop;
+            }
+            :___2
+        }
+        {
+            goto :___3 ___0 <= `2`;
+            {
+                end;
+            }
+            :___3
+        }
+        {
+            goto :___4 a >= 2;
+            {
+                printflush message1;
+            }
+            :___4
+        }
+    }
+    select ___0 {
+        {
+            `'print'` 0;
+            goto :___0 _;
+        }
+        goto :___1 _;
+        {
+            `'print'` 2;
+            goto :___0 _;
+        }
+    }
+    :___0
+}
+```
+
+可以看到, 在头部生成了三个块, `!` 捕获也顺带使用了 `<` 捕获的条件,
+而不是一个无条件跳过, 避免浪费
+
+
+gswitch catch
+-------------------------------------------------------------------------------
+类似于 switch, gswitch 也有 catch, 不过组合顺序是固定的, 且不用写在头部
+
+组合顺序为 `< ! >`, 并且后面还可以跟一个 ConstKey,
+用于将 gswitch 使用的跳转编号进行 const, 为了方便而设计
+
+与 [switch-catch](#switch-catch) 不同的是, 它并不加在头部,
+而是和其它普通 case 加在一起, 且也会应用 append
+
+```
+gswitch (?x: n//2) {
+    end;
+case >: print "overflow";
+case 0: print 0;
+case*<: # 不使用 append, 按正常序穿透到 case 1
+case 1: print 1;
+}
+```
+编译为
+```
+op idiv x n 2
+jump 10 lessThan x 0
+jump 6 greaterThan x 1
+op add @counter @counter x
+jump 8 always 0 0
+jump 10 always 0 0
+print "overflow"
+end
+print 0
+end
+print 1
+end
+```
+可以看到, 越界检查还是加在 `@counter` 的跳转前,
+但是处理代码按编写顺序加在了 case 之中, 这可以方便的穿透等
+
+> [!NOTE]
+> gswitch-catch 目前并不具有 switch-catch 的条件捕获语句, 或许未来会加为语法糖,
+> 目前可以手动编写标签在gswitch前使用goto跳入
+
+
+gswitch guard
+-------------------------------------------------------------------------------
+gswitch 的普通 case 支持守卫语句, 可以对于同一个编号在不同条件下跳转不同的分支
+
+```
+gswitch id {
+    end;
+case 2 if ty == foo: print foo;
+case*1 if ty == bar: print bar;
+case 1: print bar1;
+}
+```
+编译为
+```
+__3:
+    op mul __1 id 2
+    op add @counter @counter __1
+    jump __3 always 0 0
+    jump __4 always 0 0
+__4:
+    jump __1 equal ty bar
+    jump __2 always 0 0
+    jump __0 equal ty foo
+    jump __3 always 0 0
+__0:
+    print foo
+    end
+__1:
+    print bar
+__2:
+    print bar1
+    end
+```
+
+观察上述代码, 可以得出下面两条提示
+
+> [!WARNING]
+> gswitch 的跳转表结构本身, 是使用 select 生成的,
+> 也就是说当使用了守卫后, 不同编号间守卫的顺序依旧是编号顺序而不是编写顺序,
+> 且守卫总是使 select 中最大行数至少达到两行,
+> 从而需要多一行计算`@counter`增量的运行开销
+
+> [!NOTE]
+> 如果对于一个编号, 其所有 case 都具有守卫,
+> 那么守卫条件不成立时会拥有一个隐含的指向未命中的跳转
+
+
+gswitch multi Var
+-------------------------------------------------------------------------------
+对于 gswitch, 支持的多个数使用一个分支的情况, 和 switch 的处理方式不同, 例如:
+
+```
+switch n {
+case 0 1: print 0 1;
+}
+end;
+gswitch n {
+case 0 1: print 0 1;
+}
+```
+编译为
+```
+op mul __0 n 2
+op add @counter @counter __0
+print 0
+print 1
+print 0
+print 1
+end
+op add @counter @counter n
+jump 10 always 0 0
+jump 10 always 0 0
+print 0
+print 1
+```
+可以看到, gswitch 因为始终使用跳转表形式,
+所以可以很自然的将多个jump指向同一个case,
+而 switch 因为要编译成 select 所以很不方便做这种事
+
+
+gswitch use const Var
+-------------------------------------------------------------------------------
+gswitch 使用值来当 case 的编号, 且可以参与常量系统, 这拥有很高的灵活度, 例如:
+
+```
+match 0 2 => @ {}
+const One = 1;
+gswitch n {
+    end;
+case One: print 1;
+case @: print 0 2;
+}
+```
+编译为
+```
+op add @counter @counter n
+jump 6 always 0 0
+jump 4 always 0 0
+jump 6 always 0 0
+print 1
+end
+print 0
+print 2
+end
+```
+
+
+gswitch ignore append
+-------------------------------------------------------------------------------
+switch 和 gswitch 不是拥有一个 append 扩展用法吗? 可以把一些行附加在每个块后面
+
+而这个扩展用于在某些 case 中不应用 append, 在 case 后加星号即可, 例如:
+
+```
+gswitch n {
+    end;
+case : print 0;
+case : print 1;
+case*: print 2;
+}
+```
+编译为
+```
+op add @counter @counter n
+jump 4 always 0 0
+jump 6 always 0 0
+jump 8 always 0 0
+print 0
+end
+print 1
+end
+print 2
+```
+可以看到, 最后的 `print 2` 并没有被附加 `end`
+
+
+strictNotEqual extend
+-------------------------------------------------------------------------------
+逻辑语言有 `strictEqual` 严格相等运算, 在比较运算和 op 中都存在,
+但是没有严格不等运算, Bang 在 CmpAtom 中扩展了一个扩展比较,
+而在 op 中扩展为了语法糖
+
+在 op 中为语法糖导致可能在内联中产生多余代码,
+不过推荐是用 Cmper 直接输入 CmpTree 用于内联, 所以没必要改了
+
+```
+op strictNotEqual x a b;
+op x a !== b;
+```
+编译为
+```
+op strictEqual __0 a b
+op equal x __0 false
+op strictEqual __1 a b
+op equal x __1 false
+```
 
 
 内建函数
 ===============================================================================
-通常有一些不适合做进语法的功能, 使用频率也较少,
-但是也很需要, 就可能被做进内建函数
+内建函数用于处理一些重要, 但不适合做进语法, 且使用频率也较少的功能
 
 内建函数同样是一个值, 也可以被求值,
 它们在出错时会引发报错输出在错误输出(但不会停止编译)
@@ -1700,5 +2160,21 @@ break (=>[1 2] Less);
 jump 0 lessThan 1 2
 ```
 
-<!-- vim:ts=8:sts=8
+
+关于一些命名的解释
+===============================================================================
+这里讲解一些奇特命名的可能解释,
+有些命名是意思都没想好但是先随便用了一个英文缩写, 再凑出来合理的解释的
+
+- DExp <- D-Expression -> Dependency-Expression or Deep-Expression
+- Var <- Variable
+- gswitch <- goto-switch
+- gwhile <- goto-while
+- ReprVar -> RepresentationVariable
+- take <- take-DExp-handle
+- Expand <- ExpandedLines
+- Statement <- LogicLine
+
+
+<!-- vim::sw=8:ts=8:sts=8
 -->
