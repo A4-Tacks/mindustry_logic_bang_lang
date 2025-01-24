@@ -16,6 +16,7 @@ use ::syntax::{
     },
     Var,
     DExp,
+    Cmper,
     ValueBind,
     ValueBindRef,
     ValueBindRefTarget,
@@ -53,6 +54,7 @@ use ::syntax::{
     FALSE_VAR,
 };
 use ::var_utils::string_escape;
+use tag_code::logic_parser::IdxBox;
 
 grammar(meta: &mut Meta);
 
@@ -103,6 +105,9 @@ MakeDExpBody<T>: DExp = {
 }
 #[inline]
 Boxed<T>: Box<T> = T => Box::new(<>);
+
+#[inline]
+Loc<T>: IdxBox<T> = @L T => IdxBox::new(<>);
 
 CtrlBreakStart: () = () => meta.add_control_break_level(None);
 CtrlContinueStart: () = () => meta.add_control_continue_level(None);
@@ -168,7 +173,7 @@ NonConstRangeValue: Value = {
             LogicLine::SetResultHandle(value),
         ].into()).into()
     },
-    "goto" <MTuple<JumpCmpOnce>> => Value::Cmper(<>.into()),
+    <l:Loc<"goto">> <v:MTuple<Boxed<JumpCmpOnce>>> => Cmper(l.new_value(v)).into(),
     ".." => Value::Binder,
     FEDExp => <>.into(),
     MFTuple<Value>,
@@ -381,7 +386,7 @@ QuickTake: LogicLine = <value:NonConstRangeValue> "!" <args:ParamArgs> LEnd => {
 };
 
 Match: Match = {
-    "match" <args:ParamArgs> <cases:MBlock<(
+    "match" <args:Loc<ParamArgs>> <cases:MBlock<(
         <MatchPat*> <("@" <MatchPat*>)?> <MBlock<LogicLine*>>
     )*>> => {
         Match::new(args, cases.into_iter()
@@ -395,7 +400,7 @@ Match: Match = {
             .collect()
         )
     },
-    "match" <args:ParamArgs> "=>" <case:(
+    "match" <args:Loc<ParamArgs>> "=>" <case:(
         <MatchPat*> <("@" <MatchPat*>)?> <MBlock<LogicLine*>>
     )> => {
         Match::new(args, vec![case].into_iter()
@@ -419,12 +424,12 @@ MatchPat: MatchPatAtom = {
 }
 
 ConstMatch: ConstMatch = {
-    "const" "match" <args:ParamArgs> <cases:MBlock<(
+    "const" "match" <args:Loc<ParamArgs>> <cases:MBlock<(
         ConstMatchPat NoPrefixInlineBlock
     )*>> => {
         ConstMatch::new(args, cases)
     },
-    "const" "match" <args:ParamArgs> "=>" <case:(
+    "const" "match" <args:Loc<ParamArgs>> "=>" <case:(
         ConstMatchPat NoPrefixInlineBlock
     )> => {
         ConstMatch::new(args, vec![case])
@@ -449,10 +454,10 @@ ConstMatchPatAtom: ConstMatchPatAtom = {
             sr,
         )
     },
-    <sr:Opt<"$">> <dotake:Opt<"*">> <name:(<Var> ":")?> <pat:MList<("*" <Args0>)>> => {
+    <sr:Opt<"$">> <dotake:Loc<Opt<"*">>> <name:(<Var> ":")?> <pat:MList<("*" <Args0>)>> => {
         let dexp = DExp::new(meta.unnamed_var(), vec![
             LogicLine::from(Match::new(
-                Args::GLOB_ONLY,
+                dotake.new_value(Args::GLOB_ONLY),
                 vec![
                     (
                         vec![MatchPatAtom::new_unamed(pat, false)].into(),
@@ -474,7 +479,7 @@ ConstMatchPatAtom: ConstMatchPatAtom = {
             )),
         ].into());
         ConstMatchPatAtom::new_guard(
-            dotake,
+            dotake.value,
             name.unwrap_or_default(),
             dexp.into(),
             sr,
@@ -521,9 +526,10 @@ ArgsRepeatBlock: ArgsRepeat = {
         }
         Ok(ArgsRepeat::new(chunk.unwrap_or(1), block))
     },
-    "@" <pats:ConstMatchPatAtom+> <block:NoPrefixInlineBlock> => {
+    <l:Loc<"@">> <pats:ConstMatchPatAtom+> <block:NoPrefixInlineBlock> => {
+        let glob = l.new_value(Args::GLOB_ONLY);
         ArgsRepeat::new(pats.len(), vec![
-            ConstMatch::new(Args::GLOB_ONLY, vec![
+            ConstMatch::new(glob, vec![
                 (pats.into(), block),
             ]).into()
         ].into())
@@ -1104,7 +1110,7 @@ ControlBody: LogicLine = {
     Block,
 }
 GSwitchCase: GSwitchCase = {
-    <skip_extra:Opt<"*">> <ids:Args?> <guard:("if" <JumpCmp>)?> => GSwitchCase::Normal { skip_extra, ids: ids.unwrap_or_default(), guard },
+    <skip_extra:Opt<"*">> <ids:Loc<Args?>> <guard:("if" <JumpCmp>)?> => GSwitchCase::Normal { skip_extra, ids: ids.map(Option::unwrap_or_default), guard },
     <skip_extra:Opt<"*">> "<" <to:ConstKey?> => GSwitchCase::Catch { skip_extra, underflow: true, missed: false, overflow: false, to },
     <skip_extra:Opt<"*">> "!" <to:ConstKey?> => GSwitchCase::Catch { skip_extra, underflow: false, missed: true, overflow: false, to },
     <skip_extra:Opt<"*">> ">" <to:ConstKey?> => GSwitchCase::Catch { skip_extra, underflow: false, missed: false, overflow: true, to },

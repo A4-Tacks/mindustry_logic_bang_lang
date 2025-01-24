@@ -5278,6 +5278,7 @@ fn match_test() {
 
     assert_eq!(
         parse!(parser, r#"
+        # align.............
         inline@ A B *C {
             print A B C;
         }

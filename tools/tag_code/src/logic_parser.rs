@@ -382,14 +382,22 @@ impl<T> IdxBox<T> {
 
     /// Get line and column
     ///
-    /// - `index >= s.len()` return last char next char location
+    /// - `index == s.len()` return last char next char location
     ///
     /// start line and column is 1
     ///
     /// newline char is LF (`\n` 0x0A), and next line after the newline char,
     /// e.g `("a\n", 1)` location is `(1, 2)`
+    ///
+    /// # Panics
+    /// - `index > s.len()` return last char next char location
+    #[track_caller]
     pub fn location(&self, s: &str) -> (u32, u32) {
-        if self.index >= s.len() {
+        assert!(self.index <= s.len(),
+                "location index out of range ({} > {})",
+                self.index,
+                s.len());
+        if self.index == s.len() {
             let nl = s.chars().filter(|&ch| ch == '\n').count();
             let ch = s.chars()
                 .rev()

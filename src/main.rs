@@ -11,6 +11,7 @@ use std::{
     fmt::Display,
     cell::RefCell,
     borrow::Cow,
+    rc::Rc,
 };
 
 use display_source::{
@@ -442,11 +443,11 @@ fn unwrap_parse_err(result: ParseResult<'_>, src: &str) -> Expand {
 }
 
 struct CompileMetaExtender {
-    source: String,
+    source: Rc<String>,
     display_meta: RefCell<DisplaySourceMeta>,
 }
 impl CompileMetaExtender {
-    fn new(source: String, display_meta: RefCell<DisplaySourceMeta>) -> Self {
+    fn new(source: Rc<String>, display_meta: RefCell<DisplaySourceMeta>) -> Self {
         Self {
             source,
             display_meta,
@@ -471,10 +472,12 @@ impl CompileMetaExtends for CompileMetaExtender {
 
 fn compile_ast(ast: Expand, src: String) -> CompileMeta {
     let mut meta = CompileMeta::new();
+    let src = Rc::new(src);
     meta.set_extender(Box::new(CompileMetaExtender::new(
-        src,
+        src.clone(),
         DisplaySourceMeta::new().into(),
     )));
+    meta.set_source(src);
     meta.compile_res_self(ast)
 }
 

@@ -14,6 +14,7 @@ use std::{
     num::ParseIntError,
     ops,
     process::exit,
+    rc::Rc,
 };
 
 use builtins::{build_builtins, BuiltinFunc};
@@ -230,7 +231,7 @@ pub enum Value {
     ValueBindRef(ValueBindRef),
     /// 一个跳转条件, 未决目标的跳转, 它会被内联
     /// 如果它被take, 那么它将引起报错
-    Cmper(Box<CmpTree>),
+    Cmper(Cmper),
     /// 本层应该指向的绑定者, 也就是ValueBind的被绑定的值
     Binder,
     ClosuredValue(ClosuredValue),
@@ -307,10 +308,13 @@ impl TakeHandle for Value {
                 meta.get_dexp_expand_binder().cloned()
                     .unwrap_or_else(|| "__".into())
             },
-            cmp @ Self::Cmper(_) => {
+            ref cmp @ Self::Cmper(Cmper(ref loc)) => {
+                let loc = loc.location(&meta.source);
                 err!(
-                    "{}\n最终未被展开的cmper:\n{}",
+                    "{}\n最终未被展开的 Cmper, 位于: {}:{}\n{}",
                     meta.err_info().join("\n"),
+                    loc.0,
+                    loc.1,
                     cmp.display_src(meta),
                 );
                 exit(6);
@@ -510,6 +514,7 @@ impl_enum_froms!(impl From for Value {
     Var => String;
     Var => &str;
     DExp => DExp;
+    Cmper => Cmper;
     ValueBind => ValueBind;
     ClosuredValue => ClosuredValue;
     BuiltinFunc => BuiltinFunc;
@@ -518,10 +523,20 @@ impl_enum_froms!(impl From for Value {
 impl_enum_try_into!(impl TryInto for Value {
     Var => Var;
     DExp => DExp;
-    Cmper => Box<CmpTree>;
+    Cmper => Cmper;
     ValueBind => ValueBind;
     ValueBindRef => ValueBindRef;
 });
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Cmper(pub IdxBox<Box<CmpTree>>);
+impl std::ops::Deref for Cmper {
+    type Target = IdxBox<Box<CmpTree>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 /// 一次性的迭代器格式化包装器
 struct IterFmtter<I> {
@@ -1632,7 +1647,7 @@ impl CmpTree {
         let values = this.get_values_ref_mut().unwrap();
         let value = if left { values.1 } else { values.0 };
         match value {
-            V::Cmper(cmper) => {
+            V::Cmper(Cmper(cmper)) => {
                 // (a < b) != false => a < b
                 // (a < b) == false => !(a < b)
                 let cmper: CmpTree = mem::take(&mut **cmper);
@@ -1656,10 +1671,10 @@ impl CmpTree {
                         let cmp = cmper(info.arg1, info.arg2.unwrap());
                         *self = cmp_rev(cmp.into())
                     }
-                    Some(ConstData { value: V::Cmper(cmper), .. }) => {
+                    Some(ConstData { value: V::Cmper(Cmper(cmper)), .. }) => {
                         *self = cmp_rev(Self::Expand(
                             name.clone(),
-                            cmper.clone(),
+                            cmper.value.clone(),
                         ))
                     }
                     Some(_) | None => return,
@@ -2841,12 +2856,13 @@ impl Compile for ArgsRepeat {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Match {
-    args: Args,
+    args: IdxBox<Args>,
     cases: Vec<(MatchPat, InlineBlock)>,
 }
 impl Compile for Match {
     fn compile(self, meta: &mut CompileMeta) {
-        let args = self.args.into_taked_args_handle(meta);
+        let loc = self.args.new_value(());
+        let args = self.args.value.into_taked_args_handle(meta);
         for (pat, block) in self.cases {
             if pat.do_pattern(&args, meta) {
                 block.compile(meta);
@@ -2854,16 +2870,20 @@ impl Compile for Match {
             }
         }
         if meta.enable_misses_match_log_info {
+            let (line, column) = loc.location(&meta.source);
             let args = args.into_iter()
                 .map(|v| v.display_src(meta).into_owned())
                 .collect::<Vec<_>>();
-            meta.log_info(format_args!("Misses match, [{}]", args.join(" ")));
+            meta.log_info(format_args!(
+                    "{line}:{column} Misses match, [{}]",
+                    args.join(" "),
+            ));
             meta.log_expand_stack::<false>();
         }
     }
 }
 impl Match {
-    pub fn new(args: Args, cases: Vec<(MatchPat, InlineBlock)>) -> Self {
+    pub fn new(args: IdxBox<Args>, cases: Vec<(MatchPat, InlineBlock)>) -> Self {
         Self { args, cases }
     }
 
@@ -3000,11 +3020,11 @@ impl MatchPatAtom {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ConstMatch {
-    args: Args,
+    args: IdxBox<Args>,
     cases: Vec<(ConstMatchPat, InlineBlock)>,
 }
 impl ConstMatch {
-    pub fn new(args: Args, cases: Vec<(ConstMatchPat, InlineBlock)>) -> Self {
+    pub fn new(args: IdxBox<Args>, cases: Vec<(ConstMatchPat, InlineBlock)>) -> Self {
         Self { args, cases }
     }
 
@@ -3018,7 +3038,8 @@ impl ConstMatch {
 }
 impl Compile for ConstMatch {
     fn compile(self, meta: &mut CompileMeta) {
-        let args = self.args.into_value_args(meta)
+        let loc = self.args.new_value(());
+        let args = self.args.value.into_value_args(meta)
             .into_iter()
             .map(|value| {
                 if let Some(var) = value.as_var() {
@@ -3041,10 +3062,14 @@ impl Compile for ConstMatch {
             }
         }
         if meta.enable_misses_match_log_info {
+            let (line, column) = loc.location(&meta.source);
             let args = args.into_iter()
                 .map(|v| v.display_src(meta).into_owned())
                 .collect::<Vec<_>>();
-            meta.log_info(format_args!("Misses match, [{}]", args.join(" ")));
+            meta.log_info(format_args!(
+                    "{line}:{column} Misses const match, [{}]",
+                    args.join(" "),
+            ));
             meta.log_expand_stack::<false>();
         }
     }
@@ -3274,7 +3299,7 @@ pub enum GSwitchCase {
     Normal {
         skip_extra: bool,
         /// 如果为空, 那么则继承上一个的编号
-        ids: Args,
+        ids: IdxBox<Args>,
         guard: Option<CmpTree>,
     },
 }
@@ -3320,35 +3345,41 @@ pub struct GSwitch {
 impl GSwitch {
     const MAX_CONST_ID: usize = 750;
 
-    fn get_ids(ids: Args, meta: &mut CompileMeta) -> impl Iterator<
+    fn get_ids(ids: IdxBox<Args>, meta: &mut CompileMeta) -> impl Iterator<
         Item = usize
     > + '_ {
-        ids.into_taked_args_handle(meta)
+        let loc = ids.new_value(());
+        let loc = move |meta: &CompileMeta| {
+            let (line, column) = loc.location(&meta.source);
+            format!("{line}:{column}")
+        };
+
+        ids.value.into_taked_args_handle(meta)
             .into_iter()
             .map(Value::ReprVar)
-            .map(|var| var.try_eval_const_num(meta)
+            .map(move |var| var.try_eval_const_num(meta)
                 .map(|x| match x.0.round() {
                     n if n < 0. => {
                         meta.log_expand_stack::<true>();
-                        err!("小于0的gswitch id: {}", n);
+                        err!("{} 小于0的gswitch id: {}", loc(meta), n);
                         exit(4);
                     },
                     n if n >= GSwitch::MAX_CONST_ID as f64 => {
                         meta.log_expand_stack::<true>();
-                        err!("过大的gswitch id: {}", n);
+                        err!("{} 过大的gswitch id: {}", loc(meta), n);
                         exit(4);
                     },
                     n => n as usize,
                 })
                 .unwrap_or_else(|| {
                     meta.log_expand_stack::<true>();
-                    err!("gswitch id并不是一个数字");
+                    err!("{} gswitch id并不是一个数字", loc(meta));
                     exit(4);
                 }))
     }
 
     fn case_lab_with_cond(
-        &self, 
+        &self,
         mut f: impl FnMut(&GSwitchCase) -> bool,
         meta: &mut CompileMeta,
     ) -> Option<Var> {
@@ -3895,6 +3926,7 @@ pub struct CompileMeta {
     noop_line: String,
     /// 保证不会是字符串
     bind_custom_sep: Option<Var>,
+    source: Rc<String>,
 }
 impl Debug for CompileMeta {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -3923,7 +3955,10 @@ impl Debug for CompileMeta {
 }
 impl Default for CompileMeta {
     fn default() -> Self {
-        Self::with_tag_codes(ParseLines::new(vec![]))
+        Self::with_tag_codes(
+            ParseLines::new(vec![]),
+            Rc::default(),
+        )
     }
 }
 impl CompileMeta {
@@ -3933,7 +3968,10 @@ impl CompileMeta {
         Self::default()
     }
 
-    pub fn with_tag_codes(tag_codes: ParseLines<'static>) -> Self {
+    pub fn with_tag_codes(
+        tag_codes: ParseLines<'static>,
+        source: Rc<String>,
+    ) -> Self {
         let mut meta = Self {
             extender: None,
             parse_lines: tag_codes,
@@ -3952,6 +3990,7 @@ impl CompileMeta {
             enable_misses_bind_info: false,
             noop_line: "noop".into(),
             bind_custom_sep: None,
+            source,
         };
         let builtin = Var::from(Self::BUILTIN_FUNCS_BINDER);
         for builtin_func in build_builtins() {
@@ -4287,7 +4326,7 @@ impl CompileMeta {
         }
     }
 
-    /// 对在外部使用`DExpHandle`进行报错
+    /// 对在DExp外部使用某些东西进行报错
     fn do_out_of_dexp_err(&self, value: &str) -> ! {
         err!(
             "{}\n尝试在`DExp`的外部使用{}",
@@ -4547,6 +4586,10 @@ impl CompileMeta {
 
     pub fn set_extender(&mut self, extender: Box<dyn CompileMetaExtends>) {
         self.extender = extender.into();
+    }
+
+    pub fn set_source(&mut self, source: Rc<String>) {
+        self.source = source;
     }
 
     pub fn extender(&self) -> Option<&dyn CompileMetaExtends> {
