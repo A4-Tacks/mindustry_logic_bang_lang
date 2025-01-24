@@ -88,6 +88,8 @@ cargo install --path . # 执行这个你可以在你的shell中直接使用它(�
   这是一个跨平台的编辑器,
   由 [westernat] 提供了它对Bang语言的语法支持
 
+  插件可以在[此处](./syntax/vscode/support/)获取
+
 - [**BlocklyEditor**]\:
   这是一个图形化代码编辑器框架, 使用此框架实现了一个关于Bang语言的编辑器
 

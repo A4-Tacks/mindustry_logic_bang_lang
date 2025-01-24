@@ -95,6 +95,8 @@ Provided basic support for some editors
   This is a cross platform editor,
   Provided syntax support for Bang language by [westernat] in this editor
 
+  This plugin can be obtained at [here](./syntax/vscode/support/)
+
 - [**BlocklyEditor**]\:
   This is a graphical code editor framework that implements an editor for Bang language.
 
