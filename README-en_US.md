@@ -83,9 +83,11 @@ Provided basic support for some editors
 - [**Vim**]\:
   This is an editor active on platforms such as Unix and Linux, although relatively niche<br/>
   Basic syntax highlighting and folding, as well as indentation rules, have been configured for it<br/>
-  And if you are using `coc-snippets` or `Ultisnips` (untested),
+  And if you are using `coc-snippets` or `UltiSnips` (untested),
   You can enjoy some configuration code snippets,
   such as `set` process control syntax `op` and `iop`, etc
+
+  please read [syntax](./syntax/vim/) README
 
 - [**MT-Manager**]\:
   This is an Android file manager with a text editor that supports custom highlighting,

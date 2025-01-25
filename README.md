@@ -77,8 +77,10 @@ cargo install --path . # 执行这个你可以在你的shell中直接使用它(�
 - [**Vim**]\:
   这是一个活跃在Unix, Linux等平台的编辑器, 虽然相对来说比较小众<br/>
   为其配置了基础的语法高亮及折叠, 与缩进规则.<br/>
-  并且如果你在使用`coc-snippets`, 或者`Ultisnips`(未测试) 的话,
+  并且如果你在使用`coc-snippets`, 或者`UltiSnips`(未测试) 的话,
   你可以享受一些配置的代码片段, 如`set` 流程控制语法 `op` `iop`等
+
+  请阅读 [syntax](./syntax/vim/) README
 
 - [**MT-Manager**]\:
   这是一个安卓端的文件管理器, 其中有一个文本编辑器, 可支持自定义高亮,

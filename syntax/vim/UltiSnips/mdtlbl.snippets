@@ -69,6 +69,11 @@ endsnippet
 snippet iop "op self" w
 $1 ${2:+}= $3;
 endsnippet
+snippet select "select" w
+select $1 {
+	$0
+}
+endsnippet
 snippet switch "switch" w
 switch $1 {
 	$0
@@ -91,14 +96,15 @@ endsnippet
 snippet set "a = b;" w
 ${1:\$} = ${2};
 endsnippet
-snippet read "read result cell1 0;" w
-read ${1:result} ${2:cell1} ${3:0};$0
+snippet match "match args... { (pattern body)... }" w
+match $1 {
+	$0
+}
 endsnippet
-snippet write "write result cell1 0;" w
-write ${1:result} ${2:cell1} ${3:0};$0
-endsnippet
-snippet draw "draw clear 0 0 0 0 0 0" w
-draw ${1:clear} ${2:0} ${3:0} ${4:0} 0 0 0;$0
+snippet cmatch "const match args... { (pattern body)... }" w
+const match $1 {
+	$0
+}
 endsnippet
 snippet setres "set DExp result handle" w
 setres ${1:RES};$0
@@ -112,24 +118,145 @@ endsnippet
 snippet tmpvar "use take define tmp var" w
 take+$1;
 endsnippet
-snippet printflush "printflush message1" w
-printflush ${1:message1};$0
-endsnippet
-snippet drawflush "drawflush message1" w
-drawflush ${1:display1};$0
-endsnippet
-snippet select "select" w
-select $1 {
-	$0
-}
-endsnippet
 snippet doccomments "#**\n...\n*#" b
 #**
 * $1
 *#$0
 endsnippet
+
+# Builtin
+snippet _Type "Builtin.Type[$1]" w
+Builtin.Type[$1]
+endsnippet
+snippet _Stringify "Builtin.Stringify[$1]" w
+Builtin.Stringify[$1]
+endsnippet
+snippet _Concat "Builtin.Concat[$1]" w
+Builtin.Concat[$1]
+endsnippet
+snippet _Unbind "Builtin.Unbind[$1]" w
+Builtin.Unbind[$1]
+endsnippet
+snippet _Binder "Builtin.Binder[$1 $2]" w
+Builtin.Binder[$1 $2]
+endsnippet
+snippet _BindHandle "Builtin.BindHandle[$1]" w
+Builtin.BindHandle[$1]
+endsnippet
+snippet _BindHandle2 "Builtin.BindHandle2[$1 $2]" w
+Builtin.BindHandle2[$1 $2]
+endsnippet
+snippet _Status "Builtin.Status[]" w
+Builtin.Status[]
+endsnippet
+snippet _ArgsLen "Builtin.ArgsLen[]" w
+Builtin.ArgsLen[]
+endsnippet
+snippet _ArgsHandle "Builtin.ArgsHandle[$1]" w
+Builtin.ArgsHandle[$1]
+endsnippet
+snippet _MaxExpandDepth "Builtin.MaxExpandDepth[]" w
+Builtin.MaxExpandDepth[]
+endsnippet
+snippet _EvalNum "Builtin.EvalNum[$1]" w
+Builtin.EvalNum[$1]
+endsnippet
+snippet _IsString "Builtin.IsString[$1]" w
+Builtin.IsString[$1]
+endsnippet
+snippet _RefArg "Builtin.RefArg[$1]" w
+Builtin.RefArg[$1]
+endsnippet
+
+# Builtin, no result
+snippet _Info "Builtin.Info! $1;" w
+Builtin.Info! $1;
+endsnippet
+snippet _Err "Builtin.Err! $1;" w
+Builtin.Err! $1;
+endsnippet
+snippet _Const "Builtin.Const! $1 $2;" w
+Builtin.Const! $1 $2;
+endsnippet
+snippet _Debug "Builtin.Debug! $1;" w
+Builtin.Debug! $1;
+endsnippet
+snippet _DebugBinds "Builtin.DebugBinds! $1;" w
+Builtin.DebugBinds! $1;
+endsnippet
+snippet _Exit "Builtin.Exit! $1;" w
+Builtin.Exit! $1;
+endsnippet
+snippet _SliceArgs "Builtin.SliceArgs! $1 $2;" w
+Builtin.SliceArgs! $1 $2;
+endsnippet
+snippet _MetaDebug "Builtin.MetaDebug!;" w
+Builtin.MetaDebug!;
+endsnippet
+snippet _SetMaxExpandDepth "Builtin.SetMaxExpandDepth! $1;" w
+Builtin.SetMaxExpandDepth! $1;
+endsnippet
+snippet _ExpandStack "Builtin.ExpandStack!;" w
+Builtin.ExpandStack!;
+endsnippet
+snippet _MissesMatch "Builtin.MissesMatch! $1;" w
+Builtin.MissesMatch! $1;
+endsnippet
+snippet _NewBind "Builtin.NewBind! $1;" w
+Builtin.NewBind! $1;
+endsnippet
+snippet _BindSep "Builtin.BindSep! $1;" w
+Builtin.BindSep! $1;
+endsnippet
+snippet _SetNoOp "Builtin.SetNoOp! $1;" w
+Builtin.SetNoOp! $1;
+endsnippet
+
+# logic
+snippet read "read result cell1 0;" w
+read ${1:result} ${2:cell1} ${3:0};$0
+endsnippet
+snippet write "write result cell1 0;" w
+write ${1:result} ${2:cell1} ${3:0};$0
+endsnippet
+snippet draw "draw clear 0 0 0 0 0 0" w
+draw ${1:clear} ${2:0} ${3:0} ${4:0} 0 0 0;$0
+endsnippet
+snippet drawflush "drawflush message1" w
+drawflush ${1:display1};$0
+endsnippet
+snippet printflush "printflush message1" w
+printflush ${1:message1};$0
+endsnippet
+snippet getlink "getlink" w
+getlink ${1:block} ${2:0};$0
+endsnippet
 snippet control "enabled | shoot[p] | config | color" w
 control ${1:enabled} ${2:block1} ${3:false} 0 0 0;$0
+endsnippet
+snippet radar "radar" w
+radar enemy any any distance turret1 1 result;$0
+endsnippet
+snippet sensor "sensor" w
+sensor ${1:result} ${2:block1} ${3:@${4:copper}};$0
+endsnippet
+snippet lookup "block | unit | item | liquid" w
+lookup ${1:item} ${2:result} ${3:0};$0
+endsnippet
+snippet packcolor "packcolor result r g b a # color in [0,1]" w
+packcolor ${1:result} ${2:1} ${3:0} ${4:1} ${5:1};
+endsnippet
+snippet wait "wait sec" w
+wait ${1:0.5};$0
+endsnippet
+snippet sleep "wait sec" w
+wait ${1:0.5};$0
+endsnippet
+snippet stop "stop to this line" w
+stop;
+endsnippet
+snippet end "goto first line" w
+end;
 endsnippet
 snippet ubind "unit bind" w
 ubind ${2:@${1:poly}};$0
@@ -142,32 +269,4 @@ ulocate building core true @copper outx outy found building;$0
 endsnippet
 snippet uradar "unit radar" w
 uradar enemy any any distance 0 1 result;$0
-endsnippet
-snippet radar "radar" w
-radar enemy any any distance turret1 1 result;$0
-endsnippet
-snippet lookup "block | unit | item | liquid" w
-lookup ${1:item} ${2:result} ${3:0};$0
-endsnippet
-snippet sleep "wait sec" w
-wait ${1:0.5};$0
-endsnippet
-snippet wait "wait sec" w
-wait ${1:0.5};$0
-endsnippet
-snippet getlink "getlink" w
-getlink ${1:block} ${2:0};$0
-endsnippet
-snippet sensor "sensor" w
-sensor ${1:result} ${2:block1} ${3:@${4:copper}};$0
-endsnippet
-snippet match "match args... { (pattern body)... }" w
-match $1 {
-	$0
-}
-endsnippet
-snippet cmatch "const match args... { (pattern body)... }" w
-const match $1 {
-	$0
-}
 endsnippet
