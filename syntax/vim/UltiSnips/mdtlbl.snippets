@@ -41,14 +41,16 @@ inline {
 	$0
 }
 endsnippet
+snippet repeat_block "inline@{ ... }" w
+inline$1@ $2{
+	$0
+}
+endsnippet
 snippet const "const value" w
 const ${1:\$.$2} = ${3};$0
 endsnippet
 snippet take "take" w
 take ${1:${2:\$.$3} = ${4}};$0
-endsnippet
-snippet ctake "command like take" w
-$1! $2;
 endsnippet
 snippet using "const bind to var" w
 $2=$1->$2
@@ -59,8 +61,13 @@ endsnippet
 snippet argc "const arg" w
 const ${1:Arg} = _${2:0};$0
 endsnippet
+snippet argd "new argumented DExp" w
+(const match @ => $1 {
+	$0
+})
+endsnippet
 snippet iop "op self" w
-op ${1:i} $1 ${2:+} ${3:1};$0
+$1 ${2:+}= $3;
 endsnippet
 snippet switch "switch" w
 switch $1 {
@@ -76,7 +83,7 @@ snippet case "switch-case" w
 case ${1}:$0
 endsnippet
 snippet op "op result a + b;" w
-op ${1:result} ${2:a} ${3:+} ${4:b};$0
+op ${1} ${2} ${3:+} ${4};$0
 endsnippet
 snippet print "print values;" w
 print ${1:"$2"};$0
@@ -103,7 +110,7 @@ snippet continue "continue top-level loop" w
 continue$1;$0
 endsnippet
 snippet tmpvar "use take define tmp var" w
-take ${1:var} = ();$0
+take+$1;
 endsnippet
 snippet printflush "printflush message1" w
 printflush ${1:message1};$0

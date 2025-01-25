@@ -1,7 +1,7 @@
 " Vim syntax file
 " Language:		mindustry_logic_bang_lang (mdtlbl)
 " Maintainer:		A4-Tacks <wdsjxhno1001@163.com>
-" Last Change:		2024-07-20
+" Last Change:		2025-01-25
 " URL:			https://github.com/A4-Tacks/mindustry_logic_bang_lang
 scriptencoding utf-8
 
@@ -11,13 +11,6 @@ if exists('b:current_syntax')
 endif
 
 " 定义 {{{1
-
-" 语法文件注册, 请复制到如vimrc并取消注释
-" 注册语法文件后将此文件复制到语法目录, 如 ~/.vim/syntax/
-"augroup filetypedetect
-"    autocmd BufNewFile,BufRead *.mdtlbl setfiletype mdtlbl
-"augroup END
-
 
 " debug clear
 "syn clear
