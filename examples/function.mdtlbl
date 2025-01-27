@@ -10,9 +10,7 @@
 Builtin.BindSep! '.';
 Builtin.MissesMatch! 1;
 
-const Function = (const match @ => @ F {
-    match @ => @ { }
-
+const Function = (const match @ => *@ F {
     take B = $;
 
     skip {

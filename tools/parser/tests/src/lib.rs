@@ -5521,6 +5521,18 @@ fn match_test() {
             "print __2",
         ],
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const match (arg;) => @ {}
+        match (a;) @ (b;) => @ {}
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "a",
+            "arg",
+            "b",
+        ],
+    );
 }
 
 #[test]
@@ -5991,6 +6003,62 @@ fn const_match_test() {
             "print taked",
             "print h",
             "foo h",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const match (arg;) => @ {}
+        const match (a;) @ (b;) => A @ *B {}
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "b",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const match (arg;) => @ {}
+        const match (a;) @ (b;) => *A @ *B {}
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "a",
+            "b",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const match (arg;) => @ {}
+        const match (a;) @ (b;) => *A *@ *B {}
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "a",
+            "arg",
+            "b",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const match (arg;) => @ {}
+        const match (a;) @ (b;) => A *@ *B {}
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "arg",
+            "b",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const match (arg;) => @ {}
+        const match (a;) @ (b;) => A *@ *B { end; }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "arg",
+            "b",
+            "end",
         ],
     );
 }

@@ -684,10 +684,13 @@ impl DisplaySource for ConstMatchPat {
             ConstMatchPat::Normal(args) => {
                 meta.display_source_iter_by_space(args)
             },
-            ConstMatchPat::Expanded(prefix, suffix) => {
+            ConstMatchPat::Expanded(prefix, do_take, suffix) => {
                 for s in prefix {
                     s.display_source(meta);
                     meta.add_space();
+                }
+                if *do_take {
+                    meta.push("*")
                 }
                 meta.push("@");
                 for s in suffix {

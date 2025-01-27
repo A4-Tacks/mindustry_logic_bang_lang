@@ -3114,13 +3114,13 @@ impl Compile for ConstMatch {
 #[derive(Debug, PartialEq, Clone)]
 pub enum ConstMatchPat {
     Normal(Vec<ConstMatchPatAtom>),
-    Expanded(Vec<ConstMatchPatAtom>, Vec<ConstMatchPatAtom>),
+    Expanded(Vec<ConstMatchPatAtom>, /**take*/bool, Vec<ConstMatchPatAtom>),
 }
 impl ConstMatchPat {
     pub fn check_len(&self, value_len: usize) -> bool {
         match self {
             ConstMatchPat::Normal(norm) => norm.len() == value_len,
-            ConstMatchPat::Expanded(left, right) => {
+            ConstMatchPat::Expanded(left, _, right) => {
                 left.len() + right.len() <= value_len
             },
         }
@@ -3199,7 +3199,7 @@ impl ConstMatchPat {
                 code.compile(meta);
                 Ok(())
             },
-            Self::Expanded(left, right) => {
+            Self::Expanded(left, do_take, right) => {
                 let mid_rng = left.len()..handles.len()-right.len();
                 let Some(left_datas)
                     = do_iter(left, meta, handles)
@@ -3214,13 +3214,22 @@ impl ConstMatchPat {
                 for ele in left_datas {
                     make(ele, meta);
                 }
+
+                let packer = if !do_take { identity } else {
+                    |arg: Value| ValueBindRef::new(
+                        arg.into(),
+                        ValueBindRefTarget::ResultHandle,
+                    ).into()
+                };
+                let expand_args = handles[mid_rng].iter()
+                    .map_into()
+                    .map(packer)
+                    .collect::<Vec<_>>();
+                LogicLine::SetArgs(expand_args.into()).compile(meta);
+
                 for ele in right_datas {
                     make(ele, meta);
                 }
-                let expand_args = handles[mid_rng].iter()
-                    .map_into()
-                    .collect::<Vec<_>>();
-                LogicLine::SetArgs(expand_args.into()).compile(meta);
                 code.compile(meta);
                 Ok(())
             },

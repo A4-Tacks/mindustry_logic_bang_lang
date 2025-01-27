@@ -438,7 +438,7 @@ ConstMatch: ConstMatch = {
 
 ConstMatchPat: ConstMatchPat = {
     ConstMatchPatAtom* => ConstMatchPat::Normal(<>),
-    <ConstMatchPatAtom*> "@" <ConstMatchPatAtom*>
+    <ConstMatchPatAtom*> <Opt<"*">> "@" <ConstMatchPatAtom*>
         => ConstMatchPat::Expanded(<>),
 }
 
