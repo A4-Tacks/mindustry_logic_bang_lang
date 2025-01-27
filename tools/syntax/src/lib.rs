@@ -19,7 +19,7 @@ use std::{
 
 use builtins::{build_builtins, BuiltinFunc};
 use either::Either;
-use itermaps::{fields, MapExt, Unpack};
+use itermaps::{fields, short_funcs::copy, MapExt, Unpack};
 use tag_code::{
     args,
     logic_parser::{Args as LArgs, IdxBox, ParseLine, ParseLines},
@@ -2811,20 +2811,21 @@ impl_enum_froms!(impl From for Args {
 /// 拿取指定个参数, 并重复块中代码
 #[derive(Debug, PartialEq, Clone)]
 pub struct ArgsRepeat {
-    count: usize,
+    count: Either<usize, IdxBox<Value>>,
     block: InlineBlock,
 }
 impl ArgsRepeat {
     pub fn new(count: usize, block: InlineBlock) -> Self {
-        Self { count, block }
+        assert_ne!(count, 0);
+        Self { count: Either::Left(count), block }
     }
 
-    pub fn count(&self) -> usize {
-        self.count
+    pub fn new_valued(count: IdxBox<Value>, block: InlineBlock) -> Self {
+        Self { count: Either::Right(count), block }
     }
 
-    pub fn count_mut(&mut self) -> &mut usize {
-        &mut self.count
+    pub fn count(&self) -> Either<usize, &IdxBox<Value>> {
+        self.count.as_ref().map_left(copy)
     }
 
     pub fn block(&self) -> &InlineBlock {
@@ -2837,8 +2838,43 @@ impl ArgsRepeat {
 }
 impl Compile for ArgsRepeat {
     fn compile(self, meta: &mut CompileMeta) {
+        let count = match self.count {
+            Either::Left(count) => count,
+            Either::Right(value) => {
+                let Some((n, _)) = value.try_eval_const_num(meta) else {
+                    let (line, col) = value.location(&meta.source);
+                    err!(
+                        "{}\n重复块次数不是数字, 位于: {}:{}\n{}",
+                        meta.err_info().join("\n"),
+                        line, col,
+                        value.display_src(meta),
+                    );
+                    exit(6)
+                };
+                let n = n.round();
+                if n <= 0.0 || !n.is_finite() {
+                    let (line, col) = value.location(&meta.source);
+                    err!(
+                        "{}\n重复块次数必须大于0 ({}), 位于: {}:{}",
+                        meta.err_info().join("\n"),
+                        n, line, col,
+                    );
+                    exit(6)
+                }
+                if n > 512.0 {
+                    let (line, col) = value.location(&meta.source);
+                    err!(
+                        "{}\n重复块次数过大 ({}), 位于: {}:{}",
+                        meta.err_info().join("\n"),
+                        n, line, col,
+                    );
+                    exit(6)
+                }
+                n as usize
+            },
+        };
         let chunks: Vec<Vec<Value>> = meta.get_env_args()
-            .chunks(self.count)
+            .chunks(count)
             .map(|chunks| chunks.iter()
                 .cloned()
                 .map(Into::into)

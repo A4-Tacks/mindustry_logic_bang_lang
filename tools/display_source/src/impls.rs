@@ -1,5 +1,6 @@
 use syntax::*;
 use crate::{DisplaySource, DisplaySourceMeta};
+use either::{self, Left, Right};
 
 fn inline_labs_and_binder<T>(
     labs: &[T],
@@ -552,8 +553,16 @@ impl DisplaySource for Args {
 impl DisplaySource for ArgsRepeat {
     fn display_source(&self, meta: &mut DisplaySourceMeta) {
         meta.push("inline");
-        meta.add_space();
-        meta.push(&self.count().to_string());
+        match self.count() {
+            Left(n) => {
+                meta.add_space();
+                meta.push_fmt(n);
+            },
+            Right(value) => {
+                meta.push("*");
+                value.display_source(meta);
+            },
+        }
         meta.push("@");
         meta.push("{");
         if !self.block().is_empty() {

@@ -4788,6 +4788,47 @@ fn match_test() {
 
     assert_eq!(
         CompileMeta::new().compile(parse!(parser, r#"
+        const C = 1;
+        match a b c { @{} }
+        inline*C@{
+            foo @;
+        }
+        print end;
+        print @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "foo a",
+            "foo b",
+            "foo c",
+            "print end",
+            "print a",
+            "print b",
+            "print c",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const C = 2;
+        match a b c { @{} }
+        inline*C@{
+            foo @;
+        }
+        print end;
+        print @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "foo a b",
+            "foo c",
+            "print end",
+            "print a",
+            "print b",
+            "print c",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
         match a b c { __ @{} }
         print @;
         "#).unwrap()).compile().unwrap(),

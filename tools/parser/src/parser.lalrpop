@@ -526,6 +526,9 @@ ArgsRepeatBlock: ArgsRepeat = {
         }
         Ok(ArgsRepeat::new(chunk.unwrap_or(1), block))
     },
+    "*" <value:Loc<NonConstRangeValue>> "@" <block:NoPrefixInlineBlock> => {
+        ArgsRepeat::new_valued(value, block)
+    },
     <l:Loc<"@">> <pats:ConstMatchPatAtom+> <block:NoPrefixInlineBlock> => {
         let glob = l.new_value(Args::GLOB_ONLY);
         ArgsRepeat::new(pats.len(), vec![
