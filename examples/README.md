@@ -60,9 +60,10 @@
 </details>
 
 ## 推荐的例子
-有一些大型且之后编写的例子, 熟练后可以作为参考
+有一些大型且之后编写的例子, 熟练后可以作为参考, 或截取其中部分作为工具库
 
-- [`21point.mdtlbl`](./21point.mdtlbl)<br/>
-- [`bezier_curve.mdtlbl`](./bezier_curve.mdtlbl)<br/>
-- [`gravity_simulation.mdtlbl`](./gravity_simulation.mdtlbl)<br/>
-- [`sine_superposition.mdtlbl`](./sine_superposition.mdtlbl)<br/>
+- [`21point.mdtlbl`](./21point.mdtlbl)
+- [`bezier_curve.mdtlbl`](./bezier_curve.mdtlbl)
+- [`gravity_simulation.mdtlbl`](./gravity_simulation.mdtlbl)
+- [`sine_superposition.mdtlbl`](./sine_superposition.mdtlbl)
+- [`function.mdtlbl`](./function.mdtlbl)

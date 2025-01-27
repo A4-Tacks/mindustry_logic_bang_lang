@@ -1,0 +1,118 @@
+#**
+* 虽然直接展开代码可以无性能损耗, 但是如果行数过多,
+* 我们就需要考虑原生逻辑中常用的封装方法: 函数 了
+* 函数虽然相对来说限制很多, 只能传普通值, 速度慢等
+* 但是节省代码行数很有效
+*
+* 如果要使用可以直接将这部分复制粘贴到你的代码中, 非常方便
+*#
+
+Builtin.BindSep! '.';
+Builtin.MissesMatch! 1;
+
+const Function = (const match @ => @ F {
+    match @ => @ { }
+
+    take B = $;
+
+    skip {
+        const B.Body = F;
+        const B.Expander = (
+            :start
+            ...Body! @;
+            @counter = ...ret_counter;
+
+            const ...Goto = ([B:..| :start](
+                B.ret_counter = @counter + 1;
+                goto :start;
+            ));
+        );
+        const B.RawCall = (match @ {
+            {
+                ...Goto!;
+                setres ...result;
+            }
+        });
+        inline@ Arg {
+            take Handle = Builtin.BindHandle2[`B` Arg];
+            const B.Expander = ([Handle &E:B->Expander](
+                setres E[Handle @];
+            ));
+            const B.RawCall = ([Handle &C:B->RawCall](match @ {
+                @ Fst {
+                    Handle = Fst;
+                    setres C[@];
+                }
+            }));
+        }
+        B.Expander!;
+
+        take*B.ArgC = Builtin.ArgsLen[];
+        const B.RawCall = ([ArgC:B.ArgC &C:B->RawCall](
+            match Builtin.ArgsLen[] {
+                [ArgC] {
+                    setres C[@];
+                }
+                N {
+                    Builtin.ExpandStack!;
+                    Builtin.Err! *Builtin.Concat[
+                        "Unexpected argc "
+                        *Builtin.Concat[
+                            *Builtin.Stringify[N]
+                            *Builtin.Concat[
+                                ", expected: "
+                                *Builtin.Stringify[ArgC]
+                            ]
+                        ]
+                    ];
+                    inline@ Arg {
+                        Builtin.Err! Arg;
+                    }
+                    Builtin.Exit! 3;
+                }
+            }
+        ));
+
+        const B.Call = (match @ => @ {
+            setres ...RawCall[@];
+        });
+    }
+});
+
+const Add = Function[a b (
+    ...result = _0 + _1;
+)]->Call;
+
+const Foo = Function[(
+    ...result = 3;
+)]->Call;
+
+print Add[1 2]", "Add[3 4]"\n";
+print "foo: "Foo[];
+printflush message1;
+
+#* >>>
+jump 6 always 0 0
+op add __5.result __5.a __5.b
+set @counter __5.ret_counter
+jump 6 always 0 0
+set __32.result 3
+set @counter __32.ret_counter
+set __5.b 2
+set __5.a 1
+op add __5.ret_counter @counter 1
+jump 1 always 0 0
+print __5.result
+print ", "
+set __5.b 4
+set __5.a 3
+op add __5.ret_counter @counter 1
+jump 1 always 0 0
+print __5.result
+print "\n"
+print "foo: "
+op add __32.ret_counter @counter 1
+jump 4 always 0 0
+print __32.result
+printflush message1
+*#
