@@ -3211,25 +3211,24 @@ impl ConstMatchPat {
                     else {
                         return Err(code);
                     };
+
                 for ele in left_datas {
                     make(ele, meta);
                 }
 
-                let packer = if !do_take { identity } else {
-                    |arg: Value| ValueBindRef::new(
-                        arg.into(),
-                        ValueBindRefTarget::ResultHandle,
-                    ).into()
-                };
                 let expand_args = handles[mid_rng].iter()
                     .map_into()
-                    .map(packer)
+                    .map(|arg: Value| if do_take {
+                        Value::ReprVar(arg.take_handle(meta))
+                    } else { arg })
                     .collect::<Vec<_>>();
-                LogicLine::SetArgs(expand_args.into()).compile(meta);
 
                 for ele in right_datas {
                     make(ele, meta);
                 }
+
+                LogicLine::SetArgs(expand_args.into()).compile(meta);
+
                 code.compile(meta);
                 Ok(())
             },

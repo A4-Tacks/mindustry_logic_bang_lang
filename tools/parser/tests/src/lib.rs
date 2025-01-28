@@ -6061,6 +6061,21 @@ fn const_match_test() {
             "end",
         ],
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const match (8: arg;) => @ {}
+        const match (a @;) @ (b @;) => *A *@ *B { end; }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "arg",
+            "a 8",
+            "arg",
+            "arg",
+            "b 8",
+            "end",
+        ],
+    );
 }
 
 #[test]
