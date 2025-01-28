@@ -38,7 +38,7 @@ const Function = (const match @ => *@ F {
             ));
             const B.RawCall = ([Handle &C:B->RawCall](match @ {
                 @ Fst {
-                    Handle = Fst;
+                    match Fst { [Handle] {} _ { Handle = Fst; } }
                     setres C[@];
                 }
             }));
