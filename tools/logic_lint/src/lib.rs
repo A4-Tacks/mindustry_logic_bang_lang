@@ -80,7 +80,10 @@ impl<'a> Source<'a> {
         let env_assignables = &[
             "@counter",
         ][..];
-        let lines = s.lines().enumerate()
+        let lines = s.lines()
+            .map(str::trim_start)
+            .filter(|line| !(line.starts_with('#') || line.is_empty()))
+            .enumerate()
             .map(|(lineno, line)| Line::from_line(lineno, line))
             .filter(|line| {
                 line.args().len() != 1 || !line.args()[0].ends_with(':')
@@ -196,7 +199,7 @@ impl<'a> Var<'a> {
 
 #[cfg(test)]
 mod tests {
-    use lints::WarningLint;
+    use lints::{ErrorLint, WarningLint};
 
     use super::*;
 
@@ -228,6 +231,62 @@ mod tests {
             Lint::new(
                 &Var::new(0, 2, "A"),
                 WarningLint::SuspectedConstant,
+            ),
+        ]);
+    }
+
+    #[test]
+    fn world_processor_test() {
+        let s = r#"
+            getblock block result 0 0
+            setblock block @air 0 0 @derelict 0
+            spawn @dagger 10 10 90 @sharded result1
+            status false wet unit 10
+            weathersense result2 @rain
+            weatherset @rain true
+            spawnwave 10 10 false
+            setrule waveSpacing 10 0 0 100 100
+            message announce 3 @wait
+            cutscene pan 100 100 0.06 0
+            effect warn 0 0 2 %ffaaff
+            explosion @crux 0 0 5 50 true true false true
+            setrate 10
+            fetch unit result3 @sharded 0 @conveyor
+            sync var
+            getflag result4 "flag"
+            setflag "flag" true
+            setprop @copper block1 0
+            playsound false @sfx-pew 1 1 0 @thisx @thisy true
+            setmarker pos 0 0 0 0
+            makemarker shape 0 0 0 true
+            localeprint "name"
+            status fales wet unit 10
+        "#;
+        let src = Source::from_str(s);
+        assert_eq!(src.lint(), vec![
+            Lint::new(
+                &Var::new(0, 2, "result"),
+                WarningLint::NeverUsed,
+            ),
+            Lint::new(
+                &Var::new(2, 6, "result1"),
+                WarningLint::NeverUsed,
+            ),
+            Lint::new(
+                &Var::new(4, 1, "result2"),
+                WarningLint::NeverUsed,
+            ),
+            Lint::new(
+                &Var::new(13, 2, "result3"),
+                WarningLint::NeverUsed,
+            ),
+            Lint::new(
+                &Var::new(15, 1, "result4"),
+                WarningLint::NeverUsed,
+            ),
+            Lint::new(
+                &Var::new(22, 1, "fales"),
+                ErrorLint::InvalidOper { expected: &["true", "false"] },
             ),
         ]);
     }

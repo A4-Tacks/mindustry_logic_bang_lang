@@ -947,6 +947,8 @@ pub fn mdt_logic_split(s: &str) -> Result<Vec<&str>, usize> {
                     .unwrap();
                 return Err(char_idx + 1)
             }
+        } else if s1.starts_with('#') {
+            s1 = "";
         } else {
             let end = s1
                 .find(|ch: char| ch.is_whitespace() || ch == '"')
@@ -1537,7 +1539,7 @@ mod tests {
             (r#"甲乙""#, 3),
         ];
         for &(src, char_num) in faileds {
-            assert_eq!(mdt_logic_split(src).unwrap_err(), char_num);
+            assert_eq!(mdt_logic_split(src).unwrap_err(), char_num, "{src:?}");
         }
     }
 }

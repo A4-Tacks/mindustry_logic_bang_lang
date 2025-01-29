@@ -23,7 +23,7 @@ macro_rules! make_lints {
         $lint_vis:vis fn $lint_name:ident<$lifetime:lifetime>($src:ident, $line:ident) -> $res_ty:ty;
         let $lints:ident;
         $(
-            $(|)? $($prefix:literal)|+ ($argc:literal) $body:block
+            $(|)? $($prefix:literal)|+ ($($argc:literal),+) $body:block
         )*
     } => {
         $lint_vis fn $lint_name<$lifetime>(
@@ -34,7 +34,7 @@ macro_rules! make_lints {
             match $line.args() {
                 $(
                     [$crate::Var { value: $($prefix)|+, .. }, ..] => {
-                        $lints.extend(check_argc($src, $line, $argc));
+                        $lints.extend(check_argc($src, $line, &[$($argc),+]));
                         $body
                     },
                 )*
@@ -186,14 +186,38 @@ thread_local! {
             ["jump" _ _ v v]
             ["ubind" v]
             ["ucontrol" "within" v v v a]
-            ["ucontrol" _ v v v v v]
+            ["ucontrol" _        v v v v v]
             ["uradar" _ _ _ _ _ v a]
-            ["ulocate" "ore" _ _ v a a a]
-            ["ulocate" "building" _ v _ a a a a]
-            ["ulocate" "spawn" _ _ _ a a a a]
-            ["ulocate" "damaged" _ _ _ a a a a]
+            ["ulocate" "ore"        _ _ v a a a]
+            ["ulocate" "building"   _ v _ a a a a]
+            ["ulocate" "spawn"      _ _ _ a a a a]
+            ["ulocate" "damaged"    _ _ _ a a a a]
+            // world
             ["getblock" _ a v v]
+            ["setblock" _ v v v v v]
+            ["spawn" v v v v v a]
+            ["status" "true" _ v]
+            ["status" _ _ v v]
+            ["weathersense" a v]
+            ["weatherset" v v]
+            ["spawnwave" v v v]
+            ["setrule" _ v v v v v]
+            ["message" _ v v]
+            ["cutscene" _ v v v v]
+            ["effect" _ v v v v v]
+            ["explosion" v v v v v v v v v]
+            ["setrate" v]
             ["fetch" _ a v v v]
+            ["sync" v]
+            ["getflag" a v]
+            ["setflag" v v]
+            ["setprop" v v v]
+            ["playsound" "true"  v v v _ v v v]
+            ["playsound" "false" v v v v _ _ v]
+            ["playsound" _       v v v v v v v]
+            ["setmarker" _ v v v v]
+            ["makemarker" _ v v v v]
+            ["localeprint" v]
             // 兜底, 对未录入的语句参数统一为使用
             [_ v v v v v v v v v v v v v v v v v v]
         }
@@ -287,19 +311,21 @@ fn check_cmd<'a>(
         .chain(check_vars(src, line, args))
 }
 #[must_use]
+#[track_caller]
 fn check_argc<'a>(
     _src: &'a crate::Source<'a>,
     line: &'a crate::Line<'a>,
-    expected: usize,
+    expected: &[usize],
 ) -> Option<Lint<'a>> {
+    assert_ne!(expected.len(), 0);
     let len = line.args().len() - 1;
-    if len == expected {
+    if expected.contains(&len) {
         return None;
     }
     Lint::new(
         line.args().first().unwrap(),
         WarningLint::ArgsCountNotMatch {
-            expected,
+            expected: expected[0],
             found: len,
         }
     ).into()
@@ -461,6 +487,7 @@ make_lints! {
             lints.extend(check_vars(src, line, [a, b]));
         }
     }
+    // world
     "getblock" (4) {
         if let [_, method, result, x, y]
         = line.args() {
@@ -470,12 +497,120 @@ make_lints! {
             lints.extend(check_vars(src, line, [x, y]));
         }
     }
+    "setblock" (6) {
+        if let [_, method, args @ ..] = line.args() {
+            lints.extend(check_oper(method, &["floor", "ore", "block"]));
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "spawn" (6) {
+        if let [_, args @ .., result] = line.args() {
+            lints.extend(check_assign_var(src, line, result));
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "status" (4) {
+        if let [_, method, _status, args @ ..] = line.args() {
+            lints.extend(check_oper(method, &["true", "false"]));
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "weathersense" (2) {
+        if let [_, result, args @ ..] = line.args() {
+            lints.extend(check_assign_var(src, line, result));
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "weatherset" (2) {
+        if let [_, args @ ..] = line.args() {
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "spawnwave" (3) {
+        if let [_, args @ ..] = line.args() {
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "setrule" (6) {
+        if let [_, _method, args @ ..] = line.args() {
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "message" (3) {
+        if let [_, method, args @ ..] = line.args() {
+            lints.extend(check_oper(method, &[
+                    "notify", "announce", "toast", "mission"]));
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "cutscene" (5) {
+        if let [_, method, args @ ..] = line.args() {
+            lints.extend(check_oper(method, &["pan", "zoom", "stop"]));
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "effect" (5, 6) {
+        if let [_, _method, args @ ..] = line.args() {
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "explosion" (9) {
+        if let [_, args @ ..] = line.args() {
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "setrate" (1) {
+        if let [_, args @ ..] = line.args() {
+            lints.extend(check_vars(src, line, args));
+        }
+    }
     "fetch" (5) {
-        if let [_, method, result, a, b, c]
-        = line.args() {
+        if let [_, method, result, a, b, c] = line.args() {
             lints.extend(check_oper(method, FETCH_METHODS));
             lints.extend(check_assign_var(src, line, result));
             lints.extend(check_vars(src, line, [a, b, c]));
+        }
+    }
+    "sync" (1) {
+        if let [_, args @ ..] = line.args() {
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "getflag" (2) {
+        if let [_, result, args @ ..] = line.args() {
+            lints.extend(check_assign_var(src, line, result));
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "setflag" (2) {
+        if let [_, args @ ..] = line.args() {
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "setprop" (3) {
+        if let [_, args @ ..] = line.args() {
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "playsound" (8) {
+        if let [_, method, args @ ..] = line.args() {
+            lints.extend(check_oper(method, &["true", "false"]));
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "setmarker" (5) {
+        if let [_, _method, args @ ..] = line.args() {
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "makemarker" (5) {
+        if let [_, _method, args @ ..] = line.args() {
+            lints.extend(check_vars(src, line, args));
+        }
+    }
+    "localeprint" (1) {
+        if let [_, args @ ..] = line.args() {
+            lints.extend(check_vars(src, line, args));
         }
     }
 }
