@@ -1,0 +1,78 @@
+#**
+* 用于编译期存储值的固定大小数组, 使用默认值初始化,
+* 在传入的DExp中使用, 因为绑定量是全局泄漏的, 这样设计可以减少问题和实现难度
+*
+* 虽说和普通的可变容器设计的不太一样吧, 子作用域会发生遮蔽, 就像在副本上写一样
+*#
+
+take+Array;
+
+const Array.Scoped = (const match @ => *@ F {
+    const Err = (match @ => Fst @ {
+        take S = Builtin.Stringify[Fst];
+        inline@ Rest {
+            take S = Builtin.Concat[
+                S
+                *Builtin.Stringify[Rest]
+            ];
+        }
+        Builtin.Err! S;
+    });
+    const match *Builtin.ArgsLen[] {
+        [?_0 % 3 == 0] {}
+        Len {
+            Err! "Array.Scoped args count err, expected: "
+            "(Name Len Default)* F, found "(*Len+1)" args";
+            Builtin.Exit! 2;
+        }
+    }
+    inline@ Name Len _ {
+        match Builtin.EvalNum[Len] {
+            [`__`] {
+                Err! "Array `"Name"` size ("Len") can not const eval";
+                Builtin.Exit! 2;
+            }
+            _ {}
+        }
+    }
+    inline@ Name Len Default {
+        const Name.Len = Len;
+        const Name.Default = Default;
+
+        take I = 0;
+        inline 0@ { match I { [Len] { Builtin.StopRepeat!; } _ {
+            Builtin.Const! *Builtin.BindHandle2[`Name` I] `Default`;
+            take*I = I + 1;
+        } } }
+
+        const Name.Key = (match @ => I {
+            take Name = ..;
+            setres Builtin.BindHandle2[`Name` I];
+        });
+        const Name.Get = (match @ => I {
+            take H = ...Key[I];
+            Builtin.Const! `Value` H;
+            setres Value;
+        });
+    }
+
+    setres F[];
+});
+
+Array.Scoped! foo 10 4 (
+    Builtin.Const! *foo.Key[0] 2;
+    Builtin.Const! *foo.Key[1] 3;
+    print foo.Get[0] foo.0 foo.1 foo.2 foo.Len;
+);
+# 从 Const 内建函数可以看出, Array 实际上做的是管理一个 const 的 key,
+# 并不实际负责值的存储, 值来源于普通的 Const,
+# 所以如果你在子作用域去'改变'值, 出了子作用域改变就不存在了
+# 这种特性有优有劣, 但是对一些使用习惯来说打击还是比较大的
+
+#* >>>
+print 2
+print 2
+print 3
+print 4
+print 10
+*#
