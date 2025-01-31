@@ -2839,7 +2839,9 @@ impl ArgsRepeat {
 impl Compile for ArgsRepeat {
     fn compile(self, meta: &mut CompileMeta) {
         let loc = self.count.new_value(());
+        let mut set_args = true;
         let count = match self.count.value {
+            Either::Left(0) => { set_args = false; 0 },
             Either::Left(count) => count,
             Either::Right(value) => {
                 let Some((n, _)) = value.try_eval_const_num(meta) else {
@@ -2887,20 +2889,21 @@ impl Compile for ArgsRepeat {
                 .into_iter())
         }.enumerate();
         meta.args_repeat_flags.push(true);
-        while let Some((i, args)) = chunks.next() {
-            meta.with_env_args_scope(|meta| {
-                meta.set_env_args(args);
-                self.block.clone().compile(meta)
-            });
-            if !meta.args_repeat_flags.last().unwrap() { break }
-            if i >= meta.args_repeat_limit {
-                err!(
-                    "Maximum repeat depth exceeded ({})",
-                    meta.args_repeat_limit,
-                );
-                exit(6)
+        meta.with_env_args_scope(|meta| {
+            while let Some((i, args)) = chunks.next() {
+                if set_args { meta.set_env_args(args); }
+                self.block.clone().compile(meta);
+
+                if !meta.args_repeat_flags.last().unwrap() { break }
+                if i >= meta.args_repeat_limit {
+                    err!(
+                        "Maximum repeat limit exceeded ({})",
+                        meta.args_repeat_limit,
+                    );
+                    exit(6)
+                }
             }
-        }
+        });
         meta.args_repeat_flags.pop().unwrap();
     }
 }

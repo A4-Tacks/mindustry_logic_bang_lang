@@ -6129,6 +6129,52 @@ fn const_match_test() {
             "print 4",
         ],
     );
+
+    // 不重设参数情况
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        take*I = 0;
+        inline 0@ {
+            match I { [3] { Builtin.StopRepeat!; } _ {
+                match @ I => @ {}
+                foo @;
+                take*I = I + 1;
+            } }
+        }
+        bar @; # 都保留了参数作用域
+        baz I; # 并不具有常量作用域
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "foo 0",
+            "foo 0 1",
+            "foo 0 1 2",
+            "bar",
+            "baz 3",
+        ],
+    );
+
+    // 重设参数情况
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        take*I = 0;
+        inline*0@ {
+            match I { [3] { Builtin.StopRepeat!; } _ {
+                match @ I => @ {}
+                foo @;
+                take*I = I + 1;
+            } }
+        }
+        bar @; # 都保留了参数作用域
+        baz I; # 并不具有常量作用域
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "foo 0",
+            "foo 1",
+            "foo 2",
+            "bar",
+            "baz 3",
+        ],
+    );
 }
 
 #[test]
