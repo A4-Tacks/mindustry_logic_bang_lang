@@ -24,10 +24,11 @@ syn keyword mdtlblKeyword
             \ const setres select match
             \ op noop print
 syn keyword mdtlblKeyword goto		nextgroup=mdtlblIdentLabelRest
-syn keyword mdtlblKeyword case		nextgroup=mdtlblStar skipwhite
-syn keyword mdtlblKeyword take		nextgroup=mdtlblStar skipwhite
-syn keyword mdtlblKeyword inline	nextgroup=mdtlblStar skipwhite
+syn keyword mdtlblKeyword case		nextgroup=mdtlblStar			skipwhite
+syn keyword mdtlblKeyword take		nextgroup=mdtlblStar 			skipwhite
+syn keyword mdtlblKeyword inline	nextgroup=mdtlblStar,mdtlblRepeatZero	skipwhite
 syn match mdtlblStar /\*/ contained
+syn match mdtlblRepeatZero /0\ze\s*@/ contained
 
 syn keyword mdtlblOpFunKeyword
             \ add sub mul div idiv mod pow
@@ -41,7 +42,7 @@ syn keyword mdtlblOpFunKeyword
 syn match mdtlblOpExprCtrl "\%(//\|\*\*\|&&\|<<\|>>\|[+\-*/%|&^]\)\=="
 syn match mdtlblOpExprCtrl /++\|--/
 syn match mdtlblCmpTreeOper /&&\|||\|!\|=>/
-syn match mdtlblCmpOper /[<>]=\=\|[=!]==\=/
+syn match mdtlblCmpOper /[<>][<>]\@!=\=\|[=!]==\=/
 syn match mdtlblArgsExpand /@/
 
 " 注释 {{{1
@@ -69,6 +70,7 @@ syn region mdtlblSubParenNum matchgroup=mdtlblSubParenNumParen start=/\v-@<=\(\z
 syn match mdtlblSubSpaceNum /-\zs \%(\S- \)\@<=\ze\d/ conceal
 
 syn match mdtlblResultHandle /\$/
+syn match mdtlblBinder /\.\./
 
 " Label And ResultH {{{1
 syn match mdtlblDefineResultHandle /\v%(\([%?]=)@2<=(`=)-=_@![0-9_]+%(\._@![0-9_]+|e[+-]=-=_@![0-9_]+)=>\1:/
@@ -159,6 +161,7 @@ setlocal indentkeys+=0=
 " END And Color Links {{{1
 hi def link mdtlblKeyword		Keyword
 hi def link mdtlblStar			Keyword
+hi def link mdtlblRepeatZero		Keyword
 hi def link mdtlblOpFunKeyword		Operator
 hi def link mdtlblCmpTreeOper		Operator
 hi def link mdtlblCmpOper		NONE
@@ -176,6 +179,7 @@ hi def link mdtlblNumber		Number
 hi def link mdtlblBoolean		Boolean
 hi def link mdtlblNull			Boolean
 hi def link mdtlblResultHandle		Identifier
+hi def link mdtlblBinder		Keyword
 hi def link mdtlblDefineResultHandle	Identifier
 hi def link mdtlblIdentLabel		Label
 hi def link mdtlblIdentLabelRest	mdtlblIdentLabel

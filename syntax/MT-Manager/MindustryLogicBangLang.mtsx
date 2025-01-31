@@ -61,9 +61,17 @@
 			match: /'[^\s']+'/
 			0: "constant"
 		}
+		{ // 参数展开
+			match: /@/
+			0: "keyword"
+		}
+		{ // control can star
+			match: keywordsToRegex("case") + /\*?/
+			0: "keyword"
+		}
 		{ // control
 			match: keywordsToRegex(
-				"while gwhile do skip goto if elif else switch case"
+				"while gwhile do skip goto if elif else switch"
 				"select break continue"
 			)
 			0: "keyword"
@@ -72,9 +80,17 @@
 			match: /\$/
 			0: "keyword2"
 		}
+		{ // 绑定者
+			match: /\.\./
+			0: "keyword2"
+		}
+		{ // other keywords can star
+			match: keywordsToRegex("take inline") + /\*?/
+			0: "keyword2"
+		}
 		{ // other keywords
 			match: keywordsToRegex(
-				"const take match setres inline print set op noop"
+				"const match setres print set op noop"
 			)
 			0: "keyword2"
 		}
@@ -89,12 +105,28 @@
 			)
 			0: "tagName"
 		}
+		{ // cmp operator
+			match: /[<>](?![<>])=?|[=!]==?/
+			0: "default"
+		}
+		{ // match fat arrow
+			match: /=>/
+			0: "keyword2"
+		}
+		{ // self inc and dec
+			match: /([+\-])\1/
+			0: "tagName"
+		}
+		{ // self operator
+			match: /(?:\/\/|\*\*|&&|<<|>>|[+\-*\/%|&^])?=/
+			0: "tagName"
+		}
 		{ // label
 			match: /:(?:[a-zA-Z]|[a-zA-Z_][a-zA-Z0-9_]+)\b/
 			0: "label"
 		}
 		{ // quick dexp take
-			match: /(?:(?:[a-zA-Z_][a-zA-Z0-9_\-]*)[\[!]|[\[\]])/
+			match: /(?:(?:[a-zA-Z_][a-zA-Z0-9_]*)(?:!|(?:->)?\[)|[\[\]]|->|\b_\b)/
 			0: "variable"
 		}
 		{ // control operator
