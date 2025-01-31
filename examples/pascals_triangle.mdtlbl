@@ -86,7 +86,7 @@ lastSize = 2;
 
 PrevLine! 0 1 1; # like `PrevLine[0, 1] = 1`
 
-ForD! 3 (%(*TriangleSize+1))->$ const(match @ => I {
+ForD! 3 *(*TriangleSize+1) const(match @ => I {
     CurLine! 0 1;
 
     ForD! 1 lastSize (match @ => J {

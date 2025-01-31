@@ -67,3 +67,4 @@
 - [`gravity_simulation.mdtlbl`](./gravity_simulation.mdtlbl)
 - [`sine_superposition.mdtlbl`](./sine_superposition.mdtlbl)
 - [`function.mdtlbl`](./function.mdtlbl)
+- [`std`](./std) 部分较为通用、大型的工具
