@@ -553,7 +553,7 @@ impl DisplaySource for Args {
 impl DisplaySource for ArgsRepeat {
     fn display_source(&self, meta: &mut DisplaySourceMeta) {
         meta.push("inline");
-        match self.count() {
+        match &**self.count() {
             Left(n) => {
                 meta.add_space();
                 meta.push_fmt(n);

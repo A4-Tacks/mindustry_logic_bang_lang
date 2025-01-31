@@ -360,6 +360,31 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
             })
         }
 
+        fn stop_repeat:StopRepeat(meta) [] {
+            let Some(flag) = meta.args_repeat_flags.last_mut() else {
+                return Err((2, format!("Not in repeat block")))
+            };
+            *flag = false;
+            Ok("__".into())
+        }
+
+        fn repeat_limit:RepeatLimit(meta) [] {
+            Ok(meta.args_repeat_limit().to_string().into())
+        }
+
+        fn set_repeat_limit:SetRepeatLimit(meta) [d:limit] {
+            check_type!("var" Value::Var(limit) = limit.value() => {
+                let limit: usize = match limit.parse() {
+                    Ok(n) => n,
+                    Err(e) => {
+                        return Err((2, e.to_string()))
+                    },
+                };
+                meta.set_args_repeat_limit(limit);
+                Ok("__".into())
+            })
+        }
+
         fn expand_stack:ExpandStack(meta) [] {
             meta.log_expand_stack::<false>();
             Ok("__".into())
@@ -427,7 +452,6 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
                 Ok("__".into())
             })
         }
-
         fn bind_sep:BindSep(meta) [v:sep] {
             check_type!("var" Value::Var(sep) = sep.value() => {
                 match sep.as_var_type().as_string() {

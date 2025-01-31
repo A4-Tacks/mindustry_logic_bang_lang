@@ -411,3 +411,24 @@ inline*C@ {
 foo a b
 foo c
 *#
+
+
+# 在0.18.0版本的重复块添加了可以无限重复的功能, 只要在重复次数写0(以前会报错)
+# 终止的方式则是使用内建函数 StopRepeat, 调用了它后将不会再次运行当前重复块
+# 同时增加了重复次数上限, 防止卡死, 也可以使用内建函数调整上限
+take*I = 0;
+inline 0@ {
+    # 考虑到 StopRepeat 不是立即跳出, 而是执行完当前重复不再重复
+    # 所以match一下, 省得多执行一次
+    match I { [5] { Builtin.StopRepeat!; } _ {
+        print I;
+        take*I = I + 1;
+    } }
+}
+#* >>>
+print 0
+print 1
+print 2
+print 3
+print 4
+*#

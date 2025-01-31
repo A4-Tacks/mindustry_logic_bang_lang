@@ -4809,6 +4809,26 @@ fn match_test() {
 
     assert_eq!(
         CompileMeta::new().compile(parse!(parser, r#"
+        const C = 1;
+        match a b c { @{} }
+        inline*C@{
+            foo @;
+            Builtin.StopRepeat!;
+        }
+        print end;
+        print @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "foo a",
+            "print end",
+            "print a",
+            "print b",
+            "print c",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
         const C = 2;
         match a b c { @{} }
         inline*C@{
@@ -5319,8 +5339,9 @@ fn match_test() {
 
     assert_eq!(
         parse!(parser, r#"
-        # align.............
-        inline@ A B *C {
+         inline@ # align .....
+            A B *C
+        {
             print A B C;
         }
         "#).unwrap(),
@@ -6086,6 +6107,26 @@ fn const_match_test() {
         vec![
             "x",
             "print _0",
+        ],
+    );
+
+    // 无限重复块
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        take*I = 0;
+        inline 0@ {
+            match I { [5] { Builtin.StopRepeat!; } _ {
+                print I;
+                take*I = I + 1;
+            } }
+        }
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 0",
+            "print 1",
+            "print 2",
+            "print 3",
+            "print 4",
         ],
     );
 }

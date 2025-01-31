@@ -19,7 +19,7 @@ use std::{
 
 use builtins::{build_builtins, BuiltinFunc};
 use either::Either;
-use itermaps::{fields, short_funcs::copy, MapExt, Unpack};
+use itermaps::{fields, MapExt, Unpack};
 use tag_code::{
     args,
     logic_parser::{Args as LArgs, IdxBox, ParseLine, ParseLines},
@@ -2811,21 +2811,21 @@ impl_enum_froms!(impl From for Args {
 /// 拿取指定个参数, 并重复块中代码
 #[derive(Debug, PartialEq, Clone)]
 pub struct ArgsRepeat {
-    count: Either<usize, IdxBox<Value>>,
+    /// 0 表示无限循环
+    count: IdxBox<Either<usize, Value>>,
     block: InlineBlock,
 }
 impl ArgsRepeat {
-    pub fn new(count: usize, block: InlineBlock) -> Self {
-        assert_ne!(count, 0);
-        Self { count: Either::Left(count), block }
+    pub fn new(count: IdxBox<usize>, block: InlineBlock) -> Self {
+        Self { count: count.map(Either::Left), block }
     }
 
     pub fn new_valued(count: IdxBox<Value>, block: InlineBlock) -> Self {
-        Self { count: Either::Right(count), block }
+        Self { count: count.map(Either::Right), block }
     }
 
-    pub fn count(&self) -> Either<usize, &IdxBox<Value>> {
-        self.count.as_ref().map_left(copy)
+    pub fn count(&self) -> &IdxBox<Either<usize, Value>> {
+        &self.count
     }
 
     pub fn block(&self) -> &InlineBlock {
@@ -2838,11 +2838,12 @@ impl ArgsRepeat {
 }
 impl Compile for ArgsRepeat {
     fn compile(self, meta: &mut CompileMeta) {
-        let count = match self.count {
+        let loc = self.count.new_value(());
+        let count = match self.count.value {
             Either::Left(count) => count,
             Either::Right(value) => {
                 let Some((n, _)) = value.try_eval_const_num(meta) else {
-                    let (line, col) = value.location(&meta.source);
+                    let (line, col) = loc.location(&meta.source);
                     err!(
                         "{}\n重复块次数不是数字, 位于: {}:{}\n{}",
                         meta.err_info().join("\n"),
@@ -2852,17 +2853,17 @@ impl Compile for ArgsRepeat {
                     exit(6)
                 };
                 let n = n.round();
-                if n <= 0.0 || !n.is_finite() {
-                    let (line, col) = value.location(&meta.source);
+                if n < 0.0 || !n.is_finite() {
+                    let (line, col) = loc.location(&meta.source);
                     err!(
-                        "{}\n重复块次数必须大于0 ({}), 位于: {}:{}",
+                        "{}\n重复块次数必须不小于0 ({}), 位于: {}:{}",
                         meta.err_info().join("\n"),
                         n, line, col,
                     );
                     exit(6)
                 }
                 if n > 512.0 {
-                    let (line, col) = value.location(&meta.source);
+                    let (line, col) = loc.location(&meta.source);
                     err!(
                         "{}\n重复块次数过大 ({}), 位于: {}:{}",
                         meta.err_info().join("\n"),
@@ -2873,20 +2874,34 @@ impl Compile for ArgsRepeat {
                 n as usize
             },
         };
-        let chunks: Vec<Vec<Value>> = meta.get_env_args()
-            .chunks(count)
-            .map(|chunks| chunks.iter()
-                .cloned()
-                .map(Into::into)
-                .collect())
-            .collect();
-        for args in chunks {
-            let args = Vec::from_iter(args.iter().cloned());
+        let mut chunks = if count == 0 {
+            Either::Left(repeat_with(Vec::new))
+        } else {
+            Either::Right(meta.get_env_args()
+                .chunks(count)
+                .map(|chunks| chunks.iter()
+                    .cloned()
+                    .map(Into::into)
+                    .collect())
+                .collect::<Vec<Vec<Value>>>()
+                .into_iter())
+        }.enumerate();
+        meta.args_repeat_flags.push(true);
+        while let Some((i, args)) = chunks.next() {
             meta.with_env_args_scope(|meta| {
                 meta.set_env_args(args);
                 self.block.clone().compile(meta)
             });
+            if !meta.args_repeat_flags.last().unwrap() { break }
+            if i >= meta.args_repeat_limit {
+                err!(
+                    "Maximum repeat depth exceeded ({})",
+                    meta.args_repeat_limit,
+                );
+                exit(6)
+            }
         }
+        meta.args_repeat_flags.pop().unwrap();
     }
 }
 
@@ -3967,6 +3982,8 @@ pub struct CompileMeta {
     last_builtin_exit_code: u8,
     enable_misses_match_log_info: bool,
     enable_misses_bind_info: bool,
+    args_repeat_limit: usize,
+    args_repeat_flags: Vec<bool>,
     noop_line: String,
     /// 保证不会是字符串
     bind_custom_sep: Option<Var>,
@@ -4033,6 +4050,8 @@ impl CompileMeta {
             enable_misses_match_log_info: false,
             enable_misses_bind_info: false,
             noop_line: "noop".into(),
+            args_repeat_limit: 10000,
+            args_repeat_flags: Vec::new(),
             bind_custom_sep: None,
             source,
         };
@@ -4626,6 +4645,14 @@ impl CompileMeta {
 
     pub fn set_const_expand_max_depth(&mut self, const_expand_max_depth: usize) {
         self.const_expand_max_depth = const_expand_max_depth;
+    }
+
+    pub fn args_repeat_limit(&self) -> usize {
+        self.args_repeat_limit
+    }
+
+    pub fn set_args_repeat_limit(&mut self, limit: usize) {
+        self.args_repeat_limit = limit;
     }
 
     pub fn set_extender(&mut self, extender: Box<dyn CompileMetaExtends>) {

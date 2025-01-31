@@ -26,6 +26,9 @@
 * * `MetaDebug[]`: 以调试形式输出编译时元数据
 * * `MaxExpandDepth[]`: 获取最大展开层数限制
 * * `SetMaxExpandDepth[depth]`: 设置最大展开层数限制
+* * `RepeatLimit[]`: 获取最大重复块重复次数限制
+* * `SetRepeatLimit[limit]`: 设置最大重复块重复次数限制
+* * `StopRepeat[]`: 最里层的重复块在本次重复结束后将停止
 * * `ExpandStack[]`: 调试输出当前展开栈情况
 * * `EvalNum[num]`: 尝试常量计算一个值, 失败则返回`__`
 * * `IsString[str]`: 返回给定量是否是一个字符串

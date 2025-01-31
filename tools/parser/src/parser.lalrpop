@@ -93,7 +93,6 @@ OOCArgs<T, S>: Vec<T> = {
     OpenArgs<T, S>,
     CloseArgs<T, S>,
 }
-Span<T> = @L T @R;
 #[inline]
 Opt<T>: bool = T? => <>.is_some();
 #[inline]
@@ -519,28 +518,24 @@ ParamArgs: Args = {
     },
 }
 ArgsRepeatBlock: ArgsRepeat = {
-    <l:@L><chunk:LiteralUInt?><r:@R>
-    "@" <block:NoPrefixInlineBlock> =>? {
-        if chunk == Some(0) {
-            return Err(Error::from((l, Errors::ArgsRepeatChunkByZero, r)).into())
-        }
-        Ok(ArgsRepeat::new(chunk.unwrap_or(1), block))
+    <chunk:Loc<LiteralUInt?>> "@" <block:NoPrefixInlineBlock> =>? {
+        Ok(ArgsRepeat::new(chunk.map(|n| n.unwrap_or(1)), block))
     },
     "*" <value:Loc<NonConstRangeValue>> "@" <block:NoPrefixInlineBlock> => {
         ArgsRepeat::new_valued(value, block)
     },
-    <l:Loc<"@">> <pats:ConstMatchPatAtom+> <block:NoPrefixInlineBlock> => {
-        let glob = l.new_value(Args::GLOB_ONLY);
-        ArgsRepeat::new(pats.len(), vec![
+    <l:Loc<"@">> <pats:Loc<ConstMatchPatAtom+>> <block:NoPrefixInlineBlock> => {
+        let glob = pats.new_value(Args::GLOB_ONLY);
+        ArgsRepeat::new(l.new_value(pats.len()), vec![
             ConstMatch::new(glob, vec![
-                (pats.into(), block),
+                (pats.value.into(), block),
             ]).into()
         ].into())
     },
 }
 
-Print: LogicLine = "print" <Args?> LEnd => {
-    let Some(args) = <> else {
+Print: LogicLine = <l:Loc<"print">> <args:Args?> LEnd => {
+    let Some(args) = args else {
         // 无参数, 啥也不做
         return LogicLine::Ignore
     };
@@ -563,7 +558,7 @@ Print: LogicLine = "print" <Args?> LEnd => {
             ).into()
         },
         Args::Expanded(p, s) if p.len() == 0 && s.len() == 0 => {
-            ArgsRepeat::new(1, vec![
+            ArgsRepeat::new(l.new_value(1), vec![
                 LogicLine::Other(Args::Expanded(
                     vec![ReprVar("print".into())],
                     vec![],
@@ -578,7 +573,7 @@ Print: LogicLine = "print" <Args?> LEnd => {
                 res.push(one(arg))
             }
 
-            res.push(ArgsRepeat::new(1, vec![
+            res.push(ArgsRepeat::new(l.new_value(1), vec![
                 LogicLine::Other(Args::Expanded(vec![
                     ReprVar("print".into()),
                 ], vec![]))
