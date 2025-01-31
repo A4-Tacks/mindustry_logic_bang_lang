@@ -6076,6 +6076,18 @@ fn const_match_test() {
             "end",
         ],
     );
+
+    // 测试守卫作用域
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const match 1 { [?_0 == 1] { x; } _ { y; }}
+        print _0 @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "x",
+            "print _0",
+        ],
+    );
 }
 
 #[test]

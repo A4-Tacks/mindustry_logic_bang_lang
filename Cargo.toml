@@ -1,6 +1,6 @@
 [package]
 name = "mindustry_logic_bang_lang"
-version = "0.17.23"
+version = "0.17.24"
 edition = "2021"
 
 authors = ["A4-Tacks <wdsjxhno1001@163.com>"]

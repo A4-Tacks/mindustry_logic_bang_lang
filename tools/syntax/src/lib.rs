@@ -3304,7 +3304,7 @@ impl ConstMatchPatAtom {
             },
             Either::Right(guard) => {
                 let mut res = false;
-                meta.with_block(|meta| {
+                meta.with_block_and_env_args(|meta| {
                     LogicLine::SetArgs([handle.into()].into())
                         .compile(meta);
                     res = guard.take_handle(meta).ne("0")
