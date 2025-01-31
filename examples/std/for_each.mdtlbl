@@ -1,0 +1,106 @@
+#**
+* 整活性质的利用现有工具制作一个看起来很舒适的实用功能for循环
+* 关于尝试将bang伪装的很先进
+*#
+const For = (const match @ {
+    *I [in] _ *Stop F {
+        setres For[I in 0 .. Stop .. 1 F];
+    }
+    *I [in] *Start _ *Stop F {
+        setres For[I in Start .. Stop .. 1 F];
+    }
+    *I [in] *Start _ *Stop _ *Step F {
+        I = Start;
+        match Builtin.EvalNum[(?Start < Stop)] {
+            [`__` 0] { goto :end !I < Stop; }
+            [1] {}
+        }
+        do {
+            setres F[I];
+            I += Step;
+        } while I < Stop;
+        :end
+    }
+    *I [of] @ F {
+        inline@ Arg {{
+            take Builtin.Const[I `Arg`];
+            take F[];
+        }}
+    }
+    *I [as] _ *Stop F {
+        setres For[I as 0 .. Stop .. 1 F];
+    }
+    *I [as] *Start _ *Stop F {
+        setres For[I as Start .. Stop .. 1 F];
+    }
+    *I [as] *Start _ *Stop _ *Step F {
+        match Builtin.EvalNum[(?Start+Step+Stop)] {
+            [`__`] {
+                match "for-as: can not eval ("Start".."Stop".."Step")" => @ {}
+                take E = ""; inline@ S {
+                    take E = Builtin.Concat[E *Builtin.Stringify[S]];
+                }
+                Builtin.Err! E;
+                Builtin.Exit! 2;
+            }
+            _ {}
+        }
+        match Builtin.EvalNum[(?Step <= 0)] {
+            [1] {
+                Builtin.Err! *Builtin.Concat[
+                    "for-as: invalid step "
+                    *Builtin.Stringify[Step]
+                ];
+            }
+        }
+        take J = Start;
+        inline 0@ { match Builtin.EvalNum[(?J < Stop)] {
+            [1] {
+                {
+                    Builtin.Const! I `J`;
+                    take F[];
+                }
+                take*J = J + Step;
+            }
+            [0] { Builtin.StopRepeat!; }
+        } }
+    }
+});
+
+For! i in 1..@links (
+    print i;
+);
+print "---";
+For! i in 1..6 ( # 不用检测头部
+    print i;
+);
+print "---";
+For! `I` as 1..4 ( # 循环展开
+    print I;
+);
+print "---";
+For! `I` of @copper @lead ( # 参数展开
+    print I;
+);
+# NOTE: 如果在进行多次展开时有定义标签别忘了使用 Consted-DExp, 不然会重复定义
+# 循环语句if语句什么的也是定义标签和跳转的语法糖, 也包括在内
+
+#* >>>
+set i 1
+jump 5 greaterThanEq i @links
+print i
+op add i i 1
+jump 2 lessThan i @links
+print "---"
+set i 1
+print i
+op add i i 1
+jump 7 lessThan i 6
+print "---"
+print 1
+print 2
+print 3
+print "---"
+print @copper
+print @lead
+*#
