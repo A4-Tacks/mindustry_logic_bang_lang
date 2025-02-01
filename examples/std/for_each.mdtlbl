@@ -9,16 +9,28 @@ const For = (const match @ {
     *I [in] *Start _ *Stop F {
         setres For[I in Start .. Stop .. 1 F];
     }
+    *I [in] *Start _ _ *Stop F {
+        setres For[I in Start .. .. Stop .. 1 F];
+    }
     *I [in] *Start _ *Stop _ *Step F {
+        setres For[I incmp Start .. Stop .. 1 F (?I < Stop)];
+    }
+    *I [in] *Start _ _ *Stop _ *Step F {
+        setres For[I incmp Start .. Stop .. 1 F (?I <= Stop)];
+    }
+    *I [incmp] *Start _ *Stop _ *Step F C {
         I = Start;
-        match Builtin.EvalNum[(?Start < Stop)] {
-            [`__` 0] { goto :end !I < Stop; }
-            [1] {}
+        {
+            const I = Start;
+            match Builtin.EvalNum[C] {
+                [`__` 0] { goto :end !C; }
+                [1] {}
+            }
         }
         do {
             setres F[I];
             I += Step;
-        } while I < Stop;
+        } while C;
         :end
     }
     *I [of] @ F {
@@ -33,7 +45,16 @@ const For = (const match @ {
     *I [as] *Start _ *Stop F {
         setres For[I as Start .. Stop .. 1 F];
     }
+    *I [as] *Start _ _ *Stop F {
+        setres For[I as Start .. .. Stop .. 1 F];
+    }
     *I [as] *Start _ *Stop _ *Step F {
+        setres For[I ascmp Start .. Stop .. 1 F (?J < Stop)];
+    }
+    *I [as] *Start _ _ *Stop _ *Step F {
+        setres For[I ascmp Start .. Stop .. 1 F (?J <= Stop)];
+    }
+    *I [ascmp] *Start _ *Stop _ *Step F C {
         match Builtin.EvalNum[(?Start+Step+Stop)] {
             [`__`] {
                 match "for-as: can not eval ("Start".."Stop".."Step")" => @ {}
@@ -46,15 +67,17 @@ const For = (const match @ {
             _ {}
         }
         match Builtin.EvalNum[(?Step <= 0)] {
+            [0] {}
             [1] {
                 Builtin.Err! *Builtin.Concat[
                     "for-as: invalid step "
                     *Builtin.Stringify[Step]
                 ];
+                Builtin.Exit! 2;
             }
         }
         take J = Start;
-        inline 0@ { match Builtin.EvalNum[(?J < Stop)] {
+        inline 0@ { match Builtin.EvalNum[C] {
             [1] {
                 {
                     Builtin.Const! I `J`;
@@ -87,7 +110,7 @@ For! `I` of @copper @lead ( # 参数展开
 
 #* >>>
 set i 1
-jump 5 greaterThanEq i @links
+jump 5 greaterThanEq 1 @links
 print i
 op add i i 1
 jump 2 lessThan i @links

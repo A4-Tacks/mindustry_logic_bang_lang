@@ -1,42 +1,92 @@
-# pre define macros
-const ForC = (const match @ {
-    #**
-    * Static expand for loop impl
-    *#
-    *Stop F {
-        take ForC[0 Stop F];
-    }
-    *Start *Stop F {
-        take ForC[Start Stop 1 F];
-    }
-    *Start *Stop *Step F {
-        const Do = (const match @ {
-            I:[?_0 < Stop] {
-                take F[I];
-                take Do[(?I+Step)->$];
-            }
-        });
-        take Do[Start];
-    }
-});
-const ForD = (const match @ {
-    #**
-    * Dynamic for loop
-    *#
-    *Stop F {
-        take ForD[0 Stop F];
-    }
-    *Start *Stop F {
-        take ForD[Start Stop 1 F];
-    }
-    *Start *Stop *Step F {
-        # Dynamic Running impl
-        take+I(?I:Start);
+Builtin.MissesMatch! 1;
+Builtin.BindSep! '.';
 
-        while I < Stop {
-            take F[I];
-            I += Step;
+# pre define macros
+const For = (const match @ {
+    *I [in] _ *Stop F {
+        setres For[I in 0 .. Stop .. 1 F];
+    }
+    *I [in] *Start _ *Stop F {
+        setres For[I in Start .. Stop .. 1 F];
+    }
+    *I [in] *Start _ _ *Stop F {
+        setres For[I in Start .. .. Stop .. 1 F];
+    }
+    *I [in] *Start _ *Stop _ *Step F {
+        setres For[I incmp Start .. Stop .. 1 F (?I < Stop)];
+    }
+    *I [in] *Start _ _ *Stop _ *Step F {
+        setres For[I incmp Start .. Stop .. 1 F (?I <= Stop)];
+    }
+    *I [incmp] *Start _ *Stop _ *Step F C {
+        I = Start;
+        {
+            const I = Start;
+            match Builtin.EvalNum[C] {
+                [`__` 0] { goto :end !C; }
+                [1] {}
+            }
         }
+        do {
+            setres F[I];
+            I += Step;
+        } while C;
+        :end
+    }
+    *I [of] @ F {
+        inline@ Arg {{
+            take Builtin.Const[I `Arg`];
+            take F[];
+        }}
+    }
+    *I [as] _ *Stop F {
+        setres For[I as 0 .. Stop .. 1 F];
+    }
+    *I [as] *Start _ *Stop F {
+        setres For[I as Start .. Stop .. 1 F];
+    }
+    *I [as] *Start _ _ *Stop F {
+        setres For[I as Start .. .. Stop .. 1 F];
+    }
+    *I [as] *Start _ *Stop _ *Step F {
+        setres For[I ascmp Start .. Stop .. 1 F (?J < Stop)];
+    }
+    *I [as] *Start _ _ *Stop _ *Step F {
+        setres For[I ascmp Start .. Stop .. 1 F (?J <= Stop)];
+    }
+    *I [ascmp] *Start _ *Stop _ *Step F C {
+        match Builtin.EvalNum[(?Start+Step+Stop)] {
+            [`__`] {
+                match "for-as: can not eval ("Start".."Stop".."Step")" => @ {}
+                take E = ""; inline@ S {
+                    take E = Builtin.Concat[E *Builtin.Stringify[S]];
+                }
+                Builtin.Err! E;
+                Builtin.Exit! 2;
+            }
+            _ {}
+        }
+        match Builtin.EvalNum[(?Step <= 0)] {
+            [0] {}
+            [1] {
+                Builtin.Err! *Builtin.Concat[
+                    "for-as: invalid step "
+                    *Builtin.Stringify[Step]
+                ];
+                Builtin.Exit! 2;
+            }
+        }
+        take J = Start;
+        inline 0@ { match Builtin.EvalNum[C] {
+            [1] {
+                {
+                    Builtin.Const! I `J`;
+                    take F[];
+                }
+                take*J = J + Step;
+            }
+            [0] { Builtin.StopRepeat!; }
+        } }
     }
 });
 const QuickMemory = (match @ {
@@ -86,22 +136,22 @@ lastSize = 2;
 
 PrevLine! 0 1 1; # like `PrevLine[0, 1] = 1`
 
-ForD! 3 *(*TriangleSize+1) const(match @ => I {
+For! i in 3....TriangleSize (
     CurLine! 0 1;
 
-    ForD! 1 lastSize (match @ => J {
-        CurLine! J (*PrevLine[(*J- 1)] + PrevLine[J]);
-    });
+    For! j in 1..lastSize (
+        CurLine! j (*PrevLine[(*j- 1)] + PrevLine[j]);
+    );
     CurLine! lastSize 1;
     lastSize++;
 
-    ForD! lastSize (match @ => C {
-        print CurLine[].Read[cur_c C];
-        PrevLine! C cur_c;
-        if C < (*lastSize- 1) { print " "; }
-    });
+    For! c in ..lastSize (
+        print CurLine[].Read[cur_c c];
+        PrevLine! c cur_c;
+        if c < (*lastSize- 1) { print " "; }
+    );
     print "\n";
-});
+);
 
 printflush message1;
 
@@ -110,32 +160,31 @@ print "1\n1 1\n"
 set lastSize 2
 write 1 cell2 0
 write 1 cell2 1
-set __23 3
-jump 31 greaterThanEq __23 11
+set i 3
 write 1 cell1 0
-set __40 1
-jump 16 greaterThanEq __40 lastSize
-op sub __49 __40 1
-read __48 cell2 __49
-read __51 cell2 __40
-op add __46 __48 __51
-write __46 cell1 __40
-op add __40 __40 1
-jump 9 lessThan __40 lastSize
+set j 1
+jump 15 greaterThanEq 1 lastSize
+op sub __85 j 1
+read __84 cell2 __85
+read __87 cell2 j
+op add __82 __84 __87
+write __82 cell1 j
+op add j j 1
+jump 8 lessThan j lastSize
 write 1 cell1 lastSize
 op add lastSize lastSize 1
-set __71 0
-jump 28 greaterThanEq __71 lastSize
-read cur_c cell1 __71
+set c 0
+jump 27 greaterThanEq 0 lastSize
+read cur_c cell1 c
 print cur_c
-write cur_c cell2 __71
-op sub __87 lastSize 1
-jump 26 greaterThanEq __71 __87
+write cur_c cell2 c
+op sub __133 lastSize 1
+jump 25 greaterThanEq c __133
 print " "
-op add __71 __71 1
-jump 20 lessThan __71 lastSize
+op add c c 1
+jump 19 lessThan c lastSize
 print "\n"
-op add __23 __23 1
-jump 6 lessThan __23 11
+op add i i 1
+jump 5 lessThanEq i 10
 printflush message1
 *#
