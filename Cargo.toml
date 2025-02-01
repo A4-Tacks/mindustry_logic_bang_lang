@@ -4,7 +4,9 @@ version = "0.18.1"
 edition = "2021"
 
 authors = ["A4-Tacks <wdsjxhno1001@163.com>"]
-description = "一个偏向底层的用于Mindustry游戏中逻辑处理器的语言"
+description = """\
+    Mindustry logic extension meta-programming language compiler, \
+    for zero additional overhead!"""
 categories = ["command-line-utilities"]
 keywords = ["compiler", "lang", "mindustry"]
 

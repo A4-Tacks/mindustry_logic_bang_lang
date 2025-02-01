@@ -59,14 +59,14 @@ macro_rules! concat_lines {
 const MAX_INVALID_TOKEN_VIEW: usize = 5;
 
 fn help() {
-    eprint!("{} {}", args().next().unwrap(), HELP_MSG);
+    print!("Usage: {} {}", args().next().unwrap(), HELP_MSG);
 }
 
 fn main() {
     let mut args = args();
     args.next().unwrap();
     let Some(mode) = args.next() else {
-        err!("no MODE");
+        err!("missing MODE args");
         help();
         exit(1)
     };
@@ -215,9 +215,8 @@ fn logic_src_to_tagcode(src: &str) -> TagCodes {
 }
 pub const HELP_MSG: &str = concat_lines! {
     "<MODE...>";
-    "Author: A4-Tacks A4的钉子";
-    "Version: ", env!("CARGO_PKG_VERSION");
-    "https://github.com/A4-Tacks/mindustry_logic_bang_lang";
+    env!("CARGO_PKG_DESCRIPTION");
+    ;
     "MODE:";
     "\t", "c: compile MdtBangLang to MdtLogicCode";
     "\t", "a: compile MdtBangLang to AST Debug";
@@ -236,6 +235,11 @@ pub const HELP_MSG: &str = concat_lines! {
     "input from stdin";
     "output to stdout";
     "error to stderr";
+    "Learning this language, from mindustry_logic_bang_lang/examples/README.md";
+    ;
+    "Repository: https://github.com/A4-Tacks/mindustry_logic_bang_lang";
+    "Author: A4-Tacks A4的钉子";
+    "Version: ", env!("CARGO_PKG_VERSION");
 };
 impl TryFrom<char> for CompileMode {
     type Error = char;
