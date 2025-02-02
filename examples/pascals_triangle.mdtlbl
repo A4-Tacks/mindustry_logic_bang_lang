@@ -13,12 +13,33 @@ const For = (const match @ {
         setres For[I in Start .. .. Stop .. 1 F];
     }
     *I [in] *Start _ *Stop _ *Step F {
-        setres For[I incmp Start .. Stop .. 1 F (?I < Stop)];
+        setres For[I in_impl Start .. Stop .. Step F (?I < Stop)];
     }
     *I [in] *Start _ _ *Stop _ *Step F {
-        setres For[I incmp Start .. Stop .. 1 F (?I <= Stop)];
+        setres For[I in_impl Start .. Stop .. Step F (?I <= Stop)];
     }
-    *I [incmp] *Start _ *Stop _ *Step F C {
+    *I [inrev] _ *Stop F {
+        setres For[I inrev 0 .. Stop .. 1 F];
+    }
+    *I [inrev] *Start _ *Stop F {
+        setres For[I inrev Start .. Stop .. 1 F];
+    }
+    *I [inrev] *Start _ _ *Stop F {
+        setres For[I inrev Start .. .. Stop .. 1 F];
+    }
+    *I [inrev] *Start _ *Stop _ *Step F {
+        setres For[I inrev_impl Start .. Stop .. Step F (?I > Stop)];
+    }
+    *I [inrev] *Start _ _ *Stop _ *Step F {
+        setres For[I inrev_impl Start .. Stop .. Step F (?I >= Stop)];
+    }
+    *I [in_impl] *Start _ *Stop _ *Step F C {
+        setres For[I in_impl Start .. Stop .. Step F C (_0 += _1;)];
+    }
+    *I [inrev_impl] *Start _ *Stop _ *Step F C {
+        setres For[I in_impl Start .. Stop .. Step F C (_0 -= _1;)];
+    }
+    *I [in_impl] *Start _ *Stop _ *Step F C Inc {
         I = Start;
         {
             const I = Start;
@@ -29,7 +50,7 @@ const For = (const match @ {
         }
         do {
             setres F[I];
-            I += Step;
+            Inc! I Step;
         } while C;
         :end
     }
@@ -49,12 +70,33 @@ const For = (const match @ {
         setres For[I as Start .. .. Stop .. 1 F];
     }
     *I [as] *Start _ *Stop _ *Step F {
-        setres For[I ascmp Start .. Stop .. 1 F (?J < Stop)];
+        setres For[I as_impl Start .. Stop .. Step F (?J < Stop)];
     }
     *I [as] *Start _ _ *Stop _ *Step F {
-        setres For[I ascmp Start .. Stop .. 1 F (?J <= Stop)];
+        setres For[I as_impl Start .. Stop .. Step F (?J <= Stop)];
     }
-    *I [ascmp] *Start _ *Stop _ *Step F C {
+    *I [asrev] _ *Stop F {
+        setres For[I asrev 0 .. Stop .. 1 F];
+    }
+    *I [asrev] *Start _ *Stop F {
+        setres For[I asrev Start .. Stop .. 1 F];
+    }
+    *I [asrev] *Start _ _ *Stop F {
+        setres For[I asrev Start .. .. Stop .. 1 F];
+    }
+    *I [asrev] *Start _ *Stop _ *Step F {
+        setres For[I asrev_impl Start .. Stop .. Step F (?J > Stop)];
+    }
+    *I [asrev] *Start _ _ *Stop _ *Step F {
+        setres For[I asrev_impl Start .. Stop .. Step F (?J >= Stop)];
+    }
+    *I [as_impl] *Start _ *Stop _ *Step F C {
+        setres For[I as_impl Start .. Stop .. Step F C (?_0 + _1)];
+    }
+    *I [asrev_impl] *Start _ *Stop _ *Step F C {
+        setres For[I as_impl Start .. Stop .. Step F C (?_0 - _1)];
+    }
+    *I [as_impl] *Start _ *Stop _ *Step F C Inc {
         match Builtin.EvalNum[(?Start+Step+Stop)] {
             [`__`] {
                 match "for-as: can not eval ("Start".."Stop".."Step")" => @ {}
@@ -83,7 +125,7 @@ const For = (const match @ {
                     Builtin.Const! I `J`;
                     take F[];
                 }
-                take*J = J + Step;
+                take J = Inc[J Step];
             }
             [0] { Builtin.StopRepeat!; }
         } }

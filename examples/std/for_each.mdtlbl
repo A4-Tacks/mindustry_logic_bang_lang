@@ -13,10 +13,10 @@ const For = (const match @ {
         setres For[I in Start .. .. Stop .. 1 F];
     }
     *I [in] *Start _ *Stop _ *Step F {
-        setres For[I in_impl Start .. Stop .. 1 F (?I < Stop)];
+        setres For[I in_impl Start .. Stop .. Step F (?I < Stop)];
     }
     *I [in] *Start _ _ *Stop _ *Step F {
-        setres For[I in_impl Start .. Stop .. 1 F (?I <= Stop)];
+        setres For[I in_impl Start .. Stop .. Step F (?I <= Stop)];
     }
     *I [inrev] _ *Stop F {
         setres For[I inrev 0 .. Stop .. 1 F];
@@ -28,16 +28,16 @@ const For = (const match @ {
         setres For[I inrev Start .. .. Stop .. 1 F];
     }
     *I [inrev] *Start _ *Stop _ *Step F {
-        setres For[I inrev_impl Start .. Stop .. 1 F (?I > Stop)];
+        setres For[I inrev_impl Start .. Stop .. Step F (?I > Stop)];
     }
     *I [inrev] *Start _ _ *Stop _ *Step F {
-        setres For[I inrev_impl Start .. Stop .. 1 F (?I >= Stop)];
+        setres For[I inrev_impl Start .. Stop .. Step F (?I >= Stop)];
     }
     *I [in_impl] *Start _ *Stop _ *Step F C {
-        setres For[I in_impl Start .. Stop .. 1 F C (_0 += _1;)];
+        setres For[I in_impl Start .. Stop .. Step F C (_0 += _1;)];
     }
     *I [inrev_impl] *Start _ *Stop _ *Step F C {
-        setres For[I in_impl Start .. Stop .. 1 F C (_0 -= _1;)];
+        setres For[I in_impl Start .. Stop .. Step F C (_0 -= _1;)];
     }
     *I [in_impl] *Start _ *Stop _ *Step F C Inc {
         I = Start;
@@ -70,10 +70,10 @@ const For = (const match @ {
         setres For[I as Start .. .. Stop .. 1 F];
     }
     *I [as] *Start _ *Stop _ *Step F {
-        setres For[I as_impl Start .. Stop .. 1 F (?J < Stop)];
+        setres For[I as_impl Start .. Stop .. Step F (?J < Stop)];
     }
     *I [as] *Start _ _ *Stop _ *Step F {
-        setres For[I as_impl Start .. Stop .. 1 F (?J <= Stop)];
+        setres For[I as_impl Start .. Stop .. Step F (?J <= Stop)];
     }
     *I [asrev] _ *Stop F {
         setres For[I asrev 0 .. Stop .. 1 F];
@@ -85,16 +85,16 @@ const For = (const match @ {
         setres For[I asrev Start .. .. Stop .. 1 F];
     }
     *I [asrev] *Start _ *Stop _ *Step F {
-        setres For[I asrev_impl Start .. Stop .. 1 F (?J > Stop)];
+        setres For[I asrev_impl Start .. Stop .. Step F (?J > Stop)];
     }
     *I [asrev] *Start _ _ *Stop _ *Step F {
-        setres For[I asrev_impl Start .. Stop .. 1 F (?J >= Stop)];
+        setres For[I asrev_impl Start .. Stop .. Step F (?J >= Stop)];
     }
     *I [as_impl] *Start _ *Stop _ *Step F C {
-        setres For[I as_impl Start .. Stop .. 1 F C (?_0 + _1)];
+        setres For[I as_impl Start .. Stop .. Step F C (?_0 + _1)];
     }
     *I [asrev_impl] *Start _ *Stop _ *Step F C {
-        setres For[I as_impl Start .. Stop .. 1 F C (?_0 - _1)];
+        setres For[I as_impl Start .. Stop .. Step F C (?_0 - _1)];
     }
     *I [as_impl] *Start _ *Stop _ *Step F C Inc {
         match Builtin.EvalNum[(?Start+Step+Stop)] {
