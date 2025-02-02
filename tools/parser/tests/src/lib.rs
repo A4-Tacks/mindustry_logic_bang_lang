@@ -3223,6 +3223,21 @@ fn inline_cmp_op_test() {
 
     assert_eq!(
         CompileMeta::new().compile(parse!(parser, r#"
+        break (?a<b);
+        break (?a<=b);
+        break (?a>b);
+        break (?a>=b);
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "jump 0 lessThan a b",
+            "jump 0 lessThanEq a b",
+            "jump 0 greaterThan a b",
+            "jump 0 greaterThanEq a b",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
         const false = 2;
         const Cmp = (?a < b);
         break Cmp == (`false`:);

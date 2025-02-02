@@ -2001,7 +2001,7 @@ impl Op {
         build_match! [
             LessThan: LessThan,
             LessThanEq: LessThanEq,
-            GreaterThan: GreaterThanEq,
+            GreaterThan: GreaterThan,
             GreaterThanEq: GreaterThanEq,
             Equal: Equal,
             NotEqual: NotEqual,
