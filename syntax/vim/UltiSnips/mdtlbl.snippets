@@ -14,7 +14,7 @@ do {
 } while ${1};
 endsnippet
 snippet goto "goto" w
-goto :${1:tag} ${2};$0
+goto :$1;
 endsnippet
 snippet skip "skip" w
 skip ${1} {
@@ -47,24 +47,19 @@ inline$1@ $2{
 }
 endsnippet
 snippet const "const value" w
-const ${1:\$.$2} = ${3};$0
+const ${1:\$.$2} = ${3};
 endsnippet
 snippet take "take" w
-take ${1:${2:\$.$3} = ${4}};$0
+take ${1:${2:\$.$3} = ${4}};
 endsnippet
 snippet using "const bind to var" w
 $2=$1->$2
 endsnippet
 snippet argt "take arg" w
-take ${1:Arg} = _${2:0};$0
+take ${1:Arg} = _${2:0};
 endsnippet
 snippet argc "const arg" w
-const ${1:Arg} = _${2:0};$0
-endsnippet
-snippet argd "new argumented DExp" w
-(const match @ => $1 {
-	$0
-})
+const ${1:Arg} = _${2:0};
 endsnippet
 snippet iop "op self" w
 $1 ${2:+}= $3;
@@ -88,32 +83,32 @@ snippet case "switch-case" w
 case ${1}:$0
 endsnippet
 snippet op "op result a + b;" w
-op ${1} ${2} ${3:+} ${4};$0
+op ${1} ${2} ${3:+} ${4};
 endsnippet
 snippet print "print values;" w
-print ${1:"$2"};$0
+print ${1:"$2"};
 endsnippet
 snippet set "a = b;" w
 ${1:\$} = ${2};
 endsnippet
 snippet match "match args... { (pattern body)... }" w
-match $1 {
+match ${1:@} {
 	$0
 }
 endsnippet
 snippet cmatch "const match args... { (pattern body)... }" w
-const match $1 {
+const match ${1:@} {
 	$0
 }
 endsnippet
 snippet setres "set DExp result handle" w
-setres ${1:RES};$0
+setres ${1:RES};
 endsnippet
 snippet break "break top-level loop" w
-break$1;$0
+break$1;
 endsnippet
 snippet continue "continue top-level loop" w
-continue$1;$0
+continue$1;
 endsnippet
 snippet tmpvar "use take define tmp var" w
 take+$1;
@@ -221,45 +216,48 @@ snippet _StopRepeat "Builtin.StopRepeat! $1;" w
 Builtin.StopRepeat!;
 endsnippet
 
-# logic
+# normal processor
 snippet read "read result cell1 0;" w
-read ${1:result} ${2:cell1} ${3:0};$0
+read ${1:result} ${2:cell1} ${3:0};
 endsnippet
 snippet write "write result cell1 0;" w
-write ${1:result} ${2:cell1} ${3:0};$0
+write ${1:result} ${2:cell1} ${3:0};
 endsnippet
 snippet draw "draw clear 0 0 0 0 0 0" w
-draw ${1:clear} ${2:0} ${3:0} ${4:0} 0 0 0;$0
+draw ${1:clear} ${2:0} ${3:0} ${4:0} 0 0 0;
+endsnippet
+snippet format "format" w
+format $1;
 endsnippet
 snippet drawflush "drawflush message1" w
-drawflush ${1:display1};$0
+drawflush ${1:display1};
 endsnippet
 snippet printflush "printflush message1" w
-printflush ${1:message1};$0
+printflush ${1:message1};
 endsnippet
 snippet getlink "getlink" w
-getlink ${1:block} ${2:0};$0
+getlink ${1:block} ${2:0};
 endsnippet
 snippet control "enabled | shoot[p] | config | color" w
-control ${1:enabled} ${2:block1} ${3:false} 0 0 0;$0
+control ${1:enabled} ${2:block1} ${3:false} 0 0 0;
 endsnippet
 snippet radar "radar" w
-radar enemy any any distance turret1 1 result;$0
+radar enemy any any distance turret1 1 result;
 endsnippet
 snippet sensor "sensor" w
-sensor ${1:result} ${2:block1} ${3:@${4:copper}};$0
+sensor ${1:result} ${2:block1} ${3:@${4:copper}};
 endsnippet
 snippet lookup "block | unit | item | liquid" w
-lookup ${1:item} ${2:result} ${3:0};$0
+lookup ${1:item} ${2:result} ${3:0};
 endsnippet
 snippet packcolor "packcolor result r g b a # color in [0,1]" w
 packcolor ${1:result} ${2:1} ${3:0} ${4:1} ${5:1};
 endsnippet
 snippet wait "wait sec" w
-wait ${1:0.5};$0
+wait ${1:0.5};
 endsnippet
 snippet sleep "wait sec" w
-wait ${1:0.5};$0
+wait ${1:0.5};
 endsnippet
 snippet stop "stop to this line" w
 stop;
@@ -268,14 +266,343 @@ snippet end "goto first line" w
 end;
 endsnippet
 snippet ubind "unit bind" w
-ubind ${2:@${1:poly}};$0
+ubind ${2:@${1:poly}};
 endsnippet
 snippet ucontrol "unit control" w
-ucontrol ${1:move} ${2:0} ${3:0} 0 0 0;$0
+ucontrol ${1:move} ${2:0} ${3:0} 0 0 0;
 endsnippet
 snippet ulocate "unit locate" w
-ulocate building core true @copper outx outy found building;$0
+ulocate building core true @copper outx outy found building;
 endsnippet
 snippet uradar "unit radar" w
-uradar enemy any any distance 0 1 result;$0
+uradar enemy any any distance 0 1 result;
+endsnippet
+
+# world processor
+snippet getblock "获取任意位置的地块数据(floor|ore|block|building)" b
+getblock ${1:block} ${2:result} ${3:0} ${4:0}
+endsnippet
+snippet setblock "设置任意位置的地块数据(floor|ore|block)" b
+setblock ${1:block} ${2:@air} ${3:0} ${4:0} ${5:@derelict} ${6:0}
+endsnippet
+snippet spawn "在指定位置生成单位" b
+spawn ${1:@dagger} ${2:10} ${3:10} ${4:90} ${5:@sharded} ${6:result}
+endsnippet
+snippet status "添加或清除单位的一个状态效果" b
+status ${1:false} ${2:wet} ${3:unit} ${4:10}
+endsnippet
+snippet weathersense "检查特定种类的天气当前是否启用。" b
+weathersense ${1:result} ${2:@rain}
+endsnippet
+snippet weatherset "设置当前状态为特定类型天气。" b
+weatherset ${1:@rain} ${2:true}
+endsnippet
+snippet spawnwave "在任意位置生成一波敌人\n并不记录在波数计数器中" b
+spawnwave ${1:10} ${2:10} ${3:false}
+endsnippet
+snippet setrule "设置地图规则" b
+setrule ${1:waveSpacing} ${2:10} ${3:0} ${4:0} ${5:100} ${6:100}
+endsnippet
+snippet message "(notify|announce|toast|mission)在屏幕中央投影文字缓存区的内容\n会等待上一个文字显示结束" b
+message ${1:announce} ${2:3} ${3:@wait}
+endsnippet
+snippet cutscene "(pan|zoom|ztop)控制玩家游戏视角" b
+cutscene ${1:pan} ${2:100} ${3:100} ${4:0.06} ${5:0}
+endsnippet
+snippet effect "创建一个粒子效果。" b
+effect ${1:warn} ${2:0} ${3:0} ${4:2} ${5:%ffaaff}
+endsnippet
+snippet explosion "在某个位置生成爆炸" b
+explosion @crux 0 0 5 50 true true false true
+endsnippet
+snippet setrate "在指令/时间刻的时间下设置处理器处理速度" b
+setrate ${1:10}
+endsnippet
+snippet fetch "按索引查找单位、 核心、 玩家或建筑物(unit|player|core|build)[Count]\n索引从 0 开始，以其返回的计数结束" b
+fetch ${1:unit} ${2:result} ${3:@sharded} ${4:0} ${5:@conveyor}
+endsnippet
+snippet sync "在网络中同步一个变量。\n最多每秒调用10次。" b
+sync ${1:var}
+endsnippet
+snippet getflag "检查是否设置了全局标志。" b
+getflag ${1:result} ${2:"flag"}
+endsnippet
+snippet setflag "设置一个可以被所有处理器读取的全局标志。" b
+setflag ${1:"flag"} ${2:true}
+endsnippet
+snippet setprop "设置单位或建筑物的属性。" b
+setprop ${1:@copper} ${2:block1} ${3:0}
+endsnippet
+snippet playsound "播放一个声音, 音量和偏移可以是全局(false), 也可以根据位置计算" b
+playsound false @sfx-pew 1 1 0 @thisx @thisy true
+endsnippet
+snippet setmarker "为标记设置属性。\n使用的ID必须与制作标记指令中的相同。" b
+setmarker ${1:pos} ${2:0} ${3:0} ${4:0} ${5:0}
+endsnippet
+snippet makemarker "在世界中创建一个新的逻辑标记。\n必须提供一个用于标识此标记的ID。\n目前每个世界限制最多20000个标记。" b
+makemarker ${1:shape} ${2:0} ${3:0} ${4:0} ${5:true}
+endsnippet
+snippet localeprint "将地图本地化文本属性值添加到文本缓冲区中。\n要在地图编辑器中设置地图本地化包，请检查 [accent]地图信息 > 本地化包[]。\n如果客户端是移动设备，则尝试首先打印以 .mobile 结尾的属性。" b
+localeprint ${2:"${1:name}"}
+endsnippet
+
+# env variables
+snippet env.this "逻辑块建筑自身" w
+@this
+endsnippet
+snippet env.thisx "逻辑块的 x 坐标, 类似 `sensor thisx @this @x`" w
+@thisx
+endsnippet
+snippet env.thisy "逻辑块的 y 坐标, 类似 `sensor thisy @this @y`" w
+@thisy
+endsnippet
+snippet env.links "逻辑块链接的建筑数量" w
+@links
+endsnippet
+snippet env.unit "当前绑定的单位" w
+@unit
+endsnippet
+snippet env.ipt "逻辑块在一个标准帧(tick)内执行多少行" w
+@ipt
+endsnippet
+snippet env.counter "逻辑块内当前行之后将要执行的行号" w
+@counter
+endsnippet
+snippet env.pi "圆周率值" w
+π
+endsnippet
+snippet env.e "自然常数值" w
+@e
+endsnippet
+snippet env.pi.value "圆周率值的硬编码" w
+3.1415926535897932
+endsnippet
+snippet env.e.value "自然常数值的硬编码" w
+2.7182818284590452
+endsnippet
+snippet env.degToRad "角度转弧度使用的比例系数, 定义: `@pi / 180`, 使用: `270*@degToRad`" w
+@degToRad
+endsnippet
+snippet env.radToDeg "弧度转角度使用的比例系数, 定义: `180 / @pi`, 使用: `@pi*@radToDeg`" w
+@radToDeg
+endsnippet
+snippet env.time "游戏经过的时间(通常自创建以来), 按毫秒记" w
+@time
+endsnippet
+snippet env.tick "游戏经过的标准帧(tick)" w
+@tick
+endsnippet
+snippet env.second "游戏经过的时间, 按秒记" w
+@second
+endsnippet
+snippet env.minute "游戏经过的时间, 按分记" w
+@minute
+endsnippet
+snippet env.waveNumber "当前出怪波数" w
+@waveNumber
+endsnippet
+snippet env.waveTime "下一波时间, 按秒记" w
+@waveTime
+endsnippet
+snippet env.mapw "地图宽度" w
+@mapw
+endsnippet
+snippet env.maph "地图高度" w
+@maph
+endsnippet
+snippet env.server "" w
+@server
+endsnippet
+snippet env.client "" w
+@client
+endsnippet
+snippet env.clientLocale "" w
+@clientLocale
+endsnippet
+snippet env.clientUnit "" w
+@clientUnit
+endsnippet
+snippet env.clientName "" w
+@clientName
+endsnippet
+snippet env.clientTeam "" w
+@clientTeam
+endsnippet
+snippet env.clientMobile "" w
+@clientMobile
+endsnippet
+snippet env.ctrlProcessor "被处理器控制, 用于传感器的`@controlled`返回结果," w
+@ctrlProcessor
+endsnippet
+snippet env.ctrlPlayer "被玩家控制, 用于传感器的`@controlled`返回结果," w
+@ctrlPlayer
+endsnippet
+snippet env.ctrlCommand "被RTS控制, 用于传感器的`@controlled`返回结果," w
+@ctrlCommand
+endsnippet
+snippet env.itemCount "物品 content 总数" w
+@itemCount
+endsnippet
+snippet env.unitCount "单位 content 总数" w
+@unitCount
+endsnippet
+snippet env.blockCount "建筑 content 总数" w
+@blockCount
+endsnippet
+snippet env.liquidCount "液体 content 总数" w
+@liquidCount
+endsnippet
+
+# sensor expanded
+snippet sensor.totalItems "总物品数" w
+sensor ${2:totalItems} $1 @totalItems;
+endsnippet
+snippet sensor.firstItem "第一个物品" w
+sensor ${2:firstItem} $1 @firstItem;
+endsnippet
+snippet sensor.totalLiquids "总液体数" w
+sensor ${2:totalLiquids} $1 @totalLiquids;
+endsnippet
+snippet sensor.totalPower "总电力数" w
+sensor ${2:totalPower} $1 @totalPower;
+endsnippet
+snippet sensor.itemCapacity "物品容量" w
+sensor ${2:itemCapacity} $1 @itemCapacity;
+endsnippet
+snippet sensor.liquidCapacity "液体容量" w
+sensor ${2:liquidCapacity} $1 @liquidCapacity;
+endsnippet
+snippet sensor.powerCapacity "电力容量" w
+sensor ${2:powerCapacity} $1 @powerCapacity;
+endsnippet
+snippet sensor.powerNetStored "电网当前已储电" w
+sensor ${2:powerNetStored} $1 @powerNetStored;
+endsnippet
+snippet sensor.powerNetCapacity "电网储电总容量" w
+sensor ${2:powerNetCapacity} $1 @powerNetCapacity;
+endsnippet
+snippet sensor.powerNetIn "电网净输入" w
+sensor ${2:powerNetIn} $1 @powerNetIn;
+endsnippet
+snippet sensor.powerNetOut "电网净输出" w
+sensor ${2:powerNetOut} $1 @powerNetOut;
+endsnippet
+snippet sensor.ammo "弹药" w
+sensor ${2:ammo} $1 @ammo;
+endsnippet
+snippet sensor.ammoCapacity "弹药容量" w
+sensor ${2:ammoCapacity} $1 @ammoCapacity;
+endsnippet
+snippet sensor.health "血量" w
+sensor ${2:health} $1 @health;
+endsnippet
+snippet sensor.maxHealth "血量上限" w
+sensor ${2:maxHealth} $1 @maxHealth;
+endsnippet
+snippet sensor.heat "热量" w
+sensor ${2:heat} $1 @heat;
+endsnippet
+snippet sensor.shield "盾" w
+sensor ${2:shield} $1 @shield;
+endsnippet
+snippet sensor.efficiency "效率" w
+sensor ${2:efficiency} $1 @efficiency;
+endsnippet
+snippet sensor.progress "进度" w
+sensor ${2:progress} $1 @progress;
+endsnippet
+snippet sensor.timescale "时间系数 (用于被超速的速度)" w
+sensor ${2:timescale} $1 @timescale;
+endsnippet
+snippet sensor.rotation "朝向" w
+sensor ${2:rotation} $1 @rotation;
+endsnippet
+snippet sensor.x "x坐标" w
+sensor ${2:x} $1 @x;
+endsnippet
+snippet sensor.y "y坐标" w
+sensor ${2:y} $1 @y;
+endsnippet
+snippet sensor.shootX "射击点X" w
+sensor ${2:shootX} $1 @shootX;
+endsnippet
+snippet sensor.shootY "射击点Y" w
+sensor ${2:shootY} $1 @shootY;
+endsnippet
+snippet sensor.size "大小" w
+sensor ${2:size} $1 @size;
+endsnippet
+snippet sensor.dead "已死亡" w
+sensor ${2:dead} $1 @dead;
+endsnippet
+snippet sensor.range "范围" w
+sensor ${2:range} $1 @range;
+endsnippet
+snippet sensor.shooting "是否射击" w
+sensor ${2:shooting} $1 @shooting;
+endsnippet
+snippet sensor.boosting "是否助推" w
+sensor ${2:boosting} $1 @boosting;
+endsnippet
+snippet sensor.mineX "挖矿点X" w
+sensor ${2:mineX} $1 @mineX;
+endsnippet
+snippet sensor.mineY "挖矿点Y" w
+sensor ${2:mineY} $1 @mineY;
+endsnippet
+snippet sensor.mining "是否正在挖矿" w
+sensor ${2:mining} $1 @mining;
+endsnippet
+snippet sensor.speed "速度" w
+sensor ${2:speed} $1 @speed;
+endsnippet
+snippet sensor.team "队伍" w
+sensor ${2:team} $1 @team;
+endsnippet
+snippet sensor.type "类型" w
+sensor ${2:type} $1 @type;
+endsnippet
+snippet sensor.flag "标记" w
+sensor ${2:flag} $1 @flag;
+endsnippet
+snippet sensor.controlled "已控制" w
+sensor ${2:controlled} $1 @controlled;
+endsnippet
+snippet sensor.controller "控制者" w
+sensor ${2:controller} $1 @controller;
+endsnippet
+snippet sensor.name "名称" w
+sensor ${2:name} $1 @name;
+endsnippet
+snippet sensor.payloadCount "荷载数量" w
+sensor ${2:payloadCount} $1 @payloadCount;
+endsnippet
+snippet sensor.payloadType "荷载类型" w
+sensor ${2:payloadType} $1 @payloadType;
+endsnippet
+snippet sensor.id "编号(lookup 反向, 用于 content)" w
+sensor ${2:id} $1 @id;
+endsnippet
+snippet sensor.enabled "启用" w
+sensor ${2:enabled} $1 @enabled;
+endsnippet
+snippet sensor.config "设置, 例如分类器物品" w
+sensor ${2:config} $1 @config;
+endsnippet
+snippet sensor.color "颜色" w
+sensor ${2:color} $1 @color;
+endsnippet
+
+# lookup expanded
+snippet lookup.block "lookup block" w
+lookup block ${2:block} $1;
+endsnippet
+snippet lookup.unit "lookup unit" w
+lookup unit ${2:unit} $1;
+endsnippet
+snippet lookup.item "lookup item" w
+lookup item ${2:item} $1;
+endsnippet
+snippet lookup.liquid "lookup liquid" w
+lookup liquid ${2:liquid} $1;
 endsnippet
