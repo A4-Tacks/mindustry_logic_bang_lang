@@ -1,0 +1,145 @@
+#**
+* 栈包装, 可以方便的以栈形式操作内存, 配合 function 可以很方便的操作
+* 批量读取时, 左边的参数应该更靠近栈顶
+*#
+
+Builtin.BindSep! '.';
+
+const NewStack = (match @ {
+    $Memory {
+        NewStack! Memory Memory 0;
+    }
+    Memory Floor {
+        take+Result;
+        NewStack! Result Memory Floor;
+    }
+    $Result Memory Floor {
+        $.top = Floor - 1;
+
+        const $.Floor = Floor;
+        const $.Memory = Memory;
+
+        const $.Iter = (match @ => {
+            const $.Prev = ..->top;
+            const $.Memory = ..->Memory;
+            const $.Get = (match @ => { setres ...Prev; });
+            const $.GetTo = (match @ => $Result { Result = ...Prev; });
+            const $.RawNext = (match @ {
+                B { setres ...RawNext[B 1]; }
+                B Step {
+                    const $.Prev = B->Prev;
+                    const $.Memory = B->Memory;
+                    const $.Step = Step;
+                    const $.Get = (match @ => { setres ...GetTo[$]; });
+                    const $.GetTo = (match @ => $Result {
+                        Result = ...Prev - ...Step;
+                        const ...Get = Result;
+                        const ...Prev = Result;
+                        const ...GetTo = (match @ => $Result {
+                            Result = ...Get;
+                        });
+                    });
+                    const $.RawNext = B->RawNext;
+                    const $.Next = (setres ...RawNext[*.. @];);
+                    const $.Read = (match @ {
+                        { setres ...Read[$]; }
+                        $Result { read Result ...Memory ...Get[]; }
+                    });
+                    const $.Write = (match @ => Value {
+                        setres ..;
+                        write Value ...Memory ...Get[];
+                    });
+                }
+            });
+
+            const $.Next = (setres ...RawNext[*.. @];);
+            const $.Read = (match @ {
+                { setres ...Read[$]; }
+                $Result { read Result ...Memory ...Get[]; }
+            });
+            const $.Write = (match @ => Value {
+                setres ..;
+                write Value ...Memory ...Get[];
+            });
+        });
+        const $.Read = (match @ {
+            { setres ...Read[$]; }
+            $Result @ {
+                take Iter = ...Iter[];
+                Iter.Read! Result;
+                take Iter = Iter.Next[];
+
+                inline@ Result {
+                    Iter.Read! Result;
+                    take Iter = Iter.Next[];
+                }
+            }
+        });
+        const $.Write = (match @ => $Value @ {
+            take Iter = ...Iter[].Write[Value].Next[];
+
+            inline@ Value {
+                take Iter = Iter.Write[Value].Next[];
+            }
+        });
+        const $.Push = (match @ {
+            {}
+            @ Value {
+                write Value ...Memory (*++...top);
+                ...Push! @;
+            }
+        });
+        const $.Pop = (match @ {
+            {
+                ...top--;
+                setres ..;
+            }
+            $Result {
+                ...Read! Result;
+                ...top--;
+            }
+            @ {
+                inline@ Result {
+                    ...Read! Result;
+                    ...top--;
+                }
+            }
+        });
+    }
+});
+
+NewStack! bank1;
+bank1.Push! 1 2 3;
+print bank1.Read[a b c];
+print b c;
+bank1.Write! a b c;
+bank1.Pop!;
+bank1.Pop! x;
+print x;
+
+#* >>>
+op sub bank1.top 0 1
+op add bank1.top bank1.top 1
+write 3 bank1 bank1.top
+op add bank1.top bank1.top 1
+write 2 bank1 bank1.top
+op add bank1.top bank1.top 1
+write 1 bank1 bank1.top
+read a bank1 bank1.top
+op sub __42 bank1.top 1
+read b bank1 __42
+op sub __54 __42 1
+read c bank1 __54
+print a
+print b
+print c
+write a bank1 bank1.top
+op sub __82 bank1.top 1
+write b bank1 __82
+op sub __94 __82 1
+write c bank1 __94
+op sub bank1.top bank1.top 1
+read x bank1 bank1.top
+op sub bank1.top bank1.top 1
+print x
+*#
