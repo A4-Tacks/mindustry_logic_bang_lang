@@ -166,6 +166,11 @@ thread_local! {
             ["draw" "linePoly" v v v v v]
             ["draw" "triangle" v v v v v v]
             ["draw" "image" v v v v v]
+            ["draw" "print" v v _]
+            ["draw" "translate" v v]
+            ["draw" "scale" v v]
+            ["draw" "rotate" _ _ v]
+            ["draw" "reset"]
             ["print" v]
             ["format" v]
             ["drawflush" v]
@@ -445,6 +450,7 @@ make_lints! {
             lints.extend(check_oper(mode, &[
                "clear", "color", "col", "stroke", "line", "rect",
                "lineRect", "poly", "linePoly", "triangle", "image",
+               "print", "translate", "scale", "rotate", "reset",
             ]));
             lints.extend(check_vars(src, line, args));
         }
