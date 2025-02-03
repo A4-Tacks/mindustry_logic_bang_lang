@@ -2505,6 +2505,65 @@ Bang 中, 在编写中大型工程时, 很可能由于大量展开大型 DExp,
 > 那样调用函数时就只需跳转不用对参数赋值了
 
 
+动态递归问题 - 利用现有模板设施快速生成函数
+-------------------------------------------------------------------------------
+我们有的时候需要动态的使用逻辑中的函数结构进行递归,
+此时可以利用现有示例中的模板来快速的构建一个函数结构
+
+配合栈模板方便的构造函数栈来避免递归过程中对全局变量的覆盖
+
+以下是一个递归计算 fib 的函数示例:
+
+```
+Builtin.BindSep! '.';
+Builtin.MissesMatch! 1;
+
+# include std/{function,stack,for_each}
+
+NewStack! cell1;
+
+const Fib = Function[n (
+    take N = ...n;
+    if N <= 1 {
+        ...result = 1; # 利用一个固定变量来返回值
+        ...Return!; # 直接返回
+    }
+    cell1.Push! ..->ret_counter;
+    cell1.Push! N; # 使用栈来存储n防止被覆盖
+    take A = ...Call[(N:$ -= 1;)]; # 利用直接操作参数本身避免中间赋值
+    cell1.Read! N;
+    cell1.Write! A; # 不需要存储n了, 但是需要存储第一次递归的结果了, 直接用原位
+    ...result = ...Call[(N:$ -= 2;)] + cell1.Pop[$]; # 新的递归结果加上栈中的
+
+    cell1.Pop! ..->ret_counter; # 将需要返回到的行从栈中弹出
+)]->Call;
+
+printflush message1; # clear text buffer
+printflush message1; # clear message1
+For! i in 0....9 (
+    print "fib("i")="Fib[i]"\n";
+);
+printflush message1;
+wait 8;
+```
+
+> [!WARNING]
+> 最后使用`Pop!`弹栈到`..->ret_counter`的代码, 不能直接赋值到`@counter`,
+> 因为栈设计是指向栈顶, 所以读取后还需要挪动栈顶, 如果直接读取到`@counter`,
+> 那么将直接跳走, 不再有挪动栈顶的机会, 导致递归爆栈
+
+> [!NOTE]
+> 当调用 Call 时, 如果传入的参数和使用的参数句柄相同,
+> 则不会再次赋值, 也就是产生如 `set __10.n __10.n` 这种代码,
+> 这是刻意在模板中判断相等造成的, 可以利用其来优化
+
+以下是用到的模板, 复制其主要 const 部分粘贴到代码头部即可
+
+- [function](./std/function.mdtlbl)
+- [stack](./std/stack.mdtlbl)
+- [for-each](./std/for_each.mdtlbl)
+
+
 多逻辑编译
 -------------------------------------------------------------------------------
 有时随着结构的复杂, 不管是行数超限, 还是为了提升计算速度,
