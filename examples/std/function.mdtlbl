@@ -78,6 +78,7 @@ const Function = (const match @ => *@ F {
         });
         :start
         const B.Goto = ([B | :start](
+            setres B.result;
             B.ret_counter = @counter + 1;
             goto :start;
         ));
