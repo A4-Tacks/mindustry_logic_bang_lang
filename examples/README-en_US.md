@@ -1,19 +1,18 @@
-English README, please click on [**README-en_US.md**](./README-en_US.md)
+# Study Guide
+If you want to learn this language,
+first you need to be familiar with the logical exported syntax of Mindustry logical editor
 
-# 学习指南
-如果你想学习这门语言, 首先你需要对`Mindustry`的逻辑导出形式较为熟悉.
+You also need to have the ability to manually write its exported syntax outside the logic editor
 
-而如果不熟悉可以阅读或参考
-[逻辑入门教程](https://github.com/A4-Tacks/learn-mindustry-logic)
+If you are not familiar with the syntax exported by the logic editor,
+[here](https://github.com/A4-Tacks/learn-mindustry-logic) is a tutorial written in Chinese,
+and you may be able to find more suitable resources than it
 
-还需要有一定的离开逻辑编辑器手动编写其导出形式的能力
+If you meet the above conditions, then you only need to start reading from [Learning Tutorial](./learn.md)
 
-如果你满足了上述条件, 那么你只需要阅读[学习教程](./learn.md)即可,
-还可以看下面的旧版阅读索引, 比较乱和难读, 但是更全些
+<details markdown='1'><summary>Deprecated reading index</summary>
 
-<details markdown='1'><summary>已经弃用的阅读索引</summary>
-
-## 以下是推荐的阅读顺序
+## The following is the recommended reading order
 > [`value.mdtlbl`](./value.mdtlbl)<br/>
 > [`mult_line_string.mdtlbl`](./mult_line_string.mdtlbl)<br/>
 > [`dexp.mdtlbl`](./dexp.mdtlbl)<br/>
@@ -50,26 +49,33 @@ English README, please click on [**README-en_US.md**](./README-en_US.md)
 > [`builtin_functions.mdtlbl`](./builtin_functions.mdtlbl)<br/>
 > [`value_bind_ref.mdtlbl`](./value_bind_ref.mdtlbl)<br/>
 
-如果没有列出那请在看完上述后自行观看, 顺序可以参考文件创建顺序.
+If it is not listed in the above list,
+you can watch it yourself after reading the above content.
+The reading order can refer to the file creation order
 
-同时也有一篇[参考手册](./reference.md), 可以共同观看.
+There is also a [reference](./reference.md) manual,
+You can read together with the above content
 
 > [!WARNING]
-> 上述提到的[参考手册]编写版本已经是完全过时的, 初学或许可用,
-> 进阶完全不能构成语言参考来使用
+> The version of the reference manual mentioned above is completely outdated.
+> It may be useful for beginners, but advanced usage cannot constitute a language reference for use
 >
-> 且上述提到的教程目录是由远古版本一步步迭代而来, 风格非常不适合学习,
-> 如果有什么疑问建议直接在讨论中询问
+> And the tutorial directory mentioned above is iterated step by step from ancient versions,
+> and its style is very unsuitable for learning
+>
+> If you have any questions,
+> it is recommended to ask directly in the issues and discussions
 
 </details>
 
-## 推荐的例子
-有一些大型且之后编写的例子, 熟练后可以作为参考, 或截取其中部分作为工具库
+## Recommended examples
+There are some large and advanced complex examples that can be used as references
+or pasted into your code for quick and convenient use
 
 - [`21point.mdtlbl`](./21point.mdtlbl)
 - [`bezier_curve.mdtlbl`](./bezier_curve.mdtlbl)
 - [`gravity_simulation.mdtlbl`](./gravity_simulation.mdtlbl)
 - [`sine_superposition.mdtlbl`](./sine_superposition.mdtlbl)
-* [`std`](./std) 部分较为通用、大型的工具
-* [`for_each`](./std/for_each.mdtlbl) 方便的循环包装
-* [`function.mdtlbl`](./std/function.mdtlbl) 快速生成逻辑函数
+* [`std`](./std) Some of the more general and large tools
+* [`for_each`](./std/for_each.mdtlbl) Exquisite `for-each` implementation
+* [`function.mdtlbl`](./std/function.mdtlbl) Quickly generate non recursive functions

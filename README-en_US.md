@@ -43,13 +43,14 @@ and conditional compilation based on branch matching, can simulate overloading,
 compile-time data structures, simulate object-oriented features, chain calls, and more
 
 # Learn
-Please refer to the example [README](./examples/README.md), Or other instances of [example directory]
-
-[example directory]: ./examples
+Please refer to the example [README](./examples/README-en_US.md),
+Or other instances of [example directory](./examples)
 
 # How To Install
-Releases provide pre built products, consider downloading the binary files of your platform from them first,
-If there are other requirements, consider building it yourself, refer to below [Project Build](#Project Build)
+Releases provide pre built products,
+consider downloading the binary files of your platform from them first,
+If there are other requirements, consider building it yourself,
+refer to below [Project Build](#Project Build)
 
 
 # Project Build
