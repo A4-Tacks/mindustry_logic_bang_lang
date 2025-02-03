@@ -14,16 +14,19 @@ const Function = (const match @ => *@ F {
     take B = $;
 
     skip {
+        const B.Return = (const match @ {
+            {
+                @counter = ...ret_counter;
+            }
+            F {
+                F! ..->ret_counter;
+            }
+        });
+        const B.DefaultReturn = B->Return;
         const B.Body = F;
         const B.Expander = (
-            :start
             ...Body! @;
-            @counter = ...ret_counter;
-
-            const ...Goto = ([B:..| :start](
-                B.ret_counter = @counter + 1;
-                goto :start;
-            ));
+            ...DefaultReturn!;
         );
         const B.RawCall = (match @ {
             {
@@ -43,7 +46,6 @@ const Function = (const match @ => *@ F {
                 }
             }));
         }
-        B.Expander!;
 
         take*B.ArgC = Builtin.ArgsLen[];
         const B.RawCall = ([ArgC:B.ArgC &C:B->RawCall](
@@ -74,6 +76,13 @@ const Function = (const match @ => *@ F {
         const B.Call = (match @ => @ {
             setres ...RawCall[@];
         });
+        :start
+        const B.Goto = ([B | :start](
+            B.ret_counter = @counter + 1;
+            goto :start;
+        ));
+
+        B.Expander!;
     }
 });
 
@@ -94,8 +103,8 @@ jump 6 always 0 0
 op add __5.result __5.a __5.b
 set @counter __5.ret_counter
 jump 6 always 0 0
-set __32.result 3
-set @counter __32.ret_counter
+set __31.result 3
+set @counter __31.ret_counter
 set __5.b 2
 set __5.a 1
 op add __5.ret_counter @counter 1
@@ -109,8 +118,8 @@ jump 1 always 0 0
 print __5.result
 print "\n"
 print "foo: "
-op add __32.ret_counter @counter 1
+op add __31.ret_counter @counter 1
 jump 4 always 0 0
-print __32.result
+print __31.result
 printflush message1
 *#
