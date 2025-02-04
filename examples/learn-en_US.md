@@ -10,6 +10,10 @@ which allows for flexible completion of most requirements
 The most basic ability is to avoid using line number jumps and label jumps everywhere.
 It is possible to convert statements such as `if` and `while` into `goto` during building without having to manually write them
 
+> [!WARNING]
+> This tutorial is currently being translated,
+> and there are chapters that have not been fully translated yet
+
 
 Basic Elements
 ===============================================================================
@@ -143,7 +147,7 @@ but the validity of this Var depends on some statements
 For example, the returned Var is a logical variable,
 and it depends on a certain statement to assign a value to it, making this logical variable valid
 
-You can manually specify the Var to be returned by using a Var followed by a colon at the beginning
+You can manually specify the Var to return, for example, the following code:
 
 ```
 set a 1;
@@ -769,24 +773,21 @@ set c not_a_comment
 > will ignore the content from the `#` character until the end of the line
 
 
-进阶入门 - Bang 语言的常量系统
+Advanced Beginner - Constant System
 ===============================================================================
-> [!WARNING]
-> The latter part has not been translated yet
+Bang language provides a very powerful constant system for implementing metaprogramming,
+allowing for flexible manipulation of code to meet the needs of most logic languages
 
-Bang 语言提供了一套非常强大的常量系统, 以实现元编程, 可以灵活操作代码,
-以满足大部分逻辑的需要
+Here is a core statement: `const`
 
-最为基本的, 还记得在介绍值的时候说的"传递、追溯、求值"吗?
-下面介绍一个核心语句: `const`
+The most basic usage of the `const` statement is to const a value onto a Var,
+which will then take effect within the current Expand and its child Expands (referred to as the scope)
 
-`const`语句最基础的用法可以将一个值绑定到一个量上面,
-然后接下来这个量会在当前 Expand 及其子 Expand 内(简称作用域)生效,
-当在生效范围内对相同的量进行追溯或求值时, 将会做*一些额外的操作*后,
-将原本操作的 Var 转换成对其绑定到的值的操作
+When following or taking with a Var of the same name within the scope,
+replace the current Var with its corresponding const value
 
 > [!WARNING]
-> DExp 中也隐含了一层 Expand, 请不要忽视
+> DExp also contains an implicit layer of Expand, please do not ignore it
 
 ```
 const A = 2;
@@ -796,10 +797,12 @@ Compile to:
 ```
 print 2
 ```
-可以理解为, 直接将作用域内, 被 const 的值直接粘贴过来了,
-但是别忽略那*一些额外的操作*, 当然现在可以先不管
+It can be understood as directly replacing the const values within the scope
 
-同一个 Expand 中重复的对一个量进行 const 的话, 那么旧的将会被覆盖, 例如:
+But before replacing it, some additional operations will be carried out,
+which will be explained in detail later
+
+If a Var is duplicated const in the same Expand, the old Var will be overwritten, for example:
 ```
 const A = 2;
 const A = 3;
@@ -811,14 +814,14 @@ print 3
 ```
 
 
-遮蔽 (shadow)
+Shadow
 -------------------------------------------------------------------------------
-如果是在子 Expand 中进行 const 的话, 那么在子 Expand 的范围内,
-外部 const 的值将被遮蔽(shadow)
+If const is performed in a sub Expand,
+the const outside the sub Expand will be shadowed within its scope
 
-不管是求值还是追溯, 总是获取最内层里层的 const 值,
-而内层 Expand 结束后, 外层 Expand 中 const 的值并没有改变,
-只是被里层的同名量遮住了
+Whether it's take or follow, it always retrieves the const value of the innermost and innermost layers.
+
+However, after leaving the inner layer Expand, the const value in the outer layer Expand does not change, but is shadowed by the Var of the same name in the inner layer
 
 ```
 const A = 2;
@@ -834,11 +837,11 @@ print 3
 print 2
 ```
 
-可以看出, 子 Expand 发生遮蔽时, 父(外部) Expand 中 const 的值并没有被覆盖,
-在子 Expand 结束后依旧可以被使用
+It can be seen that when a shadow occurs in the child Expand,
+the const Value in the parent Expand is not overwritten and can still be used after the child Expand ends
 
 
-追溯 (follow)
+Follow
 -------------------------------------------------------------------------------
 这是让 const 不至于变得彻底混乱而在低版本增加的一个核心机制, 在 const 一个值时,
 会对这个值进行**一次**追溯, 而对于最常见的 Var 的追溯则类似求值时, 就是查询 const
@@ -2807,7 +2810,7 @@ and then come up with a reasonable explanation
 - gswitch <- goto-switch
 - gwhile <- goto-while
 - ReprVar -> RepresentationVariable
-- take <- take-DExp-handle
+- take <- take-handle
 - Expand <- ExpandedLines
 - Statement <- LogicLine
 

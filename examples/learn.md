@@ -1,3 +1,5 @@
+English version, please click on [**Learning Tutorial**](./learn-en_US.md)
+
 # 引言
 Bang 语言是为了在零开销的情况下, 快捷编写和封装抽象逻辑语言而诞生的语言
 
@@ -110,7 +112,7 @@ DExp (可译做依赖表达式)
 这也是一种值(Value), 意义是表示一个 Var,
 但是这个 Var 的成立依赖于某些语句, 比如返回的 Var 是一个逻辑变量,
 而依赖的语句给它赋值, 使这个逻辑变量成立,
-可以在其开头使用一个 Var 接上冒号手动指定要返回的 Var
+可以在其内部的开头使用一个 Var 接上冒号手动指定要返回的 Var
 
 ```
 set a 1;
@@ -2734,7 +2736,7 @@ Bang 语言从理论上来说, 是不存在任何优化的,
 - gswitch <- goto-switch
 - gwhile <- goto-while
 - ReprVar -> RepresentationVariable
-- take <- take-DExp-handle
+- take <- take-handle
 - Expand <- ExpandedLines
 - Statement <- LogicLine
 
