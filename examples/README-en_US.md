@@ -8,7 +8,7 @@ If you are not familiar with the syntax exported by the logic editor,
 [here](https://github.com/A4-Tacks/learn-mindustry-logic) is a tutorial written in Chinese,
 and you may be able to find more suitable resources than it
 
-If you meet the above conditions, then you only need to start reading from [Learning Tutorial](./learn.md)
+If you meet the above conditions, then you only need to start reading from [Learning Tutorial](./learn-en_US.md)
 
 <details markdown='1'><summary>Deprecated reading index</summary>
 

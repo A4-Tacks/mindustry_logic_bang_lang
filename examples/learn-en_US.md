@@ -1,116 +1,149 @@
-# 引言
-Bang 语言是为了在零开销的情况下, 快捷编写和封装抽象逻辑语言而诞生的语言
+# Introduction
+Bang language was born to quickly encapsulate and abstract logical languages while maintaining zero overhead
 
-整体是基于逻辑语言本身的风格进行扩展的语言, 可能有些怪异与主流语言不太一样
+The overall language is an extension based on the style of logical language itself,
+which may be a bit strange and different from most languages
 
-操作重点在于编译期对代码的操作, 可以较为灵活
+The core of language design lies in the manipulation of code, values, and constants during compilation,
+which allows for flexible completion of most requirements
 
-最为基本的可以避免到处使用行号跳转和标签跳转,
-可以在构建时将`if` `while`等语句转换成`goto`, 不必自己手动编写
+The most basic ability is to avoid using line number jumps and label jumps everywhere.
+It is possible to convert statements such as `if` and `while` into `goto` during building without having to manually write them
 
 
-基本单元
+Basic Elements
 ===============================================================================
-Bang 语言主要基于两种基本单元:
+Bang language is mainly based on two basic elements:
 
-1. Value 值, 可快捷的进行传递、追溯(follow)、求值(take),
-   有许多种, 最基础的就是 Var, 下文有讲
-2. Statement (语句)[^1], 作为编译时转换成逻辑行的基本单元,
-   最常见的可以用多个值组成一个语句, 基本就像在逻辑语言中直接编写一样
+1. Value, which can quickly perform three types of operations: assign, follow, and take,
+   including many types.
+   The most basic one is Var, which will be discussed in the following text
+2. Statement [^1], as a basic element converted into logical lines at compile time,
+   can most commonly be composed of multiple Value to form a statement,
+   just like writing it directly in a logical language
 
-[^1]: 这也被称作 LogicLine (逻辑行),
-      但是发展到现在其作用已经不适合使用这个命名了
+[^1]: This is also known as LogicLine, but its function is no longer suitable for using this name
 
-最基础的 Statement, 也就是上文提到的以多个值(Value)组成的, 通常首个值为 Var
+The most basic Statement, which is composed of multiple Value as mentioned earlier,
+usually starts with Var:
 
 ```
 read foo cell1 15;
 ```
 
-例如上述代码由四个值组成, 每个值都由 Var 构成,
-分别是`read` `foo` `cell1` `15`, 四个逻辑变量
+For example, the above code consists of four Value, each of which is composed of Var,
+namely the four logical variables `read`, `foo`, `cell1`, and `15`
 
 > [!TIP]
-> `read`和`15`也被划分到'逻辑变量'的范畴, 虽然他们在逻辑中并不被用于变量,
-> 但是它们代表的东西是相同的, 即逻辑语言中组成一行的基本单元
+> `read` and `15` are also classified as 'logical variables',
+> although they are not used as variables in logic,
+> they play the same role in logical language, that is,
+> the basic elements that make up a line in logical language
 >
-> 且因为命令本身和变量长的并没有什么不同, 所以 Bang 将其视作同种类型
+> And because commands and variables look the same from the text,
+> Bang treats them as the same type
 
 > [!NOTE]
-> 分号是必要的, Bang 作为一个空白字符无关语言, 空白符不会影响其语法,
-> 所以最好有一个明确的分隔符号来分隔
+> Semicolons are necessary,
+> Bang as a language whose syntax is independent of whitespace characters,
+> does not contain whitespace characters in its syntax,
+> so it is best to have a clear delimiter to separate them
 
 
-简单介绍 Value (值)
+Basic Value Introduction
 ===============================================================================
-值包含很多种, 在这里简单介绍较为基础与常用的几种
+There are many types of Value,
+and here we will briefly introduce the more basic and commonly used ones
 
 
-Var (量、变量)
+Var
 -------------------------------------------------------------------------------
-Var 指的是逻辑语言中一切的 logic-value 逻辑值,
-也基本就是所有逻辑中可以用作字面量的部分, 如:
+Var refers to all logical-values in a logical language,
+which are essentially the parts of logic that can be used as literals, such as:
 
-- 数字 `1` `1.25` `0x1f` `0x-3e`
-- 字符串 `"test"`, 对于原生逻辑并不严格的反斜杠,
-  Bang 的字符串中反斜杠转义会方便些, 可以使用反斜杠转义反斜杠、方括号,
-  具体参见[多行字符串](./mult_line_string.mdtlbl)
-- 逻辑变量 `foo` `a-b` `@copper` `true` `null` `let's`
+- number: `1` `1.25` `0x1f` `0x-3e`
+
+- string: `"test"`
+  For the back slash that is not strictly processed in logical languages,
+  Reverse slash escape in Bang's string will be more strict and convenient.
+  You can use reverse slash escape to escape the reverse slash itself and square brackets
+
+  For details, please refer to [Multi line String](./mult_line_string.mdtlbl)
+
+- logical variable: `foo` `a-b` `@copper` `true` `null` `let's`
 
 > [!IMPORTANT]
-> 需要注意的是, 以上的逻辑变量并不完全在 Bang 适用, 比如 `a-b` 和 `let's`,
-> 逻辑变量过于自由, 除了某几个符号无法使用, 剩下的符号都可以拼在一起组成变量
+> The above logical variables are not entirely applicable in Bang,
+> such as `a-b` and `let's`.
 >
-> 如果 Bang 也完全使用逻辑格式将会很不方便, 所以 Bang 对逻辑变量的形式做了缩减,
-> 依照常见编程语言的形式使用 unicode-xid, 所以可以支持许多中文变量名
+> Logical variables are too free, and except for a few disallowed characters,
+> the remaining characters can be pieced together to form variables
 >
-> 由一个 (xid-start 或下划线) 和若干个 xid-continue 组成一个普通的变量,
-> 例如: `foo_bar` `i` `x2` `你好` `_x`, 而错误的写法例如: `2x` `a-b`
+> If Bang were to design entirely using the syntax of logical languages, it would be very inconvenient.
 >
-> 如果在前面加上`@`符号, 后面类似普通变量, 但是 xid-continue 的部分还允许短横线,
-> 用于逻辑常用的一些环境变量(内置变量), 例如: `@overflow-gate`
+> Therefore, Bang has reduced the syntax of logical variables and used unicode-xid according to the common programming language form,
+> so it can support variable names in multiple languages
+>
+> A normal variable is composed of one (xid-start or underline) and multiple xid-continue,
+> e.g `foo_bar` `i` `x2` `你好` `_x`, And incorrect usage, for example: `2x` `a-b`
+>
+> If the `@` character is added before it, the following part will be similar to a normal variable,
+> but the part of xid-continue allows for extra dashes (`-`),
+>
+> Applicable to some commonly used environment variables (built-in variables) in logical languages,
+> such as: `@overflow-gate`
 
-常见的数字形式:
+Common numerical forms:
 
-- 整数或浮点数: `123` `1_000_000` `1.29` `1e4` `-6`
-- 进制数: `0x1f` `0b1001` `0x-2`
+- integer or float: `123` `1_000_000` `1.29` `1e4` `-6`
+- hex or binary: `0x1f` `0b1001` `0x-2`
 
 > [!NOTE]
-> 注意, Bang 支持数字中加下划线来增加可读性, 如`1_000_000`,
-> 编译后下划线将被忽略, 如上述数字直接编译为`1000000`
+> Attention, Bang supports adding underscores to numbers to increase readability, such as `1_000_000`.
+> After compilation, underscores will be ignored, and the above numbers will be directly compiled as `1000000`
 >
-> 剩下的都参考逻辑本身支持的格式, 例如`1e4`,
-> 所以逻辑语言不支持的小数形式科学计数法就没去支持了, 如`1.2e3`
+> The rest of the syntax is based on the syntax supported by the logical language itself, such as `1e4`,
+> so the decimal form Scientific notation not supported by the logical language is not supported,
+> such as `1.2e3`
 
-但是显然以上的三种并不能满足全部需求, 所以 Bang 还额外进行支持了一种万能格式
+But obviously, the above three methods cannot meet all the requirements,
+so Bang also created an additional universal format:
 
-由单引号括起来的任意非空白或单引号符号, 将会组成一个 Var,
-其中的双引号被转换成单引号, 因为逻辑语言本身就不允许变量由双引号组成,
-所以这种格式可以表示任意逻辑语言的变量, 例如上面举例不支持的格式:
+Any character enclosed in a single quotation mark, excluding whitespace and single quotation marks,
+will form a Var, where double quotation marks represent single quotation marks,
+as logical languages themselves do not allow variables to be composed of double quotation marks
+
+So variables in any logical language can be expressed using this syntax,
+such as the unsupported format in the previous example:
 
 ```
 set a 'a-b';
 set b 'let"s';
 ```
-编译为
+Compile to:
 ```
 set a a-b
 set b let's
 ```
 
 > [!WARNING]
-> 注意不要使用一些特殊的符号, 虽然 Bang 支持但是逻辑里面有其它含义的符号,
-> 但是编译到逻辑时逻辑就解析不了了
+> Be careful not to use special characters, although Bang supports these characters,
+> they have other meanings in the logic, so when compiled into a logic language,
+> the logic processor cannot parse them
 >
-> 例如`#`在逻辑语言里面也是注释, `;`在逻辑语言里面也用于分隔语句
+> For example, `#` is also a comment in logical languages,
+> while `;` is also used to separate statements in logical languages
 
 
-DExp (可译做依赖表达式)
+DExp
 -------------------------------------------------------------------------------
-这也是一种值(Value), 意义是表示一个 Var,
-但是这个 Var 的成立依赖于某些语句, 比如返回的 Var 是一个逻辑变量,
-而依赖的语句给它赋值, 使这个逻辑变量成立,
-可以在其开头使用一个 Var 接上冒号手动指定要返回的 Var
+This is a type of Value that represents a Var,
+but the validity of this Var depends on some statements
+
+For example, the returned Var is a logical variable,
+and it depends on a certain statement to assign a value to it, making this logical variable valid
+
+You can manually specify the Var to be returned by using a Var followed by a colon at the beginning
 
 ```
 set a 1;
@@ -119,7 +152,7 @@ print (foo:
     foo = a+b;
 );
 ```
-编译为
+Compile to:
 ```
 set a 1
 set b 2
@@ -127,18 +160,19 @@ op add foo a b
 print foo
 ```
 
-可以看到, DExp 作为一个值,
-在求值时总是将其中包含的语句都编译后再将其自身的 Var 返回
+As can be seen, DExp, as a value,
+always compiles all the statements contained in it before returning its own Var when taking
 
-**每个 Value 求值总是会返回一个 Var**
+**Taking any Value will always return a Var**
 
 
-ResultHandle (返回句柄[^4])
+ResultHandle[^4]
 -------------------------------------------------------------------------------
-这也是一种值, 在 DExp 中使用,
-代表的是当前 DExp 中要返回的那个 Var, 通常是方便对其赋值而使用的, 写法是`$`
+This is a Value used internally in DExp to take the Handle returned for the current DExp
 
-还是以上面 DExp 的例子举例
+This is usually convenient for assigning values to it, written as a dollar sign
+
+Let's take the previous example of DExp as an example:
 
 ```
 set a 1;
@@ -147,11 +181,13 @@ print (
     $ = a+b;
 );
 ```
-和 DExp 示例中的不同, 这次我们没有手动指定返回的 Var,
-所以编译器将随机生成一个 Var 来表示这个 DExp 的返回 Var,
-但是这样随机生成的 Var 我们就不知道它叫什么了, 就要使用返回句柄`$`来引用它
+Unlike in the previous example, this time we did not manually specify the return Var,
+so the compiler will randomly generate a Var to represent the return handle of this DExp
 
-编译为
+But we don't know what the randomly generated Var is called anymore,
+so we need to use ResultHandle[^4] to use it
+
+Compile to:
 
 ```
 set a 1
@@ -160,31 +196,33 @@ op add __0 a b
 print __0
 ```
 
-可以看到, 生成了一个叫 `__0` 的变量来表示这个 DExp 的返回值
+As can be seen, a logical variable named `__0` has been generated to represent the return handle of this DExp
 
 > [!NOTE]
-> 尽量不要在变量中使用双下划线, 这是编译器内部约定使用的格式,
-> 手动使用可能造成冲突
+> Try not to use double underscores in variables,
+> as this is an internal convention of the compiler and manual use may cause conflicts
 
 
-ReprVar (原始量)
+ReprVar
 -------------------------------------------------------------------------------
-在之后的常量系统里面会细讲, 写法是普通的量包裹一层反引号
+In the subsequent constant system, it will be explained in detail,
+written as Var wrapped in a layer of anti quotation marks
 
-例如:
+Example:
 ```
 `read` result cell1 0;
 ```
 
 
-ValueBind (值绑定)
+ValueBind
 -------------------------------------------------------------------------------
-用于将一个量绑定到一个值的求值结果上, 也就是这两个量,
-并生成对另一个量的唯一对应关系
+Used to bind a Var to a handle,
+of a Value and generate a unique correspondence between these two Vars and another randomly generated Var
 
-只要绑定和被绑定的量在两次使用中一致, 那得到的绑定结果也会一致(仅单次编译中)
+As long as the binded Var and the binded handle are consistent in two uses,
+the handle obtained by taking ValueBind will also be consistent (only in a single compilation)
 
-例如:
+Example:
 ```
 foo = 2;
 foo.x = 3;
@@ -192,7 +230,7 @@ foo.y = 4;
 
 print foo", "foo.x", "foo.y;
 ```
-编译为
+Compile to:
 ```
 set foo 2
 set __0 3
@@ -204,49 +242,45 @@ print ", "
 print __1
 ```
 
-这主要是在常量系统中大量应用, 可以在求值过程中传递值而不仅仅是量,
-并将多个值可以方便的单次传递
+This is mainly widely used in constant systems,
+where Value can be passed during the taking process instead of just handles,
+and multiple Value can be easily passed at once
 
 
-[^4]: 句柄, 通常指被求值后产生的 量(Var)
+[^4]: Handle, usually referring to the Var generated after the Value is taken
 
 
-初探常用控制流
+Common Control Flow
 ===============================================================================
-在 Bang 中, 有许多方便的控制语句可以使用, 如if while等
+In Bang, there are many convenient control statements that can be used, such as `if` `while`, etc
 
 > [!TIP]
-> 当然也可以使用原本逻辑的 jump, 不过在 Bang 中, 它被改名为 goto,
-> Bang 中的标签也从冒号结尾改成了冒号开头.
+> Of course, `jump` in logical language can also be used, which is called `goto` in bang,
+> The label has also been changed from ending with a colon to beginning with a colon
 
 ```
 set a 1;
 :x
 set b 2;
-goto :x a < b; # 因为直接跳转回了标签x, 所以执行不到下方赋值的地方
-set 无法到达 3;
+goto :x a < b;
+set unreachable 3;
 ```
-编译结果如下
+Compile to:
 ```
 set a 1
 set b 2
 jump 1 lessThan a b
-set 无法到达 3
+set unreachable 3
 ```
-可以看出, 简单的 goto 使用直接被编译为相同的 jump,
-大部分之后要介绍的控制流语句都是要编译成 goto 的
-
-[^2]: 这是逻辑语言的程序计数器, 用来指示某行执行完毕后将要执行哪行,
-      可以在某行更改它以调整接下来要执行哪些代码, 灵活度很高
+It can be seen that a simple `goto` is directly compiled into the same `jump`,
+and most of the control flow statements to be introduced later need to be built as `goto`
 
 
-条件分支语句 (if elif else skip)
+Conditional Statement (if elif else skip)
 -------------------------------------------------------------------------------
-`if` 是使用条件来进入某个分支的控制语句, 表示条件成立则执行
-
-`else` 表示"否则", 如果上述条件不成立则执行`else`的代码
-
-`elif` 是`else if`的类似物, 虽然结构上有些不同, 以前有必要现在只是写着方便
+- `if`: When the conditions are met, execute the code
+- `else`: When the `if` condition is not met, execute the code
+- `elif`: Like `else if`, but with a slightly different structure
 
 ```
 if a < b {
@@ -258,7 +292,7 @@ if a < b {
 }
 printflush message1;
 ```
-编译结果如下
+Compile to:
 ```
 jump 6 lessThan a b
 jump 4 greaterThan a b
@@ -270,20 +304,19 @@ print "less than"
 printflush message1
 ```
 
-还有`skip`语句, 用法和`if`类似, 但是不会有`else`,
-简单的展开为一个满足条件则跳过某段代码的`goto`
+There is also a `skip` statement, which is similar in usage to `if`,
+but skips if the condition is met, and `else` is not allowed
 
 
-循环语句 (while gwhile do-while)
+Loop Statement (while gwhile do-while)
 -------------------------------------------------------------------------------
-循环, 通常用于满足某个条件则重复执行某段代码
+Loop, usually used to repeatedly execute a piece of code if a certain condition is met
 
-- while: 满足某个条件就重复执行某段代码, 直到条件不再被满足
-- gwhile: 类似 while, 但是 while 是在头部重复一个相反的条件在首次不满足时跳过,
-  gwhile 的头部直接跳转到末尾条件部分, 这会在进入循环时多执行一行,
-  但是大型条件等一些情况可以让代码简化, 因为只需要生成一份条件跳转而不是两份
-- do-while: 类似 while, 但是总是会执行至少一遍, 然后再用条件判断是否重复执行,
-  非常简单, 只是在尾部简单的生成出一个跳转到头部的 goto
+- while: Repeating the execution of a certain code segment until the condition is no longer met
+- gwhile: Like the while, but executing an extra line when entering the loop,
+  the advantage is that only one condition is generated,
+  and complex conditions can make the code shorter
+- do-while: Like the while, but always executed at least once, it is a goto that jumps back
 
 
 ```
@@ -295,7 +328,7 @@ print "do-while";
 do { print 1; } while i < 2;
 end;
 ```
-构建[^3]为以下的类似产物
+Build[^3] to:
 ```
 print "while";
 {
@@ -329,19 +362,22 @@ end;
 ```
 
 
-[^3]: Bang 主要流程分为两个阶段, 构建时(Build time) 和 编译时(Compile time)
+[^3]: Bang's workflow is divided into two stages, Build time and Compile time
 
-      构建时将一些简单固定的东西展开, 比如if while等, 还有收集一些标签和标签绑定等
+      Expand some simple fixed things during construction,
+      such as if while, and collect some label and label bindings
 
-      编译时处理更为复杂的东西, 常量、作用域、参数系统、追溯、求值等,
-      通常使用`c`选项来一次性构建与编译, 或者使用`A`选项来观察构建阶段的细节
+      Handling more complex things during compilation,
+      such as constants, scopes, argument systems, follow, take, etc
+
+      Usually, the `c` option is used to build and compile at once,
+      or the `A` option is used to observe the details of the build phase
 
 
-循环内控制流 (break continue)
+Control Flow within the Loop (break continue)
 -------------------------------------------------------------------------------
-在循环内(while gwhile do-while select switch gswitch)中,
-可以使用`break` 或 `continue`语句,
-直接跳出循环或跳到新一轮循环
+In some statements (while gwhile do-while select switch gswitch),
+you can use the `break` or `continue` statements to directly jump out of the loop or jump to a new round of loop
 
 ```
 i = 0; do {
@@ -352,7 +388,7 @@ i = 0; do {
     op add i i 1;
 } while i < 10;
 ```
-比如上面这份示例代码, 编译为标签形式可以直接看到其作用
+Compile to labeled:
 ```
 ___0:
     set i 0
@@ -367,15 +403,18 @@ ___1:
 ```
 
 > [!NOTE]
-> 在select switch gswitch中, continue是跳转到整个的头部,
-> 而不在循环中时, break跳转到整个代码的尾部, continue跳转到整个代码的头部,
-> 而这两种基本上没有区别
+> In the `select` `switch` and `gswitch`, `continue` is to jump to its front
+>
+> When not in the loop, `break` jumps to the end of the entire code,
+> `continue` to jump to the beginning of the entire code,
+> and at this point, there is basically no difference between the two
 
 
-控制块
+Control Block
 -------------------------------------------------------------------------------
-可以使控制块里的`continue`和`break`指向控制块头部和末尾,
-也可以加上叹号将含义反过来, 如果只加其中一个则不会影响另一个
+You can make the `continue` and `break` in the control block point to the head and end of the control block,
+or add an bang (`!`) mark to reverse the meaning.
+If only one is added, it will not affect the other
 
 ```
 print "begin";
@@ -390,7 +429,7 @@ break! {
 }
 print "end";
 ```
-构建为
+Build to:
 ```
 `'print'` "begin";
 {
@@ -415,18 +454,24 @@ print "end";
 :___3
 ```
 
-整数分支结构 (select switch gswitch)
+Integer Branch Statement (select switch gswitch)
 -------------------------------------------------------------------------------
-这类结构通过动态的一个整数来选择第i块代码(从第0块开始), 原理依赖于`@counter`[^2]
+This type of statement dynamically selects the i-th block of code (starting from block 0) using an integer,
+and the principle depends on `@counter`[^2]
 
 > [!NOTE]
-> 注意不要输入非整数或者小于0的数, 或者不小于代码块数的数
+> Do not enter non integers or numbers less than 0, or numbers not less than the number of code blocks
 >
-> 每一块代码由一个语句构成, 如果想输入多个语句可以使用一个块,
-> 如`{print 1; break;}`
+> Each block of code is composed of one statement.
+> If you want to input multiple statements,
+> you can use one block, such as `{print 1; break;}`
 
-`select`和`switch`会以得到优秀实践的两种形式之一展开, 区别在于两者代码量不同,
-一个需要填充对齐语句块, 另一个需要构造一张跳转表, 会自动选取代码量少的形式构造
+`select` will be compiled into one of two mature schemes,
+with the difference being the amount of code between the two
+
+One approach requires filling in aligned statement blocks,
+while the other requires constructing a jump table,
+`select` will compile into a solution with fewer logical lines
 
 ```
 select i {
@@ -441,7 +486,7 @@ select i {
     print 2 2;
 }
 ```
-比如以上代码编译为标签形式方便查看
+Compile to labeled:
 ```
     op add @counter @counter i
     jump __0 always 0 0
@@ -465,15 +510,19 @@ __3:
     print 2
     print 2
 ```
-可以看出, 首先上面那种选择了跳转表形式生成, 下面那种选择了对齐块形式生成,
+From the results, it can be seen that a jump table and an alignment block were generated
 
 > [!TIP]
-> 如果没有手动在内部块末尾加上跳转的话, 那么将会继续执行其之后的块
+> If no jump is manually added at the end of the internal block,
+> the subsequent blocks will continue to execute
 
-通常我们可以使用更方便的格式, 例如`switch`, 它将被构建为`select`
+Usually we can use a more convenient format, such as `switch`,
+which will be build as `select`
 
-除了使用`case`来分隔每一块代码而不是每个 Statement 一块代码外,
-还可以将每个case前的代码附加到每块`case`的最后, 称为 switch-append
+Switch uses `case` to separate each block of code, and can specify the block number
+
+It can also attach the same block to the end of each block, called switch-append
+
 
 ```
 switch i {
@@ -483,7 +532,7 @@ case: print 1;
 case: print 2 2;
 }
 ```
-我们可以用`A`选项来看到(`switch` 在构建期就会展开为 `select`)
+Build to:
 ```
 {
     select i {
@@ -506,9 +555,11 @@ case: print 2 2;
     :___0
 }
 ```
-从展开后的代码可以看出`break`展开的`goto`被附加到了每个`case`最后
+From the expanded code,
+it can be seen that the `goto` built by `break` is appended to the end of each `case`
 
-同时`switch`也可以不用使用空语句占位, 可以直接指定某个整数
+And `switch` can directly specify the block number,
+and the empty part will be automatically filled with empty blocks:
 ```
 switch i {
     break;
@@ -518,7 +569,7 @@ case 4:
     print 4;
 }
 ```
-构建为
+Build to:
 ```
 {
     select i {
@@ -541,88 +592,100 @@ case 4:
     :___0
 }
 ```
-由其上也能观察出, 附加的`break`也会被附加在连续的空块最后(对于0,1, 只在1处有)
+As can be seen, for continuous empty blocks, append will also be performed
 
-`gswitch`和`switch`没多少不同, 区别只在于其运行在编译期而不是构建期,
-这可以拥有更多的高级操作, 不过它只会构建为跳转表形式而不是填充块形式,
-但这样也让它可以方便的让不同的代码块指向同一份代码, 而不需要将代码块重复一份
+`gswitch` is like `switch`, but it always compiles into a jump table form,
+which can reasonably have more flexibility
+
+[^2]: This is a program counter in logic languages,
+      used to indicate the line number to be executed after a certain line is completed.
+
+      It can be changed on a certain line to adjust which code to execute next, with high flexibility
 
 
-简单条件 (CmpAtom)
+Simple Comparison (CmpAtom)
 -------------------------------------------------------------------------------
-主要由可以在单条逻辑的 `jump` 语句中表示出来的条件组成,
-作为复合条件中最小的单元出现, 以下列举其算符形式
+It mainly consists of conditions that can be expressed in a single logical `jump` statement,
+appearing as the smallest element in the composite condition.
 
-- `_`: 无条件永远成立
-- Never: 无条件永不成立
-- `<` `>` `<=` `>=`: 基本的大小比较
-- `==` `!=`: 基本的相等和不相等比较
-- `===` `!==`: 基本的严格相等和严格不等比较
+The operator forms are listed below:
+
+- `_`: Unconditionally always true
+- Never: Unconditionally never true
+- `<` `>` `<=` `>=`: lessThan, greaterThan, lessThanEq and greaterThanEq
+- `==` `!=`: equal and notEqual
+- `===` `!==`: strictEqual and strictNotEqual
 
 > [!NOTE]
-> `!==` 是 Bang 额外扩展的算符, 在逻辑中并不存在,
-> 如果最终用它生成逻辑代码, 会额外使用一条 op 语句然后再反转其结果,
-> 所以需要注意
+> `!==` It is an operator that is an additional extension of Bang and does not exist in logical languages.
+> If it is ultimately used to generate logical code,
+> an additional op statement will be used and its result will be reversed
 >
-> Never 是 Bang 额外扩展的算符, 甚至你都无法在 简单条件 中编写出来,
-> 但是它可以出现, 通过复合条件对 `_` 反转得到, 如 `!_`
+> Never is an operator that is an additional extension of Bang,
+> and it does not even have a syntax for simple comparison.
+> It is usually obtained by reversing `_` through composite conditions, such as `!_`
 
 
-复合条件 (CmpTree)
+Complex Comparison (CmpTree)
 -------------------------------------------------------------------------------
-简单单一的条件通常无法满足需求, 所以可以使用复合条件来将多个简单条件组合
+A simple comparison often cannot meet the requirements,
+so complex comparison can be used to associate multiple simple comparisons
 
-复合条件通常使用以下运算符来组织
+Complex conditions are usually organized using the following operations:
 
-| 示例                      | 优先级      | 结合性      | 命名    |
+| Example                   | Priority    | combination | Name    |
 | ---                       | ---         | ---         | ---     |
-| `!a < b`                  | 4           | 右结合      | CmpNot  |
-| `a && b`                  | 3           | 左结合      | CmpAnd  |
-| `a \|\| b`                | 2           | 左结合      | CmpOr   |
-| `({print 2;} => a < b)`   | 1           | 右结合      | CmpDeps |
+| `!a < b`                  | 4           | Right       | CmpNot  |
+| `a && b`                  | 3           | Left        | CmpAnd  |
+| `a \|\| b`                | 2           | Left        | CmpOr   |
+| `({print 2;} => a < b)`   | 1           | Right       | CmpDeps |
 
-也可以使用括号来手动规定比如`(a < 2 || b < 2) && c < 2`
+You can also use parentheses to avoid priority: `(a < 2 || b < 2) && c < 2`
 
 > [!NOTE]
-> CmpDeps, 可以在比较某个条件前展开某些代码,
-> 和 DExp 有类似作用, 不过它的优先级是溢出的, 在许多地方需要加上括号使用
+> CmpDeps can compile certain statements before comparing a certain condition,
+> similar to DExp, but it requires parentheses in many places
 >
-> `!` 运算并不实际存在, 它使用德摩根变换来反转内部条件, 直到反转到简单条件后结束
+> `!` The operation does not actually exist,
+> it uses boolean transformations to invert internal conditions until it reaches a simple condition and ends
 >
-> `&&` 和 `||` 运算是短路的, 即:
-> - `a && b` 在 a 不成立时, 直接返回不成立, 并不会计算 b 是否也不成立
-> - `a || b` 在 a 成立时, 直接返回成立, 并不会计算 b 是否也成立
-> 合理使用这种短路特性可以带来许多便利
+> The operations of `&&` and ` | | ` are short-circuit that is:
+>
+> - `a && b` When a is false, it is directly false and b will not be calculated
+> - `a || b` When a is true, it is directly true and b will not be calculated
+>
+> Reasonable use of this short-circuit characteristic can bring many conveniences
 
 
-简单语句
+Simple Statement
 ===============================================================================
-较为简单的语句
 
-- noop: 逻辑中通常无法手动打出的语句, 显示为"Invalid", 解析失败的语句也会产出它
-- op: 符合逻辑风格的运算语句
-- print: 方便的展开为多个逻辑使用的`print`, 这样可以将内容贴在一起写很方便,
-  例如: `print "foo: "foo", bar: "bar"\n";`
-- 展开块 (Expand): 通常也被称作块,
-  可以在其中包含多个语句, 通常用在循环等的后面, 例如:
+- noop: A statement in logic that cannot be manually typed and is displayed as "Invalid",
+  Even statements that fail to parse will produce it
+- op: Operational statements compatible with logical language styles
+- print: Compatible with logical languages, but supports multiple arguments.
+  e.g `print "foo: "foo"\n";`
+- Expand: commonly referred to as a block,
+  It can contain multiple statements, usually used after loops, such as:
   ```
   {
       print 1;
       print 2;
   }
   ```
-- 内联块 (Inline Block): 类似展开块, 也可以在其中编写多个语句,
-  但是不像 Expand 携带一个 Expand 的作用域, 它没有作用域,
-  通常手动使用它用处不大, 写做 `inline {}`, 就是普通 Expand 前面加一个`inline`
-- 标签 (Label): 用于被跳转的标签, 格式是一个冒号一个跟在后面的 Var
-- 其它语句 (Other): 就是上文所提到的由多个 Value 组成的普通逻辑语句
+- Inline Block: Like the Expand, but without scope, such as `inline {}`,
+- Label: Used for the goto label, written as a colon followed by a Var, such as `:foo`
+- Other: A logical language statement composed of multiple Values,
+  such as `read result cell1 0;`
+
+  Will take each value that makes up the statement and then use handles to form the statement
 
 
-运算和比较的逻辑风格兼容
+OP and Comparison Styles Compatible
 -------------------------------------------------------------------------------
-对于 CmpTree, 和 op 语句, 有做对于逻辑语言风格的兼容, 可以使用逻辑的风格来编写
+For CmpTree and op statements, compatible with logical language styles
 
-例如以下的每个 skip 的条件都是相同的, 都可以经过编译
+For example, each of the following `skip` is the same and can be compiled
 
 ```
 skip a < b print 2;
@@ -631,7 +694,7 @@ skip a lessThan b print 2;
 skip lessThan a b print 2;
 ```
 
-同样的, 以下的 op 也是产生相同的效果, 且可以正确编译
+Similarly, the following `op` is also the same and can be compiled
 ```
 op add a a 1;
 op a a add 1;
@@ -640,24 +703,24 @@ op a a + 1;
 ```
 
 ```
-op floor r n 0; # 这无用的参数0不会被求值
+op floor r n 0; # `0` that is not used in unary operations will not be taken
 op r floor n 0;
 op floor r n;
 op r floor n;
 ```
 
-虽说这个风格兼容并没有什么用, 未来还可能删除, 不过或许有些人喜欢
+Although this design has little practical effect and may be removed in the future,
+some people may like it
 
 
-简化运算 - 运算表达式 (op-expr)
+Simplified Operations - Operational Expressions (op-expr)
 -------------------------------------------------------------------------------
-这让人们可以以传统的优先级、方便的形式不必在复杂的数学运算中编写原始的DExp形式
-可以极大的降低心智负担
+Generate a series of nested op wrapped in DExp using readable expressions
 
 ```
 i, x = 2, abs(a-b) + sqrt(a)*2;
 ```
-如果没有 op-expr, 我们将要编写以下构建形式, 将会非常地狱
+If there is no op-expr, we would need to write the following code
 ```
 {
     `set` i 2;
@@ -665,44 +728,52 @@ i, x = 2, abs(a-b) + sqrt(a)*2;
 }
 ```
 
-同时也提供三元运算等, 详见 [op-expr](./op_expr.mdtlbl)
+At the same time, if-else is also provided,
+please refer to [op-expr](./op_expr.mdtlbl) for details
 
 > [!NOTE]
-> op-expr 提供的 `||` 和 `&&` 运算优先级和 CmpTree 类似, 但是并不具备短路特性,
-> 即 `a && b` a 为假 b 就不求值, `a || b` a 为真 b就不求值.
+> The `||` and `&&` operation priorities provided by op-expr are similar to CmpTree,
+> but do not have short-circuit characteristics
 >
-> op-expr 的 `||` 和 `&&` 是使用 `+` 和 `land` 实现的,
-> 只是为了有方便的优先级进行逻辑运算
+> op-expr `||` and `&&` are implemented using `+` and `land`
+> for the convenience of logical operations
 
 
-关于注释
+About Comments
 ===============================================================================
-Bang 的注释基于逻辑语言进行扩展, 但是还添加了一种新的形式, `#*`开始直到`*#`的内容将会忽略,
-可以跨越多行使用, 不必每行都添加注释符号,
+Bang's comments are extended on the basis of logical language
 
-当然为了习惯或美观还经常添加一个`*`
+But a new syntax has also been added,
+where content from the beginning of `#*` until `*#` will be ignored and can be used across multiple lines without the need to add comment characters to each line
+
+Of course, for the sake of habit or style, `* ` is often added to the beginning of the line
 
 ```
-# 这是一个注释
-set a 不是注释;
-#* 这是一个多行注释
-多行注释中
-* 多行注释中
-*# set b 不是注释;
-set c 不是注释;
+# This is a inline comment
+set a not_a_comment;
+#* This is a multi-line comment
+In multi-line comment
+* In multi-line comment
+*# set b not_a_comment;
+set c not_a_comment;
 ```
-编译为
+Compile to:
 ```
-set a 不是注释
-set b 不是注释
-set c 不是注释
+set a not_a_comment
+set b not_a_comment
+set c not_a_comment
 ```
 
-> 逻辑语言使用`#`符号进行注释, 将会忽略从`#`符号开始直到行末尾的内容
+> The annotation style of logical language,
+> using the `#` character for annotation,
+> will ignore the content from the `#` character until the end of the line
 
 
 进阶入门 - Bang 语言的常量系统
 ===============================================================================
+> [!WARNING]
+> The latter part has not been translated yet
+
 Bang 语言提供了一套非常强大的常量系统, 以实现元编程, 可以灵活操作代码,
 以满足大部分逻辑的需要
 
@@ -721,7 +792,7 @@ Bang 语言提供了一套非常强大的常量系统, 以实现元编程, 可�
 const A = 2;
 print A;
 ```
-编译为
+Compile to:
 ```
 print 2
 ```
@@ -734,7 +805,7 @@ const A = 2;
 const A = 3;
 print A;
 ```
-编译为
+Compile to:
 ```
 print 3
 ```
@@ -757,7 +828,7 @@ const A = 2;
 }
 print A;
 ```
-编译为
+Compile to:
 ```
 print 3
 print 2
@@ -857,7 +928,7 @@ print "x: "FooVec.X"\nvec print: ";
 take FooVec.Print;
 printflush message1;
 ```
-编译为
+Compile to:
 ```
 print "x: "
 print 2
@@ -906,7 +977,7 @@ F F;
 print "Plan B";
 take F F;
 ```
-编译为
+Compile to:
 ```
 print "Plan A"
 print 2
@@ -932,7 +1003,7 @@ add1 = Value + 1;
 print "Value: "Value", add1: "add1;
 printflush message1;
 ```
-编译为
+Compile to:
 ```
 set a 2
 set b 3
@@ -1028,7 +1099,7 @@ __1_const_Foo_foo:
 ```
 foo = (1+2+3)*(1*2*3);
 ```
-编译为
+Compile to:
 ```
 op mul foo 6 6
 ```
@@ -1065,7 +1136,7 @@ const BindType = (unused:
 );
 print BindType[(block: getlink $ 0;)].type;
 ```
-编译为
+Compile to:
 ```
 getlink block 0
 sensor __1 block @type
@@ -1093,7 +1164,7 @@ take Foo["c" "d"]; # 较为常用的生成一个用于传参的 DExp 再进行�
 match "e" "f" { @ {} } # 通过匹配语句捕获所有参数来在当前环境中设置
 take Foo; # 然后普通的 Take, 使用参数会往外找到首个设置的参数, 就找到了展开前环境的参数
 ```
-编译为
+Compile to:
 ```
 print "a"
 print "b"
@@ -1144,14 +1215,14 @@ take __ = Foo;
 > 这是随便找了个你肯定不应该使用的变量来接收返回的句柄, 反正你也用不到
 
 ---
-之前代码 const 中使用的 `@` 符号, 可以让当前环境中的参数在此处展开, 比如:
+之前代码 const 中使用的 `@` 字符, 可以让当前环境中的参数在此处展开, 比如:
 ```
 const Foo = (
     print "(" @ ")";
 );
 take Foo["Hello" "Jack"];
 ```
-编译为
+Compile to:
 ```
 print "("
 print "Hello"
@@ -1206,7 +1277,7 @@ print Add[a b];
 print Add[x a b];
 take Add[c a b];
 ```
-编译为
+Compile to:
 ```
 op add __2 a b
 print __2
@@ -1258,7 +1329,7 @@ inline 3@{
 bar @;
 print X;
 ```
-编译为
+Compile to:
 ```
 foo 1 ( 1 2 3 )
 foo 1 ( 4 5 6 )
@@ -1273,7 +1344,7 @@ print 1
 > 重复块自身包含一个参数作用域, 但是并不包含 Expand 作用域,
 > 也不会设置参数时将`_0` `_1`这种进行设置, 比较不同
 
-从编译结果可以看出它的工作原理, `@`符号前面写数量, 数量不足时**依旧会运行**,
+从编译结果可以看出它的工作原理, `@`字符前面写数量, 数量不足时**依旧会运行**,
 如果数量省略不写则默认为`1`
 
 > [!WARNING]
@@ -1299,7 +1370,7 @@ inline*C@{
     foo @;
 }
 ```
-编译为
+Compile to:
 ```
 foo 1 2
 foo 3 4
@@ -1633,7 +1704,7 @@ const N = 3;
 print "split";
 take F;
 ```
-编译为
+Compile to:
 ```
 print "split"
 print 2
@@ -1658,7 +1729,7 @@ print "split";
 const Clos = Builder[a b]->F;
 take Clos[c d];
 ```
-编译为
+Compile to:
 ```
 print "split"
 print a
@@ -1687,7 +1758,7 @@ print "split";
 take Back[];
 end;
 ```
-编译为
+Compile to:
 ```
 print "start"
 comecode
@@ -1710,7 +1781,7 @@ print "split";
 take Back[];
 end;
 ```
-编译为标签形式
+Compile to labeled:
 ```
     print "start"
 __0_const_Builder_x:
@@ -1739,7 +1810,7 @@ select n {
     print 2;
 }
 ```
-编译为
+Compile to:
 ```
 op mul __0 n 2
 op add @counter @counter __0
@@ -1804,7 +1875,7 @@ case 1: print 1;
 case 0: print 0;
 }
 ```
-编译为
+Compile to:
 ```
 op add @counter @counter n
 print 0
@@ -1976,7 +2047,7 @@ case*<: # 不使用 append, 按正常序穿透到 case 1
 case 1: print 1;
 }
 ```
-编译为
+Compile to:
 ```
 op idiv x n 2
 jump 10 lessThan x 0
@@ -2011,7 +2082,7 @@ case*1 if ty == bar: print bar;
 case 1: print bar1;
 }
 ```
-编译为
+Compile to:
 ```
 __3:
     op mul __1 id 2
@@ -2059,7 +2130,7 @@ gswitch n {
 case 0 1: print 0 1;
 }
 ```
-编译为
+Compile to:
 ```
 op mul __0 n 2
 op add @counter @counter __0
@@ -2092,7 +2163,7 @@ case One: print 1;
 case @: print 0 2;
 }
 ```
-编译为
+Compile to:
 ```
 op add @counter @counter n
 jump 6 always 0 0
@@ -2120,7 +2191,7 @@ case : print 1;
 case*: print 2;
 }
 ```
-编译为
+Compile to:
 ```
 op add @counter @counter n
 jump 4 always 0 0
@@ -2148,7 +2219,7 @@ strictNotEqual extend
 op strictNotEqual x a b;
 op x a !== b;
 ```
-编译为
+Compile to:
 ```
 op strictEqual __0 a b
 op equal x __0 false
@@ -2180,7 +2251,7 @@ print Foo;
 
 条件依赖和条件内联
 ===============================================================================
-在 [复合条件 (CmpTree)](#复合条件-CmpTree) 一章中,
+在 [Complex Comparison (CmpTree)](#Complex-Comparison-CmpTree) 一章中,
 有说到 `({print 2;} => a < b)` 这种写法, 可以在使用一个条件前,
 插入一些代码, 主要是为了固定内联某个值时方便引用到量或给需要内联的传参等,
 
@@ -2206,7 +2277,7 @@ break goto(a < b) == 0;
 break goto(a < b);
 break !goto(a < b);
 ```
-编译为
+Compile to:
 ```
 jump 0 lessThan a b
 jump 0 greaterThanEq a b
@@ -2230,7 +2301,7 @@ print "split";
 break !goto(a < b || c < d);
 end;
 ```
-编译为
+Compile to:
 ```
 jump 0 lessThan a b
 jump 0 lessThan c d
@@ -2253,7 +2324,7 @@ const F = false;
 const Cmp = goto(a < b);
 break Cmp != F;
 ```
-编译为
+Compile to:
 ```
 jump 0 lessThan a b
 ```
@@ -2264,7 +2335,7 @@ jump 0 lessThan a b
 const Less = goto(_0 < _1);
 break (=>[1 2] Less);
 ```
-编译为
+Compile to:
 ```
 jump 0 lessThan 1 2
 ```
@@ -2294,7 +2365,7 @@ Foo! (
     setres A;
 );
 ```
-编译为
+Compile to:
 ```
 print 1
 print 2
@@ -2337,7 +2408,7 @@ Foo! ([&A](
     setres A;
 ));
 ```
-编译为
+Compile to:
 ```
 print 1
 print 2
@@ -2358,7 +2429,7 @@ Foo! *(
     setres A;
 );
 ```
-编译为
+Compile to:
 ```
 print 1
 print 2
@@ -2375,7 +2446,7 @@ Foo! *(
     setres A;
 );
 ```
-编译为
+Compile to:
 ```
 x
 y
@@ -2416,7 +2487,7 @@ if cond {
 }
 print x;
 ```
-编译为
+Compile to:
 ```
 set x 2
 jump 3 equal cond false
@@ -2435,7 +2506,7 @@ if cond {
 }
 print x;
 ```
-编译为
+Compile to:
 ```
 set x 2
 jump 4 equal cond false
@@ -2467,7 +2538,7 @@ const Value = Foo->Value;
 print "split";
 take Value;
 ```
-编译为
+Compile to:
 ```
 print "start"
 print "foo"
@@ -2617,7 +2688,7 @@ const Inc = (match @ => I {
 });
 take Inc[(?2*3)];
 ```
-编译为
+Compile to:
 ```
 print 6
 op add 6 6 1
@@ -2646,7 +2717,7 @@ jump 0 lessThan 6 10
 所以就不必担心编写逻辑语句时使用到了常量或需要频繁使用 ReprVar
 
 > [!NOTE]
-> 因为 Bang 支持使用中文及各种乱七八糟的符号作为量,
+> 因为 Bang 支持使用中文及各种乱七八糟的字符作为量,
 > 且经常用于和现有逻辑变量对接, 或用于逻辑内部本地化命名,
 > 所以对于此类量一致认为基本不是常量
 
@@ -2691,7 +2762,7 @@ print 8.pi;
 }
 print 8.pi;
 ```
-编译为
+Compile to:
 ```
 print 25.132741228718345
 ```
@@ -2724,10 +2795,12 @@ Bang 语言从理论上来说, 是不存在任何优化的,
 所以 Bang 以高度灵活性让人能编写出高性能抽象和封装, 虽说可能抽象的很复杂
 
 
-关于一些名词命名的解释
+Regarding some Naming Explanations
 ===============================================================================
-这里讲解一些奇特命名的可能解释,
-有些命名是意思都没想好但是先随便用了一个英文缩写, 再凑出来合理的解释的
+Here are some possible explanations for peculiar names.
+
+Some names may not have a clear meaning but use a random English abbreviation first,
+and then come up with a reasonable explanation
 
 - DExp <- D-Expression -> Dependency-Expression or Deep-Expression
 - Var <- Variable
