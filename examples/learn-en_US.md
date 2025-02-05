@@ -843,81 +843,75 @@ the const Value in the parent Expand is not overwritten and can still be used af
 
 Follow
 -------------------------------------------------------------------------------
-这是让 const 不至于变得彻底混乱而在低版本增加的一个核心机制, 在 const 一个值时,
-会对这个值进行**一次**追溯, 而对于最常见的 Var 的追溯则类似求值时, 就是查询 const
+When performing const on a value, it will be followed **once**,
+and for the most common Var, its follow is to query const
 
-基于以上的描述, 我们可以写出以下代码
+Example:
 ```
 const A = 1;
 const B = A;
 const A = 2;
 print B;
 ```
-会编译出
+Compile to:
 ```
 print 1
 ```
-而不是(*在远古版本中真的是*)
+Instead of (*in the old version, it really was*)
 ```
 print 2
 ```
 
-这也构成了值的基本传递能力
+This also constitutes the basic assignment ability of Values
 
-这是一份大致的追溯行为表, 没有提到的追溯结果都是其自身:
+This is a rough follow table, and values not listed will not be followed:
 
-- Var: 查询常量表
-- ReprVar: 解包原始量, 也就是`` `X` ``变成`X`, 且因为追溯进行一次,
-  所以常量表内肯定不会有原始量
-- ValueBindRef (`->$`): 在追溯情况对被绑定值求值
-- ValueBindRef (`->..`): 替换成常量表中被绑定值的绑定者
-- ValueBindRef (`->Name`): 求值被绑定值, 并按正常值绑定规则替换成绑定者,
-  区别在于这运行在追溯而非求值时
-- Closure (闭包): 捕获追溯或求值其声明的值
+- Var: Query constant table
+- ReprVar: Unpack ReprVar, e.g `` `X` `` into `X`,
+  And because its follow and take results are both Var,
+  there will definitely not be ReprVar in the constant table
+- ValueBindRef (`X->$`): Take X, But when following
+- ValueBindRef (`X->..`): Follow X,  The Binder that obtains the follow result of X
+- ValueBindRef (`X->Name`): Obtain a value similar to ValueBind,
+  but do not take the value because it is being followed
+- Closure: Capture the environment, including take, follow, arguments and label renaming.
+  Then follow the inner values
 
 > [!NOTE]
-> 对于常量表查询, 如果没有查询到, 那么将返回其自身,
-> 这非常常见, 例如 `read result cell1 0;`
-> 这普通的一句里面就有四次未查询到返回自身
+> For constant table queries using Var, if the query does not hit, Var itself will be returned
+>
+> For example, `read result cell1 0;` is composed of four Vars that were not hit in the query
 
 
-求值 (take)
+Take
 -------------------------------------------------------------------------------
-求值将任意的值转换成一个固定的量, 最为常见的就是 DExp,
-将其中代码生成后转换为它的句柄.
+Take converts any value into a Var,
+the most common being DExp, which compiles the included statements to obtain its handle
 
-- Var: 其求值行为就是进行一次追溯, 如果结果不是一个 Var, 那么对其继续求值
-- ReprVar: 直接将包裹的原始量作为结果
-- DExp: 前面已经有说明了
-- ValueBind (值绑定): 这是将一个量绑定到一个值上,
-  求值时会把这个值求值为被绑定量,
-  然后将绑定量和被绑定量进行绑定表查询到唯一映射量, 最后对这个量进行常量表查询
-- ValueBindRef (`->$`): 和被绑定值求值行为相同
-- ValueBindRef (`->..`): 和追溯时它的行为相同
-- ValueBindRef (`->Name`): 和值绑定求值行为相同
-- ClosuredValue: 正常的展开内部值, 但是会先设置闭包捕获的环境,
-  详见 [ClosuredValue (闭包值)](#ClosuredValue-闭包值)
-- Cmper: 编译错误, 退出编译, 详见 [条件依赖和条件内联](#条件依赖和条件内联)
+- Var: Follow, if the result is not Var, continue taking the result
+- ReprVar: Unpack ReprVar
+- DExp: It has already been explained earlier
+- ValueBind: After taking the binded value, use two Vars to query the binding table,
+  and then take the Var found by the query
+- ValueBindRef (`X->$`): Equivalent to take X
+- ValueBindRef (`X->..`): Equivalent to following it
+- ValueBindRef (`X->Name`): Equivalent to take ValueBind `X.Name`
+- ClosuredValue: First set the capture environment, then take the inner value
+  see [ClosuredValue (闭包值)](#ClosuredValue-闭包值) for details
+- Cmper: Compile error, see [条件依赖和条件内联](#条件依赖和条件内联) for details
 
 
-值绑定 (ValueBind)
+ValueBind
 -------------------------------------------------------------------------------
-这用于往句柄和量的组合上绑定 const
+You can const the value onto ValueBind
 
-这是在 const 常量系统中经常出现的一个重要的东西,
-在前面介绍了 const 可以把一个值绑定到一个量上,
-然后使用这个量进行追溯或求值时会替换成操作绑定到这个量上的值,
-当然不止一次提到会做一些额外操作不能忽略
+It's not much different from Var,
+just const the value to the handle of ValueBind, but the scope is global
 
-而其实, const 还可以将值绑定到*值绑定*上,
-流程是先将值绑定的被绑定值进行求值得到一个量(以下称作句柄[^4]),
-然后将 句柄 和 值绑定的绑定量 在绑定表查询, 得到它们的映射量.
+By simply passing the handle, multiple ValueBinds can be passed,
+and multiple const values can be passed
 
-接着将类似普通的 const 流程, 将值绑定到映射量,
-不过这次是在最外层的 Expand 更外一层的作用域中, 当然这影响不大,
-因为正常来说你不会得到与映射量相同的量相同产生遮蔽等
-
-这样可以仅传递句柄, 就可以同时传递多个绑定值, 例如以下代码:
+Example:
 
 ```
 const myvec.X = 2;
@@ -944,17 +938,16 @@ printflush message1
 
 在上面那段代码中, 使用到了三个新知识点
 
-1. take: take 是一个常用又简单的语句, 这里用到了一个简单的用法:
-   既将给定值直接求值. 和直接写在那用 其它语句 顺带进行求值的方法比较,
-   这种可以用在不关心返回句柄的时候使用,
-   不然上面代码就会产生用不上的随机生成的 DExp 返回句柄
-2. Binder (绑定者): 写做 `..`,  是一种值,
-   其求值会展开为当前正在发生的对值绑定求值的被绑定句柄,
-   这可以方便的理解为某些语言中的 `this` `self` 等
-3. 常量表的绑定者: 常量表并不止被 const 的值, 还包含其它信息,
+1. Take Statement: When you need to take some values but don't care about the handle,
+   you can use the take statement
+2. Binder: Write as `..`,
+   It is a type of Value that expands to the handle to which the innermost value is binded
+
+   Similar to `self` or `this` in other languages
+3. 常量表中值的绑定者: 常量表并不止被 const 的值, 还包含重命名标签和绑定者,
    在后面有详细介绍
 
-可以看到仅一个 const, 就可以把 X Y Print 的映射关系都传递到了 FooVec,
+可以看到仅使用一个 const, 就可以把 X Y Print 的映射关系都传递到了 FooVec,
 毕竟求值后都是同一个量
 
 
