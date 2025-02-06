@@ -410,25 +410,25 @@ endsnippet
 snippet env.maph "地图高度" w
 @maph
 endsnippet
-snippet env.server "" w
+snippet env.server "处理器是否运行在服务器或单人游戏" w
 @server
 endsnippet
-snippet env.client "" w
+snippet env.client "处理器是否运行在连接到服务端的客户端" w
 @client
 endsnippet
-snippet env.clientLocale "" w
+snippet env.clientLocale "运行代码的客户端使用的区域(locale)" w
 @clientLocale
 endsnippet
-snippet env.clientUnit "" w
+snippet env.clientUnit "运行代码的客户端的玩家单位" w
 @clientUnit
 endsnippet
-snippet env.clientName "" w
+snippet env.clientName "运行代码的客户端的玩家名称" w
 @clientName
 endsnippet
-snippet env.clientTeam "" w
+snippet env.clientTeam "运行代码的客户端的玩家队伍" w
 @clientTeam
 endsnippet
-snippet env.clientMobile "" w
+snippet env.clientMobile "运行代码的客户端是否为移动端" w
 @clientMobile
 endsnippet
 snippet env.ctrlProcessor "被处理器控制, 用于传感器的`@controlled`返回结果," w
@@ -451,6 +451,249 @@ snippet env.blockCount "建筑 content 总数" w
 endsnippet
 snippet env.liquidCount "液体 content 总数" w
 @liquidCount
+endsnippet
+
+# env team variables
+snippet env.team.derelict "0: 灰队(废墟)" w
+@derelict
+endsnippet
+snippet env.team.sharded "1: 黄队(默认玩家)" w
+@sharded
+endsnippet
+snippet env.team.crux "2: 红队(默认敌方)" w
+@crux
+endsnippet
+snippet env.team.malis "3: 紫队" w
+@malis
+endsnippet
+snippet env.team.green "4: 绿队" w
+@green
+endsnippet
+snippet env.team.blue "5: 蓝队" w
+@blue
+endsnippet
+
+snippet env.team.0 "@derelict: 灰队(废墟)" w
+@derelict
+endsnippet
+snippet env.team.1 "@sharded: 黄队(默认玩家)" w
+@sharded
+endsnippet
+snippet env.team.2 "@crux: 红队(默认敌方)" w
+@crux
+endsnippet
+snippet env.team.3 "@malis: 紫队" w
+@malis
+endsnippet
+snippet env.team.4 "@green: 绿队" w
+@green
+endsnippet
+snippet env.team.5 "@blue: 蓝队" w
+@blue
+endsnippet
+
+# env item variables
+snippet env.item.copper  "0: 铜" w
+@copper
+endsnippet
+snippet env.item.lead  "1: 铅" w
+@lead
+endsnippet
+snippet env.item.metaglass  "2: 玻璃" w
+@metaglass
+endsnippet
+snippet env.item.graphite  "3: 石墨" w
+@graphite
+endsnippet
+snippet env.item.sand  "4: 沙子" w
+@sand
+endsnippet
+snippet env.item.coal  "5: 煤炭" w
+@coal
+endsnippet
+snippet env.item.titanium  "6: 钛" w
+@titanium
+endsnippet
+snippet env.item.thorium  "7: 钍" w
+@thorium
+endsnippet
+snippet env.item.scrap  "8: 废料" w
+@scrap
+endsnippet
+snippet env.item.silicon  "9: 硅" w
+@silicon
+endsnippet
+snippet env.item.plastanium "10: 塑钢" w
+@plastanium
+endsnippet
+snippet env.item.phase-fabric "11: 相位物" w
+@phase-fabric
+endsnippet
+snippet env.item.surge-alloy "12: 巨浪合金" w
+@surge-alloy
+endsnippet
+snippet env.item.spore-pod "13: 孢子夹" w
+@spore-pod
+endsnippet
+snippet env.item.blast-compound "14: 爆炸混合物" w
+@blast-compound
+endsnippet
+snippet env.item.pyratite "15: 硫化物" w
+@pyratite
+endsnippet
+snippet env.item.beryllium "16: 铍" w
+@beryllium
+endsnippet
+snippet env.item.tungsten "17: 钨" w
+@tungsten
+endsnippet
+snippet env.item.oxide "18: 氧化物" w
+@oxide
+endsnippet
+snippet env.item.carbide "19: 碳化物" w
+@carbide
+endsnippet
+snippet env.item.fissile-matter "20: 裂变产物 (隐藏)" w
+@fissile-matter
+endsnippet
+snippet env.item.dormant-cyst "21: 休眠囊肿 (隐藏)" w
+@dormant-cyst
+endsnippet
+
+snippet env.item.0  "copper 铜" w
+@copper
+endsnippet
+snippet env.item.1  "lead 铅" w
+@lead
+endsnippet
+snippet env.item.2  "metaglass 玻璃" w
+@metaglass
+endsnippet
+snippet env.item.3  "graphite 石墨" w
+@graphite
+endsnippet
+snippet env.item.4  "sand 沙子" w
+@sand
+endsnippet
+snippet env.item.5  "coal 煤炭" w
+@coal
+endsnippet
+snippet env.item.6  "titanium 钛" w
+@titanium
+endsnippet
+snippet env.item.7  "thorium 钍" w
+@thorium
+endsnippet
+snippet env.item.8  "scrap 废料" w
+@scrap
+endsnippet
+snippet env.item.9  "silicon 硅" w
+@silicon
+endsnippet
+snippet env.item.10 "plastanium 塑钢" w
+@plastanium
+endsnippet
+snippet env.item.11 "phase-fabric 相位物" w
+@phase-fabric
+endsnippet
+snippet env.item.12 "surge-alloy 巨浪合金" w
+@surge-alloy
+endsnippet
+snippet env.item.13 "spore-pod 孢子夹" w
+@spore-pod
+endsnippet
+snippet env.item.14 "blast-compound 爆炸混合物" w
+@blast-compound
+endsnippet
+snippet env.item.15 "pyratite 硫化物" w
+@pyratite
+endsnippet
+snippet env.item.16 "beryllium 铍" w
+@beryllium
+endsnippet
+snippet env.item.17 "tungsten 钨" w
+@tungsten
+endsnippet
+snippet env.item.18 "oxide 氧化物" w
+@oxide
+endsnippet
+snippet env.item.19 "carbide 碳化物" w
+@carbide
+endsnippet
+snippet env.item.20 "fissile-matter 裂变产物 (隐藏)" w
+@fissile-matter
+endsnippet
+snippet env.item.21 "dormant-cyst 休眠囊肿 (隐藏)" w
+@dormant-cyst
+endsnippet
+
+# env liquid variables
+snippet env.liquid.water "0: 水" w
+@water
+endsnippet
+snippet env.liquid.slag "1: 矿渣" w
+@slag
+endsnippet
+snippet env.liquid.oil "2: 油" w
+@oil
+endsnippet
+snippet env.liquid.cryofluid "3: 冷冻液" w
+@cryofluid
+endsnippet
+snippet env.liquid.neoplasm "4: 瘤液" w
+@neoplasm
+endsnippet
+snippet env.liquid.hydrogen "5: 氢" w
+@hydrogen
+endsnippet
+snippet env.liquid.ozone "6: 臭氧" w
+@ozone
+endsnippet
+snippet env.liquid.cyanogen "7: 氰气" w
+@cyanogen
+endsnippet
+snippet env.liquid.gallium "8: 镓 (隐藏)" w
+@gallium
+endsnippet
+snippet env.liquid.nitrogen "9: 氮" w
+@nitrogen
+endsnippet
+snippet env.liquid.arkycite "10: 芳油" w
+@arkycite
+endsnippet
+
+snippet env.liquid.0 "water 水" w
+@water
+endsnippet
+snippet env.liquid.1 "slag 矿渣" w
+@slag
+endsnippet
+snippet env.liquid.2 "oil 油" w
+@oil
+endsnippet
+snippet env.liquid.3 "cryofluid 冷冻液" w
+@cryofluid
+endsnippet
+snippet env.liquid.4 "neoplasm 瘤液" w
+@neoplasm
+endsnippet
+snippet env.liquid.5 "hydrogen 氢" w
+@hydrogen
+endsnippet
+snippet env.liquid.6 "ozone 臭氧" w
+@ozone
+endsnippet
+snippet env.liquid.7 "cyanogen 氰气" w
+@cyanogen
+endsnippet
+snippet env.liquid.8 "gallium 镓 (隐藏)" w
+@gallium
+endsnippet
+snippet env.liquid.9 "nitrogen 氮" w
+@nitrogen
+endsnippet
+snippet env.liquid.10 "arkycite 芳油" w
+@arkycite
 endsnippet
 
 # sensor expanded
