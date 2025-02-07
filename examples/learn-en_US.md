@@ -900,8 +900,8 @@ the most common being DExp, which compiles the included statements to obtain its
 - ValueBindRef (`X->..`): Equivalent to following it
 - ValueBindRef (`X->Name`): Equivalent to take ValueBind `X.Name`
 - ClosuredValue: First set the capture environment, then take the inner value
-  see [ClosuredValue (闭包值)](#ClosuredValue-闭包值) for details
-- Cmper: Compile error, see [条件依赖和条件内联](#条件依赖和条件内联) for details
+  see [ClosuredValue](#ClosuredValue) for details
+- Cmper: Compile error, see [Comparison Dependency and Comparison Inline](#Comparison-Dependency-and-Comparison-Inline) for details
 
 
 ValueBind
@@ -939,32 +939,29 @@ print 3
 printflush message1
 ```
 
-在上面那段代码中, 使用到了三个新知识点
+In the above example, three new knowledge were used
 
 1. Take Statement: When you need to take some values but don't care about the handle,
    you can use the take statement
 2. Binder: Write as `..`,
-   It is a type of Value that expands to the handle to which the innermost value is binded
+   It is a type of Value that expands to the handle to which the innermost value is binded.
 
    Similar to `self` or `this` in other languages
-3. 常量表中值的绑定者: 常量表并不止被 const 的值, 还包含重命名标签和绑定者,
-   在后面有详细介绍
+3. Constant metadata: The constants in the constant table are not only the const values,
+   but also include labels and binder, which will be explained in detail later
 
-可以看到仅使用一个 const, 就可以把 X Y Print 的映射关系都传递到了 FooVec,
-毕竟求值后都是同一个量
-
-
-> [!TIP]
-> 对于可以被进行 const 的东西, 我们将其称之为 ConstKey,
-> 包含了上述提到的 Var 和 ValueBind
+It can be seen that by using const only once,
+the mapping relationship between X, Y, and Print can be passed to FooVec,
+because after taking, they are all the same Var
 
 
-Take 语句
+Take Statement
 -------------------------------------------------------------------------------
-在上文中我们使用了 take 语句, 在这里介绍它基本的用法
+In the previous text, we used the take statement, and here we introduce its basic usage
 
-在上文中, 我们使用了它的一种基本形式, 也就是直接往里面写值,
-需要求值但是不关心其返回句柄的时候, 例如如下代码
+We can use one basic usage of it, which is to directly add `take` before Other Statement
+
+Used when taking is required but not concerned with its handle, for example:
 
 ```
 const F = (
@@ -986,13 +983,17 @@ print "Plan B"
 print 2
 print 2
 ```
-可以看出, 使用方案A会在编译结果中得到`__0`和`__1`这两个生成的句柄,
-但是我们这次并不需要它们, 所以可以使用 take 语句, 虽然求值, 但是无视其句柄
+It can be seen that using Plan A will result in two generated handles,
+`__0` and `__1`, in the compilation result
+
+But we don't need these handles, so we can use the take statement.
+Although take, ignore the handles
 
 
 ---
-我们有时需要句柄, 但是并不想立即使用, 或者在多处使用只想求值一次的情况,
-我们可以使用 take 的另一种形式
+Sometimes we need a handle, but we don't want to use it immediately,
+or in situations where we use it in multiple places and only want to take it once,
+we can use another use of take
 
 ```
 a, b = 2, 3;
@@ -1015,18 +1016,20 @@ print add1
 printflush message1
 ```
 
-`take Value = F;` 其运作原理是, take 先将`F`进行求值, 然后此时将得到的句柄,
-进行类似 const 的流程
+`take Value = F;`  The operating principle is that, Take `F` first,
+and then perform const on the obtained handle
 
-假设`F`求值的句柄是`X`, 那么此时求值后发生的类似`` const Value = `X`; ``,
-`X`使用 ReprVar 因为这并不会对`X`再次追溯
+If the handle obtained after taking `F` is `X`, then what happens after taking is similar to `` const Value = `X`; ``.
+
+`X` uses ReprVar because it will not cause `X` to follow again
 
 
-关于 const 时的细节
+Details about Const
 -------------------------------------------------------------------------------
-有一个知识, 就是当你 const 的时候, 并不仅是值被打进了常量表,
-其实还有绑定者和标签, 标签是构建时被记录在 const 语句上的,
-使用`A`选项就能看到, 例如:
+When you perform const, not only are values added to the constant table,
+but also binders and labels, The label is captured on the const statement during build,
+
+By using `A`, you can see the label, for example:
 
 ```
 const Foo = (
@@ -1035,7 +1038,7 @@ const Foo = (
     goto :foo;
 );
 ```
-构建为
+Build to:
 ```
 const Foo = (
     :foo
@@ -1043,14 +1046,16 @@ const Foo = (
     goto :foo _;
 );#*labels: [foo]*#
 ```
-可以从这种形式 const 后面的注释中看到有哪些标签
 
-对绑定者来说, 如果你 const 的值本身追溯的目标就有绑定者,
-那么这个绑定者将采用追溯目标的,
-否则如果你的 const 绑定到的是一个值绑定, 那么绑定者将会使用值绑定被绑定值的句柄
+At this point, you can see from the comments after const which labels have been captured
+
+About binder:
+- use binder of follow result, when follow result with binder
+- use ralueBind binded value handle, when const target is ValueBind
+- else, the binder will be None
 
 
-关于求值时的细节
+Details about Take
 -------------------------------------------------------------------------------
 当你对一个量进行求值且在常量表中查找到一个值时, 大致会发生以下步骤
 
@@ -1257,7 +1262,7 @@ print ")"
 > 都不会像直接编写 const 语句那样收集标签
 >
 > 所以对于要传入被重复展开的地方时, 建议使用 Consted-DExp,
-> 在之后的[常用语法糖](#常用语法糖)会讲
+> 在之后的[Common Syntax Sugar](#Common-Syntax-Sugar)会讲
 
 
 
@@ -1382,26 +1387,32 @@ foo 7
 > 所以对于一些值你可能需要先求值再给重复块使用
 
 
-常用语法糖
+Common Syntax Sugar
 ===============================================================================
-在这里介绍一些常用的语法糖, 语法糖大致表示用更简洁或更方便的方式写出来,
-但是构建后基本是一样的结果的语法, 通常是为了方便编写而设计的
+Here are some commonly used syntax sugar introduced.
 
-**建议完整阅读此章节, 语法糖很方便, 虽然有点多**
+Syntax sugar are generally written using more convenient syntax,
+but the build results are basically equivalent
 
-在这章中会介绍大部分语法糖的常用用例, 读者可以以此类推
+**I suggest reading this chapter in its entirety.
+Syntax sugar is very convenient, although it may be a bit too much**
 
-用例上半部分是原始形式, 下半部分是语法糖形式
+In this chapter, most examples of the use of syntax sugar will be introduced,
+and readers can follow suit
+
+The upper part of the use case is in its original form,
+while the lower part is in syntax sugar form
 
 > [!NOTE]
-> `___0` `___1` 这种格式通常是构建期分配的临时量, 通常并不会在结果中看到
+> `___0` `___1` This is a temporary Var generated during build, usually not seen in the output result
 >
-> `__0` `__1` 这种通常是编译期分配的临时量, 经常在 DExp 的句柄看到
+> `__0` `__1` This is a temporary Var generated during compilation, often seen in DExp handles
 >
-> 这两种形式都不要手动写, 以下示例只是为了演示语法糖
+> Do not manually write either of these Vars,
+> the following examples are only for demonstrating syntax sugar
 
 
-## 单分支匹配语法
+## One Branch Match
 ```
 match a @ b {
     X @ Y { print X @ Y; }
@@ -1417,14 +1428,14 @@ const match a @ b => X @ Y { print X @ Y; }
 ```
 
 
-## Take 省略返回句柄
+## Take Ignore Result Handle
 ```
 take __ = Value;
 take Value;
 ```
 
 
-## 重复块匹配语法
+## Repeating Block Match
 ```
 inline 1@ { const match @ => V {
     print V;
@@ -1445,7 +1456,7 @@ inline@ A B {
 
 
 ## op-expr
-对, 这个也是语法糖, 之前已经介绍过许多了
+This is also syntax sugar, which has been roughly introduced in previous chapters
 
 ```
 { a = 1; b = 2; }
@@ -1571,7 +1582,7 @@ x--;
 
 
 ## if elif else skip while do-while gwhile switch break continue
-这些也是语法糖, 之前介绍过了
+These are also syntax sugar, which has been roughly introduced in previous chapters
 
 
 ## Quick DExp Take Reference
@@ -1595,8 +1606,13 @@ take Do[const(:x goto :x;)];
 ```
 
 > [!NOTE]
-> 使用这种方式是因为, 传参过程中, 参数不会被记录标签等, 需要经过一下 const,
-> 否则标签不会被重命名, 重复展开就会炸, 所以需要这个语法糖, 使其好看一些
+> The reason for using const is that during the parameter passing process,
+> the parameter does not capture the label
+>
+> Const is required before taking, otherwise the tag will not be renamed
+>
+> If there is no renaming, repeating 'take' will result in duplicate tag definitions,
+> so this syntax sugar is needed to make it more convenient
 
 
 ## Statement like value op-expr
@@ -1616,14 +1632,16 @@ print (?x: a);
 ```
 
 ```
-print ($ = (__: setres a; $ += 1;);); # 这里需要额外赋值一次
+print ($ = (__: setres a; $ += 1;);); # We need to set an additional value here
 print ($ = ++a;);
 print (?++a);
 ```
 
 > [!NOTE]
-> `(?++a)` 这种方式非常低效, 在`++`这类发明出来之前, `(?)`就已经够用了,
-> 详见接下来的`(*)`
+> The `(?++a)` is highly discouraged.
+>
+> Before supporting operations like `++`, `(?)` is already sufficient.
+> Please refer to the following `(*)` for details
 
 
 ## Value like value op-expr
@@ -1646,7 +1664,9 @@ print (*a++);
 print (__: setres a; $ += 1;);
 print (*++a);
 ```
-这种形式的 op-expr 展开为的是值形式, 而不是语句形式, 这种情况可以有更好的结果
+
+This syntax uses op-expr to expand into values instead of into statements,
+which can result in better outcomes
 
 
 ## Multi print
@@ -1656,7 +1676,7 @@ inline {
     `'print'` 2;
     inline@{ `'print'` @; }
     `'print'` 3;
-} # 使用'print'避开关键字
+} # Use 'print' to avoid being parsed as keywords
 print 1 2 @ 3;
 ```
 
@@ -1725,7 +1745,7 @@ const C = goto({
 const C = goto(=>[a b] _0 < _1);
 ```
 
-这在之后会讲到
+This will be explained in detail later
 
 
 ## Packed Statement Inc and Dec
@@ -1756,13 +1776,15 @@ inline {
 Foo! i--;
 ```
 
-用于在一些特定的情况将参数的后缀自增自减添加至当前语句之后 (**和op-expr没有关系**)
+Used to increment and decrement the suffix of a parameter in certain specific situations,
+adding it to the end of the current statement (**is not op-expr!**)
 
 
 ## Packed DExp like
-一些 DExp 在语法上不能被直接使用, 需要使用包裹语法`(%)`
+Some DExp syntax cannot be directly used in certain places and require the use of packed syntax `(%)`
 
-这算是语法设计的妥协, 也可以提醒过长的 DExp 后面可能接着其它东西
+This can be considered a compromise in syntax design,
+and it can also serve as a reminder that lengthy DExp may be followed by other things
 
 ```
 print ().x; # syntax error
@@ -1775,14 +1797,15 @@ print (%v: $.x = 2;%).x;
 ```
 
 
-各种高级的值
+Some Advanced Values
 ===============================================================================
 
-- 比较者 (Cmper): 用于条件内联, 详见 [条件依赖和条件内联](#条件依赖和条件内联)
-- 闭包值 (ClosuredValue): 用于追溯时捕获环境, 详见 [ClosuredValue (闭包值)](#ClosuredValue-闭包值)
+- Cmper: Be used for Comparison Inline,
+  see [Comparison Dependency and Comparison Inline](#Comparison-Dependency-and-Comparison-Inline) for details
+- ClosuredValue: Capture environment when following, see [ClosuredValue](#ClosuredValue) for details
 
 
-ClosuredValue (闭包值)
+ClosuredValue
 ===============================================================================
 这个值可以在追溯时在内部将一些追溯处的值进行提前绑定、求值,
 然后在自身求值前将提前绑定、求值的值在当前环境中使用
@@ -1825,7 +1848,7 @@ print 2
 然后再求值内部包含的值, 类似`setres Closure.__Value;`
 
 
-参数捕获
+Parameter Capture
 -------------------------------------------------------------------------------
 参数捕获可以让闭包捕获追溯处的参数, 并在内部值求值前设置参数(包括 `_0` `_1`)等
 
@@ -1850,7 +1873,7 @@ print a
 可以从编译结果看出, 它设置了参数, 也设置了老式参数, 并没有出现 `c d`
 
 
-标签捕获
+Label Capture
 -------------------------------------------------------------------------------
 标签捕获可以捕获捕获处重命名后的标签,
 主要可以方便的从 DExp 外面跳进展开过的 DExp 里面,
@@ -1903,9 +1926,10 @@ __0_const_Builder_x:
 明显能看到jump的标签和重命名后的标签不一致, 这样正常编译就会失败
 
 
-一些语句的扩展用法
+Advanced Usage of Some Statements
 ===============================================================================
-一些语句有一些实用的扩展用法, 在这章进行简单介绍
+Some statements have practical advanced usage,
+which will be briefly introduced in this chapter
 
 
 关于有序整数分支结构的穿透 (select switch)
@@ -2142,8 +2166,8 @@ gswitch catch
 -------------------------------------------------------------------------------
 类似于 switch, gswitch 也有 catch, 不过组合顺序是固定的, 且不用写在头部
 
-组合顺序为 `< ! >`, 并且后面还可以跟一个 ConstKey,
-用于将 gswitch 使用的跳转编号进行 const, 为了方便而设计
+组合顺序为 `< ! >`, 并且后面还可以跟一个量或值绑定,
+用于将 gswitch 使用的跳转编号句柄 const 给它, 为了方便而设计
 
 与 [switch-catch](#switch-catch) 不同的是, 它并不加在头部,
 而是和其它普通 case 加在一起, 且也会应用 append
@@ -2359,7 +2383,7 @@ print Foo;
 具体列表详见 [builtin-functions](./builtin_functions.mdtlbl)
 
 
-条件依赖和条件内联
+Comparison Dependency and Comparison Inline
 ===============================================================================
 在 [Complex Comparison (CmpTree)](#Complex-Comparison-CmpTree) 一章中,
 有说到 `({print 2;} => a < b)` 这种写法, 可以在使用一个条件前,
