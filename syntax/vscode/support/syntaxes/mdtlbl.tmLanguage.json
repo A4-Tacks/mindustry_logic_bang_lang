@@ -36,7 +36,7 @@
 			"patterns": [
 				{
 					"name": "keyword.control.mdtlbl",
-					"match": "\\b(if|elif|else|do|while|for|take|goto|switch|case|skip|gwhile|setres|select|match|break|continue)\\b"
+					"match": "\\b(if|elif|else|do|while|for|take|goto|switch|gswitch|case|skip|gwhile|setres|select|match|break|continue)\\b"
 				},
 				{
 					"name": "storage.modifier.mdtlbl",
@@ -44,11 +44,11 @@
 				},
 				{
 					"name": "entity.name.function.mdtlbl",
-					"match": "\\b(op|read|write|draw|print|drawflush|printflush|getlink|control|radar|sensor|lookup|packcolor|wait|stop|ubind|ucontrol|uradar|ulocate|end)\\b"
+					"match": "\\b(op|read|write|draw|print|format|drawflush|printflush|getlink|control|radar|sensor|lookup|packcolor|wait|stop|ubind|ucontrol|uradar|ulocate|end)\\b"
 				},
 				{
 					"name": "storage.modifier.mdtlbl",
-					"match": "\\b(equal|notEqual|strictNotEqual|lessThan|lessThanEq|greaterThan|greaterThanEq|strictEqual|always|lnot|add|sub|mul|div|idiv|mod|pow|shl|shr|or|and|land|xor|max|min|angle|len|noise|not|abs|log|log10|floor|ceil|sqrt|rand|sin|cos|tan|asin|acos|atan)\\b"
+					"match": "\\b(equal|notEqual|strictNotEqual|lessThan|lessThanEq|greaterThan|greaterThanEq|strictEqual|always|lnot|add|sub|mul|div|idiv|mod|pow|shl|shr|or|and|land|xor|max|min|angle|angleDiff|len|noise|not|abs|log|log10|floor|ceil|sqrt|rand|sin|cos|tan|asin|acos|atan)\\b"
 				},
 				{
 					"match": "(!|&&|\\|\\|)",
@@ -79,9 +79,6 @@
 				},
 				{
 					"include": "#qstring-double"
-				},
-				{
-					"include": "#qstring-format"
 				}
 			]
 		},
@@ -93,10 +90,21 @@
 				"0": {
 					"name": "punctuation.definition.string.mdtlbl"
 				}
-			}
+			},
+			"patterns": [
+				{
+					"name": "constant.character.escape",
+					"match": "\\\\(?:[\\\\\"n ]|$|(.))",
+					"captures": {
+						"1": {
+							"name": "invalid.illegal"
+						}
+					}
+				}
+			]
 		},
 		"qstring-single": {
-			"name": "string.quoted.single.mdtlbl",
+			"name": "variable.other.readwrite.mdtlbl",
 			"begin": "'",
 			"end": "'",
 			"captures": {
@@ -188,11 +196,15 @@
 		"special-constants": {
 			"patterns": [
 				{
-					"match": "\\b(true|false|noop)\\b",
+					"match": "\\b(true|false|null|noop)\\b",
 					"name": "constant.language.mdtlbl"
 				},
 				{
-					"match": "\\$",
+					"match": "[$`]|\\.\\.|->",
+					"name": "constant.language.mdtlbl"
+				},
+				{
+					"match": "@(?![_\\p{XID_Start}])",
 					"name": "constant.language.mdtlbl"
 				}
 			]

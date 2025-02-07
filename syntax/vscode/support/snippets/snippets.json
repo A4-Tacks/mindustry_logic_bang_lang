@@ -1,328 +1,2217 @@
 {
     "while": {
         "prefix": "while",
+        "description": "while",
         "body": [
-            "while ${1:_} {",
+            "while ${1} {",
             "\t$0",
             "}"
-        ],
-        "description": "while"
+        ]
     },
     "gwhile": {
         "prefix": "gwhile",
+        "description": "gwhile",
         "body": [
-            "gwhile ${1:_} {",
+            "gwhile ${1} {",
             "\t$0",
             "}"
-        ],
-        "description": "gwhile"
+        ]
     },
     "do_while": {
         "prefix": "do_while",
+        "description": "do_while",
         "body": [
             "do {",
             "\t$0",
-            "} while ${1:_};"
-        ],
-        "description": "do_while"
+            "} while ${1};"
+        ]
+    },
+    "do_while for": {
+        "prefix": "do_for",
+        "description": "do_while for",
+        "body": [
+            "$1 = ${2:0}; do {",
+            "\t$0",
+            "} while (*++$1) < $3;"
+        ]
     },
     "goto": {
         "prefix": "goto",
+        "description": "goto",
         "body": [
-            "goto :${1:tag} ${2:_};$0"
-        ],
-        "description": "goto"
+            "goto :$1;"
+        ]
     },
     "skip": {
         "prefix": "skip",
+        "description": "skip",
         "body": [
-            "skip ${1:_} {",
+            "skip ${1} {",
             "\t$0",
             "}"
-        ],
-        "description": "skip"
+        ]
     },
     "if": {
         "prefix": "if",
+        "description": "if",
         "body": [
             "if $1 {",
             "\t$0",
             "}"
-        ],
-        "description": "if"
+        ]
     },
     "elif": {
         "prefix": "elif",
+        "description": "elif",
         "body": [
             "elif $1 {",
             "\t$0",
             "}"
-        ],
-        "description": "elif"
+        ]
     },
     "else": {
         "prefix": "else",
+        "description": "else",
         "body": [
             "else {",
             "\t$0",
             "}"
-        ],
-        "description": "else"
-    },
-    "else line": {
-        "prefix": "elsel",
-        "body": [
-            "else",
-            "\t$0"
-        ],
-        "description": "else line"
+        ]
     },
     "inline { ... }": {
         "prefix": "inline_block",
+        "description": "inline { ... }",
         "body": [
             "inline {",
             "\t$0",
             "}"
-        ],
-        "description": "inline { ... }"
+        ]
+    },
+    "inline@{ ... }": {
+        "prefix": "repeat_block",
+        "description": "inline@{ ... }",
+        "body": [
+            "inline$1@ $2{",
+            "\t$0",
+            "}"
+        ]
     },
     "const value": {
         "prefix": "const",
+        "description": "const value",
         "body": [
-            "const ${1:NAME} = ${2:value};$0"
-        ],
-        "description": "const value"
+            "const ${1:\\$.$2} = ${3};"
+        ]
     },
     "take": {
         "prefix": "take",
+        "description": "take",
         "body": [
-            "take${1:[${2}]} ${3:${4:RES} = }${5:VALUE};"
-        ],
-        "description": "take"
+            "take ${1:${2:\\$.$3} = ${4}};"
+        ]
+    },
+    "const bind to var": {
+        "prefix": "using",
+        "description": "const bind to var",
+        "body": [
+            "$2=$1->$2"
+        ]
     },
     "take arg": {
         "prefix": "argt",
+        "description": "take arg",
         "body": [
-            "take ${1:Arg} = _${2:0};$0"
-        ],
-        "description": "take arg"
+            "take ${1:Arg} = _${2:0};"
+        ]
     },
     "const arg": {
         "prefix": "argc",
+        "description": "const arg",
         "body": [
-            "const ${1:Arg} = _${2:0};$0"
-        ],
-        "description": "const arg"
+            "const ${1:Arg} = _${2:0};"
+        ]
     },
     "op self": {
         "prefix": "iop",
+        "description": "op self",
         "body": [
-            "op ${1:i} $1 ${2:+} ${3:1};$0"
-        ],
-        "description": "op self"
-    },
-    "switch": {
-        "prefix": "switch",
-        "body": [
-            "switch $1 {",
-            "\t$0",
-            "}"
-        ],
-        "description": "switch"
-    },
-    "switch-case": {
-        "prefix": "case",
-        "body": [
-            "case ${1:0}:$0"
-        ],
-        "description": "switch-case"
-    },
-    "op result a + b;": {
-        "prefix": "op",
-        "body": [
-            "op ${1:result} ${2:a} ${3:+} ${4:b};$0"
-        ],
-        "description": "op result a + b;"
-    },
-    "print values;": {
-        "prefix": "print",
-        "body": [
-            "print ${1:\"frog\"};$0"
-        ],
-        "description": "print values;"
-    },
-    "a = b;": {
-        "prefix": "set",
-        "body": [
-            "${1} = ${2};"
-        ],
-        "description": "a = b;"
-    },
-    "read result cell1 0;": {
-        "prefix": "read",
-        "body": [
-            "read ${1:result} ${2:cell1} ${3:0};$0"
-        ],
-        "description": "read result cell1 0;"
-    },
-    "write result cell1 0;": {
-        "prefix": "write",
-        "body": [
-            "write ${1:result} ${2:cell1} ${3:0};$0"
-        ],
-        "description": "write result cell1 0;"
-    },
-    "draw clear 0 0 0 0 0 0": {
-        "prefix": "draw",
-        "body": [
-            "draw ${1:clear} ${2:0} ${3:0} ${4:0} 0 0 0;$0"
-        ],
-        "description": "draw clear 0 0 0 0 0 0"
-    },
-    "set DExp result handle": {
-        "prefix": "setres",
-        "body": [
-            "setres ${1:RES};$0"
-        ],
-        "description": "set DExp result handle"
-    },
-    "break top-level loop": {
-        "prefix": "break",
-        "body": [
-            "break$1;$0"
-        ],
-        "description": "break top-level loop"
-    },
-    "continue top-level loop": {
-        "prefix": "continue",
-        "body": [
-            "continue$1;$0"
-        ],
-        "description": "continue top-level loop"
-    },
-    "use take define tmp var": {
-        "prefix": "tmpvar",
-        "body": [
-            "take ${1:var} = ();$0"
-        ],
-        "description": "use take define tmp var"
-    },
-    "printflush message1": {
-        "prefix": "printflush",
-        "body": [
-            "printflush ${1:message1};$0"
-        ],
-        "description": "printflush message1"
-    },
-    "drawflush message1": {
-        "prefix": "drawflush",
-        "body": [
-            "drawflush ${1:display1};$0"
-        ],
-        "description": "drawflush message1"
+            "$1 ${2:+}= $3;"
+        ]
     },
     "select": {
         "prefix": "select",
+        "description": "select",
         "body": [
             "select $1 {",
             "\t$0",
             "}"
-        ],
-        "description": "select"
+        ]
     },
-    "#**\\n...\\n*#": {
-        "prefix": "doccomments",
+    "switch": {
+        "prefix": "switch",
+        "description": "switch",
         "body": [
-            "#**",
-            "* $1",
-            "*#$0"
-        ],
-        "description": "#**\\n...\\n*#"
+            "switch $1 {",
+            "\t$0",
+            "}"
+        ]
     },
-    "enabled | shoot[p] | config | color": {
-        "prefix": "control",
+    "gswitch": {
+        "prefix": "gswitch",
+        "description": "gswitch",
         "body": [
-            "control ${1:enabled} ${2:block1} ${3:false} 0 0 0;$0"
-        ],
-        "description": "enabled | shoot[p] | config | color"
+            "gswitch $1 {",
+            "\t$0",
+            "}"
+        ]
     },
-    "unit bind": {
-        "prefix": "ubind",
+    "switch-case": {
+        "prefix": "case",
+        "description": "switch-case",
         "body": [
-            "ubind ${2:@${1:poly}};$0"
-        ],
-        "description": "unit bind"
+            "case ${1}:$0"
+        ]
     },
-    "unit control": {
-        "prefix": "ucontrol",
+    "op result a + b;": {
+        "prefix": "op",
+        "description": "op result a + b;",
         "body": [
-            "ucontrol ${1:move} ${2:0} ${3:0} 0 0 0;$0"
-        ],
-        "description": "unit control"
+            "op ${1} ${2} ${3:+} ${4};"
+        ]
     },
-    "unit locate": {
-        "prefix": "ulocate",
+    "print values;": {
+        "prefix": "print",
+        "description": "print values;",
         "body": [
-            "ulocate building core true @copper outx outy found building;$0"
-        ],
-        "description": "unit locate"
+            "print ${1:\"$2\"};"
+        ]
     },
-    "unit radar": {
-        "prefix": "uradar",
+    "a = b;": {
+        "prefix": "set",
+        "description": "a = b;",
         "body": [
-            "uradar enemy any any distance 0 1 result;$0"
-        ],
-        "description": "unit radar"
-    },
-    "radar": {
-        "prefix": "radar",
-        "body": [
-            "radar enemy any any distance turret1 1 result;$0"
-        ],
-        "description": "radar"
-    },
-    "block | unit | item | liquid": {
-        "prefix": "lookup",
-        "body": [
-            "lookup ${1:item} ${2:result} ${3:0};$0"
-        ],
-        "description": "block | unit | item | liquid"
-    },
-    "sleep sec": {
-        "prefix": "sleep",
-        "body": [
-            "wait ${1:0.5};$0"
-        ],
-        "description": "wait sec"
-    },
-    "wait sec": {
-        "prefix": "wait",
-        "body": [
-            "wait ${1:0.5};$0"
-        ],
-        "description": "wait sec"
-    },
-    "getlink": {
-        "prefix": "getlink",
-        "body": [
-            "getlink ${1:block} ${2:0};$0"
-        ],
-        "description": "getlink"
-    },
-    "sensor": {
-        "prefix": "sensor",
-        "body": [
-            "sensor ${1:result} ${2:block1} ${3:@${4:copper}};$0"
-        ],
-        "description": "sensor"
+            "${1:\\$} = ${2};"
+        ]
     },
     "match args... { (pattern body)... }": {
         "prefix": "match",
+        "description": "match args... { (pattern body)... }",
         "body": [
-            "match $1 {",
+            "match ${1:@} {",
             "\t$0",
             "}"
-        ],
-        "description": "match args... { (pattern body)... }"
+        ]
+    },
+    "const match args... { (pattern body)... }": {
+        "prefix": "cmatch",
+        "description": "const match args... { (pattern body)... }",
+        "body": [
+            "const match ${1:@} {",
+            "\t$0",
+            "}"
+        ]
+    },
+    "set DExp result handle": {
+        "prefix": "setres",
+        "description": "set DExp result handle",
+        "body": [
+            "setres ${1:RES};"
+        ]
+    },
+    "break top-level loop": {
+        "prefix": "break",
+        "description": "break top-level loop",
+        "body": [
+            "break$1;"
+        ]
+    },
+    "continue top-level loop": {
+        "prefix": "continue",
+        "description": "continue top-level loop",
+        "body": [
+            "continue$1;"
+        ]
+    },
+    "use take define tmp var": {
+        "prefix": "tmpvar",
+        "description": "use take define tmp var",
+        "body": [
+            "take+$1;"
+        ]
+    },
+    "#**\\n...\\n*#": {
+        "prefix": "doccomments",
+        "description": "#**\\n...\\n*#",
+        "body": [
+            "* $1",
+            "*#$0"
+        ]
+    },
+    "Builtin.Type[$1]": {
+        "prefix": "_Type",
+        "description": "Builtin.Type[$1]",
+        "body": [
+            "Builtin.Type[$1]"
+        ]
+    },
+    "Builtin.Stringify[$1]": {
+        "prefix": "_Stringify",
+        "description": "Builtin.Stringify[$1]",
+        "body": [
+            "Builtin.Stringify[$1]"
+        ]
+    },
+    "Builtin.Concat[$1]": {
+        "prefix": "_Concat",
+        "description": "Builtin.Concat[$1]",
+        "body": [
+            "Builtin.Concat[$1]"
+        ]
+    },
+    "Builtin.Unbind[$1]": {
+        "prefix": "_Unbind",
+        "description": "Builtin.Unbind[$1]",
+        "body": [
+            "Builtin.Unbind[$1]"
+        ]
+    },
+    "Builtin.Binder[$1 $2]": {
+        "prefix": "_Binder",
+        "description": "Builtin.Binder[$1 $2]",
+        "body": [
+            "Builtin.Binder[$1 $2]"
+        ]
+    },
+    "Builtin.BindHandle[$1]": {
+        "prefix": "_BindHandle",
+        "description": "Builtin.BindHandle[$1]",
+        "body": [
+            "Builtin.BindHandle[$1]"
+        ]
+    },
+    "Builtin.BindHandle2[$1 $2]": {
+        "prefix": "_BindHandle2",
+        "description": "Builtin.BindHandle2[$1 $2]",
+        "body": [
+            "Builtin.BindHandle2[$1 $2]"
+        ]
+    },
+    "Builtin.Status[]": {
+        "prefix": "_Status",
+        "description": "Builtin.Status[]",
+        "body": [
+            "Builtin.Status[]"
+        ]
+    },
+    "Builtin.ArgsLen[]": {
+        "prefix": "_ArgsLen",
+        "description": "Builtin.ArgsLen[]",
+        "body": [
+            "Builtin.ArgsLen[]"
+        ]
+    },
+    "Builtin.ArgsHandle[$1]": {
+        "prefix": "_ArgsHandle",
+        "description": "Builtin.ArgsHandle[$1]",
+        "body": [
+            "Builtin.ArgsHandle[$1]"
+        ]
+    },
+    "Builtin.MaxExpandDepth[]": {
+        "prefix": "_MaxExpandDepth",
+        "description": "Builtin.MaxExpandDepth[]",
+        "body": [
+            "Builtin.MaxExpandDepth[]"
+        ]
+    },
+    "Builtin.RepeatLimit[]": {
+        "prefix": "_RepeatLimit",
+        "description": "Builtin.RepeatLimit[]",
+        "body": [
+            "Builtin.RepeatLimit[]"
+        ]
+    },
+    "Builtin.EvalNum[$1]": {
+        "prefix": "_EvalNum",
+        "description": "Builtin.EvalNum[$1]",
+        "body": [
+            "Builtin.EvalNum[$1]"
+        ]
+    },
+    "Builtin.IsString[$1]": {
+        "prefix": "_IsString",
+        "description": "Builtin.IsString[$1]",
+        "body": [
+            "Builtin.IsString[$1]"
+        ]
+    },
+    "Builtin.RefArg[$1]": {
+        "prefix": "_RefArg",
+        "description": "Builtin.RefArg[$1]",
+        "body": [
+            "Builtin.RefArg[$1]"
+        ]
+    },
+    "Builtin.Info! $1;": {
+        "prefix": "_Info",
+        "description": "Builtin.Info! $1;",
+        "body": [
+            "Builtin.Info! $1;"
+        ]
+    },
+    "Builtin.Err! $1;": {
+        "prefix": "_Err",
+        "description": "Builtin.Err! $1;",
+        "body": [
+            "Builtin.Err! $1;"
+        ]
+    },
+    "Builtin.Const! $1 $2;": {
+        "prefix": "_Const",
+        "description": "Builtin.Const! $1 $2;",
+        "body": [
+            "Builtin.Const! $1 $2;"
+        ]
+    },
+    "Builtin.Debug! $1;": {
+        "prefix": "_Debug",
+        "description": "Builtin.Debug! $1;",
+        "body": [
+            "Builtin.Debug! $1;"
+        ]
+    },
+    "Builtin.DebugBinds! $1;": {
+        "prefix": "_DebugBinds",
+        "description": "Builtin.DebugBinds! $1;",
+        "body": [
+            "Builtin.DebugBinds! $1;"
+        ]
+    },
+    "Builtin.Exit! $1;": {
+        "prefix": "_Exit",
+        "description": "Builtin.Exit! $1;",
+        "body": [
+            "Builtin.Exit! $1;"
+        ]
+    },
+    "Builtin.SliceArgs! $1 $2;": {
+        "prefix": "_SliceArgs",
+        "description": "Builtin.SliceArgs! $1 $2;",
+        "body": [
+            "Builtin.SliceArgs! $1 $2;"
+        ]
+    },
+    "Builtin.MetaDebug!;": {
+        "prefix": "_MetaDebug",
+        "description": "Builtin.MetaDebug!;",
+        "body": [
+            "Builtin.MetaDebug!;"
+        ]
+    },
+    "Builtin.SetMaxExpandDepth! $1;": {
+        "prefix": "_SetMaxExpandDepth",
+        "description": "Builtin.SetMaxExpandDepth! $1;",
+        "body": [
+            "Builtin.SetMaxExpandDepth! $1;"
+        ]
+    },
+    "Builtin.SetRepeatLimit! $1;": {
+        "prefix": "_SetRepeatLimit",
+        "description": "Builtin.SetRepeatLimit! $1;",
+        "body": [
+            "Builtin.SetRepeatLimit! $1;"
+        ]
+    },
+    "Builtin.ExpandStack!;": {
+        "prefix": "_ExpandStack",
+        "description": "Builtin.ExpandStack!;",
+        "body": [
+            "Builtin.ExpandStack!;"
+        ]
+    },
+    "Builtin.MissesMatch! $1;": {
+        "prefix": "_MissesMatch",
+        "description": "Builtin.MissesMatch! $1;",
+        "body": [
+            "Builtin.MissesMatch! $1;"
+        ]
+    },
+    "Builtin.NewBind! $1;": {
+        "prefix": "_NewBind",
+        "description": "Builtin.NewBind! $1;",
+        "body": [
+            "Builtin.NewBind! $1;"
+        ]
+    },
+    "Builtin.BindSep! $1;": {
+        "prefix": "_BindSep",
+        "description": "Builtin.BindSep! $1;",
+        "body": [
+            "Builtin.BindSep! $1;"
+        ]
+    },
+    "Builtin.SetNoOp! $1;": {
+        "prefix": "_SetNoOp",
+        "description": "Builtin.SetNoOp! $1;",
+        "body": [
+            "Builtin.SetNoOp! $1;"
+        ]
+    },
+    "Builtin.StopRepeat! $1;": {
+        "prefix": "_StopRepeat",
+        "description": "Builtin.StopRepeat! $1;",
+        "body": [
+            "Builtin.StopRepeat!;"
+        ]
+    },
+    "read result cell1 0;": {
+        "prefix": "read",
+        "description": "read result cell1 0;",
+        "body": [
+            "read ${1:result} ${2:cell1} ${3:0};"
+        ]
+    },
+    "write result cell1 0;": {
+        "prefix": "write",
+        "description": "write result cell1 0;",
+        "body": [
+            "write ${1:result} ${2:cell1} ${3:0};"
+        ]
+    },
+    "draw clear 0 0 0 0 0 0": {
+        "prefix": "draw",
+        "description": "draw clear 0 0 0 0 0 0",
+        "body": [
+            "draw ${1:clear} ${2:0} ${3:0} ${4:0} 0 0 0;"
+        ]
+    },
+    "format": {
+        "prefix": "format",
+        "description": "format",
+        "body": [
+            "format $1;"
+        ]
+    },
+    "drawflush message1": {
+        "prefix": "drawflush",
+        "description": "drawflush message1",
+        "body": [
+            "drawflush ${1:display1};"
+        ]
+    },
+    "printflush message1": {
+        "prefix": "printflush",
+        "description": "printflush message1",
+        "body": [
+            "printflush ${1:message1};"
+        ]
+    },
+    "getlink": {
+        "prefix": "getlink",
+        "description": "getlink",
+        "body": [
+            "getlink ${1:block} ${2:0};"
+        ]
+    },
+    "enabled | shoot[p] | config | color": {
+        "prefix": "control",
+        "description": "enabled | shoot[p] | config | color",
+        "body": [
+            "control ${1:enabled} ${2:block1} ${3:false} 0 0 0;"
+        ]
+    },
+    "radar": {
+        "prefix": "radar",
+        "description": "radar",
+        "body": [
+            "radar enemy any any distance turret1 1 result;"
+        ]
+    },
+    "sensor": {
+        "prefix": "sensor",
+        "description": "sensor",
+        "body": [
+            "sensor ${1:result} ${2:block1} ${3:@${4:copper}};"
+        ]
+    },
+    "block | unit | item | liquid": {
+        "prefix": "lookup",
+        "description": "block | unit | item | liquid",
+        "body": [
+            "lookup ${1:item} ${2:result} ${3:0};"
+        ]
+    },
+    "packcolor result r g b a # color in [0,1]": {
+        "prefix": "packcolor",
+        "description": "packcolor result r g b a # color in [0,1]",
+        "body": [
+            "packcolor ${1:result} ${2:1} ${3:0} ${4:1} ${5:1};"
+        ]
+    },
+    "wait sec": {
+        "prefix": "wait",
+        "description": "wait sec",
+        "body": [
+            "wait ${1:0.5};"
+        ]
+    },
+    "sleep sec": {
+        "prefix": "sleep",
+        "description": "sleep sec",
+        "body": [
+            "wait ${1:0.5};"
+        ]
+    },
+    "stop to this line": {
+        "prefix": "stop",
+        "description": "stop to this line",
+        "body": [
+            "stop;"
+        ]
+    },
+    "goto first line": {
+        "prefix": "end",
+        "description": "goto first line",
+        "body": [
+            "end;"
+        ]
+    },
+    "unit bind": {
+        "prefix": "ubind",
+        "description": "unit bind",
+        "body": [
+            "ubind ${2:@${1:poly}};"
+        ]
+    },
+    "unit control": {
+        "prefix": "ucontrol",
+        "description": "unit control",
+        "body": [
+            "ucontrol ${1:move} ${2:0} ${3:0} 0 0 0;"
+        ]
+    },
+    "unit locate": {
+        "prefix": "ulocate",
+        "description": "unit locate",
+        "body": [
+            "ulocate building core true @copper outx outy found building;"
+        ]
+    },
+    "unit radar": {
+        "prefix": "uradar",
+        "description": "unit radar",
+        "body": [
+            "uradar enemy any any distance 0 1 result;"
+        ]
+    },
+    "获取指定位置的地块数据(floor|ore|block|building)": {
+        "prefix": "getblock",
+        "description": "获取指定位置的地块数据(floor|ore|block|building)",
+        "body": [
+            "getblock ${1:block} ${2:result} ${3:0} ${4:0};"
+        ]
+    },
+    "设置指定位置的地块数据(floor|ore|block)": {
+        "prefix": "setblock",
+        "description": "设置指定位置的地块数据(floor|ore|block)",
+        "body": [
+            "setblock ${1:block} ${2:@air} ${3:0} ${4:0} ${5:@derelict} ${6:0};"
+        ]
+    },
+    "在指定位置生成单位": {
+        "prefix": "spawn",
+        "description": "在指定位置生成单位",
+        "body": [
+            "spawn ${1:@dagger} ${2:10} ${3:10} ${4:90} ${5:@sharded} ${6:result};"
+        ]
+    },
+    "添加或清除单位的一个状态效果": {
+        "prefix": "status",
+        "description": "添加或清除单位的一个状态效果",
+        "body": [
+            "status ${1:false} ${2:wet} ${3:unit} ${4:10};"
+        ]
+    },
+    "检查特定种类的天气当前是否启用。": {
+        "prefix": "weathersense",
+        "description": "检查特定种类的天气当前是否启用。",
+        "body": [
+            "weathersense ${1:result} ${2:@rain};"
+        ]
+    },
+    "设置当前状态为特定类型天气。": {
+        "prefix": "weatherset",
+        "description": "设置当前状态为特定类型天气。",
+        "body": [
+            "weatherset ${1:@rain} ${2:true};"
+        ]
+    },
+    "在任意位置生成一波敌人\\n并不记录在波数计数器中": {
+        "prefix": "spawnwave",
+        "description": "在任意位置生成一波敌人\\n并不记录在波数计数器中",
+        "body": [
+            "spawnwave ${1:10} ${2:10} ${3:false};"
+        ]
+    },
+    "设置地图规则": {
+        "prefix": "setrule",
+        "description": "设置地图规则",
+        "body": [
+            "setrule ${1:waveSpacing} ${2:10} ${3:0} ${4:0} ${5:100} ${6:100};"
+        ]
+    },
+    "(notify|announce|toast|mission)在屏幕中央投影文字缓存区的内容\\n会等待上一个文字显示结束": {
+        "prefix": "message",
+        "description": "(notify|announce|toast|mission)在屏幕中央投影文字缓存区的内容\\n会等待上一个文字显示结束",
+        "body": [
+            "message ${1:announce} ${2:3} ${3:@wait};"
+        ]
+    },
+    "(pan|zoom|ztop)控制玩家游戏视角": {
+        "prefix": "cutscene",
+        "description": "(pan|zoom|ztop)控制玩家游戏视角",
+        "body": [
+            "cutscene ${1:pan} ${2:100} ${3:100} ${4:0.06} ${5:0};"
+        ]
+    },
+    "创建一个粒子效果。": {
+        "prefix": "effect",
+        "description": "创建一个粒子效果。",
+        "body": [
+            "effect ${1:warn} ${2:0} ${3:0} ${4:2} ${5:%ffaaff};"
+        ]
+    },
+    "在某个位置生成爆炸": {
+        "prefix": "explosion",
+        "description": "在某个位置生成爆炸",
+        "body": [
+            "explosion @crux 0 0 5 50 true true false true;"
+        ]
+    },
+    "在指令/时间刻的时间下设置处理器处理速度": {
+        "prefix": "setrate",
+        "description": "在指令/时间刻的时间下设置处理器处理速度",
+        "body": [
+            "setrate ${1:10};"
+        ]
+    },
+    "按索引查找单位、 核心、 玩家或建筑物(unit|player|core|build)[Count]\\n索引从 0 开始，以其返回的计数结束": {
+        "prefix": "fetch",
+        "description": "按索引查找单位、 核心、 玩家或建筑物(unit|player|core|build)[Count]\\n索引从 0 开始，以其返回的计数结束",
+        "body": [
+            "fetch ${1:unit} ${2:result} ${3:@sharded} ${4:0} ${5:@conveyor};"
+        ]
+    },
+    "在网络中同步一个变量。\\n最多每秒调用10次。": {
+        "prefix": "sync",
+        "description": "在网络中同步一个变量。\\n最多每秒调用10次。",
+        "body": [
+            "sync ${1:var};"
+        ]
+    },
+    "检查是否设置了全局标志。": {
+        "prefix": "getflag",
+        "description": "检查是否设置了全局标志。",
+        "body": [
+            "getflag ${1:result} ${2:\"flag\"};"
+        ]
+    },
+    "设置一个可以被所有处理器读取的全局标志。": {
+        "prefix": "setflag",
+        "description": "设置一个可以被所有处理器读取的全局标志。",
+        "body": [
+            "setflag ${1:\"flag\"} ${2:true};"
+        ]
+    },
+    "设置单位或建筑物的属性。": {
+        "prefix": "setprop",
+        "description": "设置单位或建筑物的属性。",
+        "body": [
+            "setprop ${1:@copper} ${2:block1} ${3:0};"
+        ]
+    },
+    "播放一个声音, 音量和偏移可以是全局(false), 也可以根据位置计算": {
+        "prefix": "playsound",
+        "description": "播放一个声音, 音量和偏移可以是全局(false), 也可以根据位置计算",
+        "body": [
+            "playsound false @sfx-pew 1 1 0 @thisx @thisy true;"
+        ]
+    },
+    "为标记设置属性。\\n使用的ID必须与制作标记指令中的相同。": {
+        "prefix": "setmarker",
+        "description": "为标记设置属性。\\n使用的ID必须与制作标记指令中的相同。",
+        "body": [
+            "setmarker ${1:pos} ${2:0} ${3:0} ${4:0} ${5:0};"
+        ]
+    },
+    "在世界中创建一个新的逻辑标记。\\n必须提供一个用于标识此标记的ID。\\n目前每个世界限制最多20000个标记。": {
+        "prefix": "makemarker",
+        "description": "在世界中创建一个新的逻辑标记。\\n必须提供一个用于标识此标记的ID。\\n目前每个世界限制最多20000个标记。",
+        "body": [
+            "makemarker ${1:shape} ${2:0} ${3:0} ${4:0} ${5:true};"
+        ]
+    },
+    "将地图本地化文本属性值添加到文本缓冲区中。\\n要在地图编辑器中设置地图本地化包，请检查 [accent]地图信息 > 本地化包[]。\\n如果客户端是移动设备，则尝试首先打印以 .mobile 结尾的属性。": {
+        "prefix": "localeprint",
+        "description": "将地图本地化文本属性值添加到文本缓冲区中。\\n要在地图编辑器中设置地图本地化包，请检查 [accent]地图信息 > 本地化包[]。\\n如果客户端是移动设备，则尝试首先打印以 .mobile 结尾的属性。",
+        "body": [
+            "localeprint ${2:\"${1:name}\"};"
+        ]
+    },
+    "逻辑块建筑自身": {
+        "prefix": "env.this",
+        "description": "逻辑块建筑自身",
+        "body": [
+            "@this"
+        ]
+    },
+    "逻辑块的 x 坐标, 类似 `sensor thisx @this @x`": {
+        "prefix": "env.thisx",
+        "description": "逻辑块的 x 坐标, 类似 `sensor thisx @this @x`",
+        "body": [
+            "@thisx"
+        ]
+    },
+    "逻辑块的 y 坐标, 类似 `sensor thisy @this @y`": {
+        "prefix": "env.thisy",
+        "description": "逻辑块的 y 坐标, 类似 `sensor thisy @this @y`",
+        "body": [
+            "@thisy"
+        ]
+    },
+    "逻辑块链接的建筑数量": {
+        "prefix": "env.links",
+        "description": "逻辑块链接的建筑数量",
+        "body": [
+            "@links"
+        ]
+    },
+    "当前绑定的单位": {
+        "prefix": "env.unit",
+        "description": "当前绑定的单位",
+        "body": [
+            "@unit"
+        ]
+    },
+    "逻辑块在一个标准帧(tick)内执行多少行": {
+        "prefix": "env.ipt",
+        "description": "逻辑块在一个标准帧(tick)内执行多少行",
+        "body": [
+            "@ipt"
+        ]
+    },
+    "逻辑块内当前行之后将要执行的行号": {
+        "prefix": "env.counter",
+        "description": "逻辑块内当前行之后将要执行的行号",
+        "body": [
+            "@counter"
+        ]
+    },
+    "圆周率值": {
+        "prefix": "env.pi",
+        "description": "圆周率值",
+        "body": [
+            "π"
+        ]
+    },
+    "自然常数值": {
+        "prefix": "env.e",
+        "description": "自然常数值",
+        "body": [
+            "@e"
+        ]
+    },
+    "圆周率值的硬编码": {
+        "prefix": "env.pi.value",
+        "description": "圆周率值的硬编码",
+        "body": [
+            "3.1415926535897932"
+        ]
+    },
+    "自然常数值的硬编码": {
+        "prefix": "env.e.value",
+        "description": "自然常数值的硬编码",
+        "body": [
+            "2.7182818284590452"
+        ]
+    },
+    "角度转弧度使用的比例系数, 定义: `@pi / 180`, 使用: `270*@degToRad`": {
+        "prefix": "env.degToRad",
+        "description": "角度转弧度使用的比例系数, 定义: `@pi / 180`, 使用: `270*@degToRad`",
+        "body": [
+            "@degToRad"
+        ]
+    },
+    "弧度转角度使用的比例系数, 定义: `180 / @pi`, 使用: `@pi*@radToDeg`": {
+        "prefix": "env.radToDeg",
+        "description": "弧度转角度使用的比例系数, 定义: `180 / @pi`, 使用: `@pi*@radToDeg`",
+        "body": [
+            "@radToDeg"
+        ]
+    },
+    "游戏经过的时间(通常自创建以来), 按毫秒记": {
+        "prefix": "env.time",
+        "description": "游戏经过的时间(通常自创建以来), 按毫秒记",
+        "body": [
+            "@time"
+        ]
+    },
+    "游戏经过的标准帧(tick)": {
+        "prefix": "env.tick",
+        "description": "游戏经过的标准帧(tick)",
+        "body": [
+            "@tick"
+        ]
+    },
+    "游戏经过的时间, 按秒记": {
+        "prefix": "env.second",
+        "description": "游戏经过的时间, 按秒记",
+        "body": [
+            "@second"
+        ]
+    },
+    "游戏经过的时间, 按分记": {
+        "prefix": "env.minute",
+        "description": "游戏经过的时间, 按分记",
+        "body": [
+            "@minute"
+        ]
+    },
+    "当前出怪波数": {
+        "prefix": "env.waveNumber",
+        "description": "当前出怪波数",
+        "body": [
+            "@waveNumber"
+        ]
+    },
+    "下一波时间, 按秒记": {
+        "prefix": "env.waveTime",
+        "description": "下一波时间, 按秒记",
+        "body": [
+            "@waveTime"
+        ]
+    },
+    "地图宽度": {
+        "prefix": "env.mapw",
+        "description": "地图宽度",
+        "body": [
+            "@mapw"
+        ]
+    },
+    "地图高度": {
+        "prefix": "env.maph",
+        "description": "地图高度",
+        "body": [
+            "@maph"
+        ]
+    },
+    "处理器是否运行在服务器或单人游戏": {
+        "prefix": "env.server",
+        "description": "处理器是否运行在服务器或单人游戏",
+        "body": [
+            "@server"
+        ]
+    },
+    "处理器是否运行在连接到服务端的客户端": {
+        "prefix": "env.client",
+        "description": "处理器是否运行在连接到服务端的客户端",
+        "body": [
+            "@client"
+        ]
+    },
+    "运行代码的客户端使用的区域(locale)": {
+        "prefix": "env.clientLocale",
+        "description": "运行代码的客户端使用的区域(locale)",
+        "body": [
+            "@clientLocale"
+        ]
+    },
+    "运行代码的客户端的玩家单位": {
+        "prefix": "env.clientUnit",
+        "description": "运行代码的客户端的玩家单位",
+        "body": [
+            "@clientUnit"
+        ]
+    },
+    "运行代码的客户端的玩家名称": {
+        "prefix": "env.clientName",
+        "description": "运行代码的客户端的玩家名称",
+        "body": [
+            "@clientName"
+        ]
+    },
+    "运行代码的客户端的玩家队伍": {
+        "prefix": "env.clientTeam",
+        "description": "运行代码的客户端的玩家队伍",
+        "body": [
+            "@clientTeam"
+        ]
+    },
+    "运行代码的客户端是否为移动端": {
+        "prefix": "env.clientMobile",
+        "description": "运行代码的客户端是否为移动端",
+        "body": [
+            "@clientMobile"
+        ]
+    },
+    "被处理器控制, 用于传感器的`@controlled`返回结果,": {
+        "prefix": "env.ctrlProcessor",
+        "description": "被处理器控制, 用于传感器的`@controlled`返回结果,",
+        "body": [
+            "@ctrlProcessor"
+        ]
+    },
+    "被玩家控制, 用于传感器的`@controlled`返回结果,": {
+        "prefix": "env.ctrlPlayer",
+        "description": "被玩家控制, 用于传感器的`@controlled`返回结果,",
+        "body": [
+            "@ctrlPlayer"
+        ]
+    },
+    "被RTS控制, 用于传感器的`@controlled`返回结果,": {
+        "prefix": "env.ctrlCommand",
+        "description": "被RTS控制, 用于传感器的`@controlled`返回结果,",
+        "body": [
+            "@ctrlCommand"
+        ]
+    },
+    "物品 content 总数": {
+        "prefix": "env.itemCount",
+        "description": "物品 content 总数",
+        "body": [
+            "@itemCount"
+        ]
+    },
+    "单位 content 总数": {
+        "prefix": "env.unitCount",
+        "description": "单位 content 总数",
+        "body": [
+            "@unitCount"
+        ]
+    },
+    "建筑 content 总数": {
+        "prefix": "env.blockCount",
+        "description": "建筑 content 总数",
+        "body": [
+            "@blockCount"
+        ]
+    },
+    "液体 content 总数": {
+        "prefix": "env.liquidCount",
+        "description": "液体 content 总数",
+        "body": [
+            "@liquidCount"
+        ]
+    },
+    "0: 灰队(废墟)": {
+        "prefix": "env.team.derelict",
+        "description": "0: 灰队(废墟)",
+        "body": [
+            "@derelict"
+        ]
+    },
+    "1: 黄队(默认玩家)": {
+        "prefix": "env.team.sharded",
+        "description": "1: 黄队(默认玩家)",
+        "body": [
+            "@sharded"
+        ]
+    },
+    "2: 红队(默认敌方)": {
+        "prefix": "env.team.crux",
+        "description": "2: 红队(默认敌方)",
+        "body": [
+            "@crux"
+        ]
+    },
+    "3: 紫队": {
+        "prefix": "env.team.malis",
+        "description": "3: 紫队",
+        "body": [
+            "@malis"
+        ]
+    },
+    "4: 绿队": {
+        "prefix": "env.team.green",
+        "description": "4: 绿队",
+        "body": [
+            "@green"
+        ]
+    },
+    "5: 蓝队": {
+        "prefix": "env.team.blue",
+        "description": "5: 蓝队",
+        "body": [
+            "@blue"
+        ]
+    },
+    "@derelict: 灰队(废墟)": {
+        "prefix": "env.team.0",
+        "description": "@derelict: 灰队(废墟)",
+        "body": [
+            "@derelict"
+        ]
+    },
+    "@sharded: 黄队(默认玩家)": {
+        "prefix": "env.team.1",
+        "description": "@sharded: 黄队(默认玩家)",
+        "body": [
+            "@sharded"
+        ]
+    },
+    "@crux: 红队(默认敌方)": {
+        "prefix": "env.team.2",
+        "description": "@crux: 红队(默认敌方)",
+        "body": [
+            "@crux"
+        ]
+    },
+    "@malis: 紫队": {
+        "prefix": "env.team.3",
+        "description": "@malis: 紫队",
+        "body": [
+            "@malis"
+        ]
+    },
+    "@green: 绿队": {
+        "prefix": "env.team.4",
+        "description": "@green: 绿队",
+        "body": [
+            "@green"
+        ]
+    },
+    "@blue: 蓝队": {
+        "prefix": "env.team.5",
+        "description": "@blue: 蓝队",
+        "body": [
+            "@blue"
+        ]
+    },
+    "0: 铜": {
+        "prefix": "env.item.copper",
+        "description": "0: 铜",
+        "body": [
+            "@copper"
+        ]
+    },
+    "1: 铅": {
+        "prefix": "env.item.lead",
+        "description": "1: 铅",
+        "body": [
+            "@lead"
+        ]
+    },
+    "2: 玻璃": {
+        "prefix": "env.item.metaglass",
+        "description": "2: 玻璃",
+        "body": [
+            "@metaglass"
+        ]
+    },
+    "3: 石墨": {
+        "prefix": "env.item.graphite",
+        "description": "3: 石墨",
+        "body": [
+            "@graphite"
+        ]
+    },
+    "4: 沙子": {
+        "prefix": "env.item.sand",
+        "description": "4: 沙子",
+        "body": [
+            "@sand"
+        ]
+    },
+    "5: 煤炭": {
+        "prefix": "env.item.coal",
+        "description": "5: 煤炭",
+        "body": [
+            "@coal"
+        ]
+    },
+    "6: 钛": {
+        "prefix": "env.item.titanium",
+        "description": "6: 钛",
+        "body": [
+            "@titanium"
+        ]
+    },
+    "7: 钍": {
+        "prefix": "env.item.thorium",
+        "description": "7: 钍",
+        "body": [
+            "@thorium"
+        ]
+    },
+    "8: 废料": {
+        "prefix": "env.item.scrap",
+        "description": "8: 废料",
+        "body": [
+            "@scrap"
+        ]
+    },
+    "9: 硅": {
+        "prefix": "env.item.silicon",
+        "description": "9: 硅",
+        "body": [
+            "@silicon"
+        ]
+    },
+    "10: 塑钢": {
+        "prefix": "env.item.plastanium",
+        "description": "10: 塑钢",
+        "body": [
+            "@plastanium"
+        ]
+    },
+    "11: 相位物": {
+        "prefix": "env.item.phase-fabric",
+        "description": "11: 相位物",
+        "body": [
+            "@phase-fabric"
+        ]
+    },
+    "12: 巨浪合金": {
+        "prefix": "env.item.surge-alloy",
+        "description": "12: 巨浪合金",
+        "body": [
+            "@surge-alloy"
+        ]
+    },
+    "13: 孢子夹": {
+        "prefix": "env.item.spore-pod",
+        "description": "13: 孢子夹",
+        "body": [
+            "@spore-pod"
+        ]
+    },
+    "14: 爆炸混合物": {
+        "prefix": "env.item.blast-compound",
+        "description": "14: 爆炸混合物",
+        "body": [
+            "@blast-compound"
+        ]
+    },
+    "15: 硫化物": {
+        "prefix": "env.item.pyratite",
+        "description": "15: 硫化物",
+        "body": [
+            "@pyratite"
+        ]
+    },
+    "16: 铍": {
+        "prefix": "env.item.beryllium",
+        "description": "16: 铍",
+        "body": [
+            "@beryllium"
+        ]
+    },
+    "17: 钨": {
+        "prefix": "env.item.tungsten",
+        "description": "17: 钨",
+        "body": [
+            "@tungsten"
+        ]
+    },
+    "18: 氧化物": {
+        "prefix": "env.item.oxide",
+        "description": "18: 氧化物",
+        "body": [
+            "@oxide"
+        ]
+    },
+    "19: 碳化物": {
+        "prefix": "env.item.carbide",
+        "description": "19: 碳化物",
+        "body": [
+            "@carbide"
+        ]
+    },
+    "20: 裂变产物 (隐藏)": {
+        "prefix": "env.item.fissile-matter",
+        "description": "20: 裂变产物 (隐藏)",
+        "body": [
+            "@fissile-matter"
+        ]
+    },
+    "21: 休眠囊肿 (隐藏)": {
+        "prefix": "env.item.dormant-cyst",
+        "description": "21: 休眠囊肿 (隐藏)",
+        "body": [
+            "@dormant-cyst"
+        ]
+    },
+    "copper 铜": {
+        "prefix": "env.item.0",
+        "description": "copper 铜",
+        "body": [
+            "@copper"
+        ]
+    },
+    "lead 铅": {
+        "prefix": "env.item.1",
+        "description": "lead 铅",
+        "body": [
+            "@lead"
+        ]
+    },
+    "metaglass 玻璃": {
+        "prefix": "env.item.2",
+        "description": "metaglass 玻璃",
+        "body": [
+            "@metaglass"
+        ]
+    },
+    "graphite 石墨": {
+        "prefix": "env.item.3",
+        "description": "graphite 石墨",
+        "body": [
+            "@graphite"
+        ]
+    },
+    "sand 沙子": {
+        "prefix": "env.item.4",
+        "description": "sand 沙子",
+        "body": [
+            "@sand"
+        ]
+    },
+    "coal 煤炭": {
+        "prefix": "env.item.5",
+        "description": "coal 煤炭",
+        "body": [
+            "@coal"
+        ]
+    },
+    "titanium 钛": {
+        "prefix": "env.item.6",
+        "description": "titanium 钛",
+        "body": [
+            "@titanium"
+        ]
+    },
+    "thorium 钍": {
+        "prefix": "env.item.7",
+        "description": "thorium 钍",
+        "body": [
+            "@thorium"
+        ]
+    },
+    "scrap 废料": {
+        "prefix": "env.item.8",
+        "description": "scrap 废料",
+        "body": [
+            "@scrap"
+        ]
+    },
+    "silicon 硅": {
+        "prefix": "env.item.9",
+        "description": "silicon 硅",
+        "body": [
+            "@silicon"
+        ]
+    },
+    "plastanium 塑钢": {
+        "prefix": "env.item.10",
+        "description": "plastanium 塑钢",
+        "body": [
+            "@plastanium"
+        ]
+    },
+    "phase-fabric 相位物": {
+        "prefix": "env.item.11",
+        "description": "phase-fabric 相位物",
+        "body": [
+            "@phase-fabric"
+        ]
+    },
+    "surge-alloy 巨浪合金": {
+        "prefix": "env.item.12",
+        "description": "surge-alloy 巨浪合金",
+        "body": [
+            "@surge-alloy"
+        ]
+    },
+    "spore-pod 孢子夹": {
+        "prefix": "env.item.13",
+        "description": "spore-pod 孢子夹",
+        "body": [
+            "@spore-pod"
+        ]
+    },
+    "blast-compound 爆炸混合物": {
+        "prefix": "env.item.14",
+        "description": "blast-compound 爆炸混合物",
+        "body": [
+            "@blast-compound"
+        ]
+    },
+    "pyratite 硫化物": {
+        "prefix": "env.item.15",
+        "description": "pyratite 硫化物",
+        "body": [
+            "@pyratite"
+        ]
+    },
+    "beryllium 铍": {
+        "prefix": "env.item.16",
+        "description": "beryllium 铍",
+        "body": [
+            "@beryllium"
+        ]
+    },
+    "tungsten 钨": {
+        "prefix": "env.item.17",
+        "description": "tungsten 钨",
+        "body": [
+            "@tungsten"
+        ]
+    },
+    "oxide 氧化物": {
+        "prefix": "env.item.18",
+        "description": "oxide 氧化物",
+        "body": [
+            "@oxide"
+        ]
+    },
+    "carbide 碳化物": {
+        "prefix": "env.item.19",
+        "description": "carbide 碳化物",
+        "body": [
+            "@carbide"
+        ]
+    },
+    "fissile-matter 裂变产物 (隐藏)": {
+        "prefix": "env.item.20",
+        "description": "fissile-matter 裂变产物 (隐藏)",
+        "body": [
+            "@fissile-matter"
+        ]
+    },
+    "dormant-cyst 休眠囊肿 (隐藏)": {
+        "prefix": "env.item.21",
+        "description": "dormant-cyst 休眠囊肿 (隐藏)",
+        "body": [
+            "@dormant-cyst"
+        ]
+    },
+    "0: 水": {
+        "prefix": "env.liquid.water",
+        "description": "0: 水",
+        "body": [
+            "@water"
+        ]
+    },
+    "1: 矿渣": {
+        "prefix": "env.liquid.slag",
+        "description": "1: 矿渣",
+        "body": [
+            "@slag"
+        ]
+    },
+    "2: 油": {
+        "prefix": "env.liquid.oil",
+        "description": "2: 油",
+        "body": [
+            "@oil"
+        ]
+    },
+    "3: 冷冻液": {
+        "prefix": "env.liquid.cryofluid",
+        "description": "3: 冷冻液",
+        "body": [
+            "@cryofluid"
+        ]
+    },
+    "4: 瘤液": {
+        "prefix": "env.liquid.neoplasm",
+        "description": "4: 瘤液",
+        "body": [
+            "@neoplasm"
+        ]
+    },
+    "5: 氢": {
+        "prefix": "env.liquid.hydrogen",
+        "description": "5: 氢",
+        "body": [
+            "@hydrogen"
+        ]
+    },
+    "6: 臭氧": {
+        "prefix": "env.liquid.ozone",
+        "description": "6: 臭氧",
+        "body": [
+            "@ozone"
+        ]
+    },
+    "7: 氰气": {
+        "prefix": "env.liquid.cyanogen",
+        "description": "7: 氰气",
+        "body": [
+            "@cyanogen"
+        ]
+    },
+    "8: 镓 (隐藏)": {
+        "prefix": "env.liquid.gallium",
+        "description": "8: 镓 (隐藏)",
+        "body": [
+            "@gallium"
+        ]
+    },
+    "9: 氮": {
+        "prefix": "env.liquid.nitrogen",
+        "description": "9: 氮",
+        "body": [
+            "@nitrogen"
+        ]
+    },
+    "10: 芳油": {
+        "prefix": "env.liquid.arkycite",
+        "description": "10: 芳油",
+        "body": [
+            "@arkycite"
+        ]
+    },
+    "water 水": {
+        "prefix": "env.liquid.0",
+        "description": "water 水",
+        "body": [
+            "@water"
+        ]
+    },
+    "slag 矿渣": {
+        "prefix": "env.liquid.1",
+        "description": "slag 矿渣",
+        "body": [
+            "@slag"
+        ]
+    },
+    "oil 油": {
+        "prefix": "env.liquid.2",
+        "description": "oil 油",
+        "body": [
+            "@oil"
+        ]
+    },
+    "cryofluid 冷冻液": {
+        "prefix": "env.liquid.3",
+        "description": "cryofluid 冷冻液",
+        "body": [
+            "@cryofluid"
+        ]
+    },
+    "neoplasm 瘤液": {
+        "prefix": "env.liquid.4",
+        "description": "neoplasm 瘤液",
+        "body": [
+            "@neoplasm"
+        ]
+    },
+    "hydrogen 氢": {
+        "prefix": "env.liquid.5",
+        "description": "hydrogen 氢",
+        "body": [
+            "@hydrogen"
+        ]
+    },
+    "ozone 臭氧": {
+        "prefix": "env.liquid.6",
+        "description": "ozone 臭氧",
+        "body": [
+            "@ozone"
+        ]
+    },
+    "cyanogen 氰气": {
+        "prefix": "env.liquid.7",
+        "description": "cyanogen 氰气",
+        "body": [
+            "@cyanogen"
+        ]
+    },
+    "gallium 镓 (隐藏)": {
+        "prefix": "env.liquid.8",
+        "description": "gallium 镓 (隐藏)",
+        "body": [
+            "@gallium"
+        ]
+    },
+    "nitrogen 氮": {
+        "prefix": "env.liquid.9",
+        "description": "nitrogen 氮",
+        "body": [
+            "@nitrogen"
+        ]
+    },
+    "arkycite 芳油": {
+        "prefix": "env.liquid.10",
+        "description": "arkycite 芳油",
+        "body": [
+            "@arkycite"
+        ]
+    },
+    "总物品数": {
+        "prefix": "sensor.totalItems",
+        "description": "总物品数",
+        "body": [
+            "sensor ${2:totalItems} $1 @totalItems;"
+        ]
+    },
+    "第一个物品": {
+        "prefix": "sensor.firstItem",
+        "description": "第一个物品",
+        "body": [
+            "sensor ${2:firstItem} $1 @firstItem;"
+        ]
+    },
+    "总液体数": {
+        "prefix": "sensor.totalLiquids",
+        "description": "总液体数",
+        "body": [
+            "sensor ${2:totalLiquids} $1 @totalLiquids;"
+        ]
+    },
+    "总电力数": {
+        "prefix": "sensor.totalPower",
+        "description": "总电力数",
+        "body": [
+            "sensor ${2:totalPower} $1 @totalPower;"
+        ]
+    },
+    "物品容量": {
+        "prefix": "sensor.itemCapacity",
+        "description": "物品容量",
+        "body": [
+            "sensor ${2:itemCapacity} $1 @itemCapacity;"
+        ]
+    },
+    "液体容量": {
+        "prefix": "sensor.liquidCapacity",
+        "description": "液体容量",
+        "body": [
+            "sensor ${2:liquidCapacity} $1 @liquidCapacity;"
+        ]
+    },
+    "电力容量": {
+        "prefix": "sensor.powerCapacity",
+        "description": "电力容量",
+        "body": [
+            "sensor ${2:powerCapacity} $1 @powerCapacity;"
+        ]
+    },
+    "电网当前已储电": {
+        "prefix": "sensor.powerNetStored",
+        "description": "电网当前已储电",
+        "body": [
+            "sensor ${2:powerNetStored} $1 @powerNetStored;"
+        ]
+    },
+    "电网储电总容量": {
+        "prefix": "sensor.powerNetCapacity",
+        "description": "电网储电总容量",
+        "body": [
+            "sensor ${2:powerNetCapacity} $1 @powerNetCapacity;"
+        ]
+    },
+    "电网净输入": {
+        "prefix": "sensor.powerNetIn",
+        "description": "电网净输入",
+        "body": [
+            "sensor ${2:powerNetIn} $1 @powerNetIn;"
+        ]
+    },
+    "电网净输出": {
+        "prefix": "sensor.powerNetOut",
+        "description": "电网净输出",
+        "body": [
+            "sensor ${2:powerNetOut} $1 @powerNetOut;"
+        ]
+    },
+    "弹药": {
+        "prefix": "sensor.ammo",
+        "description": "弹药",
+        "body": [
+            "sensor ${2:ammo} $1 @ammo;"
+        ]
+    },
+    "弹药容量": {
+        "prefix": "sensor.ammoCapacity",
+        "description": "弹药容量",
+        "body": [
+            "sensor ${2:ammoCapacity} $1 @ammoCapacity;"
+        ]
+    },
+    "弹药类型": {
+        "prefix": "sensor.currentAmmoType",
+        "description": "弹药类型",
+        "body": [
+            "sensor ${2:currentAmmoType} $1 @currentAmmoType;"
+        ]
+    },
+    "血量": {
+        "prefix": "sensor.health",
+        "description": "血量",
+        "body": [
+            "sensor ${2:health} $1 @health;"
+        ]
+    },
+    "血量上限": {
+        "prefix": "sensor.maxHealth",
+        "description": "血量上限",
+        "body": [
+            "sensor ${2:maxHealth} $1 @maxHealth;"
+        ]
+    },
+    "热量": {
+        "prefix": "sensor.heat",
+        "description": "热量",
+        "body": [
+            "sensor ${2:heat} $1 @heat;"
+        ]
+    },
+    "盾": {
+        "prefix": "sensor.shield",
+        "description": "盾",
+        "body": [
+            "sensor ${2:shield} $1 @shield;"
+        ]
+    },
+    "护甲": {
+        "prefix": "sensor.armor",
+        "description": "护甲",
+        "body": [
+            "sensor ${2:armor} $1 @armor;"
+        ]
+    },
+    "效率": {
+        "prefix": "sensor.efficiency",
+        "description": "效率",
+        "body": [
+            "sensor ${2:efficiency} $1 @efficiency;"
+        ]
+    },
+    "进度": {
+        "prefix": "sensor.progress",
+        "description": "进度",
+        "body": [
+            "sensor ${2:progress} $1 @progress;"
+        ]
+    },
+    "时间系数 (用于被超速的速度)": {
+        "prefix": "sensor.timescale",
+        "description": "时间系数 (用于被超速的速度)",
+        "body": [
+            "sensor ${2:timescale} $1 @timescale;"
+        ]
+    },
+    "朝向": {
+        "prefix": "sensor.rotation",
+        "description": "朝向",
+        "body": [
+            "sensor ${2:rotation} $1 @rotation;"
+        ]
+    },
+    "x坐标": {
+        "prefix": "sensor.x",
+        "description": "x坐标",
+        "body": [
+            "sensor ${2:x} $1 @x;"
+        ]
+    },
+    "y坐标": {
+        "prefix": "sensor.y",
+        "description": "y坐标",
+        "body": [
+            "sensor ${2:y} $1 @y;"
+        ]
+    },
+    "运动速度x": {
+        "prefix": "sensor.velocityX",
+        "description": "运动速度x",
+        "body": [
+            "sensor ${2:velocityX} $1 @velocityX;"
+        ]
+    },
+    "运动速度y": {
+        "prefix": "sensor.velocityY",
+        "description": "运动速度y",
+        "body": [
+            "sensor ${2:velocityY} $1 @velocityY;"
+        ]
+    },
+    "射击点X": {
+        "prefix": "sensor.shootX",
+        "description": "射击点X",
+        "body": [
+            "sensor ${2:shootX} $1 @shootX;"
+        ]
+    },
+    "射击点Y": {
+        "prefix": "sensor.shootY",
+        "description": "射击点Y",
+        "body": [
+            "sensor ${2:shootY} $1 @shootY;"
+        ]
+    },
+    "相机位置X": {
+        "prefix": "sensor.cameraX",
+        "description": "相机位置X",
+        "body": [
+            "sensor ${2:cameraX} $1 @cameraX;"
+        ]
+    },
+    "相机位置Y": {
+        "prefix": "sensor.cameraY",
+        "description": "相机位置Y",
+        "body": [
+            "sensor ${2:cameraY} $1 @cameraY;"
+        ]
+    },
+    "相机宽度": {
+        "prefix": "sensor.cameraWidth",
+        "description": "相机宽度",
+        "body": [
+            "sensor ${2:cameraWidth} $1 @cameraWidth;"
+        ]
+    },
+    "相机高度": {
+        "prefix": "sensor.cameraHeight",
+        "description": "相机高度",
+        "body": [
+            "sensor ${2:cameraHeight} $1 @cameraHeight;"
+        ]
+    },
+    "大小": {
+        "prefix": "sensor.size",
+        "description": "大小",
+        "body": [
+            "sensor ${2:size} $1 @size;"
+        ]
+    },
+    "是否实心": {
+        "prefix": "sensor.solid",
+        "description": "是否实心",
+        "body": [
+            "sensor ${2:solid} $1 @solid;"
+        ]
+    },
+    "已死亡": {
+        "prefix": "sensor.dead",
+        "description": "已死亡",
+        "body": [
+            "sensor ${2:dead} $1 @dead;"
+        ]
+    },
+    "范围": {
+        "prefix": "sensor.range",
+        "description": "范围",
+        "body": [
+            "sensor ${2:range} $1 @range;"
+        ]
+    },
+    "是否射击": {
+        "prefix": "sensor.shooting",
+        "description": "是否射击",
+        "body": [
+            "sensor ${2:shooting} $1 @shooting;"
+        ]
+    },
+    "是否助推": {
+        "prefix": "sensor.boosting",
+        "description": "是否助推",
+        "body": [
+            "sensor ${2:boosting} $1 @boosting;"
+        ]
+    },
+    "挖矿点X": {
+        "prefix": "sensor.mineX",
+        "description": "挖矿点X",
+        "body": [
+            "sensor ${2:mineX} $1 @mineX;"
+        ]
+    },
+    "挖矿点Y": {
+        "prefix": "sensor.mineY",
+        "description": "挖矿点Y",
+        "body": [
+            "sensor ${2:mineY} $1 @mineY;"
+        ]
+    },
+    "是否正在挖矿": {
+        "prefix": "sensor.mining",
+        "description": "是否正在挖矿",
+        "body": [
+            "sensor ${2:mining} $1 @mining;"
+        ]
+    },
+    "速度": {
+        "prefix": "sensor.speed",
+        "description": "速度",
+        "body": [
+            "sensor ${2:speed} $1 @speed;"
+        ]
+    },
+    "队伍": {
+        "prefix": "sensor.team",
+        "description": "队伍",
+        "body": [
+            "sensor ${2:team} $1 @team;"
+        ]
+    },
+    "类型": {
+        "prefix": "sensor.type",
+        "description": "类型",
+        "body": [
+            "sensor ${2:type} $1 @type;"
+        ]
+    },
+    "标记": {
+        "prefix": "sensor.flag",
+        "description": "标记",
+        "body": [
+            "sensor ${2:flag} $1 @flag;"
+        ]
+    },
+    "已控制": {
+        "prefix": "sensor.controlled",
+        "description": "已控制",
+        "body": [
+            "sensor ${2:controlled} $1 @controlled;"
+        ]
+    },
+    "控制者": {
+        "prefix": "sensor.controller",
+        "description": "控制者",
+        "body": [
+            "sensor ${2:controller} $1 @controller;"
+        ]
+    },
+    "名称": {
+        "prefix": "sensor.name",
+        "description": "名称",
+        "body": [
+            "sensor ${2:name} $1 @name;"
+        ]
+    },
+    "荷载数量": {
+        "prefix": "sensor.payloadCount",
+        "description": "荷载数量",
+        "body": [
+            "sensor ${2:payloadCount} $1 @payloadCount;"
+        ]
+    },
+    "荷载类型": {
+        "prefix": "sensor.payloadType",
+        "description": "荷载类型",
+        "body": [
+            "sensor ${2:payloadType} $1 @payloadType;"
+        ]
+    },
+    "编号(lookup 反向, 用于 content)": {
+        "prefix": "sensor.id",
+        "description": "编号(lookup 反向, 用于 content)",
+        "body": [
+            "sensor ${2:id} $1 @id;"
+        ]
+    },
+    "启用": {
+        "prefix": "sensor.enabled",
+        "description": "启用",
+        "body": [
+            "sensor ${2:enabled} $1 @enabled;"
+        ]
+    },
+    "设置, 例如分类器物品": {
+        "prefix": "sensor.config",
+        "description": "设置, 例如分类器物品",
+        "body": [
+            "sensor ${2:config} $1 @config;"
+        ]
+    },
+    "颜色": {
+        "prefix": "sensor.color",
+        "description": "颜色",
+        "body": [
+            "sensor ${2:color} $1 @color;"
+        ]
+    },
+    "指定颜色填满屏幕": {
+        "prefix": "draw.clear",
+        "description": "指定颜色填满屏幕",
+        "body": [
+            "draw clear ${1:0} ${2:0} ${3:0} 0 0 0;"
+        ]
+    },
+    "修改绘制颜色": {
+        "prefix": "draw.color",
+        "description": "修改绘制颜色",
+        "body": [
+            "draw color ${1:0} ${2:0} ${3:0} ${4:255} 0 0;"
+        ]
+    },
+    "修改绘制颜色 (打包版)": {
+        "prefix": "draw.col",
+        "description": "修改绘制颜色 (打包版)",
+        "body": [
+            "draw col ${1:'%${2:000000}'} 0 0 0 0 0;"
+        ]
+    },
+    "设置线条宽度": {
+        "prefix": "draw.stroke",
+        "description": "设置线条宽度",
+        "body": [
+            "draw stroke ${1:0} 0 0 0 0 0;"
+        ]
+    },
+    "绘制线段": {
+        "prefix": "draw.line",
+        "description": "绘制线段",
+        "body": [
+            "draw line ${1:0} ${2:0} ${3:0} ${4:0} 0 0;"
+        ]
+    },
+    "绘制实心矩形": {
+        "prefix": "draw.rect",
+        "description": "绘制实心矩形",
+        "body": [
+            "draw rect ${1:0} ${2:0} ${3:0} ${4:0} 0 0;"
+        ]
+    },
+    "绘制矩形轮廓": {
+        "prefix": "draw.lineRect",
+        "description": "绘制矩形轮廓",
+        "body": [
+            "draw lineRect ${1:0} ${2:0} ${3:0} ${4:0} 0 0;"
+        ]
+    },
+    "绘制实心正多边形": {
+        "prefix": "draw.poly",
+        "description": "绘制实心正多边形",
+        "body": [
+            "draw poly ${1:0} ${2:0} ${3:0} ${4:0} ${5:0} 0;"
+        ]
+    },
+    "绘制正多边形轮廓": {
+        "prefix": "draw.linePoly",
+        "description": "绘制正多边形轮廓",
+        "body": [
+            "draw linePoly ${1:0} ${2:0} ${3:0} ${4:0} ${5:0} 0;"
+        ]
+    },
+    "绘制实心三角形": {
+        "prefix": "draw.triangle",
+        "description": "绘制实心三角形",
+        "body": [
+            "draw triangle ${1:0} ${2:0} ${3:0} ${4:0} ${5:0} ${6:0};"
+        ]
+    },
+    "画出某个游戏内容的图像, 例如@router或者@dagger": {
+        "prefix": "draw.image",
+        "description": "画出某个游戏内容的图像, 例如@router或者@dagger",
+        "body": [
+            "draw image ${1:0} ${2:0} ${3:@copper} ${4:32} ${5:0} 0;"
+        ]
+    },
+    "类似printflush, 但是输出在显示屏 (center|top|bottom|left|right|topLeft|topRight|bottomLeft|bottomRight)": {
+        "prefix": "draw.print",
+        "description": "类似printflush, 但是输出在显示屏 (center|top|bottom|left|right|topLeft|topRight|bottomLeft|bottomRight)",
+        "body": [
+            "draw print ${1:0} ${2:0} ${3:bottomLeft} 0 0 0;"
+        ]
+    },
+    "移动绘制基准点属性": {
+        "prefix": "draw.translate",
+        "description": "移动绘制基准点属性",
+        "body": [
+            "draw translate ${1:0} ${2:0} 0 0 0 0;"
+        ]
+    },
+    "缩放绘制比例属性": {
+        "prefix": "draw.scale",
+        "description": "缩放绘制比例属性",
+        "body": [
+            "draw scale ${1:0} ${2:0} 0 0 0 0;"
+        ]
+    },
+    "旋转绘制角度属性": {
+        "prefix": "draw.rotate",
+        "description": "旋转绘制角度属性",
+        "body": [
+            "draw rotate ${1:0} 0 0 0 0 0;"
+        ]
+    },
+    "重设绘制属性": {
+        "prefix": "draw.reset",
+        "description": "重设绘制属性",
+        "body": [
+            "draw reset 0 0 0 0 0 0;"
+        ]
+    },
+    "lookup block": {
+        "prefix": "lookup.block",
+        "description": "lookup block",
+        "body": [
+            "lookup block ${2:block} $1;"
+        ]
+    },
+    "lookup unit": {
+        "prefix": "lookup.unit",
+        "description": "lookup unit",
+        "body": [
+            "lookup unit ${2:unit} $1;"
+        ]
+    },
+    "lookup item": {
+        "prefix": "lookup.item",
+        "description": "lookup item",
+        "body": [
+            "lookup item ${2:item} $1;"
+        ]
+    },
+    "lookup liquid": {
+        "prefix": "lookup.liquid",
+        "description": "lookup liquid",
+        "body": [
+            "lookup liquid ${2:liquid} $1;"
+        ]
+    },
+    "控制建筑的启用禁用": {
+        "prefix": "control.enabled",
+        "description": "控制建筑的启用禁用",
+        "body": [
+            "control enabled ${1:block} ${2:false} 0 0 0;"
+        ]
+    },
+    "控制建筑朝着坐标射击": {
+        "prefix": "control.shoot",
+        "description": "控制建筑朝着坐标射击",
+        "body": [
+            "control shoot ${1:block1} ${2:0} ${3:0} ${4:0} 0;"
+        ]
+    },
+    "控制建筑朝着目标设计 (考虑速度预瞄)": {
+        "prefix": "control.shootp",
+        "description": "控制建筑朝着目标设计 (考虑速度预瞄)",
+        "body": [
+            "control shootp ${1:block1} ${2:0} ${3:0} 0 0;"
+        ]
+    },
+    "设置建筑 config, 例如分类器物品": {
+        "prefix": "control.config",
+        "description": "设置建筑 config, 例如分类器物品",
+        "body": [
+            "control config ${1:block1} ${2:0} 0 0 0;"
+        ]
+    },
+    "设置建筑颜色": {
+        "prefix": "control.color",
+        "description": "设置建筑颜色",
+        "body": [
+            "control color ${1:block1} ${2:0} 0 0 0;"
+        ]
+    },
+    "获取指定位置的地板": {
+        "prefix": "getblock.floor",
+        "description": "获取指定位置的地板",
+        "body": [
+            "getblock 'floor' ${1:result} ${2:0} ${3:0};"
+        ]
+    },
+    "获取指定位置的矿物": {
+        "prefix": "getblock.ore",
+        "description": "获取指定位置的矿物",
+        "body": [
+            "getblock ore ${1:result} ${2:0} ${3:0};"
+        ]
+    },
+    "获取指定位置的建筑 content, 可以获取墙": {
+        "prefix": "getblock.block",
+        "description": "获取指定位置的建筑 content, 可以获取墙",
+        "body": [
+            "getblock block ${1:result} ${2:0} ${3:0};"
+        ]
+    },
+    "获取指定位置的建筑对象": {
+        "prefix": "getblock.building",
+        "description": "获取指定位置的建筑对象",
+        "body": [
+            "getblock building ${1:result} ${2:0} ${3:0};"
+        ]
+    },
+    "设置指定位置的地板": {
+        "prefix": "setblock.floor",
+        "description": "设置指定位置的地板",
+        "body": [
+            "setblock 'floor' ${1:@air} ${2:0} ${3:0} 0 0;"
+        ]
+    },
+    "设置指定位置的矿物": {
+        "prefix": "setblock.ore",
+        "description": "设置指定位置的矿物",
+        "body": [
+            "setblock ore ${1:@air} ${2:0} ${3:0} 0 0;"
+        ]
+    },
+    "设置指定位置的建筑": {
+        "prefix": "setblock.block",
+        "description": "设置指定位置的建筑",
+        "body": [
+            "setblock block ${1:@air} ${2:0} ${3:0} ${4:@derelict} ${5:0};"
+        ]
+    },
+    "按索引查找单位\\n索引从 0 开始，以其返回的计数结束": {
+        "prefix": "fetch.unit",
+        "description": "按索引查找单位\\n索引从 0 开始，以其返回的计数结束",
+        "body": [
+            "fetch unit ${4:unit} ${1:@sharded} ${2:0} ${3:@conveyor};"
+        ]
+    },
+    "按索引查找核心\\n索引从 0 开始，以其返回的计数结束": {
+        "prefix": "fetch.player",
+        "description": "按索引查找核心\\n索引从 0 开始，以其返回的计数结束",
+        "body": [
+            "fetch player ${4:player} ${1:@sharded} ${2:0} 0;"
+        ]
+    },
+    "按索引查找玩家\\n索引从 0 开始，以其返回的计数结束": {
+        "prefix": "fetch.core",
+        "description": "按索引查找玩家\\n索引从 0 开始，以其返回的计数结束",
+        "body": [
+            "fetch core ${4:core} ${1:@sharded} ${2:0} 0;"
+        ]
+    },
+    "按索引查找建筑物\\n索引从 0 开始，以其返回的计数结束": {
+        "prefix": "fetch.build",
+        "description": "按索引查找建筑物\\n索引从 0 开始，以其返回的计数结束",
+        "body": [
+            "fetch build ${4:block} ${1:@sharded} ${2:0} ${3:@conveyor};"
+        ]
+    },
+    "fetch 单位的总数": {
+        "prefix": "fetch.unitCount",
+        "description": "fetch 单位的总数",
+        "body": [
+            "fetch unitCount ${3:unit} ${1:@sharded} 0 ${2:@conveyor};"
+        ]
+    },
+    "fetch 玩家的总数": {
+        "prefix": "fetch.playerCount",
+        "description": "fetch 玩家的总数",
+        "body": [
+            "fetch playerCount ${2:player} ${1:@sharded} 0 0;"
+        ]
+    },
+    "fetch 核心的总数": {
+        "prefix": "fetch.coreCount",
+        "description": "fetch 核心的总数",
+        "body": [
+            "fetch coreCount ${2:core} ${1:@sharded} 0 0;"
+        ]
+    },
+    "fetch 建筑的总数": {
+        "prefix": "fetch.buildCount",
+        "description": "fetch 建筑的总数",
+        "body": [
+            "fetch buildCount ${3:block} ${1:@sharded} 0 ${2:@conveyor};"
+        ]
     }
 }
