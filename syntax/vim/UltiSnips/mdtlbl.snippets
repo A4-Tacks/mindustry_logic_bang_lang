@@ -13,6 +13,11 @@ do {
 	$0
 } while ${1};
 endsnippet
+snippet do_for "do_while for" w
+$1 = ${2:0}; do {
+	$0
+} while (*++$1) < $3;
+endsnippet
 snippet goto "goto" w
 goto :$1;
 endsnippet
@@ -280,70 +285,70 @@ endsnippet
 
 # world processor
 snippet getblock "获取任意位置的地块数据(floor|ore|block|building)" b
-getblock ${1:block} ${2:result} ${3:0} ${4:0}
+getblock ${1:block} ${2:result} ${3:0} ${4:0};
 endsnippet
 snippet setblock "设置任意位置的地块数据(floor|ore|block)" b
-setblock ${1:block} ${2:@air} ${3:0} ${4:0} ${5:@derelict} ${6:0}
+setblock ${1:block} ${2:@air} ${3:0} ${4:0} ${5:@derelict} ${6:0};
 endsnippet
 snippet spawn "在指定位置生成单位" b
-spawn ${1:@dagger} ${2:10} ${3:10} ${4:90} ${5:@sharded} ${6:result}
+spawn ${1:@dagger} ${2:10} ${3:10} ${4:90} ${5:@sharded} ${6:result};
 endsnippet
 snippet status "添加或清除单位的一个状态效果" b
-status ${1:false} ${2:wet} ${3:unit} ${4:10}
+status ${1:false} ${2:wet} ${3:unit} ${4:10};
 endsnippet
 snippet weathersense "检查特定种类的天气当前是否启用。" b
-weathersense ${1:result} ${2:@rain}
+weathersense ${1:result} ${2:@rain};
 endsnippet
 snippet weatherset "设置当前状态为特定类型天气。" b
-weatherset ${1:@rain} ${2:true}
+weatherset ${1:@rain} ${2:true};
 endsnippet
 snippet spawnwave "在任意位置生成一波敌人\n并不记录在波数计数器中" b
-spawnwave ${1:10} ${2:10} ${3:false}
+spawnwave ${1:10} ${2:10} ${3:false};
 endsnippet
 snippet setrule "设置地图规则" b
-setrule ${1:waveSpacing} ${2:10} ${3:0} ${4:0} ${5:100} ${6:100}
+setrule ${1:waveSpacing} ${2:10} ${3:0} ${4:0} ${5:100} ${6:100};
 endsnippet
 snippet message "(notify|announce|toast|mission)在屏幕中央投影文字缓存区的内容\n会等待上一个文字显示结束" b
-message ${1:announce} ${2:3} ${3:@wait}
+message ${1:announce} ${2:3} ${3:@wait};
 endsnippet
 snippet cutscene "(pan|zoom|ztop)控制玩家游戏视角" b
-cutscene ${1:pan} ${2:100} ${3:100} ${4:0.06} ${5:0}
+cutscene ${1:pan} ${2:100} ${3:100} ${4:0.06} ${5:0};
 endsnippet
 snippet effect "创建一个粒子效果。" b
-effect ${1:warn} ${2:0} ${3:0} ${4:2} ${5:%ffaaff}
+effect ${1:warn} ${2:0} ${3:0} ${4:2} ${5:%ffaaff};
 endsnippet
 snippet explosion "在某个位置生成爆炸" b
-explosion @crux 0 0 5 50 true true false true
+explosion @crux 0 0 5 50 true true false true;
 endsnippet
 snippet setrate "在指令/时间刻的时间下设置处理器处理速度" b
-setrate ${1:10}
+setrate ${1:10};
 endsnippet
 snippet fetch "按索引查找单位、 核心、 玩家或建筑物(unit|player|core|build)[Count]\n索引从 0 开始，以其返回的计数结束" b
-fetch ${1:unit} ${2:result} ${3:@sharded} ${4:0} ${5:@conveyor}
+fetch ${1:unit} ${2:result} ${3:@sharded} ${4:0} ${5:@conveyor};
 endsnippet
 snippet sync "在网络中同步一个变量。\n最多每秒调用10次。" b
-sync ${1:var}
+sync ${1:var};
 endsnippet
 snippet getflag "检查是否设置了全局标志。" b
-getflag ${1:result} ${2:"flag"}
+getflag ${1:result} ${2:"flag"};
 endsnippet
 snippet setflag "设置一个可以被所有处理器读取的全局标志。" b
-setflag ${1:"flag"} ${2:true}
+setflag ${1:"flag"} ${2:true};
 endsnippet
 snippet setprop "设置单位或建筑物的属性。" b
-setprop ${1:@copper} ${2:block1} ${3:0}
+setprop ${1:@copper} ${2:block1} ${3:0};
 endsnippet
 snippet playsound "播放一个声音, 音量和偏移可以是全局(false), 也可以根据位置计算" b
-playsound false @sfx-pew 1 1 0 @thisx @thisy true
+playsound false @sfx-pew 1 1 0 @thisx @thisy true;
 endsnippet
 snippet setmarker "为标记设置属性。\n使用的ID必须与制作标记指令中的相同。" b
-setmarker ${1:pos} ${2:0} ${3:0} ${4:0} ${5:0}
+setmarker ${1:pos} ${2:0} ${3:0} ${4:0} ${5:0};
 endsnippet
 snippet makemarker "在世界中创建一个新的逻辑标记。\n必须提供一个用于标识此标记的ID。\n目前每个世界限制最多20000个标记。" b
-makemarker ${1:shape} ${2:0} ${3:0} ${4:0} ${5:true}
+makemarker ${1:shape} ${2:0} ${3:0} ${4:0} ${5:true};
 endsnippet
 snippet localeprint "将地图本地化文本属性值添加到文本缓冲区中。\n要在地图编辑器中设置地图本地化包，请检查 [accent]地图信息 > 本地化包[]。\n如果客户端是移动设备，则尝试首先打印以 .mobile 结尾的属性。" b
-localeprint ${2:"${1:name}"}
+localeprint ${2:"${1:name}"};
 endsnippet
 
 # env variables
@@ -836,6 +841,56 @@ snippet sensor.color "颜色" w
 sensor ${2:color} $1 @color;
 endsnippet
 
+# draw expanded
+snippet draw.clear "指定颜色填满屏幕" w
+draw clear ${1:0} ${2:0} ${3:0} 0 0 0;
+endsnippet
+snippet draw.color "修改绘制颜色" w
+draw color ${1:0} ${2:0} ${3:0} ${4:255} 0 0;
+endsnippet
+snippet draw.col "修改绘制颜色 (打包版)" w
+draw col ${1:'%${2:000000}'} 0 0 0 0 0;
+endsnippet
+snippet draw.stroke "设置线条宽度" w
+draw stroke ${1:0} 0 0 0 0 0;
+endsnippet
+snippet draw.line "绘制线段" w
+draw line ${1:0} ${2:0} ${3:0} ${4:0} 0 0;
+endsnippet
+snippet draw.rect "绘制实心矩形" w
+draw rect ${1:0} ${2:0} ${3:0} ${4:0} 0 0;
+endsnippet
+snippet draw.lineRect "绘制矩形轮廓" w
+draw lineRect ${1:0} ${2:0} ${3:0} ${4:0} 0 0;
+endsnippet
+snippet draw.poly "绘制实心正多边形" w
+draw poly ${1:0} ${2:0} ${3:0} ${4:0} ${5:0} 0;
+endsnippet
+snippet draw.linePoly "绘制正多边形轮廓" w
+draw linePoly ${1:0} ${2:0} ${3:0} ${4:0} ${5:0} 0;
+endsnippet
+snippet draw.triangle "绘制实心三角形" w
+draw triangle ${1:0} ${2:0} ${3:0} ${4:0} ${5:0} ${6:0};
+endsnippet
+snippet draw.image "画出某个游戏内容的图像, 例如@router或者@dagger" w
+draw image ${1:0} ${2:0} ${3:@copper} ${4:32} ${5:0} 0;
+endsnippet
+snippet draw.print "类似printflush, 但是输出在显示屏 (center|top|bottom|left|right|topLeft|topRight|bottomLeft|bottomRight)" w
+draw print ${1:0} ${2:0} ${3:bottomLeft} 0 0 0;
+endsnippet
+snippet draw.translate "移动绘制基准点属性" w
+draw translate ${1:0} ${2:0} 0 0 0 0;
+endsnippet
+snippet draw.scale "缩放绘制比例属性" w
+draw scale ${1:0} ${2:0} 0 0 0 0;
+endsnippet
+snippet draw.rotate "旋转绘制角度属性" w
+draw rotate ${1:0} 0 0 0 0 0;
+endsnippet
+snippet draw.reset "重设绘制属性" w
+draw reset 0 0 0 0 0 0;
+endsnippet
+
 # lookup expanded
 snippet lookup.block "lookup block" w
 lookup block ${2:block} $1;
@@ -848,4 +903,47 @@ lookup item ${2:item} $1;
 endsnippet
 snippet lookup.liquid "lookup liquid" w
 lookup liquid ${2:liquid} $1;
+endsnippet
+
+# control expanded
+snippet control.enabled "控制建筑的启用禁用" w
+control enabled ${1:block} ${2:false} 0 0 0;
+endsnippet
+snippet control.shoot "控制建筑朝着坐标射击" w
+control shoot ${1:block1} ${2:0} ${3:0} ${4:0} 0;
+endsnippet
+snippet control.shootp "控制建筑朝着目标设计 (考虑速度预瞄)" w
+control shootp ${1:block1} ${2:0} ${3:0} 0 0;
+endsnippet
+snippet control.config "设置建筑 config, 例如分类器物品" w
+control config ${1:block1} ${2:0} 0 0 0;
+endsnippet
+snippet control.color "设置建筑颜色" w
+control color ${1:block1} ${2:0} 0 0 0;
+endsnippet
+
+# fetch expanded
+snippet fetch.unit "按索引查找单位\n索引从 0 开始，以其返回的计数结束" b
+fetch unit ${4:unit} ${1:@sharded} ${2:0} ${3:@conveyor};
+endsnippet
+snippet fetch.player "按索引查找核心\n索引从 0 开始，以其返回的计数结束" b
+fetch player ${4:player} ${1:@sharded} ${2:0} 0;
+endsnippet
+snippet fetch.core "按索引查找玩家\n索引从 0 开始，以其返回的计数结束" b
+fetch core ${4:core} ${1:@sharded} ${2:0} 0;
+endsnippet
+snippet fetch.build "按索引查找建筑物\n索引从 0 开始，以其返回的计数结束" b
+fetch build ${4:block} ${1:@sharded} ${2:0} ${3:@conveyor};
+endsnippet
+snippet fetch.unitCount "fetch 单位的总数" b
+fetch unitCount ${3:unit} ${1:@sharded} 0 ${2:@conveyor};
+endsnippet
+snippet fetch.playerCount "fetch 玩家的总数" b
+fetch playerCount ${2:player} ${1:@sharded} 0 0;
+endsnippet
+snippet fetch.coreCount "fetch 核心的总数" b
+fetch coreCount ${2:core} ${1:@sharded} 0 0;
+endsnippet
+snippet fetch.buildCount "fetch 建筑的总数" b
+fetch buildCount ${3:block} ${1:@sharded} 0 ${2:@conveyor};
 endsnippet
