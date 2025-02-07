@@ -100,6 +100,9 @@ Provided basic support for some editors
 
   This plugin can be obtained at [here](./syntax/vscode/support/)
 
+  Due to low maintenance frequency,
+  consider using plugins such as Vsnips to make Vim's snippets work in VSCode
+
 - [**BlocklyEditor**]\:
   This is a graphical code editor framework that implements an editor for Bang language.
 

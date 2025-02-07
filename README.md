@@ -92,6 +92,8 @@ cargo install --path . # 执行这个你可以在你的shell中直接使用它(�
 
   插件可以在[此处](./syntax/vscode/support/)获取
 
+  由于维护频率较低, 考虑使用插件例如 Vsnips 使 Vim 的代码片段工作在 VSCode
+
 - [**BlocklyEditor**]\:
   这是一个图形化代码编辑器框架, 使用此框架实现了一个关于Bang语言的编辑器
 
