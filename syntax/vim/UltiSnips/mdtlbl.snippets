@@ -284,10 +284,10 @@ uradar enemy any any distance 0 1 result;
 endsnippet
 
 # world processor
-snippet getblock "获取任意位置的地块数据(floor|ore|block|building)" b
+snippet getblock "获取指定位置的地块数据(floor|ore|block|building)" b
 getblock ${1:block} ${2:result} ${3:0} ${4:0};
 endsnippet
-snippet setblock "设置任意位置的地块数据(floor|ore|block)" b
+snippet setblock "设置指定位置的地块数据(floor|ore|block)" b
 setblock ${1:block} ${2:@air} ${3:0} ${4:0} ${5:@derelict} ${6:0};
 endsnippet
 snippet spawn "在指定位置生成单位" b
@@ -947,6 +947,31 @@ control config ${1:block1} ${2:0} 0 0 0;
 endsnippet
 snippet control.color "设置建筑颜色" w
 control color ${1:block1} ${2:0} 0 0 0;
+endsnippet
+
+# getblock expanded
+snippet getblock.floor "获取指定位置的地板" b
+getblock 'floor' ${1:result} ${2:0} ${3:0};
+endsnippet
+snippet getblock.ore "获取指定位置的矿物" b
+getblock ore ${1:result} ${2:0} ${3:0};
+endsnippet
+snippet getblock.block "获取指定位置的建筑 content, 可以获取墙" b
+getblock block ${1:result} ${2:0} ${3:0};
+endsnippet
+snippet getblock.building "获取指定位置的建筑对象" b
+getblock building ${1:result} ${2:0} ${3:0};
+endsnippet
+
+# setblock expanded
+snippet setblock.floor "设置指定位置的地板" b
+setblock 'floor' ${1:@air} ${2:0} ${3:0} 0 0;
+endsnippet
+snippet setblock.ore "设置指定位置的矿物" b
+setblock ore ${1:@air} ${2:0} ${3:0} 0 0;
+endsnippet
+snippet setblock.block "设置指定位置的建筑" b
+setblock block ${1:@air} ${2:0} ${3:0} ${4:@derelict} ${5:0};
 endsnippet
 
 # fetch expanded
