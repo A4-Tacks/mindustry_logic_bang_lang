@@ -11,7 +11,7 @@ The form of MLog itself is similar to assembly, using conditional jumps or assig
 However, this method can only be manually written, which can be very tedious and tiring.
 Function parameter passing also requires manual writing of repetitive and cumbersome code, which seriously slows down execution speed
 
-Moreover, MLog can only use a single operation instruction to perform calculations and write complex formulas, which is very scary
+In addition, MLog can only use a single operation instruction to perform calculations, so writing complex formulas can be very lengthy
 
 Bang extends and improves based on the style of MLog itself, with a focus on zero-cost metaprogramming, emphasizing static encapsulation abstraction, value passing, structured control flow unfolding, compile time evaluation, and more
 We also added op-expr, which can quickly expand familiar expressions in common language styles into multiple operation instructions
@@ -100,13 +100,12 @@ Provided basic support for some editors
 
   This plugin can be obtained at [here](./syntax/vscode/support/)
 
-  Due to low maintenance frequency,
-  consider using plugins such as Vsnips to make Vim's snippets work in VSCode
-
 - [**BlocklyEditor**]\:
   This is a graphical code editor framework that implements an editor for Bang language.
 
   Having two branches in Chinese and English
+
+  Not recommended to use, only contains some basic statements
 
 `LSP` is currently not implemented and there is no need to implement it. The logic language is so messy, and this function cannot be used much
 
