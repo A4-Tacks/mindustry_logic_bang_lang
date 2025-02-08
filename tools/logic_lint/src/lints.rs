@@ -370,6 +370,10 @@ const FETCH_METHODS: &[&str] = &[
     "core",     "coreCount",
     "build",    "buildCount",
 ];
+const BLOCK_FLAG: &[&str] = &[
+    "core", "storage", "generator", "turret", "factory",
+    "repair", "rally", "battery", "reactor", "drill", "shield",
+];
 
 make_lints! {
     pub fn lint<'a>(src, line) -> Lint<'a>;
@@ -412,10 +416,7 @@ make_lints! {
             lints.extend(check_oper(mode, &[
                 "building", "ore", "spawn", "damaged",
             ]));
-            lints.extend(check_oper(btype, &[
-                "core", "storage", "generator", "turret", "factory",
-                "repair", "rally", "battery", "reactor",
-            ]));
+            lints.extend(check_oper(btype, BLOCK_FLAG));
             lints.extend(check_vars(src, line, args))
         }
     }
