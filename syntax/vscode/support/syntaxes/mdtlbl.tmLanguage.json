@@ -51,24 +51,16 @@
 					"match": "\\b(equal|notEqual|strictNotEqual|lessThan|lessThanEq|greaterThan|greaterThanEq|strictEqual|always|lnot|add|sub|mul|div|idiv|mod|pow|shl|shr|or|and|land|xor|max|min|angle|angleDiff|len|noise|not|abs|log|log10|floor|ceil|sqrt|rand|sin|cos|tan|asin|acos|atan)\\b"
 				},
 				{
-					"match": "(!|&&|\\|\\|)",
-					"name": "keyword.operator.logical.mdtlbl"
+					"match": "((?<!\\p{XID_Continue})!|&&|\\|\\||=>)(?!=)",
+					"name": "keyword.control.mdtlbl"
 				},
 				{
-					"match": "(\\||&)",
-					"name": "keyword.operator.bitwise.mdtlbl"
-				},
-				{
-					"match": "(=)",
-					"name": "keyword.operator.assignment.mdtlbl"
-				},
-				{
-					"match": "(===?|!=|<=|>=|<|>)",
+					"match": "([!=]==?|[<>](?![<>]=?))",
 					"name": "keyword.operator.comparison.mdtlbl"
 				},
 				{
-					"match": "(<<|>>>?|~|\\^)",
-					"name": "keyword.operator.bitwise.mdtlbl"
+					"match": "((?://|\\*\\*|&&|<<|>>|[+\\-*/%|&^])=|(?<![<>])=|\\+\\+|--)",
+					"name": "keyword.operator.new.mdtlbl"
 				}
 			]
 		},
@@ -93,11 +85,11 @@
 			},
 			"patterns": [
 				{
-					"name": "constant.character.escape",
+					"name": "constant.character.escape.mdtlbl",
 					"match": "\\\\(?:[\\\\\"n ]|$|(.))",
 					"captures": {
 						"1": {
-							"name": "invalid.illegal"
+							"name": "invalid.illegal.mdtlbl"
 						}
 					}
 				}
@@ -111,17 +103,13 @@
 				"0": {
 					"name": "punctuation.definition.string.mdtlbl"
 				}
-			}
-		},
-		"qstring-format": {
-			"name": "string.quoted.format.mdtlbl",
-			"begin": "`",
-			"end": "`",
-			"captures": {
-				"0": {
-					"name": "punctuation.definition.string.mdtlbl"
+			},
+			"patterns": [
+				{
+					"name": "constant.character.escape.mdtlbl",
+					"match": "\""
 				}
-			}
+			]
 		},
 		"comments-doc": {
 			"patterns": [
@@ -200,7 +188,11 @@
 					"name": "constant.language.mdtlbl"
 				},
 				{
-					"match": "[$`]|\\.\\.|->",
+					"match": "\\$|(?<!\\()`|\\.\\.|->|(?<=\\p{XID_Continue})!",
+					"name": "constant.language.mdtlbl"
+				},
+				{
+					"match": "\\([%?]?(`?)(?:'[^' ]+'|[_\\p{XID_Start}]\\p{XID_Continue}*|@[_\\p{XID_Start}][\\p{XID_Continue}\\-]*|-?\\d[xb]?-?[_\\da-fA-F]*)\\1:",
 					"name": "constant.language.mdtlbl"
 				},
 				{
@@ -214,13 +206,17 @@
 				{
 					"match": ":\\w+",
 					"name": "entity.name.tag.mdtlbl"
+				},
+				{
+					"match": ":'[^ ']+'",
+					"name": "entity.name.tag.mdtlbl"
 				}
 			]
 		},
 		"object": {
 			"patterns": [
 				{
-					"match": "@[_\\p{XID_Start}][\\p{XID_continue}\\-]*",
+					"match": "@[_\\p{XID_Start}][\\p{XID_Continue}\\-]*",
 					"name": "variable.other.constant.mdtlbl"
 				}
 			]
@@ -228,11 +224,11 @@
 		"variable": {
 			"patterns": [
 				{
-					"match": "(?<!:|@)\\b[_A-Z]\\p{XID_continue}*",
+					"match": "(?<!:|@)\\b(?:[A-Z]\\p{XID_Continue}*|_\\d+)\\b",
 					"name": "variable.other.constant.mdtlbl"
 				},
 				{
-					"match": "(?<!:|@)\\b\\p{XID_start}\\p{XID_continue}*|_\\p{XID_continue}+",
+					"match": "(?<!:|@)\\b(?:\\p{XID_Start}\\p{XID_Continue}*|_(?!\\d)\\p{XID_Continue}+)\\b",
 					"name": "variable.other.readwrite.mdtlbl"
 				}
 			]
@@ -240,19 +236,15 @@
 		"numbers": {
 			"patterns": [
 				{
-					"match": "(?x)\n\\b(?<!\\$)\n0(x|X)\n(\n  (?<!\\.)[0-9a-fA-F]([0-9a-fA-F_]*[0-9a-fA-F])?[Ll]?(?!\\.)\n  |\n  (\n    [0-9a-fA-F]([0-9a-fA-F_]*[0-9a-fA-F])?\\.?\n    |\n    ([0-9a-fA-F]([0-9a-fA-F_]*[0-9a-fA-F])?)?\\.[0-9a-fA-F]([0-9a-fA-F_]*[0-9a-fA-F])?\n  )\n  [Pp][+-]?[0-9]([0-9_]*[0-9])?[FfDd]?\n)\n\\b(?!\\$)",
+					"match": "\\b0x-?[\\da-fA-F][\\d_a-fA-F]*\\b",
 					"name": "constant.numeric.hex.mdtlbl"
 				},
 				{
-					"match": "\\b(?<!\\$)0(b|B)-?[01]([01_]*[01])?[Ll]?\\b(?!\\$)",
+					"match": "\\b0b-?[01][_01]*\\b",
 					"name": "constant.numeric.binary.mdtlbl"
 				},
 				{
-					"match": "\\b(?<!\\$)0[0-7]([0-7_]*[0-7])?[Ll]?\\b(?!\\$)",
-					"name": "constant.numeric.octal.mdtlbl"
-				},
-				{
-					"match": "(?x)\n(?<!\\$)\n(\n  \\b[0-9]([0-9_]*[0-9])?\\.\\B(?!\\.)\n  |\n  \\b[0-9]([0-9_]*[0-9])?\\.([Ee][+-]?[0-9]([0-9_]*[0-9])?)[FfDd]?\\b\n  |\n  \\b[0-9]([0-9_]*[0-9])?\\.([Ee][+-]?[0-9]([0-9_]*[0-9])?)?[FfDd]\\b\n  |\n  \\b[0-9]([0-9_]*[0-9])?\\.([0-9]([0-9_]*[0-9])?)([Ee][+-]?[0-9]([0-9_]*[0-9])?)?[FfDd]?\\b\n  |\n  (?<!\\.)\\B\\.[0-9]([0-9_]*[0-9])?([Ee][+-]?[0-9]([0-9_]*[0-9])?)?[FfDd]?\\b\n  |\n  \\b[0-9]([0-9_]*[0-9])?([Ee][+-]?[0-9]([0-9_]*[0-9])?)[FfDd]?\\b\n  |\n  \\b[0-9]([0-9_]*[0-9])?([Ee][+-]?[0-9]([0-9_]*[0-9])?)?[FfDd]\\b\n  |\n  \\b(0|[1-9]([0-9_]*[0-9])?)(?!\\.)[Ll]?\\b\n)\n(?!\\$)",
+					"match": "-?\\d[\\d_]*(?:\\.\\d[0-9_]*|e[+\\-]?\\d[\\d_]*)?\\b",
 					"name": "constant.numeric.decimal.mdtlbl"
 				}
 			]

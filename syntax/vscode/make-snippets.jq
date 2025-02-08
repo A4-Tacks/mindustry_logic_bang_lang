@@ -1,11 +1,8 @@
 #!/bin/jq -nRf
 "^snippet\\s+(?<prefix>\\S+)\\s+\"(?<description>[^\"]*)\"" as $title
 | reduce inputs as $line ([]; if $line | test($title) then
-  .+[
-    $line | capture($title)
-    | {key: .description, value: .}
-  ]
-elif $line | test("^endsnippet|^\\s*(#|$)") | not then
+  .+[$line | capture($title) | {key: .description, value: .}]
+elif $line | test("^endsnippet|^\\s*(# |$)") | not then
   last.value.body += [$line]
 end)
 # 对于重复的注解, 需要报错

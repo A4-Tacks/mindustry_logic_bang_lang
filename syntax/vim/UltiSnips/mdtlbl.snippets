@@ -13,7 +13,7 @@ do {
 	$0
 } while ${1};
 endsnippet
-snippet do_for "do_while for" w
+snippet doi "do_while for" w
 $1 = ${2:0}; do {
 	$0
 } while (*++$1) < $3;
@@ -60,12 +60,6 @@ endsnippet
 snippet using "const bind to var" w
 $2=$1->$2
 endsnippet
-snippet argt "take arg" w
-take ${1:Arg} = _${2:0};
-endsnippet
-snippet argc "const arg" w
-const ${1:Arg} = _${2:0};
-endsnippet
 snippet iop "op self" w
 $1 ${2:+}= $3;
 endsnippet
@@ -106,22 +100,28 @@ const match ${1:@} {
 	$0
 }
 endsnippet
-snippet setres "set DExp result handle" w
-setres ${1:RES};
+snippet setargt "set args" w
+match $1 => @ {}
 endsnippet
-snippet break "break top-level loop" w
+snippet setargs "const set args" w
+const match $1 => @ {}
+endsnippet
+snippet setres "set DExp result handle" w
+setres $1;
+endsnippet
+snippet break "break current loop" w
 break$1;
 endsnippet
-snippet continue "continue top-level loop" w
+snippet continue "continue current loop" w
 continue$1;
 endsnippet
-snippet tmpvar "use take define tmp var" w
+snippet tmpvar "use take define unnamed tmp var" w
 take+$1;
 endsnippet
 snippet doccomments "#**\n...\n*#" b
 #**
 * $1
-*#$0
+*#
 endsnippet
 
 # Builtin
@@ -206,13 +206,13 @@ snippet _ExpandStack "Builtin.ExpandStack!;" w
 Builtin.ExpandStack!;
 endsnippet
 snippet _MissesMatch "Builtin.MissesMatch! $1;" w
-Builtin.MissesMatch! $1;
+Builtin.MissesMatch! ${1:1};
 endsnippet
 snippet _NewBind "Builtin.NewBind! $1;" w
 Builtin.NewBind! $1;
 endsnippet
 snippet _BindSep "Builtin.BindSep! $1;" w
-Builtin.BindSep! $1;
+Builtin.BindSep! '${1:.}';
 endsnippet
 snippet _SetNoOp "Builtin.SetNoOp! $1;" w
 Builtin.SetNoOp! $1;
@@ -231,7 +231,7 @@ endsnippet
 snippet draw "draw clear 0 0 0 0 0 0" w
 draw ${1:clear} ${2:0} ${3:0} ${4:0} 0 0 0;
 endsnippet
-snippet format "format" w
+snippet format "fill format string" w
 format $1;
 endsnippet
 snippet drawflush "drawflush message1" w
@@ -252,7 +252,7 @@ endsnippet
 snippet sensor "sensor" w
 sensor ${1:result} ${2:block1} ${3:@${4:copper}};
 endsnippet
-snippet lookup "block | unit | item | liquid" w
+snippet lookup "each block | unit | item | liquid" w
 lookup ${1:item} ${2:result} ${3:0};
 endsnippet
 snippet packcolor "packcolor result r g b a # color in [0,1]" w
@@ -947,6 +947,82 @@ control config ${1:block1} ${2:0} 0 0 0;
 endsnippet
 snippet control.color "设置建筑颜色" w
 control color ${1:block1} ${2:0} 0 0 0;
+endsnippet
+
+# ucontrol expanded
+snippet ucontrol.idle "原地不动，但继续进行手上的采矿/建造动作\n单位的默认状态" w
+ucontrol idle 0 0 0 0 0;
+endsnippet
+snippet ucontrol.stop "停止移动/采矿/建造动作" w
+ucontrol stop 0 0 0 0 0;
+endsnippet
+snippet ucontrol.move "移动到某个位置" w
+ucontrol move ${1:0} ${2:0} 0 0 0;
+endsnippet
+snippet ucontrol.approach "靠近某个位置至一定的距离内" w
+ucontrol approach ${1:0} ${2:0} ${3:0} 0 0;
+endsnippet
+snippet ucontrol.pathfind "寻路移动至指定地点" w
+ucontrol pathfind ${1:0} ${2:0} 0 0 0;
+endsnippet
+snippet ucontrol.autoPathfind "自动寻路至最近的敌方核心或敌人生成点。" w
+ucontrol autoPathfind 0 0 0 0 0;
+endsnippet
+snippet ucontrol.boost "开始/停止助推" w
+ucontrol boost ${1:0} 0 0 0 0;
+endsnippet
+snippet ucontrol.target "向某个位置瞄准/射击" w
+ucontrol target ${1:0} ${2:0} ${3:0};
+endsnippet
+snippet ucontrol.targetp "根据提前量向某个目标瞄准/射击" w
+ucontrol targetp ${1:0} ${2:0};
+endsnippet
+snippet ucontrol.itemDrop "将携带的物品放入一座建筑" w
+ucontrol itemDrop ${1:0} ${2:0};
+endsnippet
+snippet ucontrol.itemTake "从建筑中取出某种物品" w
+ucontrol itemTake ${1:0} ${2:0} ${3:0} 0 0;
+endsnippet
+snippet ucontrol.payDrop "卸下当前载荷" w
+ucontrol payDrop 0 0 0 0 0;
+endsnippet
+snippet ucontrol.payTake "从当前位置拾取载荷" w
+ucontrol payTake ${1:0} 0 0 0 0;
+endsnippet
+snippet ucontrol.payEnter "进入/降落到单位下方的荷载方块中" w
+ucontrol payEnter 0 0 0 0 0;
+endsnippet
+snippet ucontrol.mine "从某个位置采集矿物" w
+ucontrol mine ${1:0} ${2:0} 0 0 0;
+endsnippet
+snippet ucontrol.flag "给单位赋予数字形式的标记" w
+ucontrol flag ${1:0} 0 0 0 0;
+endsnippet
+snippet ucontrol.build "建造建筑 (block, rotation, config)" w
+ucontrol build ${1:0} ${2:0} ${3:0} ${4:0} ${5:0};
+endsnippet
+snippet ucontrol.getBlock "在坐标处获取建筑、地板和方块类型。\n单位必须在位置范围内，否则返回null" w
+ucontrol getBlock ${1:0} ${2:0} ${3:0} ${4:0} ${5:0};
+endsnippet
+snippet ucontrol.within "检查单位是否接近了某个位置" w
+ucontrol within ${1:0} ${2:0} ${3:0} ${4:0} 0;
+endsnippet
+snippet ucontrol.unbind "停用单位的逻辑控制\n恢复常规AI" w
+ucontrol unbind 0 0 0 0 0;
+endsnippet
+
+# ulocate expanded
+snippet ulocate.ore "查找矿脉" w
+ulocate ore core 0 ${1:@${2:copper}} ${3:outx} ${4:outy} ${5:found} 0;
+endsnippet
+snippet ulocate.building "查找某个分类下的建筑" w
+ulocate building ${1:core} ${2:true} 0 ${3:outx} ${4:outy} ${5:found} ${6:building};
+endsnippet
+snippet ulocate.spawn "查找敌方出生点(坐标或建筑)" w
+ulocate spawn core 0 0 ${1:outx} ${2:outy} ${3:found} ${4:building};
+endsnippet
+snippet ulocate.damaged "查找受损的己方建筑" w
+ulocate damaged core 0 0 ${1:outx} ${2:outy} ${3:found} ${4:building};
 endsnippet
 
 # getblock expanded

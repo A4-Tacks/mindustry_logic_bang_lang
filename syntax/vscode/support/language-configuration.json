@@ -13,24 +13,26 @@
     ],
     // symbols that are auto closed when typing
     "autoClosingPairs": [
-		{ "open": "{", "close": "}" },
-		{ "open": "[", "close": "]" },
-		{ "open": "(", "close": ")" },
-		{ "open": "\"", "close": "\"", "notIn": ["string"] },
+        { "open": "{", "close": "}" },
+        { "open": "[", "close": "]" },
+        { "open": "(", "close": ")" },
+        { "open": "\"", "close": "\"", "notIn": ["string"] },
         { "open": "'", "close": "'", "notIn": ["string"] },
-	],
-	"autoCloseBefore": ";:.,=}]) \n\t",
+        { "open": "`", "close": "`" }
+    ],
+    "autoCloseBefore": "`;:.,=}]) \n\t",
     // symbols that can be used to surround a selection
     "surroundingPairs": [
         ["{", "}"],
         ["[", "]"],
         ["(", ")"],
         ["\"", "\""],
-        ["'", "'"]
+        ["'", "'"],
+        ["`", "`"]
     ],
-    "wordPattern": "(-?\\d*\\.\\d\\w*)|([^\\`\\~\\!\\@\\#\\%\\^\\&\\*\\(\\)\\-\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)",
-	"indentationRules": {
-		"increaseIndentPattern": "(?:\\([%?*]?|[{\\[:])\\s*$",
-		"decreaseIndentPattern": "^\\s*(?:[})\\]]|case\\b)"
-	}
+    "wordPattern": "'([^' \\t]+')|(@(?!-)[^\\`\\~\\!\\@\\#\\%\\^\\&\\*\\(\\)\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)|((?:-(?=\\d))?[^\\`\\~\\!\\@\\#\\%\\^\\&\\*\\(\\)\\-\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)",
+    "indentationRules": {
+        "increaseIndentPattern": "(?:\\([%?*]?|[{\\[:])\\s*$",
+        "decreaseIndentPattern": "^\\s*(?:[})\\]]|case\\b)"
+    }
 }

@@ -27,7 +27,7 @@
         ]
     },
     "do_while for": {
-        "prefix": "do_for",
+        "prefix": "doi",
         "description": "do_while for",
         "body": [
             "$1 = ${2:0}; do {",
@@ -117,20 +117,6 @@
             "$2=$1->$2"
         ]
     },
-    "take arg": {
-        "prefix": "argt",
-        "description": "take arg",
-        "body": [
-            "take ${1:Arg} = _${2:0};"
-        ]
-    },
-    "const arg": {
-        "prefix": "argc",
-        "description": "const arg",
-        "body": [
-            "const ${1:Arg} = _${2:0};"
-        ]
-    },
     "op self": {
         "prefix": "iop",
         "description": "op self",
@@ -211,30 +197,44 @@
             "}"
         ]
     },
+    "set args": {
+        "prefix": "setargt",
+        "description": "set args",
+        "body": [
+            "match $1 => @ {}"
+        ]
+    },
+    "const set args": {
+        "prefix": "setargs",
+        "description": "const set args",
+        "body": [
+            "const match $1 => @ {}"
+        ]
+    },
     "set DExp result handle": {
         "prefix": "setres",
         "description": "set DExp result handle",
         "body": [
-            "setres ${1:RES};"
+            "setres $1;"
         ]
     },
-    "break top-level loop": {
+    "break current loop": {
         "prefix": "break",
-        "description": "break top-level loop",
+        "description": "break current loop",
         "body": [
             "break$1;"
         ]
     },
-    "continue top-level loop": {
+    "continue current loop": {
         "prefix": "continue",
-        "description": "continue top-level loop",
+        "description": "continue current loop",
         "body": [
             "continue$1;"
         ]
     },
-    "use take define tmp var": {
+    "use take define unnamed tmp var": {
         "prefix": "tmpvar",
-        "description": "use take define tmp var",
+        "description": "use take define unnamed tmp var",
         "body": [
             "take+$1;"
         ]
@@ -243,8 +243,9 @@
         "prefix": "doccomments",
         "description": "#**\\n...\\n*#",
         "body": [
+            "#**",
             "* $1",
-            "*#$0"
+            "*#"
         ]
     },
     "Builtin.Type[$1]": {
@@ -433,7 +434,7 @@
         "prefix": "_MissesMatch",
         "description": "Builtin.MissesMatch! $1;",
         "body": [
-            "Builtin.MissesMatch! $1;"
+            "Builtin.MissesMatch! ${1:1};"
         ]
     },
     "Builtin.NewBind! $1;": {
@@ -447,7 +448,7 @@
         "prefix": "_BindSep",
         "description": "Builtin.BindSep! $1;",
         "body": [
-            "Builtin.BindSep! $1;"
+            "Builtin.BindSep! '${1:.}';"
         ]
     },
     "Builtin.SetNoOp! $1;": {
@@ -485,9 +486,9 @@
             "draw ${1:clear} ${2:0} ${3:0} ${4:0} 0 0 0;"
         ]
     },
-    "format": {
+    "fill format string": {
         "prefix": "format",
-        "description": "format",
+        "description": "fill format string",
         "body": [
             "format $1;"
         ]
@@ -534,9 +535,9 @@
             "sensor ${1:result} ${2:block1} ${3:@${4:copper}};"
         ]
     },
-    "block | unit | item | liquid": {
+    "each block | unit | item | liquid": {
         "prefix": "lookup",
-        "description": "block | unit | item | liquid",
+        "description": "each block | unit | item | liquid",
         "body": [
             "lookup ${1:item} ${2:result} ${3:0};"
         ]
@@ -2107,6 +2108,174 @@
         "description": "设置建筑颜色",
         "body": [
             "control color ${1:block1} ${2:0} 0 0 0;"
+        ]
+    },
+    "原地不动，但继续进行手上的采矿/建造动作\\n单位的默认状态": {
+        "prefix": "ucontrol.idle",
+        "description": "原地不动，但继续进行手上的采矿/建造动作\\n单位的默认状态",
+        "body": [
+            "ucontrol idle 0 0 0 0 0;"
+        ]
+    },
+    "停止移动/采矿/建造动作": {
+        "prefix": "ucontrol.stop",
+        "description": "停止移动/采矿/建造动作",
+        "body": [
+            "ucontrol stop 0 0 0 0 0;"
+        ]
+    },
+    "移动到某个位置": {
+        "prefix": "ucontrol.move",
+        "description": "移动到某个位置",
+        "body": [
+            "ucontrol move ${1:0} ${2:0} 0 0 0;"
+        ]
+    },
+    "靠近某个位置至一定的距离内": {
+        "prefix": "ucontrol.approach",
+        "description": "靠近某个位置至一定的距离内",
+        "body": [
+            "ucontrol approach ${1:0} ${2:0} ${3:0} 0 0;"
+        ]
+    },
+    "寻路移动至指定地点": {
+        "prefix": "ucontrol.pathfind",
+        "description": "寻路移动至指定地点",
+        "body": [
+            "ucontrol pathfind ${1:0} ${2:0} 0 0 0;"
+        ]
+    },
+    "自动寻路至最近的敌方核心或敌人生成点。": {
+        "prefix": "ucontrol.autoPathfind",
+        "description": "自动寻路至最近的敌方核心或敌人生成点。",
+        "body": [
+            "ucontrol autoPathfind 0 0 0 0 0;"
+        ]
+    },
+    "开始/停止助推": {
+        "prefix": "ucontrol.boost",
+        "description": "开始/停止助推",
+        "body": [
+            "ucontrol boost ${1:0} 0 0 0 0;"
+        ]
+    },
+    "向某个位置瞄准/射击": {
+        "prefix": "ucontrol.target",
+        "description": "向某个位置瞄准/射击",
+        "body": [
+            "ucontrol target ${1:0} ${2:0} ${3:0};"
+        ]
+    },
+    "根据提前量向某个目标瞄准/射击": {
+        "prefix": "ucontrol.targetp",
+        "description": "根据提前量向某个目标瞄准/射击",
+        "body": [
+            "ucontrol targetp ${1:0} ${2:0};"
+        ]
+    },
+    "将携带的物品放入一座建筑": {
+        "prefix": "ucontrol.itemDrop",
+        "description": "将携带的物品放入一座建筑",
+        "body": [
+            "ucontrol itemDrop ${1:0} ${2:0};"
+        ]
+    },
+    "从建筑中取出某种物品": {
+        "prefix": "ucontrol.itemTake",
+        "description": "从建筑中取出某种物品",
+        "body": [
+            "ucontrol itemTake ${1:0} ${2:0} ${3:0} 0 0;"
+        ]
+    },
+    "卸下当前载荷": {
+        "prefix": "ucontrol.payDrop",
+        "description": "卸下当前载荷",
+        "body": [
+            "ucontrol payDrop 0 0 0 0 0;"
+        ]
+    },
+    "从当前位置拾取载荷": {
+        "prefix": "ucontrol.payTake",
+        "description": "从当前位置拾取载荷",
+        "body": [
+            "ucontrol payTake ${1:0} 0 0 0 0;"
+        ]
+    },
+    "进入/降落到单位下方的荷载方块中": {
+        "prefix": "ucontrol.payEnter",
+        "description": "进入/降落到单位下方的荷载方块中",
+        "body": [
+            "ucontrol payEnter 0 0 0 0 0;"
+        ]
+    },
+    "从某个位置采集矿物": {
+        "prefix": "ucontrol.mine",
+        "description": "从某个位置采集矿物",
+        "body": [
+            "ucontrol mine ${1:0} ${2:0} 0 0 0;"
+        ]
+    },
+    "给单位赋予数字形式的标记": {
+        "prefix": "ucontrol.flag",
+        "description": "给单位赋予数字形式的标记",
+        "body": [
+            "ucontrol flag ${1:0} 0 0 0 0;"
+        ]
+    },
+    "建造建筑 (block, rotation, config)": {
+        "prefix": "ucontrol.build",
+        "description": "建造建筑 (block, rotation, config)",
+        "body": [
+            "ucontrol build ${1:0} ${2:0} ${3:0} ${4:0} ${5:0};"
+        ]
+    },
+    "在坐标处获取建筑、地板和方块类型。\\n单位必须在位置范围内，否则返回null": {
+        "prefix": "ucontrol.getBlock",
+        "description": "在坐标处获取建筑、地板和方块类型。\\n单位必须在位置范围内，否则返回null",
+        "body": [
+            "ucontrol getBlock ${1:0} ${2:0} ${3:0} ${4:0} ${5:0};"
+        ]
+    },
+    "检查单位是否接近了某个位置": {
+        "prefix": "ucontrol.within",
+        "description": "检查单位是否接近了某个位置",
+        "body": [
+            "ucontrol within ${1:0} ${2:0} ${3:0} ${4:0} 0;"
+        ]
+    },
+    "停用单位的逻辑控制\\n恢复常规AI": {
+        "prefix": "ucontrol.unbind",
+        "description": "停用单位的逻辑控制\\n恢复常规AI",
+        "body": [
+            "ucontrol unbind 0 0 0 0 0;"
+        ]
+    },
+    "查找矿脉": {
+        "prefix": "ulocate.ore",
+        "description": "查找矿脉",
+        "body": [
+            "ulocate ore core 0 ${1:@${2:copper}} ${3:outx} ${4:outy} ${5:found} 0;"
+        ]
+    },
+    "查找某个分类下的建筑": {
+        "prefix": "ulocate.building",
+        "description": "查找某个分类下的建筑",
+        "body": [
+            "ulocate building ${1:core} ${2:true} 0 ${3:outx} ${4:outy} ${5:found} ${6:building};"
+        ]
+    },
+    "查找敌方出生点(坐标或建筑)": {
+        "prefix": "ulocate.spawn",
+        "description": "查找敌方出生点(坐标或建筑)",
+        "body": [
+            "ulocate spawn core 0 0 ${1:outx} ${2:outy} ${3:found} ${4:building};"
+        ]
+    },
+    "查找受损的己方建筑": {
+        "prefix": "ulocate.damaged",
+        "description": "查找受损的己方建筑",
+        "body": [
+            "ulocate damaged core 0 0 ${1:outx} ${2:outy} ${3:found} ${4:building};"
         ]
     },
     "获取指定位置的地板": {
