@@ -38,7 +38,7 @@
         "ucontrol-normal": /(i(?:dle|tem(?:Drop|Take))|stop|m(?:ove|ine)|a(?:pproach|utoPathfind)|pa(?:thfind|y(?:Drop|Take|Enter))|b(?:oost|uild)|targetp?|flag|unbind)(?:/ + include("_") + include("val") + /){5}/
         "ucontrol-extend": /(?:(getBlock)(?:/ + include("_") + include("val") + /){2}(?:/ + include("_") + include("var") + /){3}|(within)(?:/ + include("_") + include("val") + /){3}/ + include("_") + include("var") + include("_") + include("val") + /)/
         "ucontrol-failed": include("err") + /(?:/ + include("_") + include("val") + /){5}/
-        "ulocate-type": /(?:(core|storage|generator|turret|factory|r(?:e(?:pair|actor)|ally)|battery)|/ + include("err") + /)/
+        "ulocate-type": /(?:(core|storage|generator|turret|factory|r(?:e(?:pair|actor)|ally)|battery|rector|drill|shield)|/ + include("err") + /)/
         "status-effects": /(?:(?:b(?:urning|lasted|oss)|f(?:reezing|ast)|unmoving|s(?:low|apped|h(?:ielded|ocked)|poreSlowed)|wet|m(?:uddy|elting)|tarred|over(?:drive|clock)|corroded|disarmed|electrified|invincible)|/ + include("err") + /)/
         "logic-rules": /(?:(?:currentWaveTime|wave(?:Timer|s|S(?:pacing|ending))?|a(?:ttackMode|mbientLight)|enemyCoreBuildRadius|dropZoneRadius|unit(?:C(?:ap|ost)|Health|BuildSpeed|Damage)|mapArea|lighting|solarMultiplier|b(?:uildSpeed|lock(?:Health|Damage))|rtsMin(?:Weight|Squad))|/ + include("err") + /)/
         "fetch-type": /(?:(?:unit(?:Count)?|player(?:Count)?|core(?:Count)?|build(?:Count)?)|/ + include("err") + /)/
@@ -74,7 +74,7 @@
                 4: "number"
             }
             {
-                match: include("bg") + /(draw)/ + include("_") + /(?:(c(?:lear|ol(?:or)?)|stroke|line(?:Rect|Poly)?|rect|poly|triangle|image)|/ + include("err") + /)(?:/ + include("_") + include("val") + /){6}/ + include("ed")
+                match: include("bg") + /(draw)/ + include("_") + /(?:(c(?:lear|ol(?:or)?)|stroke|line(?:Rect|Poly)?|rect|poly|triangle|image|print|translate|scale|rotate|reset)|/ + include("err") + /)(?:/ + include("_") + include("val") + /){6}/ + include("ed")
                 recordAllGroups: true
                 1: "io"
                 2: "io"
@@ -86,6 +86,14 @@
             }
             {
                 match: include("bg") + /(print)/ + include("_") + include("val") + include("ed")
+                recordAllGroups: true
+                1: "io"
+                2: "string"
+                3: "strEscape"
+                4: "number"
+            }
+            {
+                match: include("bg") + /(printchar)/ + include("_") + include("val") + include("ed")
                 recordAllGroups: true
                 1: "io"
                 2: "string"

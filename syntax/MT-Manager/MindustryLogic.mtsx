@@ -55,7 +55,7 @@
             $2: "unit"
         ucontrol-failed = @err (?:@_ @val){5}
 
-        ulocate-type = (?:/(core|storage|generator|turret|factory|r(?:e(?:pair|actor)|ally)|battery)/ | @err)
+        ulocate-type = (?:/(core|storage|generator|turret|factory|r(?:e(?:pair|actor)|ally)|battery|rector|drill|shield)/ | @err)
             $1: "unit"
 
         status-effects = (?:
@@ -87,11 +87,14 @@
             : @bg /(write)(?:/ @_ @val /){3}/ @ed
                 $recordAllGroups: true
                 $1: "io"
-            : @bg /(draw)/ @_ /(?:(c(?:lear|ol(?:or)?)|stroke|line(?:Rect|Poly)?|rect|poly|triangle|image)|/ @err /)(?:/ @_ @val /){6}/ @ed
+            : @bg /(draw)/ @_ /(?:(c(?:lear|ol(?:or)?)|stroke|line(?:Rect|Poly)?|rect|poly|triangle|image|print|translate|scale|rotate|reset)|/ @err /)(?:/ @_ @val /){6}/ @ed
                 $recordAllGroups: true
                 $1: "io"
                 $2: "io"
             : @bg /(print)/ @_ @val @ed
+                $recordAllGroups: true
+                $1: "io"
+            : @bg /(printchar)/ @_ @val @ed
                 $recordAllGroups: true
                 $1: "io"
             : @bg /(format)/ @_ @val @ed
