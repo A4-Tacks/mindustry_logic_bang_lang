@@ -617,7 +617,8 @@ case 4:
   但是不像 Expand 携带一个 Expand 的作用域, 它没有作用域,
   通常手动使用它用处不大, 写做 `inline {}`, 就是普通 Expand 前面加一个`inline`
 - 标签 (Label): 用于被跳转的标签, 格式是一个冒号一个跟在后面的 Var
-- 其它语句 (Other): 就是上文所提到的由多个 Value 组成的普通逻辑语句
+- 其它语句 (Other): 就是上文所提到的由多个 Value 组成的普通逻辑语句,
+  多个 Value 间可以添加逗号, 虽然没什么用
 
 
 运算和比较的逻辑风格兼容
@@ -675,6 +676,9 @@ i, x = 2, abs(a-b) + sqrt(a)*2;
 >
 > op-expr 的 `||` 和 `&&` 是使用 `+` 和 `land` 实现的,
 > 只是为了有方便的优先级进行逻辑运算
+
+> [!TIP]
+> op-expr 等号左侧的逗号可以省略
 
 
 关于注释
@@ -1418,6 +1422,18 @@ x, y min= 1;
 ```
 
 
+## op-expr results ignored comma
+```
+a, b, c = 1, 2, 3;
+a b c = 1, 2, 3;
+```
+
+```
+a, b, c = 1;
+a b c = 1;
+```
+
+
 ## Value Inc and Dec
 ```
 x += `1`;
@@ -1531,7 +1547,7 @@ foo Foo[1 2];
 ```
 
 
-## Quick Take
+## Bang Take
 ```
 take Foo[1 2 3 @ 4];
 Foo! 1 2 3 @ 4;
@@ -1579,6 +1595,37 @@ const C = goto(=>[a b] _0 < _1);
 ```
 
 这在之后会讲到
+
+
+## Packed Statement Inc and Dec
+```
+inline {
+    take ___0 = i;
+    read num cell1 ___0;
+    op ___0 ___0 + `1`;
+}
+read num cell1 i++;
+```
+
+```
+inline {
+    take ___0 = i;
+    read num cell1 ___0;
+    op ___0 ___0 - `1`;
+}
+read num cell1 i--;
+```
+
+```
+inline {
+    take ___0 = i;
+    Foo! ___0:
+    op ___0 ___0 - `1`;
+}
+Foo! i--;
+```
+
+用于在一些特定的情况将内部的后缀自增自减添加至当前行之后 (**和op-expr没有关系**)
 
 
 ## Packed DExp like

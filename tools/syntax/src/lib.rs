@@ -151,8 +151,7 @@ impl From<((Location, Location), Errors)> for Error {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Errors {
     NotALiteralUInteger(Var, ParseIntError),
-    SetVarNoPatternValue(usize, usize),
-    ArgsRepeatChunkByZero,
+    OpExprInvalidResult { found: usize, right: usize },
 }
 
 /// 带有错误前缀, 并且文本为红色的eprintln
@@ -1001,6 +1000,7 @@ pub struct Meta {
     /// 用于op-expr的引用栈, 可以使用占位表达式引用最顶层的句柄
     op_expr_refs: Vec<Var>,
     unnamed_var: Var,
+    line_pack: Vec<(Vec<LogicLine>, Vec<LogicLine>)>,
 }
 impl Default for Meta {
     fn default() -> Self {
@@ -1013,6 +1013,7 @@ impl Default for Meta {
             continue_labels: Vec::new(),
             op_expr_refs: vec![unnamed_var.clone()],
             unnamed_var,
+            line_pack: vec![],
         }
     }
 }
@@ -1142,38 +1143,6 @@ impl Meta {
         }
     }
 
-    /// 构建一个`sets`, 例如`a b c = 1 2 3;`
-    /// 如果只有一个值与被赋值则与之前行为一致
-    /// 如果值与被赋值数量不匹配则返回错误
-    /// 如果值与被赋值数量匹配且大于一对就返回Expand中多个set
-    pub fn build_sets(loc: [Location; 2], mut vars: Vec<Value>, mut values: Vec<Value>)
-    -> Result<LogicLine, Error> {
-        let build_set = Self::build_set;
-        if vars.len() != values.len() {
-            // 接受与值数量不匹配
-            return Err((
-                loc,
-                Errors::SetVarNoPatternValue(vars.len(), values.len())
-            ).into());
-        }
-
-        assert_ne!(vars.len(), 0);
-        let len = vars.len();
-
-        if len == 1 {
-            // normal
-            Ok(build_set(vars.pop().unwrap(), values.pop().unwrap()))
-        } else {
-            // sets
-            let mut expand = Vec::with_capacity(len);
-            expand.extend(zip(vars, values)
-                .map(|(var, value)| build_set(var, value))
-            );
-            debug_assert_eq!(expand.len(), len);
-            Ok(Expand(expand).into())
-        }
-    }
-
     /// 单纯的构建一个set语句
     pub fn build_set(var: Value, value: Value) -> LogicLine {
         LogicLine::Other(Args::Normal(vec![
@@ -1192,6 +1161,32 @@ impl Meta {
             .last()
             .cloned()
             .unwrap()
+    }
+
+    pub fn add_line_pack(&mut self) {
+        self.line_pack.push((vec![], vec![]));
+    }
+
+    pub fn add_line_dep(&mut self, line: LogicLine) {
+        let last = self.line_pack.last_mut().expect("add line dep to empty");
+        last.0.push(line);
+    }
+
+    pub fn add_line_post(&mut self, line: LogicLine) {
+        self.line_pack.last_mut().unwrap().1.push(line);
+    }
+
+    pub fn pack_line(&mut self, line: LogicLine) -> LogicLine {
+        let (deps, posts) = self.line_pack.pop().unwrap();
+        if deps.is_empty() && posts.is_empty() {
+            return line;
+        }
+        let packed = deps
+            .into_iter()
+            .chain(once(line))
+            .chain(posts)
+            .collect();
+        InlineBlock(packed).into()
     }
 }
 

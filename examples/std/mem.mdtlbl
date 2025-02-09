@@ -63,7 +63,7 @@ const Reverse = (__:
     take I = ();
     take J = ();
 
-    I J = Left Right;
+    I J = Left, Right;
 
     while I < J {
         take[I J] Swap;
@@ -157,7 +157,7 @@ const BinarySearchInsertIndex = (
     take I = $;
     take J = ();
 
-    I J = Start Stop;
+    I J = Start, Stop;
 
     while I < J {
         take[I J] Mid = Middle;

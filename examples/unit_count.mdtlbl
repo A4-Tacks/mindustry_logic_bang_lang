@@ -12,7 +12,7 @@ while id < @unitCount {
 
     skip Bind === null {
         # 目前已经绑定了一个非空单位
-        first icount = @unit 1;
+        first icount = @unit, 1;
 
         while Bind != first {
             # 若头单位死亡, 则重新统计该类单位

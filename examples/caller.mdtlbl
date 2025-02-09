@@ -3,6 +3,8 @@
 * 例如一个const-dexp展开后有整整五百行, 但是我们起码需要在四处地方使用
 * 这时候我们可以将其封装为一个传统的非递归函数
 * 这样我们可以用一些额外开销避免代码膨胀
+*
+* 这是很旧的例子了, 有新例子在 std/function.mdtlbl
 *#
 
 const Foo = (
@@ -23,7 +25,7 @@ const Foo = (
 
     const Self = Fun_Foo;
 
-    Self.Msg Self.A Self.B = Msg A B; # 传递值
+    Self.Msg Self.A Self.B = Msg, A, B; # 传递值
     op Self.back @counter + 1; # 设置返回地址
     goto :fun_foo_head _; # call
 );

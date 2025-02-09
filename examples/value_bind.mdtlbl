@@ -21,7 +21,7 @@ const Human_new = (
     take Name = _0;
     take Age = _1;
 
-    $ $.age = Name Age;
+    $ $.age = Name, Age;
 );
 
 take["jack" 18] Human = Human_new;
@@ -41,7 +41,7 @@ const Complex_new = (
     take RNum = _0;
     take INum = _1;
 
-    $ $.i = RNum INum;
+    $ $.i = RNum, INum;
 );
 const Complex_add = (
     take Num1 = _0;

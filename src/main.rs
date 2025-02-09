@@ -417,21 +417,16 @@ fn unwrap_parse_err(result: ParseResult<'_>, src: &str) -> Expand {
                     match err {
                         Errors::NotALiteralUInteger(str, err) => {
                             out(format_args!(
-                                "{:?} 不是一个有效的无符号整数, 错误: {}",
+                                "{:?} is not a valided unsigned integer: {}",
                                 str,
                                 err,
                             ));
                         },
-                        Errors::SetVarNoPatternValue(var_count, val_count) => {
+                        Errors::OpExprInvalidResult { found, right } => {
                             out(format_args!(
-                                "sets两侧值数量不匹配, {} != {}",
-                                var_count,
-                                val_count,
-                            ));
-                        },
-                        Errors::ArgsRepeatChunkByZero => {
-                            out(format_args!(
-                                "重复块的迭代数不能为0",
+                                "op-expr {} results can't pattern, expected 1 or {}",
+                                found,
+                                right,
                             ));
                         },
                         #[allow(unreachable_patterns)]

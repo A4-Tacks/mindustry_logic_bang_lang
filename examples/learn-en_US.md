@@ -742,6 +742,9 @@ please refer to [op-expr](./op_expr.mdtlbl) for details
 > op-expr `||` and `&&` are implemented using `+` and `land`
 > for the convenience of logical operations
 
+> [!TIP]
+> op-expr results comma can ignore
+
 
 About Comments
 ===============================================================================
@@ -1482,6 +1485,18 @@ x, y min= 1;
 ```
 
 
+## op-expr results ignored comma
+```
+a, b, c = 1, 2, 3;
+a b c = 1, 2, 3;
+```
+
+```
+a, b, c = 1;
+a b c = 1;
+```
+
+
 ## Value Inc and Dec
 ```
 x += `1`;
@@ -1595,7 +1610,7 @@ foo Foo[1 2];
 ```
 
 
-## Quick Take
+## Bang Take
 ```
 take Foo[1 2 3 @ 4];
 Foo! 1 2 3 @ 4;
@@ -1643,6 +1658,37 @@ const C = goto(=>[a b] _0 < _1);
 ```
 
 这在之后会讲到
+
+
+## Packed Statement Inc and Dec
+```
+inline {
+    take ___0 = i;
+    read num cell1 ___0;
+    op ___0 ___0 + `1`;
+}
+read num cell1 i++;
+```
+
+```
+inline {
+    take ___0 = i;
+    read num cell1 ___0;
+    op ___0 ___0 - `1`;
+}
+read num cell1 i--;
+```
+
+```
+inline {
+    take ___0 = i;
+    Foo! ___0:
+    op ___0 ___0 - `1`;
+}
+Foo! i--;
+```
+
+用于在一些特定的情况将内部的后缀自增自减添加至当前行之后 (**和op-expr没有关系**)
 
 
 ## Packed DExp like

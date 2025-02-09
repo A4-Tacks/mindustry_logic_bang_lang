@@ -364,11 +364,10 @@ pub LogicLine: LogicLine = {
     Label => LogicLine::new_label(<>, meta),
     "op" <Op> LEnd => <>.into(),
     "noop" LEnd => LogicLine::NoOp,
-    <l:@L> <vars:Args2> "=" <values:Args2> LEnd <r:@R>
-        =>? Meta::build_sets([l, r], vars, values).map_err(|e| e.into()),
-    OpExpr,
+    <OpExprTopSelfOps> LEnd,
     Print,
-    <Args> LEnd => LogicLine::Other(<>),
+    <OtherLogicLine> LEnd => meta.pack_line(LogicLine::Other(<>)),
+    <OpExpr> LEnd,
     QuickTake,
     "inline" <ArgsRepeatBlock> => <>.into(),
     Match => <>.into(),
@@ -376,12 +375,13 @@ pub LogicLine: LogicLine = {
 }
 
 #[inline]
-QuickTake: LogicLine = <value:NonConstRangeValue> "!" <args:ParamArgs> LEnd => {
+QuickTake: LogicLine = <value:NonConstRangeValue> "!" <args:ParamArgsSL> LEnd => {
     let dexp = DExp::new(meta.unnamed_var(), vec![
         LogicLine::SetArgs(args),
         LogicLine::SetResultHandle(value),
     ].into());
-    Take(meta.unnamed_var().into(), dexp.into()).into()
+    let line = Take(meta.unnamed_var().into(), dexp.into()).into();
+    meta.pack_line(line)
 };
 
 Match: Match = {
@@ -503,12 +503,72 @@ Args: Args = {
         args.into()
     },
 }
+ArgsSL: Args = {
+    <prefix:Args0G<SLValue>> "@" <suffix:Args0G<SLValue>> => {
+        Args::Expanded(prefix, suffix)
+    },
+    <args:Args1G<SLValue>> => {
+        args.into()
+    },
+}
+SLValue: Value = SLAtom<Value>;
+ArgRestSL: Vec<Value> = <fst:LinePack<Value>> <mut rest:Args0G<(","? <SLValue>)>> => {
+    rest.insert(0, fst);
+    rest
+};
+#[inline]
+OtherLogicLine: Args = {
+    LinePack<"@"> <suffix:Args0G<SLValue>> => {
+        Args::Expanded(vec![], suffix)
+    },
+    <prefix:ArgRestSL> "@" <suffix:Args0G<SLValue>> => {
+        Args::Expanded(prefix, suffix)
+    },
+    <args:ArgRestSL> => {
+        args.into()
+    },
+}
 ParamArgsAtom: Value = {
     "*" <Value> => {
         ValueBindRef::new(<>.into(), ValueBindRefTarget::ResultHandle).into()
     },
     Value,
 };
+#[inline]
+SLAtom<V>: Value = {
+    <V> "++" => {
+        let tmp = meta.get_tmp_var();
+        meta.add_line_dep(Take(tmp.clone().into(), <>).into());
+        meta.add_line_post(Op::Add(
+            tmp.clone().into(),
+            tmp.clone().into(),
+            ReprVar("1".into()),
+        ).into());
+        tmp.into()
+    },
+    <V> "--" => {
+        let tmp = meta.get_tmp_var();
+        meta.add_line_dep(Take(tmp.clone().into(), <>).into());
+        meta.add_line_post(Op::Sub(
+            tmp.clone().into(),
+            tmp.clone().into(),
+            ReprVar("1".into()),
+        ).into());
+        tmp.into()
+    },
+    V,
+};
+ParamArgsSLAtom: Value = SLAtom<ParamArgsAtom>;
+LinePackBegin: () = () => meta.add_line_pack();
+LinePack<V>: V = V => { meta.add_line_pack(); <> };
+ParamArgsSL: Args = {
+    LinePackBegin <prefix:ParamArgsSLAtom*> "@" <suffix:ParamArgsSLAtom*> => {
+        Args::Expanded(prefix, suffix)
+    },
+    LinePackBegin <args:ParamArgsSLAtom*> => {
+        args.into()
+    },
+}
 ParamArgs: Args = {
     <prefix:ParamArgsAtom*> "@" <suffix:ParamArgsAtom*> => {
         Args::Expanded(prefix, suffix)
@@ -534,101 +594,109 @@ ArgsRepeatBlock: ArgsRepeat = {
     },
 }
 
-Print: LogicLine = <l:Loc<"print">> <args:Args?> LEnd => {
-    let Some(args) = args else {
-        // 无参数, 啥也不做
-        return LogicLine::Ignore
-    };
+Print: LogicLine = <l:LinePack<Loc<"print">>> <args:ArgsSL?> LEnd => {
     fn one(arg: Value) -> LogicLine {
         LogicLine::Other(vec![
             ReprVar("print".into()),
             arg,
         ].into())
     }
-    match args {
-        Args::Normal(mut args) if args.len() == 1 => {
-            // 单个参数, 老式处理
-            return one(args.pop().unwrap())
-        },
-        Args::Normal(args) => {
-            Expand(
-                args.into_iter()
-                    .map(|arg| one(arg))
-                    .collect()
-            ).into()
-        },
-        Args::Expanded(p, s) if p.len() == 0 && s.len() == 0 => {
-            ArgsRepeat::new(l.new_value(1), vec![
-                LogicLine::Other(Args::Expanded(
-                    vec![ReprVar("print".into())],
-                    vec![],
-                )),
-            ].into()).into()
-        },
-        Args::Expanded(prefix, suffix) => {
-            let len = prefix.len() + 1 + suffix.len();
-            let mut res = Vec::with_capacity(len);
+    fn make(meta: &mut Meta, l: IdxBox<&str>, args: Option<Args>)
+    -> LogicLine
+    {
+        let Some(args) = args else {
+            // 无参数, 啥也不做
+            return LogicLine::Ignore
+        };
+        match args {
+            Args::Normal(mut args) if args.len() == 1 => {
+                // 单个参数, 老式处理
+                return one(args.pop().unwrap())
+            },
+            Args::Normal(args) => {
+                Expand(
+                    args.into_iter()
+                        .map(|arg| one(arg))
+                        .collect()
+                ).into()
+            },
+            Args::Expanded(p, s) if p.len() == 0 && s.len() == 0 => {
+                ArgsRepeat::new(l.new_value(1), vec![
+                    LogicLine::Other(Args::Expanded(
+                        vec![ReprVar("print".into())],
+                        vec![],
+                    )),
+                ].into()).into()
+            },
+            Args::Expanded(prefix, suffix) => {
+                let len = prefix.len() + 1 + suffix.len();
+                let mut res = Vec::with_capacity(len);
 
-            for arg in prefix {
-                res.push(one(arg))
-            }
+                for arg in prefix {
+                    res.push(one(arg))
+                }
 
-            res.push(ArgsRepeat::new(l.new_value(1), vec![
-                LogicLine::Other(Args::Expanded(vec![
-                    ReprVar("print".into()),
-                ], vec![]))
-            ].into()).into());
+                res.push(ArgsRepeat::new(l.new_value(1), vec![
+                    LogicLine::Other(Args::Expanded(vec![
+                        ReprVar("print".into()),
+                    ], vec![]))
+                ].into()).into());
 
-            for arg in suffix {
-                res.push(one(arg))
-            }
+                for arg in suffix {
+                    res.push(one(arg))
+                }
 
-            assert_eq!(res.len(), len);
-            InlineBlock(res).into()
-        },
+                assert_eq!(res.len(), len);
+                InlineBlock(res).into()
+            },
+        }
     }
+    let line = make(&mut *meta, l, args);
+    meta.pack_line(line)
 };
 
 // 0..
-Args0: Vec<Value> = {
-    () => vec![],
-    Args1,
-}
+Args0: Vec<Value> = Args0G<Value>;
 // 1..
-Args1: Vec<Value> = {
-    Value => vec![<>],
-    Args2,
-}
+Args1: Vec<Value> = Args1G<Value>;
 // 2..
-Args2: Vec<Value> = {
-    Value Value => vec![<>],
-    Value Value Value => vec![<>],
-    Value Value Value Value => vec![<>],
-    Value Value Value Value Value => vec![<>],
-    Value Value Value Value Value Value => vec![<>],
-    Value Value Value Value Value Value Value => vec![<>],
-    Value Value Value Value Value Value Value Value => vec![<>],
-    Value Value Value Value Value Value Value Value Value => vec![<>],
-    Value Value Value Value Value Value Value Value Value Value => vec![<>],
-    Value Value Value Value Value Value Value Value Value Value Value => vec![<>],
-    Value Value Value Value Value Value Value Value Value Value Value Value => vec![<>],
-    Value Value Value Value Value Value Value Value Value Value Value Value Value => vec![<>],
-    Value Value Value Value Value Value Value Value Value Value Value Value Value Value => vec![<>],
-    Value Value Value Value Value Value Value Value Value Value Value Value Value Value Value => vec![<>],
+Args2: Vec<Value> = Args2G<Value>;
+
+Args0G<V>: Vec<V> = {
+    () => vec![],
+    Args1G<V>,
+}
+Args1G<V>: Vec<V> = {
+    V => vec![<>],
+    Args2G<V>,
+}
+#[inline]
+Args2G<V>: Vec<V> = {
+    <fst:V> <mut rest:V+> => {
+        rest.insert(0, fst);
+        rest
+    },
 }
 
+#[inline]
 OpExpr: LogicLine = {
-    <OpExprMultipleResult> LEnd => {
-        let (mut results, value, oper) = <>;
-        results.reverse();
-        op_expr_build_results(meta, results, vec![value], oper)
-    },
-    <OpExprDoMultiple> LEnd => {
-        let (mut results, values, oper) = <>;
-        results.reverse();
-        op_expr_build_results(meta, results, values, oper)
-    },
-    <OpExprTopSelfOps> LEnd,
+    <l:@L> <results:ArgRestSL> <r:@R>
+    <oper:OpExprAssignOper>
+    <mut values:(<OpExprBody> ",")*> <tail:OpExprBody> =>? {
+        values.push(tail);
+        match (results.len(), values.len()) {
+            (_, 1) => (),
+            (a, b) if a == b => (),
+            (found, right) => {
+                return Err(Error::from((
+                    [l, r],
+                    Errors::OpExprInvalidResult { found, right },
+                )).into())
+            }
+        }
+        let line = op_expr_build_results(&mut *meta, results, values, oper);
+        Ok(meta.pack_line(line))
+    }
 }
 #[inline]
 OpExprBodySetR: Expand = OpExprBody => {
@@ -663,32 +731,6 @@ OpExprAssignOper: OpExprAOperFun = {
     "max" "="       => { make_assign_oper!(Op::Max      ) },
     "min" "="       => { make_assign_oper!(Op::Min      ) },
     "="             => { TOP_ASSIGN_OPER },
-}
-
-// 多个接收者的OpExpr, 例如`a, b, c = 1;`
-OpExprMultipleResult: (Vec<Value>, OpExprInfo, OpExprAOperFun) = {
-    <result:Value> <oper:OpExprAssignOper> <value:OpExprBody> => {
-        (vec![result], value, oper)
-    },
-    <result:Value> "," <mut body:OpExprMultipleResult> => {
-        body.0.push(result);
-        body
-    },
-}
-
-// 例如`a, b = 1, 2`返回`([b, a], [1, 2])`
-OpExprDoMultiple: (Vec<Value>, Vec<OpExprInfo>, OpExprAOperFun) = {
-    <res1:Value> "," <res2:Value>
-    <oper:OpExprAssignOper>
-    <val1:OpExprBody> "," <val2:OpExprBody>
-        => (vec![res2, res1], vec![val1, val2], oper),
-
-    <result:Value> "," <mut mid:OpExprDoMultiple> "," <value:OpExprBody> => {
-        let (results, values, _) = &mut mid;
-        results.push(result);
-        values.push(value);
-        mid
-    },
 }
 
 OpExprBody: OpExprInfo = OpExprBody13;

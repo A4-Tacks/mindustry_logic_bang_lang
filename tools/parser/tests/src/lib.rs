@@ -469,6 +469,18 @@ fn goto_compile_test() {
 fn line_test() {
     let parser = LogicLineParser::new();
     assert_eq!(parse!(parser, "noop;").unwrap(), LogicLine::NoOp);
+    assert_eq!(
+        parse!(parser, "foo;").unwrap(),
+        LogicLine::Other(vec!["foo".into()].into()),
+    );
+    assert_eq!(
+        parse!(parser, "foo bar;").unwrap(),
+        LogicLine::Other(vec!["foo".into(), "bar".into()].into()),
+    );
+    assert_eq!(
+        parse!(parser, "foo, bar;").unwrap(),
+        LogicLine::Other(vec!["foo".into(), "bar".into()].into()),
+    );
 }
 
 #[test]
@@ -1230,36 +1242,6 @@ fn take_args_test() {
                r#"jump 11 lessThan i 10"#,
                r#"printflush message1"#,
     ]);
-}
-
-#[test]
-fn sets_test() {
-    let parser = TopLevelParser::new();
-
-    let ast = parse!(parser, r#"
-    a b c = 1 2 ({}op $ 2 + 1;);
-    "#).unwrap();
-    let meta = CompileMeta::new();
-    let tag_codes = meta.compile(ast);
-    let logic_lines = tag_codes.compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "set a 1",
-               "set b 2",
-               "op add __0 2 1",
-               "set c __0",
-    ]);
-
-    assert!(parse!(parser, r#"
-    a b c = 1 2;
-    "#).is_err());
-
-    assert!(parse!(parser, r#"
-    a = 1 2;
-    "#).is_err());
-
-    assert!(parse!(parser, r#"
-     = 1 2;
-    "#).is_err());
 }
 
 #[test]
@@ -2223,6 +2205,269 @@ fn quick_dexp_take_test() {
         "#).unwrap(),
     );
 
+    assert_eq!(
+        parse!(parser, r#"
+        Foo! a b c d++;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = d;
+            take Foo[a b c ___0];
+            ___0 = ___0 + `1`;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        Foo! d++;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = d;
+            take Foo[___0];
+            ___0 = ___0 + `1`;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        Foo! a b c @ d++;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = d;
+            take Foo[a b c @ ___0];
+            ___0 = ___0 + `1`;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        Foo! @ a b c d++;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = d;
+            take Foo[@ a b c ___0];
+            ___0 = ___0 + `1`;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        Foo! a++ b c @ d;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = a;
+            take Foo[___0 b c @ d];
+            ___0 = ___0 + `1`;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        Foo! a++;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = a;
+            take Foo[___0];
+            ___0 = ___0 + `1`;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        foo a++;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = a;
+            foo ___0;
+            ___0 = ___0 + `1`;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        foo @ a++;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = a;
+            foo @ ___0;
+            ___0 = ___0 + `1`;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        foo x @ a++;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = a;
+            foo x @ ___0;
+            ___0 = ___0 + `1`;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        foo a++ @ x;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = a;
+            foo ___0 @ x;
+            ___0 = ___0 + `1`;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        foo a++ @;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = a;
+            foo ___0 @;
+            ___0 = ___0 + `1`;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        foo (bar a++;) x++;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___1 = x;
+            foo (inline {
+                take ___0 = a;
+                bar ___0;
+                ___0 = ___0 + `1`;
+            }) ___1;
+            ___1 = ___1 + `1`;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        print a++;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = a;
+            print ___0;
+            ___0 = ___0 + `1`;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        # align................................
+        print @ a++;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = a;
+            print @ ___0;
+            ___0 = ___0 + `1`;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        # align................................
+        print x @ a++;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = a;
+            print x @ ___0;
+            ___0 = ___0 + `1`;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        # align................................
+        print a++ @;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = a;
+            print ___0 @;
+            ___0 = ___0 + `1`;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        # align................................
+        print a++ @ x;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = a;
+            print ___0 @ x;
+            ___0 = ___0 + `1`;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        print (print a++;) x++;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___1 = x;
+            print (inline {
+                take ___0 = a;
+                print ___0;
+                ___0 = ___0 + `1`;
+            }) ___1;
+            ___1 = ___1 + `1`;
+        }
+        "#).unwrap(),
+    );
+
+    // 因为利用了命令做 op-expr 的返回, 所以多返回时也可以应用++
+    assert_eq!(
+        parse!(parser, r#"
+        a, b++ = 2;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = b;
+            {
+                take ___1 = a;
+                ___1 = 2;
+                ___0 = ___1;
+            }
+            ___0 = ___0 + `1`;
+        }
+        "#).unwrap(),
+    );
 }
 
 #[test]
@@ -2231,7 +2476,7 @@ fn value_bind_test() {
 
     let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
     const Jack = jack;
-    Jack Jack.age = "jack" 18;
+    Jack, Jack.age = "jack", 18;
     print Jack Jack.age;
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
@@ -2365,6 +2610,43 @@ fn logic_line_from() {
 fn op_expr_test() {
     let parser = TopLevelParser::new();
 
+    let ast = parse!(parser, r#"
+    a, b, c = 1, 2, ({}op $ 2 + 1;);
+    "#).unwrap();
+    let meta = CompileMeta::new();
+    let tag_codes = meta.compile(ast);
+    let logic_lines = tag_codes.compile().unwrap();
+    assert_eq!(logic_lines, vec![
+               "set a 1",
+               "set b 2",
+               "op add __0 2 1",
+               "set c __0",
+    ]);
+
+    assert!(parse!(parser, r#"
+    a, b, c = 1 2;
+    "#).is_err());
+
+    assert!(parse!(parser, r#"
+    a = 1 2;
+    "#).is_err());
+
+    assert!(parse!(parser, r#"
+     = 1 2;
+    "#).is_err());
+
+    assert!(parse!(parser, r#"
+    a, b, c = 1, 2;
+    "#).is_err());
+
+    assert!(parse!(parser, r#"
+    a = 1, 2;
+    "#).is_err());
+
+    assert!(parse!(parser, r#"
+     = 1, 2;
+    "#).is_err());
+
     assert_eq!(
         parse!(parser, r#"
         x = max(1, 2);
@@ -2430,7 +2712,34 @@ fn op_expr_test() {
 
     assert_eq!(
         parse!(parser, r#"
+        a b c = x, -y, z+2*3;
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            a = x;
+            b = -y;
+            c = z+2*3;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
         a, b, c = 1;
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            take ___0 = a;
+            ___0 = 1;
+            b = ___0;
+            c = ___0;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a b c = 1;
         "#).unwrap(),
         parse!(parser, r#"
         {
@@ -2822,7 +3131,6 @@ fn consted_dexp() {
             ].into()),
         ]).into()
     );
-    dbg!(1);
 
     let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
     const Do2 = (
@@ -2850,7 +3158,6 @@ fn consted_dexp() {
                "jump 0 always 0 0",
                "print 1",
     ]);
-    dbg!(2);
 
     let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
     const Do2 = (
@@ -2878,7 +3185,6 @@ fn consted_dexp() {
                "jump 0 always 0 0",
                "print 1",
     ]);
-    dbg!(3);
 
     assert!(CompileMeta::new().compile(parse!(parser, r#"
     const Do2 = (
@@ -2896,7 +3202,6 @@ fn consted_dexp() {
         )
     ] Do2;
     "#).unwrap()).compile().is_err());
-    dbg!(4);
 
     assert_eq!(
         parse!(parser, r#"
