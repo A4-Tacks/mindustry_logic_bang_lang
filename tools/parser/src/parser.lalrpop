@@ -532,7 +532,7 @@ ParamArgsAtom: Value = {
     "*" <Value> => {
         ValueBindRef::new(<>.into(), ValueBindRefTarget::ResultHandle).into()
     },
-    Value,
+    <Value>,
 };
 #[inline]
 SLAtom<V>: Value = {
@@ -558,11 +558,12 @@ SLAtom<V>: Value = {
     },
     V,
 };
-ParamArgsSLAtom: Value = SLAtom<ParamArgsAtom>;
+ParamArgsAtomC: Value = <ParamArgsAtom> ","?;
+ParamArgsSLAtom: Value = <SLAtom<ParamArgsAtom>> ","?;
 LinePackBegin: () = () => meta.add_line_pack();
 LinePack<V>: V = V => { meta.add_line_pack(); <> };
 ParamArgsSL: Args = {
-    LinePackBegin <prefix:ParamArgsSLAtom*> "@" <suffix:ParamArgsSLAtom*> => {
+    LinePackBegin <prefix:ParamArgsSLAtom*> "@" ","? <suffix:ParamArgsSLAtom*> => {
         Args::Expanded(prefix, suffix)
     },
     LinePackBegin <args:ParamArgsSLAtom*> => {
@@ -570,10 +571,10 @@ ParamArgsSL: Args = {
     },
 }
 ParamArgs: Args = {
-    <prefix:ParamArgsAtom*> "@" <suffix:ParamArgsAtom*> => {
+    <prefix:ParamArgsAtomC*> "@" ","? <suffix:ParamArgsAtomC*> => {
         Args::Expanded(prefix, suffix)
     },
-    <args:ParamArgsAtom*> => {
+    <args:ParamArgsAtomC*> => {
         args.into()
     },
 }

@@ -5877,6 +5877,87 @@ fn match_test() {
 }
 
 #[test]
+fn param_comma_sugar_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        parse!(parser, "take Foo[1, 2, 3];").unwrap(),
+        parse!(parser, "take Foo[1 2 3];").unwrap(),
+    );
+    assert_eq!(
+        parse!(parser, "take Foo[1 2, 3];").unwrap(),
+        parse!(parser, "take Foo[1 2 3];").unwrap(),
+    );
+    assert_eq!(
+        parse!(parser, "take Foo[1 @ 2, 3];").unwrap(),
+        parse!(parser, "take Foo[1 @ 2 3];").unwrap(),
+    );
+    assert_eq!(
+        parse!(parser, "take Foo[1, @ 2, 3];").unwrap(),
+        parse!(parser, "take Foo[1 @ 2 3];").unwrap(),
+    );
+    assert_eq!(
+        parse!(parser, "take Foo[1, @, 2, 3];").unwrap(),
+        parse!(parser, "take Foo[1 @ 2 3];").unwrap(),
+    );
+    assert_eq!(
+        parse!(parser, "take Foo[1, @, 2, 3,];").unwrap(),
+        parse!(parser, "take Foo[1 @ 2 3];").unwrap(),
+    );
+    assert_eq!(
+        parse!(parser, "take Foo[1, @,];").unwrap(),
+        parse!(parser, "take Foo[1 @];").unwrap(),
+    );
+    assert_eq!(
+        parse!(parser, "take Foo[1,];").unwrap(),
+        parse!(parser, "take Foo[1];").unwrap(),
+    );
+    assert_eq!(
+        parse!(parser, "Foo! @,;").unwrap(),
+        parse!(parser, "Foo! @;").unwrap(),
+    );
+    assert_eq!(
+        parse!(parser, "Foo! 1,;").unwrap(),
+        parse!(parser, "Foo! 1;").unwrap(),
+    );
+    assert_eq!(
+        parse!(parser, "Foo! 1,@;").unwrap(),
+        parse!(parser, "Foo! 1 @;").unwrap(),
+    );
+    assert_eq!(
+        parse!(parser, "Foo! 1,@,;").unwrap(),
+        parse!(parser, "Foo! 1 @;").unwrap(),
+    );
+    assert_eq!(
+        parse!(parser, "Foo! *1,@,;").unwrap(),
+        parse!(parser, "Foo! *1 @;").unwrap(),
+    );
+    assert_eq!(
+        parse!(parser, "Foo! *1++,@,;").unwrap(),
+        parse!(parser, "Foo! *1++ @;").unwrap(),
+    );
+    assert_eq!(
+        parse!(parser, "Foo! 1++,@,;").unwrap(),
+        parse!(parser, "Foo! 1++ @;").unwrap(),
+    );
+    assert_eq!(
+        parse!(parser, "Foo! @,1++,;").unwrap(),
+        parse!(parser, "Foo! @,1++;").unwrap(),
+    );
+    assert!(parse!(parser, "Foo!;").is_ok());
+    assert!(parse!(parser, "take Foo[];").is_ok());
+
+    assert!(parse!(parser, "Foo!,;").is_err());
+    assert!(parse!(parser, "take Foo[,];").is_err());
+    assert!(parse!(parser, "Foo!,@;").is_err());
+    assert!(parse!(parser, "take Foo[,@];").is_err());
+    assert!(parse!(parser, "Foo!,2;").is_err());
+    assert!(parse!(parser, "take Foo[,2];").is_err());
+    assert!(parse!(parser, "Foo!,2 @;").is_err());
+    assert!(parse!(parser, "take Foo[,2 @];").is_err());
+}
+
+#[test]
 fn const_match_test() {
     let parser = TopLevelParser::new();
 

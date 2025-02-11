@@ -1497,6 +1497,44 @@ a b c = 1;
 ```
 
 
+## Param Comma Postfix Compatible
+```
+Foo! a b c;
+Foo! a, b, c;
+```
+
+```
+Foo! a b c;
+Foo! a, b, c,;
+```
+
+```
+take Foo[a b c];
+take Foo[a, b, c];
+```
+
+```
+take Foo[a b c];
+take Foo[a, b, c,];
+```
+
+```
+take Foo[a @ b c];
+take Foo[a, @, b, c,];
+```
+
+```
+take Foo[
+    a b
+    c d
+];
+take Foo[
+    a b,
+    c d,
+];
+```
+
+
 ## Value Inc and Dec
 ```
 x += `1`;
