@@ -3054,6 +3054,96 @@ fn op_expr_test() {
         take C = (*j--);
         "#).unwrap(),
     );
+
+    assert_eq!( // 连续运算, 返回者是最左边的
+        parse!(parser, r#"
+        a = b = c;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = a;
+            {
+                ___0 = b;
+                ___0 = c;
+            }
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a = b += c;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = a;
+            {
+                ___0 = b;
+                {
+                    take ___1 = ___0;
+                    ___1 = ___1 + c;
+                }
+            }
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a += b *= c;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = a;
+            {
+                {
+                    take ___1 = ___0;
+                    ___1 = ___1 + b;
+                }
+                {
+                    take ___2 = ___0;
+                    ___2 = ___2 * c;
+                }
+            }
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a, b += c *= d;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = a;
+            take ___1 = b;
+            {
+                {
+                    take ___2 = c;
+                    {
+                        take ___3 = ___0;
+                        op ___3 ___3 + ___2;
+                    }
+                    {
+                        take ___4 = ___1;
+                        op ___4 ___4 + ___2;
+                    }
+                }
+                {
+                    take ___5 = d;
+                    {
+                        take ___6 = ___0;
+                        op ___6 ___6 * ___5;
+                    }
+                    {
+                        take ___7 = ___1;
+                        op ___7 ___7 * ___5;
+                    }
+                }
+            }
+        }
+        "#).unwrap(),
+    );
 }
 
 #[test]

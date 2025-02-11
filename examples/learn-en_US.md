@@ -1497,6 +1497,27 @@ a b c = 1;
 ```
 
 
+## op-expr chain
+```
+inline {
+    take ___0 = a;
+    take ___1 = b;
+    {
+        {
+            { take ___2 = ___0; op ___2 ___2 + 2; }
+            { take ___3 = ___1; op ___3 ___3 + 4; }
+        }
+        {
+            take ___4 = 3;
+            { take ___5 = ___0; op ___5 ___5 * ___4; }
+            { take ___6 = ___1; op ___6 ___6 * ___4; }
+        }
+    }
+} # like the `a b += 2; a b *= 3;`
+a b += 2, 4 *= 3;
+```
+
+
 ## Param Comma Postfix Compatible
 ```
 Foo! a b c;

@@ -680,23 +680,47 @@ Args2G<V>: Vec<V> = {
 }
 
 #[inline]
-OpExpr: LogicLine = {
-    <l:@L> <results:ArgRestSL> <r:@R>
+OpExprOp: (OpExprAOperFun, Vec<OpExprInfo>) = {
     <oper:OpExprAssignOper>
-    <mut values:(<OpExprBody> ",")*> <tail:OpExprBody> =>? {
-        values.push(tail);
-        match (results.len(), values.len()) {
-            (_, 1) => (),
-            (a, b) if a == b => (),
-            (found, right) => {
-                return Err(Error::from((
-                    [l, r],
-                    Errors::OpExprInvalidResult { found, right },
-                )).into())
-            }
+    <mut values:(<OpExprBody> ",")*> <tail:OpExprBody>
+    => { values.push(tail); (oper, values) },
+}
+
+#[inline]
+OpExpr: LogicLine = {
+    <l:@L> <mut results:ArgRestSL> <r:@R> <ops:OpExprOp+> =>? {
+        if ops.len() > 1 {
+            results = results.into_iter().map(|result: Value| {
+                let tmp = meta.get_tmp_var();
+                meta.add_line_dep(Take(tmp.clone().into(), result).into());
+                tmp.into()
+            }).collect();
         }
-        let line = op_expr_build_results(&mut *meta, results, values, oper);
-        Ok(meta.pack_line(line))
+        let mut lines = Vec::with_capacity(ops.len());
+        let mut ops = ops.into_iter().peekable();
+        loop {
+            let (oper, values) = ops.next().unwrap();
+            match (results.len(), values.len()) {
+                (_, 1) => (),
+                (a, b) if a == b => (),
+                (found, right) => {
+                    return Err(Error::from((
+                        [l, r],
+                        Errors::OpExprInvalidResult { found, right },
+                    )).into())
+                }
+            }
+            if ops.peek().is_none() {
+                lines.push(op_expr_build_results(&mut *meta, results, values, oper));
+                break;
+            }
+            lines.push(op_expr_build_results(&mut *meta, results.clone(), values, oper));
+        }
+        Ok(meta.pack_line(if lines.len() == 1 {
+            lines.pop().unwrap()
+        } else {
+            Expand(lines).into()
+        }))
     }
 }
 #[inline]
