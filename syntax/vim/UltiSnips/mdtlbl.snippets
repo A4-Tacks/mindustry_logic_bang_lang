@@ -890,10 +890,10 @@ endsnippet
 snippet draw.lineRect "绘制矩形轮廓" w
 draw lineRect ${1:0} ${2:0} ${3:0} ${4:0} 0 0;
 endsnippet
-snippet draw.poly "绘制实心正多边形" w
+snippet draw.poly "绘制实心正多边形 (x y sides radius rotation)" w
 draw poly ${1:0} ${2:0} ${3:0} ${4:0} ${5:0} 0;
 endsnippet
-snippet draw.linePoly "绘制正多边形轮廓" w
+snippet draw.linePoly "绘制正多边形轮廓 (x y sides radius rotation)" w
 draw linePoly ${1:0} ${2:0} ${3:0} ${4:0} ${5:0} 0;
 endsnippet
 snippet draw.triangle "绘制实心三角形" w
@@ -903,7 +903,7 @@ snippet draw.image "画出某个游戏内容的图像, 例如@router或者@dagge
 draw image ${1:0} ${2:0} ${3:@copper} ${4:32} ${5:0} 0;
 endsnippet
 snippet draw.print "类似printflush, 但是输出在显示屏 (center|top|bottom|left|right|topLeft|topRight|bottomLeft|bottomRight)" w
-draw print ${1:0} ${2:0} ${3:bottomLeft} 0 0 0;
+draw 'print' ${1:0} ${2:0} ${3:bottomLeft} 0 0 0;
 endsnippet
 snippet draw.translate "移动绘制基准点属性" w
 draw translate ${1:0} ${2:0} 0 0 0 0;
@@ -1001,10 +1001,10 @@ endsnippet
 snippet ucontrol.build "建造建筑 (block, rotation, config)" w
 ucontrol build ${1:0} ${2:0} ${3:0} ${4:0} ${5:0};
 endsnippet
-snippet ucontrol.getBlock "在坐标处获取建筑、地板和方块类型。\n单位必须在位置范围内，否则返回null" w
+snippet ucontrol.getBlock "(x y type building floor)在坐标处获取建筑、地板和方块类型。\n单位必须在位置范围内，否则返回null" w
 ucontrol getBlock ${1:0} ${2:0} ${3:0} ${4:0} ${5:0};
 endsnippet
-snippet ucontrol.within "检查单位是否接近了某个位置" w
+snippet ucontrol.within "(x y radius result) 检查单位是否接近了某个位置" w
 ucontrol within ${1:0} ${2:0} ${3:0} ${4:0} 0;
 endsnippet
 snippet ucontrol.unbind "停用单位的逻辑控制\n恢复常规AI" w

@@ -1984,16 +1984,16 @@
             "draw lineRect ${1:0} ${2:0} ${3:0} ${4:0} 0 0;"
         ]
     },
-    "绘制实心正多边形": {
+    "绘制实心正多边形 (x y sides radius rotation)": {
         "prefix": "draw.poly",
-        "description": "绘制实心正多边形",
+        "description": "绘制实心正多边形 (x y sides radius rotation)",
         "body": [
             "draw poly ${1:0} ${2:0} ${3:0} ${4:0} ${5:0} 0;"
         ]
     },
-    "绘制正多边形轮廓": {
+    "绘制正多边形轮廓 (x y sides radius rotation)": {
         "prefix": "draw.linePoly",
-        "description": "绘制正多边形轮廓",
+        "description": "绘制正多边形轮廓 (x y sides radius rotation)",
         "body": [
             "draw linePoly ${1:0} ${2:0} ${3:0} ${4:0} ${5:0} 0;"
         ]
@@ -2016,7 +2016,7 @@
         "prefix": "draw.print",
         "description": "类似printflush, 但是输出在显示屏 (center|top|bottom|left|right|topLeft|topRight|bottomLeft|bottomRight)",
         "body": [
-            "draw print ${1:0} ${2:0} ${3:bottomLeft} 0 0 0;"
+            "draw 'print' ${1:0} ${2:0} ${3:bottomLeft} 0 0 0;"
         ]
     },
     "移动绘制基准点属性": {
@@ -2229,16 +2229,16 @@
             "ucontrol build ${1:0} ${2:0} ${3:0} ${4:0} ${5:0};"
         ]
     },
-    "在坐标处获取建筑、地板和方块类型。\\n单位必须在位置范围内，否则返回null": {
+    "(x y type building floor)在坐标处获取建筑、地板和方块类型。\\n单位必须在位置范围内，否则返回null": {
         "prefix": "ucontrol.getBlock",
-        "description": "在坐标处获取建筑、地板和方块类型。\\n单位必须在位置范围内，否则返回null",
+        "description": "(x y type building floor)在坐标处获取建筑、地板和方块类型。\\n单位必须在位置范围内，否则返回null",
         "body": [
             "ucontrol getBlock ${1:0} ${2:0} ${3:0} ${4:0} ${5:0};"
         ]
     },
-    "检查单位是否接近了某个位置": {
+    "(x y radius result) 检查单位是否接近了某个位置": {
         "prefix": "ucontrol.within",
-        "description": "检查单位是否接近了某个位置",
+        "description": "(x y radius result) 检查单位是否接近了某个位置",
         "body": [
             "ucontrol within ${1:0} ${2:0} ${3:0} ${4:0} 0;"
         ]
