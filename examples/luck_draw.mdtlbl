@@ -1,0 +1,208 @@
+#**
+* 简陋的仿原神样式抽卡, 需求版本: >146, 使用到了 draw print
+*#
+
+Builtin.BindSep! '.';
+Builtin.MissesMatch! 1;
+
+const DrawFlush = (
+    drawflush @;
+);
+const SensorId = (inline@ *Content {
+    sensor Content.id Content @id;
+});
+const NegSwap = (match @ => A $B {
+    take+T;
+    T A B = -A, -B, T;
+});
+const Level = (match @ {
+    $Result Id {
+        Result = if Id < @alpha.id ? Id % 5
+        : if Id < @stell.id ? Id-@alpha.id
+        : if Id < @evoke.id ? (Id-@stell.id) % 5
+        : Id-@evoke.id;
+    }
+});
+const Color = (match @ {
+    $Result R G B {
+        Result.r Result.g Result.b = R, G, B;
+    }
+    $Result C {
+        Color! Result (*C>>16&0xFF) (*C>>8&0xFF) (*C&0xFF);
+    }
+});
+const Logo = (match @ {
+    X Y Id A {
+        if Id < @stell.id {
+            # S
+            draw color color.s.r color.s.g color.s.b A 0 0;
+        } else {
+            # E
+            draw color color.e.r color.e.g color.e.b A 0 0;
+        }
+        draw stroke 1 0 0 0 0 0;
+        draw linePoly X Y 72 7 0 0;
+        draw poly (*X- 3) (?Y- 3) 72 3 0 0;
+        draw poly (*X+3) (*Y- 2) 72 1 0 0;
+        draw poly (*X+4) (*Y+4) 72 2 0 0;
+        draw poly (*X+2) (*Y+5) 72 2 0 0;
+    }
+});
+const A5Star = (match @ => BX BY R BA {
+    take*IR = R*tan(18);
+    take*T = BA;
+    inline 0@ {
+        take*T = (T + 360/5) % 360;
+        match T { [BA] { Builtin.StopRepeat!; } _ { } }
+
+        take*A, B = T+90, T- 90;
+
+        take*X, Y = BX+cos(T)*R, BY+sin(T)*R;
+        take*X1, Y1 = BX+cos(A)*IR, BY+sin(A)*IR;
+        take*X2, Y2 = BX+cos(B)*IR, BY+sin(B)*IR;
+
+        draw triangle X Y X1 Y1 X2 Y2;
+    }
+});
+
+Color! color.s 0x9E6DFF;
+Color! color.e 0xFF9267;
+
+lookup unit target (*rand(@unitCount));
+
+SensorId! target @alpha @stell @evoke;
+Level! level target->id;
+
+DrawFlush! display1;
+draw clear 0xEF 0xEF 0xFF 0 0 0;
+DrawFlush! display1;
+
+from.x, from.y = 65, 130;
+star.x, star.y = from.x, from.y;
+star.ox, star.oy = 3, -5;
+star.size = 10;
+
+size = 25; do {
+    draw col '%0070ff20' 0 0 0 0 0;
+    draw poly from.x from.y 72 size 0 0;
+
+    draw col '%00000016' 0 0 0 0 0;
+    draw poly from.x-- from.y++ 72 (?(?s:sqrt(size))*2) 0 0;
+
+    draw color 0xFF 0xFF 0 0x46 0 0;
+    draw poly star.x star.y 72 star.size 0 0;
+    draw color 0xFF 0xFF 0xFF 0x60 0 0;
+    draw poly star.x star.y 6 (*star.size/2.5) star.x 0;
+    star.x, star.y += star.ox, star.oy;
+
+    DrawFlush! display1;
+    size += s*0.65;
+    star.size *= 1.06;
+} while size < 240;
+
+star.x, star.y += -176, 176;
+star.ox, star.oy *= 1.5;
+NegSwap! star.ox star.oy;
+
+b = 10;
+i = 0; do {
+    draw col '%0070ff20' 0 0 0 0 0;
+    draw poly from.x-- from.y 72 size 0 0;
+
+    draw color 0xFF 0xFF b 0x46 0 0;
+    draw poly star.x star.y 72 star.size 0 0;
+    draw color 0xFF 0xFF 0xFF 0x10 0 0;
+    draw poly star.x star.y 5 (*star.size/2.5) star.y 0;
+
+    star.x, star.y += star.ox, star.oy;
+    star.size *= 1.04;
+    b += 10;
+    b min= 255;
+
+    DrawFlush! display1;
+} while (*++i) < 30;
+
+star.ox = -star.ox;
+i = 0; do {
+    draw color 0xFF 0xFF b 0x46 0 0;
+    draw poly star.x star.y 72 star.size 0 0;
+
+    star.x, star.y += star.ox, star.oy;
+    star.size *= 1.04;
+
+    DrawFlush! display1;
+} while (*++i) < 10;
+
+const ImgY = 88;
+take*TextY = ImgY + 2;
+take*LogoY = TextY - 3;
+take*StarY = TextY - 17;
+take*StarBY = StarY - 8;
+
+imgx = 130;
+bg = 0xFF;
+size = 150;
+i = 0; do {
+    draw col '%000000' 0 0 0 0 0;
+    draw clear bg bg bg 0 0 0;
+    draw image imgx ImgY target size 0 0;
+
+    draw color 0xFF 0xFF 0xFF (*(bg- 100)/4) 0 0;
+    draw rect 0 0 176 176 0 0;
+
+    size -= 4;
+    bg -= 8;
+
+    DrawFlush! display1;
+} while (*++i) < 20;
+
+namex = 28;
+namex.i = 40;
+
+const TextF = (
+    draw clear bg bg bg 0 0 0;
+    draw color ibg ibg ibg 0xFF 0 0;
+    draw image imgx ImgY target size 0 0;
+
+    print target;
+    draw 'print' namex.i TextY left 0 0 0;
+
+    Logo! (*namex.i- 10) LogoY target.id ibg;
+
+    namex.i -= max(0.1, log(namex.i-namex))+0.1;
+);
+
+ibg = 8; do {
+    draw clear bg bg bg 0 0 0;
+    draw color ibg ibg ibg 0xFF 0 0;
+    draw image imgx ImgY target size 0 0;
+
+    skip ibg < 100 TextF!;
+
+    ibg *= 1.21;
+    DrawFlush! display1;
+} while (*ibg) < 255;
+ibg min= 255;
+
+do {
+    TextF!;
+    DrawFlush! display1;
+} while namex.i > namex;
+
+x = namex + 4.2;
+i = -1; do {
+    draw col '%ffff0040' 0 0 0 0 0;
+    A5Star! x StarY 8 90;
+    DrawFlush! display1;
+
+    draw color bg bg bg 0 0 0;
+    draw rect (*x- 7) StarBY 14 15 0 0;
+    draw col '%ffff00ff' 0 0 0 0 0;
+    A5Star! x StarY 5.5 90;
+    DrawFlush! display1;
+
+    x += 10;
+} while (*++i) < level;
+
+do {} while (sensor $ switch1 @enabled;);
+control enabled switch1 true 0 0 0;
