@@ -186,7 +186,7 @@ print (
 );
 ```
 Unlike in the previous example, this time we did not manually specify the return Var,
-so the compiler will randomly generate a Var to represent the return handle of this DExp
+so the compiler will randomly generate a Var to represent the result handle of this DExp
 
 But we don't know what the randomly generated Var is called anymore,
 so we need to use ResultHandle[^4] to use it
@@ -200,7 +200,7 @@ op add __0 a b
 print __0
 ```
 
-As can be seen, a logical variable named `__0` has been generated to represent the return handle of this DExp
+As can be seen, a logical variable named `__0` has been generated to represent the result handle of this DExp
 
 > [!NOTE]
 > Try not to use double underscores in variables,
@@ -717,7 +717,7 @@ Although this design has little practical effect and may be removed in the futur
 some people may like it
 
 
-Simplified Operations - Operational Expressions (op-expr)
+Operational Expressions (op-expr)
 -------------------------------------------------------------------------------
 Generate a series of nested op wrapped in DExp using readable expressions
 
@@ -743,7 +743,7 @@ please refer to [op-expr](./op_expr.mdtlbl) for details
 > for the convenience of logical operations
 
 > [!TIP]
-> op-expr results comma can ignore
+> op-expr results comma can ignore, such as `a b = 1, 2;`
 
 
 About Comments
@@ -753,7 +753,7 @@ Bang's comments are extended on the basis of logical language
 But a new syntax has also been added,
 where content from the beginning of `#*` until `*#` will be ignored and can be used across multiple lines without the need to add comment characters to each line
 
-Of course, for the sake of habit or style, `* ` is often added to the beginning of the line
+Of course, for the sake of habit or style, `* ` is often added to the beginning of line
 
 ```
 # This is a inline comment
@@ -771,9 +771,8 @@ set b not_a_comment
 set c not_a_comment
 ```
 
-> The annotation style of logical language,
-> using the `#` character for annotation,
-> will ignore the content from the `#` character until the end of the line
+> The annotation style of logical language, using the `#` character for annotation,
+> will ignore the content from the `#` character until the end of line
 
 
 Advanced Beginner - Constant System
@@ -1057,20 +1056,21 @@ About binder:
 
 Details about Take
 -------------------------------------------------------------------------------
-当你对一个量进行求值且在常量表中查找到一个值时, 大致会发生以下步骤
+When you take a Var and find a value in the constant table,
+the following steps roughly occur
 
-1. 设置绑定者为常量表中记录的, 你可以在值里面使用`..`进行获取, 类似`$`
-2. 设置标签重命名为常量表中记录的, 此时定义或使用标签会被重命名,
-   这样不会在对一个 DExp 等展开多次的时候, 出现多个同名的内部定义的被跳转标签
-3. 设置当前展开的名称, 用于调试, 并不需要多关注
+1. Set the found binder, you can use `..` Obtain, similar in usage `$`
+2. Rename the found labels.
+   At this time, those labels defined or used will be renamed to prevent duplicate names from being taken multiple times
+3. Set the name of the current expansion for debugging purposes, which is not very important
 
-标签重命名参考以下代码
+Use the following code to demonstrate labels renaming
 ```
 const Foo = (
     :foo
     goto :foo;
 );
-take Foo Foo; # 求值两次
+take Foo Foo; # double take
 ```
 观察其标签形式(`Li`选项)
 ```
@@ -1079,27 +1079,37 @@ __0_const_Foo_foo:
 __1_const_Foo_foo:
     jump __1_const_Foo_foo always 0 0
 ```
-可以看到标签名字并不是`foo`, 而是一长串被重命名的形式,
-这样在不同的展开之间定义的标签就不会冲突了
+You can see that the label name is not `foo`, but in the form of being renamed,
+so that the labels defined between different takes will not conflict
 
-(如果不重命名, 那么就会得到两个foo标签, 那么跳转到foo标签就不知道跳转到哪个了)
+(If you don't rename it, you will get two foo tags,
+so you won't know which one to jump to when you jump to the foo tag)
 
 
-编译时运算
+Compile time Evaluation
 ===============================================================================
-在求值一个值前, 会先尝试一次是否可以进行常量评估, 也就是部分整数的简单运算
+Before taking a value, we will first try whether it can be evaluation constant,
+that is, some mathematical operations
 
-以下是一个支持的大致列表:
+Here is a rough list of supported operation:
 
-- 当值是一个 DExp, 且内部仅含有一个 op 或者 set, 且它们的返回值都是 `$`,
-  此时会尝试对其参数进行常量评估, 如果所有参数常量评估都成功,
-  且自身运算符号也是支持的运算符号, 那么自身也会评估成功, 返回评估结果
-  (目前 严格相等、噪声、长度、随机、幅角、幅角差异)不被支持
-- 当值是一个 ReprVar, 直接尝试将其内部的量评估为一个普通数字(不能是无穷、非数等)
-- 当值是一个量(Var), 且查询常量表找到的符合常量评估, 取常量表内的评估结果
-- 当值是一个量(Var), 且不在常量表中, 那么类似 ReprVar, 直接将其评估为一个普通数
+- If the value is a DExp with an unspecified handle,
+  with only one op inside and the return value is `$`,
+  an attempt will be made to evaluate its operands
 
-例如
+  If all operands are evaluated successfully and their own operator are also supported,
+  then they will also be evaluated successfully and the evaluation result will be returned
+
+  Currently, strictEqual, noise, len, rand, angle, and angleDiff are not supported
+- If the value is a DExp with an unspecified handle and contains only one `set` internally,
+  If the return value of set is $, then return the evaluation result of the value of set
+- If the value is a ReprVar, a number, and not `Inf`, `NaN`, etc.
+  Use this number as the evaluation result
+- If the value is a Var and the evaluation of the value obtained by querying the constant table is successful,
+  then use its evaluation result
+- If the value is a Var and is not in the constant table, similar to evaluating ReprVar
+
+Example:
 ```
 foo = (1+2+3)*(1*2*3);
 ```
@@ -1109,29 +1119,29 @@ op mul foo 6 6
 ```
 
 
-DExp 必备 - 设置返回句柄 (setres)
+DExp Operational - Set Result Handle (setres)
 -------------------------------------------------------------------------------
-setres: 用来设置此语句所在的 DExp 的返回句柄, 例如:
+Used to set the result handle of the DExp where this statement is located, for example:
 
 ```
-print (a: set $ 2; setres b;); # 请不要这么做
+print (a: set $ 2; setres b;); # Please don't do this
 ```
-会编译为
+Compile to:
 ```
 set a 2
 print b
 ```
 
 > [!WARNING]
-> 以上代码在设置句柄前使用了返回句柄,
-> 但是却在使用这个返回句柄后改变了返回句柄
+> The above code used a result handle before setting the handle,
+> but changed the result handle after using it
 >
-> 通常我们是希望返回我们使用的返回句柄的,
-> 所以使用 setres 的时候要注意在使用处之前是否有用到返回,
-> 不然可能会悄悄的让之前希望使用的句柄作废
+> Usually, we want to return the result handle used correctly,
+> so before using setres, we should pay attention to whether the handle has already been used,
+> otherwise it may quietly lose the expected handle
 
-最为有用的是你不知道一个值的返回句柄,
-但是你想让当前 DExp 额外做某些事的时候保持使用某个未知值的返回句柄, 例如:
+The common usage of setres is to have the current DExp return a result handle for an unknown value,
+for example:
 
 ```
 const BindType = (unused:
@@ -1146,14 +1156,16 @@ getlink block 0
 sensor __1 block @type
 print __1
 ```
-可以看到, 返回句柄设置成了外部传入的 DExp 的句柄`block`,
-且给它附加上`type`的绑定后, 还将它设置成返回句柄返回了
+
+As can be seen, the result handle is set to the external DExp handle `block`,
+and a `type` binding is attached to it
 
 > [!NOTE]
-> 用到的`[]`和`_0`都会在之后的[参数系统](#参数系统)中详细讲解
+> The `[]` and `_0` used will be explained in detail in the subsequent
+> [Parameter System](#Parameter-System)
 
 
-参数系统
+Parameter System
 ===============================================================================
 对于每一个正在求值的 Expand, 都可选的可以存储一层参数,
 参数是由多个 Var 指向的局部常量组成的, 通常我们可以通过以下几种方法来设置参数
@@ -1207,10 +1219,10 @@ take __ = Foo;
 2. 这被称作 **快速 DExp 求值 (Quick DExp Take)**
    可以看到, 它开启了一个 DExp, 利用 DExp 隐含的 Expand 开启了一个 Expand,
    然后设置这个 Expand 的参数, 再使用 setres 语句,
-   将我们希望被传参的值进行求值并将返回句柄设置为当前 DExp 的返回句柄
+   将我们希望被传参的值进行求值并将结果句柄设置为当前 DExp 的结果句柄
 
    **从上文可以看出, 使用这种形式的时候,
-   别在参数里面求值`$`, 不然会得到用于设置参数的这个 DExp 的返回句柄,
+   别在参数里面求值`$`, 不然会得到用于设置参数的这个 DExp 的结果句柄,
    也就是那个没有用到的`__`**
 3. 这个先忽略, 这会在[匹配与重复块](#匹配与重复块)章节深入描述
 
@@ -1261,8 +1273,7 @@ print ")"
 > 无论是老版本还是现版本, 设置参数或者`_0` `_1`这些时,
 > 都不会像直接编写 const 语句那样收集标签
 >
-> 所以对于要传入被重复展开的地方时, 建议使用 Consted-DExp,
-> 在之后的[Common Syntax Sugar](#Common-Syntax-Sugar)会讲
+> 所以对于要传入被重复展开的地方时, 建议使用 [Consted DExp](#Consted-DExp)
 
 
 
@@ -1770,7 +1781,7 @@ read num cell1 i--;
 ```
 inline {
     take ___0 = i;
-    Foo! ___0:
+    Foo! ___0;
     op ___0 ___0 - `1`;
 }
 Foo! i--;
@@ -2672,7 +2683,7 @@ op-expr 中大多数的表达式都既是值表达式也是赋值表达式, 但�
 - `if cond ? a : b`: a 和 b 是赋值展开
 - `i++(_)` `i--(_)`: 括号内 `_` 处是赋值展开
 - `a = b;`: op-expr 语句, b 处是赋值展开, 赋值给 a
-- `(?b)`: op-expr 语句语法糖, b 处是赋值展开, 赋值给当前 DExp 返回句柄,
+- `(?b)`: op-expr 语句语法糖, b 处是赋值展开, 赋值给当前 DExp 结果句柄,
   所以后来随着纯值表达式变多而增加了新语法`(*b)`, 将直接进行值展开
 
 而进行以下操作容易让 op-expr 生成低质量代码:
@@ -2932,9 +2943,9 @@ jump 0 lessThan 6 10
 可以看到, 这明显是不正常的行为, 这时我们就需要避开常量评估,
 方法有许多, 以下是较为方便的:
 
-- `(?x:2*3)`: 有了明确指定的返回句柄, 就不会被评估为一个数字量了
+- `(?x:2*3)`: 有了明确指定的结果句柄, 就不会被评估为一个数字量了
 - `({$=2*3})`: 使用块包裹来绕开常量评估的固定形式
-- `(?(6:))`: 使用指定了返回句柄的空 DExp 来绕开常量评估的固定形式
+- `(?(6:))`: 使用指定了结果句柄的空 DExp 来绕开常量评估的固定形式
 
 > [!TIP]
 > 对于 `op add 6 6 1` 这种给数字赋值的语句, 大部分会被`l`选项检测到,
