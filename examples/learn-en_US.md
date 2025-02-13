@@ -1076,7 +1076,7 @@ const Foo = (
 );
 take Foo Foo; # double take
 ```
-观察其标签形式(`Li`选项)
+Compile to labeled (`Li`):
 ```
 __0_const_Foo_foo:
     jump __0_const_Foo_foo always 0 0
@@ -1086,8 +1086,8 @@ __1_const_Foo_foo:
 You can see that the label name is not `foo`, but in the form of being renamed,
 so that the labels defined between different takes will not conflict
 
-(If you don't rename it, you will get two foo tags,
-so you won't know which one to jump to when you jump to the foo tag)
+(If you don't rename it, you will get two foo labels,
+so you won't know which one to jump to when you jump to the foo label)
 
 
 Compile time Evaluation
@@ -1171,18 +1171,24 @@ and a `type` binding is attached to it
 
 Parameter System
 ===============================================================================
-对于每一个正在求值的 Expand, 都可选的可以存储一层参数,
-参数是由多个 Var 指向的局部常量组成的, 通常我们可以通过以下几种方法来设置参数
+For each Expand being compiling, an optional layer of parameters can be stored,
+which are composed of multiple Vars pointing to local constants.
+
+Typically, we can set the parameters using the following methods:
 
 ```
 const Foo = (
     print @;
 );
-take["a" "b"] Foo; # 较为古老的方式在 Take 语句上设置
-take Foo["c" "d"]; # 较为常用的生成一个用于传参的 DExp 再进行求值, 建议尽快求值
 
-match "e" "f" { @ {} } # 通过匹配语句捕获所有参数来在当前环境中设置
-take Foo; # 然后普通的 Take, 使用参数会往外找到首个设置的参数, 就找到了展开前环境的参数
+take["a" "b"] Foo; # The older way is to set on the Take statement
+take Foo["c" "d"]; # A commonly used method is to generate a DExp for parameter passing and then take it.
+                   # It is recommended to take it as soon as possible
+
+match "e" "f" { @ {} } # Catch all parameters by matching statements to set the current parameters
+
+take Foo; # Without setting parameters,
+          # when using parameters, the first Expand with setted parameters will be found externally
 ```
 Compile to:
 ```
@@ -1193,9 +1199,9 @@ print "d"
 print "e"
 print "f"
 ```
-通常我们会使用后两种方法设置参数, 中间那种最多, match 语句的细节后面章节会讲
+Usually, we use the last two cases to set parameters
 
-关于前两种方法我们可以通过`A`选项查看构建输出, 以探究其具体原理
+We can observe the build results to explore the principles of the first two cases
 ```
 const Foo = (inline 1@{
     `'print'` @;
@@ -1213,29 +1219,33 @@ match "e" "f" {
 }
 take __ = Foo;
 ```
-首先 Foo 那个`inline 1@`先忽略, 后面的章节会讲
+Firstly, ignore the `inline 1@` in Foo, which will be discussed in later chapters
 
-1. `{}` 为一个 Expand, 然后`# setArgs`是一个无法编写的内部语句,
-   但是可以构建生成, 用于设置当前 Expand 的参数,
-   我们可以看到先使用一个 `{}` 开启了一个 Expand,
-   然后使用`# setArgs`语句来设置了这个 Expand 的参数,
-   最后再进行了 take, 从而达到被求值的值可以接收到参数的效果
-2. 这被称作 **快速 DExp 求值 (Quick DExp Take)**
-   可以看到, 它开启了一个 DExp, 利用 DExp 隐含的 Expand 开启了一个 Expand,
-   然后设置这个 Expand 的参数, 再使用 setres 语句,
-   将我们希望被传参的值进行求值并将结果句柄设置为当前 DExp 的结果句柄
+1. Old method (deprecated)
+   1. `{}` is Expand, with the purpose of utilizing the scope of Expand
+   2. `# setArgs` is an internal statement that cannot be used,
+      is usually generated during the build phase to set parameters for the current Expand
+   3. Take the target value in the Expand after setting the parameters to receive the parameters
 
-   **从上文可以看出, 使用这种形式的时候,
-   别在参数里面求值`$`, 不然会得到用于设置参数的这个 DExp 的结果句柄,
-   也就是那个没有用到的`__`**
-3. 这个先忽略, 这会在[匹配与重复块](#匹配与重复块)章节深入描述
+2. [Quick DExp Take](#Quick-DExp-Take), It is also the most commonly used method
+   1. `(__:)` is a DExp that does not care about the return handle,
+      utilizing its implicit Expand scope dependency constraint parameter scope
+   2. `# setArgs` behaves the same as in the Old method
+   3. `setres` will forcibly replace the result handle of the current DExp with the handle of the target value
+
+3. Ignore this for now, see [Match and Repeating Block](#Match-and-Repeating-Block) for details
 
 > [!TIP]
-> 我们可以注意到, `take Foo;` 实际上是展开为了 `take __ = Foo;`,
-> 这是随便找了个你肯定不应该使用的变量来接收返回的句柄, 反正你也用不到
+> It can be noted that `take Foo;` Actually,
+> it is build results as `take __ = Foo;`,
+> Bind the handle to a meaningless Var to ignore the return handle
+>
+> When searching for parameters,
+> the first Expand with parameters setted will be found from the innermost layer outward
 
 ---
-之前代码 const 中使用的 `@` 字符, 可以让当前环境中的参数在此处展开, 比如:
+The `@` used in the const code earlier can be expanded into parameters in the current environment,
+such as:
 ```
 const Foo = (
     print "(" @ ")";
@@ -1249,11 +1259,12 @@ print "Hello"
 print "Jack"
 print ")"
 ```
-通常我们可以在 Other 语句、参数传递(通常是`[]`)、print 语句中使用
+We can usually use it in Other statements, set arguments (e.g `[]`), and print
 
 ---
-`# setArgs` 语句还会进行一种老式的兼容设置, 它同时会进行一系列的 const,
-例如之前构建展开中以下代码:
+`# setArgs` will also perform an old-fashioned style of compatibility settings,
+generate a series of const statements
+For example, the previous example is built as the following code:
 
 ```
 {
@@ -1261,7 +1272,7 @@ print ")"
     take __ = Foo;
 }
 ```
-在之前的版本其实是类似以下这种形式的
+In the old version, it was built as the following code
 ```
 {
     const _0 = "a";
@@ -1270,22 +1281,24 @@ print ")"
 }
 ```
 
-现在的版本中, `# setArgs` 也同样会设置一遍`_0` `_1`等,
-所以也可以使用`_0` `_1`等快捷的使用参数
+In the current version `# setArgs` also sets parameters such as `_0` and `_1`,
+so quick use of parameters such as `_0` and `_1` is also possible
 
 > [!NOTE]
-> 无论是老版本还是现版本, 设置参数或者`_0` `_1`这些时,
-> 都不会像直接编写 const 语句那样收集标签
+> When using `# setArgs` to set parameters and `_0` `_1`,
+> labels are not captured like regular const statements,
+> which is intentional
 >
-> 所以对于要传入被重复展开的地方时, 建议使用 [Consted DExp](#Consted-DExp)
+> So when expecting DExp with labels to take multiple times,
+> it is recommended to use [Consted DExp](#Consted-DExp)
 
 
 
-匹配与重复块
+Match and Repeating Block
 ===============================================================================
-在之前介绍了参数系统, 这章来介绍和参数最常搭配的匹配语句和重复块语句
+Match and repeating blocks are used in conjunction with parameter systems to manipulate parameters
 
-匹配语句, 可以针对参数的多种情况编译不同分支的代码, 并将参数捕获到常量, 例如:
+Match statement, which can match and set parameters:
 ```
 const Add = (match @ {
     A B { $ = A + B; }
@@ -1305,42 +1318,51 @@ print x
 op add c a b
 ```
 
-这样就非常灵活, 而可以在 match 里面写的匹配都有以下几种:
+The matches allowed to be used in pattern are as follows:
 
-- `_`: 匹配任意的值
-- `A`: 普通的编写一个 Var, 代表匹配任意的值, 并将匹配的值 const 到这个 Var
-- `A:[1 2]`: 在方括号中写一些值, 匹配的值必须和这些值的句柄相同,
-  其中`A:`部分可省略
-- `@`: 在这个位置匹配任意个数的值, 并将匹配到的值进行`# setArgs`,
-  每个分支只能存在一个`@`
-- 其它匹配前面加上`$`可以方便的将这个匹配到的值进行 setres
+- `_`: Match any value
+- `A`: Match any value. const this value to var e.g `A`
+- `[1 2]`: Only when the value is equal to any given handles
+- `A:[1 2]`: Like using `[1 2]` and `A` together
 
-match 里面由零至多个匹配后面跟上一个花括号组成, 称作一个分支, 可以有多个分支
+Special pattern:
 
-而除了普通 match, 还存在一种 const-match,
-区别是 match 会将所有参数进行求值后拿其句柄进行匹配,
-而 const-match 会将所有参数 const 后拿值去匹配
-(这里的 const 类似参数列表, 不会收集标签等)
+- `$` any-pattern: If it matches, then `setres`. (before of `*`)
+- `*` any-pattern: If it matches, then use `take` to set the value instead of `const`.
+  (only in const-match)
+- `@`: Match any number of values and `# setArgs`. (Each branch can have at most one)
 
-而 const-match 还多出一些可用的匹配:
+  You can add the prefix `*`, which will first apply `take` to each parameter
+  (only in const-match)
 
-- 其它匹配前面加上`*`则使用 take 而不是 const 这个值到要绑定到的常量
-- 在方括号匹配里面方括号头部加上`*`则尝试先将待匹配的值进行求值后匹配其句柄
-- 在方括号匹配里面方括号头部加上`?`则方括号内输入 op-expr,
-  来通过返回0还是1来确定是否匹配
+Any number of patterns followed by a pair of brace form a branch,
+There can be multiple branches in the match
+
+There is another type of match, which is the const-match.
+
+Match will take all the given parameters and match the handle,
+while const-match directly matches parameter value
+
+const-match can use some special matches:
+
+- `[*1 2]`: Like `[1 2]`, but will first take the pattern parameters,
+  see [const-match value pattern](#const-match-value-pattern) for details
+- Add `?` to the left side between brackets, to enable it to use bar
+  If the handle is 1, the pattern is matches; if it is 0, the pattern will fail.
+  It is usually used in conjunction with a [Compile time Evaluation](#Compile-time-Evaluation),
+  such as `const match 3 { [?_0 < 4] {ok;} }`
 
 > [!NOTE]
-> `$` 和 `*` 同时存在时, `$` 加在 `*` 的前面
->
-> 方括号里面使用`*` `?`这些可能会导致反复求值, 不太建议
+> const-match, like `# setArgs`, does not capture labels
 
 
-重复块
+Repeating Block
 -------------------------------------------------------------------------------
-重复块可以针对每n个参数, 顺序经过并设置参数(不会设置`_0` `_1`)这类, 例如:
+Repeating-Block traverses the current parameters, with a maximum of n parameters per round.
+For each round's parameter `# setArgs`
 
 ```
-match 1 2 3 4 5 6 7 { @ {} } # 小技巧, 利用 match 来模拟 setArgs
+match 1 2 3 4 5 6 7 { @ {} } # Tip: Use match to simulate setArgs
 inline 3@{
     foo _0 '(' @ ')';
     const X = _0;
@@ -1440,6 +1462,22 @@ const match a @ b {
     X @ Y { print X @ Y; }
 }
 const match a @ b => X @ Y { print X @ Y; }
+```
+
+
+## const-match value pattern
+```
+const match 3 {
+    [?(__: match @ {
+        [3] { setres `1`; }
+        _ { setres `0`; }
+    })] {
+        a;
+    }
+}
+const match 3 {
+    [*3] { a; }
+}
 ```
 
 
@@ -1634,9 +1672,9 @@ take Do[const(:x goto :x;)];
 > The reason for using const is that during the parameter passing process,
 > the parameter does not capture the label
 >
-> Const is required before taking, otherwise the tag will not be renamed
+> Const is required before taking, otherwise the label will not be renamed
 >
-> If there is no renaming, repeating 'take' will result in duplicate tag definitions,
+> If there is no renaming, repeating 'take' will result in duplicate label definitions,
 > so this syntax sugar is needed to make it more convenient
 
 
@@ -3053,7 +3091,7 @@ jump 0 lessThan 6 10
 
 利用无限重复块避免深层递归
 -------------------------------------------------------------------------------
-在 [重复块](#重复块) 一章中, 有说到重复块无限重复的情况,
+在 [Repeating Block](#Repeating-Block) 一章中, 有说到重复块无限重复的情况,
 可以利用它来替换掉一些用递归解决可能远超递归层数限制的问题
 
 例如如果想给一千以内整数附加上一个 pi 绑定量:
