@@ -313,6 +313,8 @@ fn check_cmd<'a>(
     (regex_is_match!(r"^__", var) && !regex_is_match!(r".__$", var))
         .then(|| Lint::new(var, WarningLint::SuspectedVarCmd))
         .into_iter()
+        .chain((!var.as_var_type().is_var())
+            .then(|| Lint::new(var, WarningLint::SuspectedValueCmd)))
         .chain(check_vars(src, line, args))
 }
 #[must_use]
@@ -729,6 +731,8 @@ pub enum WarningLint {
     SuspectedConstant,
     /// 从命名来看疑似将变量作为命令执行
     SuspectedVarCmd,
+    /// 从命名来看疑似将值作为命令执行
+    SuspectedValueCmd,
     /// 未被使用
     NeverUsed,
     NoTargetJump,
@@ -753,6 +757,9 @@ impl ShowLint for WarningLint {
             },
             WarningLint::SuspectedVarCmd => {
                 write!(f, "命令疑似将变量作为命令执行")?
+            },
+            WarningLint::SuspectedValueCmd => {
+                write!(f, "命令疑似将值作为命令执行")?
             },
             WarningLint::NeverUsed => write!(f, "未被使用到的量")?,
             WarningLint::NoTargetJump => write!(f, "没有目标的跳转")?,

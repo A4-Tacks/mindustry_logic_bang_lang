@@ -261,6 +261,14 @@ mod tests {
             makemarker shape 0 0 0 true
             localeprint "name"
             status fales wet unit 10
+            true a
+            2 x
+            2.3 x
+            2e5 x
+            "a" y
+            false a
+            null a
+            @pi a
         "#;
         let src = Source::from_str(s);
         assert_eq!(src.lint(), vec![
@@ -287,6 +295,34 @@ mod tests {
             Lint::new(
                 &Var::new(22, 1, "fales"),
                 ErrorLint::InvalidOper { expected: &["true", "false"] },
+            ),
+            Lint::new(
+                &Var::new(23, 0, "true"),
+                WarningLint::SuspectedValueCmd,
+            ),
+            Lint::new(
+                &Var::new(24, 0, "2"),
+                WarningLint::SuspectedValueCmd,
+            ),
+            Lint::new(
+                &Var::new(25, 0, "2.3"),
+                WarningLint::SuspectedValueCmd,
+            ),
+            Lint::new(
+                &Var::new(26, 0, "2e5"),
+                WarningLint::SuspectedValueCmd,
+            ),
+            Lint::new(
+                &Var::new(27, 0, "\"a\""),
+                WarningLint::SuspectedValueCmd,
+            ),
+            Lint::new(
+                &Var::new(28, 0, "false"),
+                WarningLint::SuspectedValueCmd,
+            ),
+            Lint::new(
+                &Var::new(29, 0, "null"),
+                WarningLint::SuspectedValueCmd,
             ),
         ]);
     }
