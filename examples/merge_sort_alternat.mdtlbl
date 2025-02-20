@@ -1,0 +1,159 @@
+#**
+* 循环交替归并, 使用交替的方案尽量减少拷贝
+* 可以定制读写和比较器, 同时支持修改起始地址
+*#
+
+Builtin.BindSep! '.';
+Builtin.MissesMatch! 1;
+
+start = 0;
+read stop cell1 0;
+length = stop - start;
+break length < 2 || (sensor $ switch1 @enabled;);
+
+const Swap = (match @ => A B {
+    $ A B = A, B, $;
+});
+
+const CmpLess = goto(_0 < _1);
+const Read = (match @ {
+    Mem I { setres Read[$ Mem I]; }
+    $_ Mem I {
+        read $ Mem I;
+    }
+});
+const Write = (match @ => Value Mem I {
+    write Value Mem I;
+});
+
+min_len = 1 << 3;
+memory, backup = bank1, bank2;
+
+gap = length;
+r = 0;
+while gap >= min_len {
+    r |= gap & 1;
+    gap >>= 1;
+}
+gap += r;
+
+if gap <= 1 { stop; }
+
+# insert sort chunks
+istart = start; do {
+    end = min(istart+gap, stop);
+
+    i = istart+1; do {
+        Read! data memory i;
+        const PC = goto({take*P=_0- 1;}=>[
+            data *(setres Read[peek memory P];)
+        ] CmpLess);
+        if (=>[i] PC) {
+            k = i;
+            do {
+                Write! peek memory k--;
+            } while k > istart && (=>[k] PC);
+
+            Write! data memory k;
+        }
+    } while (*++i) < end;
+
+    istart += gap;
+} while istart < stop;
+
+
+# 如果最终无法落到主内存, 在当前位置应用放回的归并
+# 考虑到右侧总是小于左侧, 所以使用逆向归并
+doubled = floor(
+    log(ceil(length / gap))
+    / log(2) + 0.5
+) & 1;
+if doubled {
+    istart = start;
+    do {
+        mid = istart+gap;
+        break mid >= stop;
+        end = min(mid+gap, stop);
+        # assume end - mid > 0 from break
+
+        Read! ldata memory (*mid- 1);
+        iend = end;
+        while iend >= mid && (=>[
+            *Read[memory (*--iend)]
+            ldata
+        ] !CmpLess) {}
+
+        goto :inplace_all_greater iend < mid;
+
+        j = -1;
+        i = iend; do {
+            Write! Read[memory i] backup (*++j);
+        } while (*--i) >= mid; # copy min right
+
+        bufend, j = j, 0;
+        i k = mid- 1, iend;
+
+        Read! rdata backup j;
+        while j <= bufend && i >= istart {
+            if (=>[rdata ldata] CmpLess) {
+                Write! ldata memory k;
+                Read! ldata memory (*--i);
+            } else {
+                Write! rdata memory k;
+                Read! rdata backup (*++j);
+            }
+            k--;
+        }
+        while j <= bufend {
+            Write! (setres Read[backup j]; j++;) memory k--;
+        }
+
+        :inplace_all_greater
+
+        istart = end;
+    } while istart < stop;
+
+    gap <<= 1;
+}
+
+
+# merge chunks
+while gap < length {
+    istart = start;
+
+    do {
+        mid = min(istart+gap, stop);
+        end = min(mid+gap, stop);
+
+        i j k = istart, mid, istart;
+
+        if i < mid && j < end {
+            Read! ldata memory i;
+            Read! rdata memory j;
+            do {
+                if (=>[rdata ldata] !CmpLess) {
+                    Write! ldata backup k;
+                    Read! ldata memory (*++i);
+                } else {
+                    Write! rdata backup k;
+                    Read! rdata memory (*++j);
+                }
+                k++;
+            } while i < mid && j < end;
+        }
+        while i < mid {
+            Write! (setres Read[memory i]; i++;) backup k++;
+        }
+        while j < end {
+            Write! (setres Read[memory j]; j++;) backup k++;
+        }
+
+        istart = end;
+    } while istart < stop;
+
+    Swap! memory backup;
+    gap *= 2;
+}
+
+:finish
+control enabled switch1 true 0 0 0;
