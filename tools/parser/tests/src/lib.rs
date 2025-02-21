@@ -1242,6 +1242,20 @@ fn take_args_test() {
                r#"jump 11 lessThan i 10"#,
                r#"printflush message1"#,
     ]);
+
+    let ast = parse!(parser, r#"
+    const F = (y:print _0 $;);
+    take (x:
+        F! *$;
+    );
+    "#).unwrap();
+    let meta = CompileMeta::new();
+    let tag_codes = meta.compile(ast);
+    let logic_lines = tag_codes.compile().unwrap();
+    assert_eq!(logic_lines, vec![
+               r#"print x"#,
+               r#"print y"#,
+    ]);
 }
 
 #[test]
@@ -2201,7 +2215,7 @@ fn quick_dexp_take_test() {
         Foo! a b c @ d;
         "#).unwrap(),
         parse!(parser, r#"
-        take Foo[a b c @ d];
+        take[a b c @ d] Foo;
         "#).unwrap(),
     );
 
@@ -2212,7 +2226,7 @@ fn quick_dexp_take_test() {
         parse!(parser, r#"
         inline {
             take ___0 = d;
-            take Foo[a b c ___0];
+            take[a b c ___0] Foo;
             ___0 = ___0 + `1`;
         }
         "#).unwrap(),
@@ -2225,7 +2239,7 @@ fn quick_dexp_take_test() {
         parse!(parser, r#"
         inline {
             take ___0 = d;
-            take Foo[___0];
+            take[___0] Foo;
             ___0 = ___0 + `1`;
         }
         "#).unwrap(),
@@ -2238,7 +2252,7 @@ fn quick_dexp_take_test() {
         parse!(parser, r#"
         inline {
             take ___0 = d;
-            take Foo[a b c @ ___0];
+            take[a b c @ ___0] Foo;
             ___0 = ___0 + `1`;
         }
         "#).unwrap(),
@@ -2251,7 +2265,7 @@ fn quick_dexp_take_test() {
         parse!(parser, r#"
         inline {
             take ___0 = d;
-            take Foo[@ a b c ___0];
+            take[@ a b c ___0] Foo;
             ___0 = ___0 + `1`;
         }
         "#).unwrap(),
@@ -2264,7 +2278,7 @@ fn quick_dexp_take_test() {
         parse!(parser, r#"
         inline {
             take ___0 = a;
-            take Foo[___0 b c @ d];
+            take[___0 b c @ d] Foo;
             ___0 = ___0 + `1`;
         }
         "#).unwrap(),
@@ -2277,7 +2291,7 @@ fn quick_dexp_take_test() {
         parse!(parser, r#"
         inline {
             take ___0 = a;
-            take Foo[___0];
+            take[___0] Foo;
             ___0 = ___0 + `1`;
         }
         "#).unwrap(),

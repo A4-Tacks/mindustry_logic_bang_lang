@@ -1704,7 +1704,7 @@ foo Foo[1 2];
 
 ## Bang Take
 ```
-take Foo[1 2 3 @ 4];
+take[1 2 3 @ 4] Foo;
 Foo! 1 2 3 @ 4;
 ```
 

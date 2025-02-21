@@ -376,12 +376,11 @@ pub LogicLine: LogicLine = {
 
 #[inline]
 QuickTake: LogicLine = <value:NonConstRangeValue> "!" <args:ParamArgsSL> LEnd => {
-    let dexp = DExp::new(meta.unnamed_var(), vec![
+    let expand = Expand(vec![
         LogicLine::SetArgs(args),
-        LogicLine::SetResultHandle(value),
-    ].into());
-    let line = Take(meta.unnamed_var().into(), dexp.into()).into();
-    meta.pack_line(line)
+        Take(meta.unnamed_var().into(), value).into(),
+    ]);
+    meta.pack_line(expand.into())
 };
 
 Match: Match = {
