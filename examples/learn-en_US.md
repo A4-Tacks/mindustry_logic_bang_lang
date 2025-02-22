@@ -1702,6 +1702,29 @@ foo Foo[1 2];
 ```
 
 
+## Param Take
+```
+{
+    # setArgs a b;
+    take __ = X;
+}
+take[a b] X;
+```
+
+```
+{
+    # setArgs a b;
+    take X = Y;
+    # constleak X;
+}
+take[a b] X = Y;
+```
+
+> [!WARNING]
+> It is not recommended to use this syntax,
+> as it is an outdated syntax that has been largely deprecated
+
+
 ## Bang Take
 ```
 take[1 2 3 @ 4] Foo;
