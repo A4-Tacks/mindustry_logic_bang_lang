@@ -1,0 +1,51 @@
+#**
+* 用于快速测试运行时间并打印的工具, 使用标准化时间输出
+*#
+
+const TimeIt = (const match @ => *RepeatCount Begin @ {
+    take*Ipt = @ipt*(sensor $ @this @timescale;);
+
+    const Run = (const match @ => F {
+        take R = $;
+        R.start = @tick;
+        take R.Result = F[];
+        R.dur_ticks = @tick - R.start;
+    });
+    const PrintIt = (const match @ => F {
+        take+I+Sum;
+        I = 0;
+        take R = Run[([I &F](__:
+            do {
+                setres F[];
+            } while (*++I) < RepeatCount;
+        ))];
+
+        take*Time = floor(R.dur_ticks / RepeatCount * Ipt - (2- 0.5));
+        print Builtin.Stringify[R->Result]": "Time"lines\n";
+        setres R.Result;
+    });
+
+    setres PrintIt[Begin];
+    inline@ F {
+        PrintIt! F;
+    }
+});
+
+printflush message1;
+printflush message1;
+
+TimeIt! (?count:100)
+    (case1:
+        _x = "a"+"b";
+    )
+    (case2:
+        _x = (?"a"+"b");
+    )
+    (case3:
+        noop;
+        noop;
+        _x = (?"a"+"b");
+    )
+;
+printflush message1;
+stop;
