@@ -1,0 +1,967 @@
+#**
+* 使用完整的PEG分析语法的及其完整的计算器
+* 目前支持二元+-*/%^, 一元-!
+*
+* 建议键位
+* 789C  +%
+* 456B  -^
+* 123 ()*! M+MC
+* L0R.  /  M-MR
+*
+* Grammar
+* pre-defined:
+    * number = [0..]
+    * "."    = [-10]
+    * ")"    = [-9]
+    * "("    = [-8]
+    * "!"    = [-7]
+    * "^"    = [-6]
+    * "%"    = [-5]
+    * "/"    = [-4]
+    * "*"    = [-3]
+    * "-"    = [-2]
+    * "+"    = [-1]
+*
+* defines:
+    * atom = number / "(" expr ")"
+    * part = atom ("." atom)?
+    * fact = part "!"?
+    * pow  = fact ("^" fact)* ; right
+    * neg  = "-"* pow
+    * md   = neg ("*" neg / "/" neg / "%" neg)*
+    * expr = md ("+" md / "-" md)*
+*
+* 关于 fact 不加括号只允许写一个, 是因为防止手残写太大
+*#
+
+Builtin.BindSep! '.';
+Builtin.MissesMatch! 1;
+
+const For = (const match @ {
+    *I [in] _ *Stop F {
+        setres For[I in 0 .. Stop .. 1 F];
+    }
+    *I [in] *Start _ *Stop F {
+        setres For[I in Start .. Stop .. 1 F];
+    }
+    *I [in] *Start _ _ *Stop F {
+        setres For[I in Start .. .. Stop .. 1 F];
+    }
+    *I [in] *Start _ *Stop _ *Step F {
+        setres For[I in_impl Start .. Stop .. Step F (?I < Stop)];
+    }
+    *I [in] *Start _ _ *Stop _ *Step F {
+        setres For[I in_impl Start .. Stop .. Step F (?I <= Stop)];
+    }
+    *I [inrev] _ *Stop F {
+        setres For[I inrev 0 .. Stop .. 1 F];
+    }
+    *I [inrev] *Start _ *Stop F {
+        setres For[I inrev Start .. Stop .. 1 F];
+    }
+    *I [inrev] *Start _ _ *Stop F {
+        setres For[I inrev Start .. .. Stop .. 1 F];
+    }
+    *I [inrev] *Start _ *Stop _ *Step F {
+        setres For[I inrev_impl Start .. Stop .. Step F (?I > Stop)];
+    }
+    *I [inrev] *Start _ _ *Stop _ *Step F {
+        setres For[I inrev_impl Start .. Stop .. Step F (?I >= Stop)];
+    }
+    *I [in_impl] *Start _ *Stop _ *Step F C {
+        setres For[I in_impl Start .. Stop .. Step F C (_0 += _1;)];
+    }
+    *I [inrev_impl] *Start _ *Stop _ *Step F C {
+        setres For[I in_impl Start .. Stop .. Step F C (_0 -= _1;)];
+    }
+    *I [in_impl] *Start _ *Stop _ *Step F C Inc {
+        I = Start;
+        {
+            const I = Start;
+            match Builtin.EvalNum[C] {
+                [`__` 0] { goto :end !C; }
+                [1] {}
+            }
+        }
+        do {
+            setres F[I];
+            Inc! I Step;
+        } while C;
+        :end
+    }
+    *I [of] @ F {
+        inline@ Arg {{
+            take Builtin.Const[I `Arg`];
+            take F[];
+        }}
+    }
+    *I [as] _ *Stop F {
+        setres For[I as 0 .. Stop .. 1 F];
+    }
+    *I [as] *Start _ *Stop F {
+        setres For[I as Start .. Stop .. 1 F];
+    }
+    *I [as] *Start _ _ *Stop F {
+        setres For[I as Start .. .. Stop .. 1 F];
+    }
+    *I [as] *Start _ *Stop _ *Step F {
+        setres For[I as_impl Start .. Stop .. Step F (?J < Stop)];
+    }
+    *I [as] *Start _ _ *Stop _ *Step F {
+        setres For[I as_impl Start .. Stop .. Step F (?J <= Stop)];
+    }
+    *I [asrev] _ *Stop F {
+        setres For[I asrev 0 .. Stop .. 1 F];
+    }
+    *I [asrev] *Start _ *Stop F {
+        setres For[I asrev Start .. Stop .. 1 F];
+    }
+    *I [asrev] *Start _ _ *Stop F {
+        setres For[I asrev Start .. .. Stop .. 1 F];
+    }
+    *I [asrev] *Start _ *Stop _ *Step F {
+        setres For[I asrev_impl Start .. Stop .. Step F (?J > Stop)];
+    }
+    *I [asrev] *Start _ _ *Stop _ *Step F {
+        setres For[I asrev_impl Start .. Stop .. Step F (?J >= Stop)];
+    }
+    *I [as_impl] *Start _ *Stop _ *Step F C {
+        setres For[I as_impl Start .. Stop .. Step F C (?_0 + _1)];
+    }
+    *I [asrev_impl] *Start _ *Stop _ *Step F C {
+        setres For[I as_impl Start .. Stop .. Step F C (?_0 - _1)];
+    }
+    *I [as_impl] *Start _ *Stop _ *Step F C Inc {
+        match Builtin.EvalNum[(?Start+Step+Stop)] {
+            [`__`] {
+                match "for-as: can not eval ("Start".."Stop".."Step")" => @ {}
+                take E = ""; inline@ S {
+                    take E = Builtin.Concat[E *Builtin.Stringify[S]];
+                }
+                Builtin.Err! E;
+                Builtin.Exit! 2;
+            }
+            _ {}
+        }
+        match Builtin.EvalNum[(?Step <= 0)] {
+            [0] {}
+            [1] {
+                Builtin.Err! *Builtin.Concat[
+                    "for-as: invalid step "
+                    *Builtin.Stringify[Step]
+                ];
+                Builtin.Exit! 2;
+            }
+        }
+        take J = Start;
+        inline 0@ { match Builtin.EvalNum[C] {
+            [1] {
+                {
+                    Builtin.Const! I `J`;
+                    take F[];
+                }
+                take J = Inc[J Step];
+            }
+            [0] { Builtin.StopRepeat!; }
+        } }
+    }
+});
+const Function = (const match @ => $B *@ F {
+    #take B = $;
+    take DeclStat = null;
+
+    take I=0;
+    inline 0@ {
+        take*I=I+1;
+        match @ {
+            [@declare] @ { take DeclStat = @declare; }
+            [@define] B @ { take*I=I+1; take DeclStat = @define; }
+            @ { take*I=I- 1; Builtin.StopRepeat!; }
+        }
+    }
+    Builtin.SliceArgs! I *Builtin.ArgsLen[];
+
+    match DeclStat { [null @declare] {} [@define] {
+        B.define_line = @counter + 1;
+    } }
+    match DeclStat { [@declare] {} [null @define] {
+        goto :end;
+    } }
+    {
+        const B.Return = (const match @ {
+            {
+                @counter = ...ret_counter;
+            }
+            F {
+                F! ..->ret_counter;
+            }
+        });
+        const B.DefaultReturn = B->Return;
+        const B.Body = F;
+        const B.Expander = (
+            ...Body! @;
+            ...DefaultReturn!;
+        );
+        const B.RawCall = (match @ {
+            {
+                ...Goto!;
+                setres ...result;
+            }
+        });
+        inline@ Arg {
+            #take Handle = Builtin.BindHandle2[`B` Arg];
+            take Handle = Arg;
+            const B.Expander = ([Handle &E:B->Expander](
+                setres E[Handle @];
+            ));
+            const B.RawCall = ([Handle &C:B->RawCall](match @ {
+                @ Fst {
+                    match Fst { [Handle] {} _ { Handle = Fst; } }
+                    setres C[@];
+                }
+            }));
+        }
+
+        take*B.ArgC = Builtin.ArgsLen[];
+        const B.RawCall = ([ArgC:B.ArgC &C:B->RawCall](
+            match Builtin.ArgsLen[] {
+                [ArgC] {
+                    setres C[@];
+                }
+                N {
+                    Builtin.ExpandStack!;
+                    Builtin.Err! *Builtin.Concat[
+                        "Unexpected argc "
+                        *Builtin.Concat[
+                            *Builtin.Stringify[N]
+                            *Builtin.Concat[
+                                ", expected: "
+                                *Builtin.Stringify[ArgC]
+                            ]
+                        ]
+                    ];
+                    inline@ Arg {
+                        Builtin.Err! Arg;
+                    }
+                    Builtin.Exit! 3;
+                }
+            }
+        ));
+
+        const B.Call = (match @ => @ {
+            setres ...RawCall[@];
+        });
+        const B.Goto = ([B DeclStat](
+            setres B.result;
+            B.ret_counter = @counter + 1;
+            match DeclStat {
+                [null] { goto :start; }
+                [@declare @define] { @counter = B.define_line; }
+            }
+        ));
+        match DeclStat { [@declare @define] {} [null] {
+            :start
+            const B.Goto = ([| :start]B->Goto);
+        } }
+
+        match DeclStat { [@declare] {} [null @define] {
+            B.Expander!;
+        } }
+    }
+    :end
+});
+const NewStack = (match @ {
+    $Memory {
+        NewStack! Memory Memory 0;
+    }
+    Memory Floor {
+        take Result = $;
+        NewStack! Result Memory Floor;
+    }
+    $Result Memory Floor {
+        $.top = Floor - 1;
+
+        const $.Floor = Floor;
+        const $.Memory = Memory;
+
+        const $.Iter = (match @ => {
+            const $.Prev = ..->top;
+            const $.Memory = ..->Memory;
+            const $.Get = (match @ => { setres ...Prev; });
+            const $.GetTo = (match @ => $Result { Result = ...Prev; });
+            const $.RawNext = (match @ {
+                B { setres ...RawNext[B 1]; }
+                B Step {
+                    const $.Prev = B->Prev;
+                    const $.Memory = B->Memory;
+                    const $.Step = Step;
+                    const $.Get = (match @ => { setres ...GetTo[$]; });
+                    const $.GetTo = (match @ => $Result {
+                        Result = ...Prev - ...Step;
+                        const ...Get = Result;
+                        const ...Prev = Result;
+                        const ...GetTo = (match @ => $Result {
+                            Result = ...Get;
+                        });
+                    });
+                    const $.RawNext = B->RawNext;
+                    const $.Next = (setres ...RawNext[*.. @];);
+                    const $.Read = (match @ {
+                        { setres ...Read[$]; }
+                        $Result { read Result ...Memory ...Get[]; }
+                    });
+                    const $.Write = (match @ => Value {
+                        setres ..;
+                        write Value ...Memory ...Get[];
+                    });
+                }
+            });
+
+            const $.Next = (setres ...RawNext[*.. @];);
+            const $.Read = (match @ {
+                { setres ...Read[$]; }
+                $Result { read Result ...Memory ...Get[]; }
+            });
+            const $.Write = (match @ => Value {
+                setres ..;
+                write Value ...Memory ...Get[];
+            });
+        });
+        const $.Read = (match @ {
+            { setres ...Read[$]; }
+            $Result @ {
+                take Iter = ...Iter[];
+                Iter.Read! Result;
+                take Iter = Iter.Next[];
+
+                inline@ Result {
+                    Iter.Read! Result;
+                    take Iter = Iter.Next[];
+                }
+            }
+        });
+        const $.Write = (match @ => $Value @ {
+            take Iter = ...Iter[].Write[Value].Next[];
+
+            inline@ Value {
+                take Iter = Iter.Write[Value].Next[];
+            }
+        });
+        const $.Push = (match @ {
+            {}
+            @ Value {
+                write Value ...Memory (*++...top);
+                ...Push! @;
+            }
+        });
+        const $.Pop = (match @ {
+            {
+                ...top--;
+                setres ..;
+            }
+            $Result {
+                ...Read! Result;
+                ...top--;
+            }
+            @ {
+                inline@ Result {
+                    ...Read! Result;
+                    ...top--;
+                }
+            }
+        });
+    }
+});
+
+const MIN_SYM = 10;
+const Oncer = (take ...V = ...V; setres ...V;);
+const DisplayCore = (match @ => S {
+    const $.Display = ([S](
+        take+PoolX+PoolY;
+        take*AX, AY = 0, 0;
+        inline 0@ {
+            match AX { [2] { Builtin.StopRepeat!; } _ {} }
+            take*X1 = AX*S;
+            match AX {
+                [0] { const OX = ([&V:(X:) X1]Oncer); }
+                _   { const OX = ([&V:(?X+X1) X1]Oncer); }
+            }
+            Builtin.Const! *Builtin.BindHandle2[`PoolX` AX] `OX`;
+            take*AX=AX+1;
+        }
+        inline 0@ {
+            match AY { [6] { Builtin.StopRepeat!; } _ {} }
+            take*Y1 = AY*S;
+            match AY {
+                [0] { const OY = ([&V:(Y:) Y1]Oncer); }
+                _   { const OY = ([&V:(?Y+Y1) Y1]Oncer); }
+            }
+            Builtin.Const! *Builtin.BindHandle2[`PoolY` AY] `OY`;
+            take*AY=AY+1;
+        }
+        inline@ *N {
+            # xywh, y0, x0在最右边
+            take*IX, IY, W, H = N//1e3%10, N//1e2%10, N//1e1%10, N%10;
+            match W { [0 1 2 3 4] {} [5 6 7 8 9] {
+                take*W = -(W- 5);
+            } }
+            take*W, H = W*S, H*S;
+
+            match IX { [0 1 2] {} }
+            match IY { [0 1 2 3 4 5 6] {} }
+
+            Builtin.Const! `DX` *Builtin.BindHandle2[`PoolX` IX];
+            Builtin.Const! `DY` *Builtin.BindHandle2[`PoolY` IY];
+
+            draw rect DX DY W H 0 0;
+        }
+    ));
+});
+const DrawNum = (
+    # 粗细为2的整数数显, 给定显示右下角, 用正方向显示
+    match @ {
+        X Y Num {}
+        @ {
+            take Builtin.Err["DrawNum argc err"];
+            take N=Builtin.ArgsLen[] Builtin.Err[N];
+        }
+    }
+    take*Num = ({$=Num;});
+
+    take S = 2; # Size
+    take*Offset = S*4;
+
+    const Display = DisplayCore[S]->Display;
+
+    if Num < 0 {
+        switch (*Num+MIN_SYM) {
+            break;
+        case: # "."
+            Display! 1011;
+            Print! ".";
+        case: # ")"
+            Display! 0011 1113 0411;
+            Print! ")";
+        case: # "("
+            Display! 2011 1113 2411;
+            Print! "(";
+        case: # "!"
+            Display! 0213 0011;
+            Print! "!";
+        case: # "^"
+            Display! 0311 2311 1411;
+            Print! "^";
+        case: # "%"
+            Display! 2011 0111 1211 2311 0411;
+            Print! "%";
+        case: # "/"
+            Display! 0231 1011 1411;
+            Print! "/";
+        case: # "*"
+            Display! 0111 2111 1211 0311 2311;
+            Print! "*";
+        case: # "-"
+            Display! 0231;
+            Print! "-";
+        case: # "+"
+            Display! 0231 1113;
+            Print! "+";
+        }
+        X += Offset;
+    } else {
+        take+I;
+        Print! (*floor(Num));
+        I = floor(log10(Num)); do {
+            take*N = Num//10**I%10;
+
+            switch N {
+                break;
+            case: Display! 1011 0113 2113 1411;
+            case: Display! 0031 1015 0311;
+            case: Display! 0031 0012 1211 2311 0421;
+            case: Display! 0021 0221 0421 2111 2311;
+            case: Display! 2015 0213 0221;
+            case: Display! 0031 0231 0431 0213 2013;
+            case: Display! 0015 0031 2013 0231 0431;
+            case: Display! 2015 2471;
+            case: Display! 0015 2015 0031 0231 0431;
+            case: Display! 2015 0231 0431 0213 0031;
+            }
+            X += Offset;
+        } while (*--I) >= 0;
+    }
+);
+const Button = (const match @ => *Button F {
+    if !(sensor $ Button @enabled;) {
+        control enabled Button true 0 0 0;
+        F!;
+        end;
+    }
+});
+const DrawFloat = (match @ => X Y Num {
+    #**
+    * mutable X, Num
+    * 支持负数和小数显示的数字绘制
+    *#
+    take+State+N+Part;
+    State, N = 0, Num;
+    do {
+        switch State {
+            break;
+        case 0:
+            goto :cont Num >= 0;
+            N, Num = -2, abs(Num);
+        case 1:
+            N = floor(Num);
+        case 2:
+            Part = Num % 1;
+            goto :bk Part < 1e-7;
+            N = -10;
+        case 3:
+            N = floor(Part * 1000000 + 0.5);
+            while (*N%10) == 0 { N //= 10; }
+        }
+        DrawNum! X Y N;
+        :cont
+    } while (*++State) < 4;
+    :bk
+});
+
+# mains
+const MainDisplay = (
+    const Size = 2;
+    const Display = DisplayCore[Size]->Display;
+
+    prev_result, prev_save = result, save;
+    read err_i cell1 59;
+    read result cell1 60;
+    read save cell1 61;
+    read cursor cell1 62;
+    read length cell1 63;
+
+    x, y = 1, 150;
+    full_draw = rand(1) < 0.02;
+
+    draw col '%000000' 0 0 0 0 0;
+    draw rect 0 176 176 -80 0 0;
+    if full_draw {
+        draw rect 0 0 176 176 0 0;
+    }
+
+    if cursor == -1 {
+        draw col '%00ff00' 0 0 0 0 0;
+        draw rect x y -1 (*Size*5) 0 0;
+    }
+    if err_i == -1 {
+        draw col '%ff0000' 0 0 0 0 0;
+        draw rect x (*y- 1) -2 (*Size*6) 0 0;
+        draw col '%ffffff' 0 0 0 0 0;
+    }
+
+    draw col '%ffffff' 0 0 0 0 0;
+
+    For! i in 0..length (
+        const Print = (print @;);
+        DrawNum! x y (read $ cell1 i;);
+        if i == err_i {
+            draw col '%ff000080' 0 0 0 0 0;
+            draw rect (*x- 1) (*y- 1) (*Size*4) (*Size*6) 0 0;
+            draw col '%ffffff' 0 0 0 0 0;
+        }
+        if i == cursor {
+            draw col '%00ff00' 0 0 0 0 0;
+            draw rect x y -1 (*Size*5) 0 0;
+            draw col '%ffffff' 0 0 0 0 0;
+        }
+        if x >= 150 {
+            x = Size;
+            y -= Size*8;
+        }
+    );
+    if prev_save != save || full_draw {
+        draw col '%000000' 0 0 0 0 0;
+        draw rect 0 38 176 15 0 0;
+        draw col '%ffffff' 0 0 0 0 0;
+        isave = save;
+        x = 1;
+        skip save >= (?err:2**1020) || save <= (*-err) {
+            DrawFloat! x 40 isave;
+        }
+    }
+    if prev_result != result || full_draw {
+        draw col '%000000' 0 0 0 0 0;
+        draw rect 0 68 176 15 0 0;
+        draw col '%ffffff' 0 0 0 0 0;
+
+        draw rect 1 72 6 2 0 0;
+        draw rect 1 76 6 2 0 0;
+        iresult = result;
+        x = 9;
+        skip result >= (?err:2**1020) {
+            DrawFloat! x 70 iresult;
+        }
+    }
+    print "="result;
+
+    drawflush display1;
+    printflush message1;
+);
+const InputController = (
+    write save cell1 61;
+    write cursor cell1 62;
+    write length cell1 63;
+
+    read result cell1 60;
+    read save cell1 61;
+    read cursor cell1 62;
+    read length cell1 63;
+
+    if length < 0 {
+        write (?length:0) cell1 63;
+    }
+    if length > 55 {
+        write (?length:55) cell1 63;
+    }
+    if cursor >= length {
+        write (?cursor:length- 1) cell1 62;
+    }
+    if cursor < -1 {
+        write (?cursor:-1) cell1 62;
+    }
+
+    const MergeN = (match @ => A B {
+        take*P = floor(log10(B))+1;
+        setres (*A*10**P + B);
+    });
+
+    i = 0; do {
+        Button! (getlink $ i;) (
+            read cur_num cell1 cursor;
+            if cursor >= 0 && cur_num >= 0 {
+                write (*cur_num*10+i) cell1 cursor;
+            } else {
+                cursor++;
+                if cursor < length && (next_num:read $ cell1 cursor;) >= 0 {
+                    # merge right num
+                    write MergeN[i next_num] cell1 cursor;
+                    cursor--;
+                } else {
+                    For! j inrev length....cursor (
+                        write (read $ cell1 j;) cell1 (*j+1);
+                    );
+                    write i cell1 cursor;
+                    length++;
+                }
+            }
+        );
+    } while (*++i) < 10;
+    Button! switch11 ( # left
+        if cursor >= 0 {
+            cursor--;
+        }
+    );
+    Button! switch12 ( # right
+        if cursor < 55 {
+            cursor++;
+        }
+    );
+    Button! switch13 ( # backspace
+        if cursor >= 0 {
+            if (cur_num:read $ cell1 cursor;) > 0 {
+                write (*cur_num//10) cell1 cursor;
+            } else {
+                # merge right num
+                length--;
+                For! j in cursor..length (
+                    write (read $ cell1 (*j+1);) cell1 j;
+                );
+                read next_num cell1 cursor--;
+                if cursor >= 0
+                && next_num >= 0
+                && (cur_num:read cur_num cell1 cursor;) >= 0
+                {
+                    For! j in cursor..length-- (
+                        write (read $ cell1 (*j+1);) cell1 j;
+                    );
+                    write MergeN[cur_num next_num] cell1 cursor;
+                }
+            }
+        }
+    );
+    Button! switch14 ( # clear
+        length = 0;
+        cursor = -1;
+    );
+
+    # parens and operators
+    For! i in 15....24 (
+        Button! (getlink $ i;) (
+            cursor++;
+            For! j inrev length++....cursor (
+                write (read $ cell1 j;) cell1 (*j+1);
+            );
+            write (*i-(15+MIN_SYM)) cell1 cursor;
+        );
+    );
+
+    Button! switch25 ( # M+
+        if result < ({$=2**980;}) {
+            save += result;
+        }
+    );
+    Button! switch26 ( # M-
+        if result < ({$=2**980;}) {
+            save -= result;
+        }
+    );
+    Button! switch27 ( # MR
+        read cur_num cell1 cursor;
+        if cursor >= 0 && cur_num >= 0 {
+            write MergeN[cur_num save] cell1 cursor;
+        } else {
+            cursor++;
+            if cursor < length && (next_num:read $ cell1 cursor;) >= 0 {
+                # merge right num
+                write MergeN[save next_num] cell1 cursor;
+                cursor--;
+            } else {
+                For! j inrev length++....cursor (
+                    write (read $ cell1 j;) cell1 (*j+1);
+                );
+                write save cell1 cursor;
+            }
+        }
+    );
+    Button! switch28 ( # MC
+        save = 0;
+    );
+);
+const Calculator = (
+    read length cell1 63;
+
+    NewStack! bank1;
+    NewStack! bank1m bank1 400; # 切个小栈
+
+    const bank1.Push = ([&Push:bank1->Push](
+        setres Push[@];
+    ));
+
+    take+P;
+    P.i = 0;
+    P.err_right = 0;
+    P.ok = true;
+    const Read = ([P](match @ {
+        { setres Read[$]; }
+        $R {
+            P.ok = false;
+            if P.i < length {
+                read R cell1 P.i++;
+                P.ok = true;
+            }
+        }
+    }));
+    const Match = ([P](match @ {
+        Char {
+            setres P.ok;
+            P.ok = false;
+            if P.i < length {
+                if (read $ cell1 P.i;) == Char {
+                    P.ok = true;
+                    P.i++;
+                } else {
+                    P.MarkErr!;
+                }
+            }
+        }
+    }));
+    const Rule = ([P](const match @ => *B @ F {
+        setres Function[B @ ([P &F ..B](
+            bank1.Push! B->ret_counter;
+            P.Test! B ([B &F](
+                F!;
+            ));
+            bank1.Pop! B->ret_counter;
+        ))];
+    }));
+    const P.MarkErr = (
+        ...err_right max= ...i;
+    );
+    const P.Test = ([P](const match @ => B F {
+        bank1.Push! P.i;
+
+        setres F[];
+
+        if !P.ok {
+            P.Back! bank1.Read;
+        }
+        bank1.Pop!;
+    }));
+    const P.Back = (const match @ => F {
+        P.MarkErr!;
+        F! ..->i;
+    });
+    const P.BackTo = (match @ => Back {
+        ...Back! ([Back](_0 = Back;));
+    });
+
+    const P.Expr = Function[expr @declare ()]->Call;
+
+    const P.Number = Rule[number (
+        P.ok &&= Read[B->result] >= 0;
+    )]->Call;
+    const P.Atom = Rule[atom (
+        take N = P.Number[];
+        if P.ok {
+            B.result = N;
+        } elif !(
+            Match[-8]
+            && ({ B.result = P.Expr[]; } => P.ok)
+            && Match[-9]
+        ) {
+            P.ok = false;
+        }
+    )]->Call;
+    const P.Part = Rule[part (
+        take N = P.Atom[];
+        if P.ok {
+            P.Test! B ([B P N](
+                bank1.Push! N;
+                if Match[-10] && ({ B.result = P.Atom[]; } => P.ok) {
+                    take M=B.result +N;
+                    bank1.Read! N;
+                    B.result = N + M/10**(floor(log10(M))+1);
+                } else {
+                    bank1.Read! B->result;
+                    P.ok = false;
+                }
+                bank1.Pop!;
+            ));
+            P.ok = true;
+        }
+    )]->Call;
+    const P.Fact = Rule[fact (
+        take N = P.Part[];
+        if P.ok {
+            B.result = N;
+            if Match[-7] {
+                take+I;
+                I = 1;
+                while (*B.result) > 1 {
+                    I *= B.result;
+                    B.result--;
+                }
+                B.result = I;
+            }
+            P.ok = true;
+        }
+    )]->Call;
+    const P.Pow = Rule['pow' (
+        take N = P.Fact[];
+        if P.ok {
+            bank1.Push! N;
+            bank1m.Push! 0 P.i;
+            while Match[-6] && ({ P.Fact!; } => P.ok) {
+                bank1.Push! P->Fact->..->result;
+                bank1m.Write! (*bank1m.Read[]+1);
+                bank1m.Iter[].Next[].Write! P.i;
+            }
+            take+Count;
+            bank1m.Pop! Count;
+            bank1.Pop! B.result;
+            while (*--Count) >= 0 {
+                B.result = bank1.Pop[$] ** B.result;
+            }
+            P.Back! bank1m.Pop;
+            P.ok = true;
+        }
+    )]->Call;
+    const P.Neg = Rule[neg (
+        take+Sign;
+        Sign = 1;
+        gwhile Match[-2] {
+            Sign *= -1;
+        }
+        take N = P.Pow[];
+        if P.ok {
+            B.result = N * Sign;
+        }
+    )]->Call;
+    const P.Md = Rule[md const(
+        take N = P.Neg[];
+        if P.ok {
+            bank1.Push! N;
+            do {
+                take Op = Read[];
+                break !P.ok;
+                if Op == -3 { # mul
+                    take M = P.Neg[];
+                    goto :fail !P.ok;
+                    bank1.Write! (*bank1.Read[]*M);
+                } elif Op == -4 { # div
+                    take M = P.Neg[];
+                    goto :fail !P.ok;
+                    bank1.Write! (*bank1.Read[]/M);
+                } elif Op == -5 { # rem
+                    take M = P.Neg[];
+                    goto :fail !P.ok;
+                    bank1.Write! (*bank1.Read[]%M);
+                } else {
+                    :fail
+                    P.i--;
+                    break;
+                }
+            } while;
+            bank1.Pop! B.result;
+            P.ok = true;
+        }
+    )]->Call;
+
+    Rule! expr @define P->Expr->.. const(
+        take N = P.Md[];
+        if P.ok {
+            bank1.Push! N;
+            do {
+                take Op = Read[];
+                break !P.ok;
+                if Op == -1 { # add
+                    take M = P.Md[];
+                    goto :fail !P.ok;
+                    bank1.Write! (*bank1.Read[]+M);
+                } elif Op == -2 { # sub
+                    take M = P.Md[];
+                    goto :fail !P.ok;
+                    bank1.Write! (*bank1.Read[]-M);
+                } else {
+                    :fail
+                    P.i--;
+                    break;
+                }
+            } while;
+            bank1.Pop! B.result;
+            P.ok = true;
+        }
+    );
+
+    take R = P.Expr[];
+
+    if P.i != length { P.ok = false; }
+
+    if P.ok {
+        write R cell1 60;
+        write -2 cell1 59;
+    } else {
+        write ({$=2**1021;}) cell1 60;
+        write (*P.err_right- 1) cell1 59;
+    }
+
+    if bank1.top != (*bank1.Floor- 1) {
+        stop; # 断言栈失衡
+    }
+    if bank1m.top != (*bank1m.Floor- 1) {
+        stop; # 断言栈失衡
+    }
+);
+
+MainDisplay!;
+#InputController!;
+#Calculator!;
