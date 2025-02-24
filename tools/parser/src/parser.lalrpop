@@ -1114,14 +1114,16 @@ ClosuredValue: ClosuredValue = {
         (
             ClosuredValueCatch*
             Opt<"@">
+            (".." <Var>)?
             ("|" <Label*>)?
         ),
         (ConstStart <Value> <ConstStop>),
     > => {
-        let ((catchs, catch_args, catch_labels), (value, labels)) = <>;
+        let ((catchs, catch_args, binder_to, catch_labels), (value, labels)) = <>;
         ClosuredValue::Uninit {
             catch_values: catchs,
             catch_labels: catch_labels.unwrap_or_default(),
+            binder_to,
             value: value.into(),
             labels,
             catch_args,

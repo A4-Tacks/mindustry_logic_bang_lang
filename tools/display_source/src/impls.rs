@@ -71,6 +71,7 @@ impl DisplaySource for ClosuredValue {
             ClosuredValue::Uninit {
                 catch_values,
                 catch_labels,
+                binder_to,
                 value,
                 labels,
                 catch_args,
@@ -82,6 +83,13 @@ impl DisplaySource for ClosuredValue {
                         meta.add_space();
                     }
                     meta.push("@");
+                }
+                if let Some(to) = binder_to {
+                    if !catch_values.is_empty() || *catch_args {
+                        meta.add_space();
+                    }
+                    meta.push("..");
+                    to.display_source(meta);
                 }
                 if !catch_labels.is_empty() {
                     if !catch_values.is_empty() || *catch_args {
@@ -101,6 +109,7 @@ impl DisplaySource for ClosuredValue {
             },
             ClosuredValue::Inited {
                 bind_handle,
+                binder_to,
                 rename_labels,
                 vars,
                 reset_argc: reset_args,
@@ -126,6 +135,13 @@ impl DisplaySource for ClosuredValue {
                     meta.push("@(");
                     meta.push_fmt(args);
                     meta.push(")");
+                }
+                if let Some(to) = binder_to {
+                    if !reset_args.is_some() || !vars.is_empty() {
+                        meta.add_space();
+                    }
+                    meta.push("..");
+                    to.display_source(meta);
                 }
                 if !rename_labels.is_empty() {
                     if !vars.is_empty() || reset_args.is_some() {

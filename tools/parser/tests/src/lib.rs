@@ -7435,6 +7435,32 @@ fn closure_value_test() {
             r#"print 1"#,
         ],
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const x.Clos = ([N:2](
+            print .. __Binder;
+        ));
+        x.Clos!;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print __0"#,
+            r#"print x"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const x.Clos = ([N:2 ..B](
+            print .. B;
+        ));
+        x.Clos!;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print __0"#,
+            r#"print x"#,
+        ],
+    );
 }
 
 #[test]

@@ -736,12 +736,14 @@ pub enum ClosuredValue {
     Uninit {
         catch_values: Vec<ClosuredValueMethod>,
         catch_labels: Vec<Var>,
+        binder_to: Option<Var>,
         value: Box<Value>,
         labels: Vec<Var>,
         catch_args: bool,
     },
     Inited {
         bind_handle: Var,
+        binder_to: Option<Var>,
         rename_labels: HashMap<Var, Var>,
         vars: Vec<Var>,
         reset_argc: Option<usize>,
@@ -751,6 +753,7 @@ pub enum ClosuredValue {
 }
 impl ClosuredValue {
     const BINDED_VALUE_NAME: &'static str = "__Value";
+    const BINDER_NAME: &'static str = "__Binder";
 
     pub fn make_valkey(bindh: Var) -> ConstKey {
         let mut key = ConstKey::Var(Self::BINDED_VALUE_NAME.into());
@@ -767,6 +770,7 @@ impl ClosuredValue {
         let Self::Uninit {
             catch_values,
             catch_labels,
+            binder_to,
             value,
             labels,
             catch_args,
@@ -809,6 +813,7 @@ impl ClosuredValue {
 
         *self = Self::Inited {
             bind_handle: bindh,
+            binder_to,
             rename_labels,
             vars,
             reset_argc,
@@ -821,6 +826,7 @@ impl ClosuredValue {
         self.catch_env(meta);
         let Self::Inited {
             bind_handle,
+            binder_to,
             rename_labels,
             vars,
             reset_argc,
@@ -829,6 +835,10 @@ impl ClosuredValue {
         };
         let mut result = None;
         let f = |meta: &mut CompileMeta| {
+            Take(
+                ConstKey::Var(Self::BINDER_NAME.into()),
+                Value::Binder,
+            ).compile(meta);
             for var in vars {
                 let handle = meta.get_value_binded(
                     bind_handle.clone(),
@@ -836,6 +846,9 @@ impl ClosuredValue {
                 );
                 Const(ConstKey::Var(var), handle.into(), Vec::new())
                     .compile(meta);
+            }
+            if let Some(to) = binder_to {
+                Take(to.into(), Self::BINDER_NAME.into()).compile(meta);
             }
             meta.with_const_expand_tag_name_map_scope(
                 rename_labels,
