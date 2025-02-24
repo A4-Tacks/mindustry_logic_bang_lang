@@ -10,7 +10,7 @@ const NewStack = (match @ {
         NewStack! Memory Memory 0;
     }
     Memory Floor {
-        take+Result;
+        take Result = $;
         NewStack! Result Memory Floor;
     }
     $Result Memory Floor {
