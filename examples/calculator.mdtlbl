@@ -715,20 +715,27 @@ const InputController = (
         }
     );
     Button! switch27 ( # MR
+        isave = abs(save);
+        if save < 0 {
+            For! j inrev length++....cursor++ (
+                write (read $ cell1 j;) cell1 (*j+1);
+            );
+            write -2 cell1 cursor;
+        }
         read cur_num cell1 cursor;
         if cursor >= 0 && cur_num >= 0 {
-            write MergeN[cur_num save] cell1 cursor;
+            write MergeN[cur_num isave] cell1 cursor;
         } else {
             cursor++;
             if cursor < length && (next_num:read $ cell1 cursor;) >= 0 {
                 # merge right num
-                write MergeN[save next_num] cell1 cursor;
+                write MergeN[isave next_num] cell1 cursor;
                 cursor--;
             } else {
                 For! j inrev length++....cursor (
                     write (read $ cell1 j;) cell1 (*j+1);
                 );
-                write save cell1 cursor;
+                write isave cell1 cursor;
             }
         }
     );
@@ -962,6 +969,6 @@ const Calculator = (
     }
 );
 
-MainDisplay!;
-#InputController!;
+#MainDisplay!;
+InputController!;
 #Calculator!;
