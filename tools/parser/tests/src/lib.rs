@@ -3158,6 +3158,33 @@ fn op_expr_test() {
         }
         "#).unwrap(),
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+        print (=x);
+        "#).unwrap(),
+        parse!(parser, r#"
+        print ({$=x;});
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        print (y:=x);
+        "#).unwrap(),
+        parse!(parser, r#"
+        print (y:{$=x;});
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        print (y: =x);
+        "#).unwrap(),
+        parse!(parser, r#"
+        print (y:{$=x;});
+        "#).unwrap(),
+    );
 }
 
 #[test]

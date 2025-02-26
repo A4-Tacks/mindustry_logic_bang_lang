@@ -206,6 +206,7 @@ pub Value: Value = {
     NonConstRangeValue,
     DExp => <>.into(),
     OpExprToValue,
+    ForceSettedValue,
     // consted-dexp
     "const" ConstStart <value:Or<ValueDExp, ("!" <Value>)>> <labels:ConstStop> => {
         let tmp_name = meta.get_tmp_var();
@@ -737,6 +738,14 @@ OpExprBodyToValue: Value = OpExprBody => {
 };
 OpExprDExp: DExp = METuple<MakeDExpBody<OpExprBodySetR>>;
 OpExprToValue: Value = MTuple<("*" <OpExprBodyToValue>)>;
+ForceSettedValue: Value = MTuple<(<(<Var> ":")?> "=" <OpExprBody>)> => {
+    let (result, expr) = <>;
+    DExp::new(result.unwrap_or_default(), vec![
+        Expand(vec![
+            expr.into_logic_line(meta, ResultHandle)
+        ]).into(),
+    ].into()).into()
+};
 
 OpExprAssignOper: OpExprAOperFun = {
     "+="            => { make_assign_oper!(Op::Add      ) },

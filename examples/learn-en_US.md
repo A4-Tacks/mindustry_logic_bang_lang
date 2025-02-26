@@ -1680,6 +1680,21 @@ This syntax uses op-expr to expand into values instead of into statements,
 which can result in better outcomes
 
 
+## Force Setted op-expr
+```
+print ({$=2;});
+print (=2);
+```
+
+```
+print (x:{$=2;});
+print (x:=2);
+```
+
+Used for some variable situations that require a variable instead of a literal,
+it can simply avoid evaluation constant
+
+
 ## Multi print
 ```
 inline {
