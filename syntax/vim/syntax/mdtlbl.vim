@@ -126,7 +126,7 @@ function! <SID>getMdtlblIndent()
 
     let diff = 0
 
-    if preline =~# '\%(([%?*]\=\|\[[*?]\=\|[{[:]\)$'
+    if preline =~# '\%(([%?*]\=\|[(:]=\|\[[*?]\=\|[{[:]\)$'
         let diff += 1
     endif
 
