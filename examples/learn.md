@@ -1502,6 +1502,16 @@ x -= `1`;
 x--;
 ```
 
+```
+x += `1`;
+++x;
+```
+
+```
+x -= `1`;
+--x;
+```
+
 
 ## if elif else skip while do-while gwhile switch break continue
 这些也是语法糖, 之前介绍过了
@@ -1674,6 +1684,16 @@ take*A, B = a+b, c/d;
 ```
 take A=() B=() Foo[A B] C=();
 take+A+B Foo[A B] +C;
+```
+
+
+## Tmp Handle in Bang Take
+```
+inline {
+    take+I;
+    Foo! I;
+}
+Foo! +I;
 ```
 
 

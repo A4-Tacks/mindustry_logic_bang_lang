@@ -926,6 +926,56 @@ fn take_test() {
         }
         "#).unwrap(),
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+        take+A, +B, +C+D,;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take A = ();
+            take B = ();
+            take C = ();
+            take D = ();
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        take +A, B, C,;
+        "#).unwrap(),
+        parse!(parser, r#"
+        take +A B C;
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        take +A, B, C;
+        "#).unwrap(),
+        parse!(parser, r#"
+        take +A B C;
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        const A=2, B=3,;
+        "#).unwrap(),
+        parse!(parser, r#"
+        const A=2 B=3;
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        const A=2, B=3;
+        "#).unwrap(),
+        parse!(parser, r#"
+        const A=2 B=3;
+        "#).unwrap(),
+    );
 }
 
 #[test]
@@ -2482,6 +2532,18 @@ fn quick_dexp_take_test() {
         }
         "#).unwrap(),
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+        Foo! +A 2;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take+A;
+            Foo! A 2;
+        }
+        "#).unwrap(),
+    );
 }
 
 #[test]
@@ -3200,6 +3262,53 @@ fn op_test() {
         "#).unwrap(),
     );
 
+    assert_eq!(
+        parse!(parser, r#"
+        i++;
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            take ___0 = i;
+            op ___0 ___0 + `1`;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        i--;
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            take ___0 = i;
+            op ___0 ___0 - `1`;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        ++i;
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            take ___0 = i;
+            op ___0 ___0 + `1`;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        --i;
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            take ___0 = i;
+            op ___0 ___0 - `1`;
+        }
+        "#).unwrap(),
+    );
 }
 
 #[test]

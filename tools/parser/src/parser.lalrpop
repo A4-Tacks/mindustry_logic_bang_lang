@@ -559,7 +559,18 @@ SLAtom<V>: Value = {
     V,
 };
 ParamArgsAtomC: Value = <ParamArgsAtom> ","?;
-ParamArgsSLAtom: Value = <SLAtom<ParamArgsAtom>> ","?;
+#[inline]
+ParamArgsSLAtomInner: Value = {
+    "+" <Var> => {
+        meta.add_line_dep(Take(
+            <>.clone().into(),
+            DExp::new_nores(vec![].into()).into(),
+        ).into());
+        <>.into()
+    },
+    ParamArgsAtom,
+}
+ParamArgsSLAtom: Value = <SLAtom<ParamArgsSLAtomInner>> ","?;
 LinePackBegin: () = () => meta.add_line_pack();
 LinePack<V>: V = V => { meta.add_line_pack(); <> };
 ParamArgsSL: Args = {
@@ -976,14 +987,14 @@ OpExprAtom: OpExprInfo = {
     "_" => OpExprInfo::Ref(meta.op_expr_ref()),
 }
 OpExprTopSelfOps: LogicLine = {
-    <Value> "++" => {
+    OrSwap<<Value>, "++"> => {
         let tmp = meta.get_tmp_var();
         Expand(vec![
             Take(tmp.clone().into(), <>).into(),
             Op::Add(tmp.clone().into(), tmp.into(), ReprVar("1".into())).into(),
         ]).into()
     },
-    <Value> "--" => {
+    OrSwap<<Value>, "--"> => {
         let tmp = meta.get_tmp_var();
         Expand(vec![
             Take(tmp.clone().into(), <>).into(),
@@ -1028,7 +1039,7 @@ ConstStart: () = () => meta.add_label_scope();
 ConstStop: Vec<Var> = () => Vec::from_iter(meta.pop_label_scope());
 
 pub BuiltinCommand: LogicLine = {
-    "const" <mut values:(<ConstKey> "=" ConstStart <Value> <ConstStop>)+> LEnd
+    "const" <mut values:(<ConstKey> "=" ConstStart <Value> <ConstStop> ","?)+> LEnd
     => {
         if values.len() == 1 {
             let (var, value, labels) = values.pop().unwrap();
@@ -1093,10 +1104,10 @@ TakeOpExprMultInner: (Vec<ConstKey>, Vec<Value>) = {
 }
 #[inline]
 TakeAtom: LogicLine = {
-    "+" <key:ConstKey> => {
+    "+" <key:ConstKey> ","? => {
         Take(key, DExp::new_nores(vec![].into()).into()).into()
     },
-    <key:(<ConstKey> "=")?> <val:Value> => {
+    <key:(<ConstKey> "=")?> <val:Value> ","? => {
         let key = key.unwrap_or_else(|| meta.unnamed_var().into());
         Take(key, val).into()
     },
