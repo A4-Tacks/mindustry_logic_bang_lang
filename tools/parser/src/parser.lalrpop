@@ -182,8 +182,8 @@ NonConstRangeValue: Value = {
         let target = ValueBindRefTarget::NameBind(name);
         ValueBindRef::new(value.into(), target.into()).into()
     },
-    <NonConstRangeValue> "->" ".." => {
-        ValueBindRef::new(<>.into(), ValueBindRefTarget::Binder).into()
+    <value:NonConstRangeValue> "->" <l:Loc<"..">> => {
+        ValueBindRef::new(value.into(), ValueBindRefTarget::Binder(l.unit())).into()
     },
     <NonConstRangeValue> "->" "$" => {
         ValueBindRef::new(<>.into(), ValueBindRefTarget::ResultHandle).into()

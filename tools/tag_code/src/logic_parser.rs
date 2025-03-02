@@ -449,6 +449,10 @@ impl<T> IdxBox<T> {
     pub fn new_value<U>(&self, new_value: U) -> IdxBox<U> {
         self.as_ref().map(|&_| new_value)
     }
+
+    pub fn unit(&self) -> IdxBox<()> {
+        self.new_value(())
+    }
 }
 impl<T> Deref for IdxBox<T> {
     type Target = T;

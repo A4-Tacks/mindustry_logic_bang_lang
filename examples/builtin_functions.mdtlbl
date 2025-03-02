@@ -33,7 +33,9 @@
 * * `EvalNum[num]`: 尝试常量计算一个值, 失败则返回`__`
 * * `IsString[str]`: 返回给定量是否是一个字符串
 * * `RefArg[index]`: 返回指定下标的上层参数句柄, 一般再用Const解开
+* * `MissesBind[enable]`: 当enable非0时, 创建值绑定句柄时将会打印日志
 * * `MissesMatch[enable]`: 当enable非0时, 将match失配打印日志功能开启
+* * `MissesBinderRef[enable]`: 当enable非0时, 绑定者引用未命中时将会打印日志
 * * `NewBind[enable]`: 当enable非0时, 新建绑定量时将会打印日志
 * * `BindSep[sep]`: 当sep非空字符串时, 绑定量将以指定分隔的形式输出
 *   例如: take BindSep["%"]; a.b = 2;的a.b在take后的句柄会变成'a%b'

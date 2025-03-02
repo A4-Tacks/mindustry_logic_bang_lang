@@ -7723,12 +7723,14 @@ fn value_bind_ref_test() {
         ],
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    let src = r#"
         const bind.next.X = 2;
         const F = bind->next->X;
         print bind.next F->.. F->..->..;
-        "#).unwrap()).compile().unwrap(),
+    "#.to_owned();
+    assert_eq!(
+        CompileMeta::with_source(src.clone().into())
+            .compile(parse!(parser, &src).unwrap()).compile().unwrap(),
         vec![
             r#"print __0"#,
             r#"print __0"#,

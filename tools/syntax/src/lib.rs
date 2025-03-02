@@ -633,10 +633,23 @@ impl ValueBindRef {
         Self { value, bind_target }
     }
 
-    fn get_binder(value: Value, meta: &mut CompileMeta) -> Var {
-        Const(ConstKey::Var(Var::new()), value, vec![])
+    fn get_binder(value: IdxBox<Value>, meta: &mut CompileMeta) -> Var {
+        let loc = value.unit();
+        Const(ConstKey::Var(Var::new()), value.value, vec![])
             .run_value(meta)
-            .unwrap_or_else(|| "__".into())
+            .unwrap_or_else(|| {
+                if meta.enable_misses_binder_ref_info {
+                    if meta.source.is_empty() {
+                        meta.log_err(format_args!("meta.source is empty"));
+                    }
+                    let (line, column) = loc.location(&meta.source);
+                    meta.log_info(format_args!(
+                            "{line}:{column} Misses binder ref",
+                    ));
+                    meta.log_expand_stack::<false>();
+                }
+                "__".into()
+            })
     }
 
     pub fn do_follow(
@@ -651,8 +664,8 @@ impl ValueBindRef {
                     .map(Either::Right)
                     .unwrap_or_else(|| Either::Left(handle))
             },
-            ValueBindRefTarget::Binder => {
-                Either::Left(Self::get_binder(*value, meta))
+            ValueBindRefTarget::Binder(loc) => {
+                Either::Left(Self::get_binder(loc.new_value(*value), meta))
             },
             ValueBindRefTarget::ResultHandle => {
                 Either::Left(value.take_handle(meta))
@@ -675,8 +688,8 @@ impl TakeHandle for ValueBindRef {
             ValueBindRefTarget::NameBind(name) => {
                 ValueBind(value, name).take_handle(meta)
             },
-            ValueBindRefTarget::Binder => {
-                Self::get_binder(*value, meta)
+            ValueBindRefTarget::Binder(loc) => {
+                Self::get_binder(loc.new_value(*value), meta)
             },
             ValueBindRefTarget::ResultHandle => {
                 value.take_handle(meta)
@@ -687,7 +700,7 @@ impl TakeHandle for ValueBindRef {
 #[derive(Debug, PartialEq, Clone)]
 pub enum ValueBindRefTarget {
     NameBind(Var),
-    Binder,
+    Binder(IdxBox<()>),
     ResultHandle,
 }
 impl_enum_froms!(impl From for ValueBindRefTarget {
@@ -2847,7 +2860,7 @@ impl ArgsRepeat {
 }
 impl Compile for ArgsRepeat {
     fn compile(self, meta: &mut CompileMeta) {
-        let loc = self.count.new_value(());
+        let loc = self.count.unit();
         let mut set_args = true;
         let count = match self.count.value {
             Either::Left(0) => { set_args = false; 0 },
@@ -2924,7 +2937,7 @@ pub struct Match {
 }
 impl Compile for Match {
     fn compile(self, meta: &mut CompileMeta) {
-        let loc = self.args.new_value(());
+        let loc = self.args.unit();
         let args = self.args.value.into_taked_args_handle(meta);
         for (pat, block) in self.cases {
             if pat.do_pattern(&args, meta) {
@@ -3101,7 +3114,7 @@ impl ConstMatch {
 }
 impl Compile for ConstMatch {
     fn compile(self, meta: &mut CompileMeta) {
-        let loc = self.args.new_value(());
+        let loc = self.args.unit();
         let args = self.args.value.into_value_args(meta)
             .into_iter()
             .map(|value| {
@@ -3419,7 +3432,7 @@ impl GSwitch {
     fn get_ids(ids: IdxBox<Args>, meta: &mut CompileMeta) -> impl Iterator<
         Item = usize
     > + '_ {
-        let loc = ids.new_value(());
+        let loc = ids.unit();
         let loc = move |meta: &CompileMeta| {
             let (line, column) = loc.location(&meta.source);
             format!("{line}:{column}")
@@ -3994,6 +4007,7 @@ pub struct CompileMeta {
     last_builtin_exit_code: u8,
     enable_misses_match_log_info: bool,
     enable_misses_bind_info: bool,
+    enable_misses_binder_ref_info: bool,
     args_repeat_limit: usize,
     args_repeat_flags: Vec<bool>,
     noop_line: String,
@@ -4028,10 +4042,7 @@ impl Debug for CompileMeta {
 }
 impl Default for CompileMeta {
     fn default() -> Self {
-        Self::with_tag_codes(
-            ParseLines::new(vec![]),
-            Rc::default(),
-        )
+        Self::with_source(Rc::default())
     }
 }
 impl CompileMeta {
@@ -4039,6 +4050,10 @@ impl CompileMeta {
 
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn with_source(source: Rc<String>) -> Self {
+        Self::with_tag_codes(ParseLines::new(vec![]), source)
     }
 
     pub fn with_tag_codes(
@@ -4061,6 +4076,7 @@ impl CompileMeta {
             last_builtin_exit_code: 0,
             enable_misses_match_log_info: false,
             enable_misses_bind_info: false,
+            enable_misses_binder_ref_info: true,
             noop_line: "noop".into(),
             args_repeat_limit: 10000,
             args_repeat_flags: Vec::new(),

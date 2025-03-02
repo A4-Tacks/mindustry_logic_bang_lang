@@ -437,6 +437,20 @@
             "Builtin.MissesMatch! ${1:1};"
         ]
     },
+    "Builtin.MissesBind! $1;": {
+        "prefix": "_MissesBind",
+        "description": "Builtin.MissesBind! $1;",
+        "body": [
+            "Builtin.MissesBind! ${1:1};"
+        ]
+    },
+    "Builtin.MissesBinderRef! $1;": {
+        "prefix": "_MissesBinderRef",
+        "description": "Builtin.MissesBinderRef! $1;",
+        "body": [
+            "Builtin.MissesBinderRef! ${1:1};"
+        ]
+    },
     "Builtin.NewBind! $1;": {
         "prefix": "_NewBind",
         "description": "Builtin.NewBind! $1;",
