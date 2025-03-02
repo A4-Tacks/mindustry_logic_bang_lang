@@ -125,7 +125,7 @@ impl DisplaySource for ClosuredValue {
                     }
                 }
                 let catcheds = vars.iter()
-                    .map(|var| CatchedVar(var));
+                    .map(CatchedVar);
                 meta.push("([");
                 meta.display_source_iter_by_space(catcheds);
                 if let Some(args) = reset_args {

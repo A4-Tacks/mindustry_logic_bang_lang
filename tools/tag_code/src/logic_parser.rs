@@ -185,7 +185,7 @@ impl<'a> Display for Args<'a> {
         f.write_str(args.first().unwrap())?;
         for arg in args.iter().skip(1) {
             f.write_str(" ")?;
-            f.write_str(&arg)?;
+            f.write_str(arg)?;
         }
         Ok(())
     }
@@ -333,7 +333,7 @@ impl<'a> Display for ParseLine<'a> {
                 if let Some('0'..='9') = lab.chars().next() {
                     f.write_str(":")?;
                 }
-                f.write_str(&*lab)?;
+                f.write_str(lab)?;
                 f.write_str(":")
             },
             ParseLine::Jump(target, args) => {
@@ -361,6 +361,7 @@ impl<T: PartialEq> PartialEq<T> for IdxBox<T> {
     fn eq(&self, other: &T) -> bool {
         **self == *other
     }
+    #[allow(clippy::partialeq_ne_impl)]
     fn ne(&self, other: &T) -> bool {
         **self != *other
     }

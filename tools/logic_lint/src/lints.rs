@@ -1,3 +1,5 @@
+#![allow(clippy::double_must_use)]
+
 use core::fmt;
 use std::vec;
 

@@ -1,3 +1,4 @@
+#![allow(clippy::double_must_use)]
 pub mod lints;
 
 use core::fmt;
@@ -46,7 +47,7 @@ impl<'a> Line<'a> {
             .collect()
     }
 
-    pub fn lint(&'a self, src: &'a Source<'_>) -> Vec<lints::Lint> {
+    pub fn lint(&'a self, src: &'a Source<'_>) -> Vec<lints::Lint<'a>> {
         lints::lint(src, self)
     }
 
@@ -76,6 +77,7 @@ pub struct Source<'a> {
     readonly_used_vars: HashSet<&'a str>,
 }
 impl<'a> Source<'a> {
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &'a str) -> Self {
         let env_assignables = &[
             "@counter",
@@ -132,7 +134,7 @@ impl<'a> Source<'a> {
         (head, tail)
     }
 
-    pub fn lint(&self) -> Vec<lints::Lint> {
+    pub fn lint(&self) -> Vec<lints::Lint<'_>> {
         self.lines.iter()
             .flat_map(|line| line.lint(self))
             .collect()

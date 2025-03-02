@@ -32,7 +32,7 @@ impl Var {
     }
 
     pub fn as_str(&self) -> &str {
-        &**self
+        self
     }
 }
 impl FromIterator<char> for Var {
@@ -72,7 +72,7 @@ impl Borrow<String> for Var {
 }
 impl Borrow<str> for Var {
     fn borrow(&self) -> &str {
-        &**self
+        self
     }
 }
 impl AsRef<String> for Var {
@@ -104,7 +104,7 @@ impl Deref for Var {
     type Target = str;
 
     fn deref(&self) -> &Self::Target {
-        &**self.value
+        &self.value
     }
 }
 impl Eq for Var { }

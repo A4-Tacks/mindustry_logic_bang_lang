@@ -587,6 +587,7 @@ impl TagCodes {
     /// > :a
     /// > :b
     /// > foo
+    ///
     /// 会变成
     /// > jump :b
     /// > :b foo
@@ -594,6 +595,7 @@ impl TagCodes {
     /// > jump :a
     /// > :a
     /// > :b foo
+    ///
     /// 会变成
     /// > jump :b
     /// > :b foo
@@ -613,7 +615,7 @@ impl TagCodes {
                 ) = line
             else {
                 let &mut TagLine::TagDown(tag) = line else { panic!() };
-                if tag_alias_map.get(&tag).is_some() {
+                if tag_alias_map.contains_key(&tag) {
                     // 重复的标记, 当然, 如果是一组则不报错, 因为没进行插入
                     // 例如:
                     // ```
@@ -635,7 +637,7 @@ impl TagCodes {
                 *tag = map_stack.pop()
             }
             if let &mut Some(tag) = tag {
-                if tag_alias_map.get(&tag).is_some() {
+                if tag_alias_map.contains_key(&tag) {
                     // 映射到的目标是重复的
                     self.lines = lines;
                     return Err((i, tag));
@@ -917,7 +919,6 @@ fn take_jump_body(line: &str) -> String {
 /// 按照Mindustry中的规则进行切分
 /// 也就是空白忽略, 字符串会被保留完整
 /// 如果出现未闭合字符串则会返回其所在字符数(从1开始)
-#[must_use]
 pub fn mdt_logic_split(s: &str) -> Result<Vec<&str>, usize> {
     fn get_next_char_idx(s: &str) -> Option<usize> {
         s

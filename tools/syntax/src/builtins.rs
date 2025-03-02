@@ -362,7 +362,7 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
 
         fn stop_repeat:StopRepeat(meta) [] {
             let Some(flag) = meta.args_repeat_flags.last_mut() else {
-                return Err((2, format!("Not in repeat block")))
+                return Err((2, "Not in repeat block".into()))
             };
             *flag = false;
             Ok("__".into())

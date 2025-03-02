@@ -145,9 +145,9 @@ impl AsVarType for str {
             }
         }
         match self {
-            "null"  => return VarType::Number(f64::NAN.into()),
-            "true"  => return VarType::Number(1.0.into()),
-            "false" => return VarType::Number(0.0.into()),
+            "null"  => return VarType::Number(f64::NAN),
+            "true"  => return VarType::Number(1.0),
+            "false" => return VarType::Number(0.0),
             _ => (),
         }
         if let Some(str) = as_string(self) {

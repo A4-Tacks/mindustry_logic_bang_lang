@@ -24,7 +24,7 @@ impl PartialEq<&str> for DisplaySourceMeta {
 }
 impl PartialEq<str> for DisplaySourceMeta {
     fn eq(&self, other: &str) -> bool {
-        let s: &str = &**self;
+        let s: &str = self;
         s == other
     }
 }
@@ -217,7 +217,7 @@ where T: DisplaySource
         T::display_source(self, meta)
     }
     fn display_source_and_get<'a>(&self, meta: &'a mut DisplaySourceMeta) -> &'a str {
-        T::display_source_and_get(&self, meta)
+        T::display_source_and_get(self, meta)
     }
 }
 impl<T> DisplaySource for &'_ mut T
@@ -227,7 +227,7 @@ where T: DisplaySource
         T::display_source(self, meta)
     }
     fn display_source_and_get<'a>(&self, meta: &'a mut DisplaySourceMeta) -> &'a str {
-        T::display_source_and_get(&self, meta)
+        T::display_source_and_get(self, meta)
     }
 }
 

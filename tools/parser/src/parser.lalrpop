@@ -1,6 +1,7 @@
 // this is a lalrpop file
 
 #![allow(unused_braces)]
+#![allow(clippy::all)]
 #![allow(clippy::just_underscores_and_digits)]
 #![allow(clippy::needless_lifetimes)]
 #![allow(clippy::deprecated_cfg_attr)]

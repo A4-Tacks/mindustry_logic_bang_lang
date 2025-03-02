@@ -257,14 +257,14 @@ impl Value {
                 }
             }
         }
-        return num.to_string().into()
+        num.to_string().into()
     }
 
     pub fn try_eval_const_num_to_var(&self, meta: &CompileMeta) -> Option<Var> {
         if let Some((num, true)) = self.try_eval_const_num(meta) {
             use std::num::FpCategory as FpC;
             // 仅对复杂数据也就是有效运算后的数据
-            return match num.classify() {
+            match num.classify() {
                 FpC::Nan
                     => "null".into(),
                 FpC::Infinite
@@ -286,7 +286,7 @@ impl Value {
     ) -> Cow<'a, str> {
         meta.extender
             .as_ref()
-            .map(|ext| ext.display_value(&self))
+            .map(|ext| ext.display_value(self))
             .unwrap_or_else(|| format!("{self:#?}").into())
     }
 }
@@ -992,8 +992,8 @@ impl TakeHandle for DExp {
         assert!(! result.is_empty());
         meta.push_dexp_handle(result);
         lines.compile(meta);
-        let result = meta.pop_dexp_handle();
-        result
+
+        meta.pop_dexp_handle()
     }
 }
 impl_derefs!(impl for DExp => (self: self.lines): Expand);
@@ -1990,19 +1990,17 @@ impl Op {
 
     pub fn generate_args(self, meta: &mut CompileMeta) -> LArgs<'static> {
         let info = self.into_info();
-        let mut args: Vec<String> = Vec::with_capacity(5);
-
-        args.push("op".into());
-        args.push(info.oper_str.into());
-        args.push(info.result.take_handle(meta).into());
-        args.push(info.arg1.take_handle(meta).into());
-        args.push(info.arg2
+        let args: Vec<String> = vec![
+            "op".into(),
+            info.oper_str.into(),
+            info.result.take_handle(meta).into(),
+            info.arg1.take_handle(meta).into(),
+            info.arg2
                 .map(|arg| arg.take_handle(meta))
                 .map(Into::into)
-                .unwrap_or(UNUSED_VAR.into())
-        );
+                .unwrap_or(UNUSED_VAR.into()),
+        ];
 
-        debug_assert!(args.len() == 5);
         args.try_into().unwrap()
     }
 
@@ -2683,6 +2681,7 @@ impl Take {
     /// - var: 绑定量
     /// - do_leak_res: 是否泄露绑定量
     /// - value: 被求的值
+    #[allow(clippy::new_ret_no_self)]
     pub fn new(
         args: Args,
         var: Var,
@@ -2759,7 +2758,7 @@ impl Args {
             },
             Args::Expanded(left, right) => {
                 let expanded_args: Vec<Var>
-                    = meta.get_env_args().iter().cloned().collect();
+                    = meta.get_env_args().to_vec();
                 left.into_iter()
                     .chain(expanded_args.into_iter()
                         .map(Value::Var))
@@ -2898,7 +2897,7 @@ impl Compile for ArgsRepeat {
                 n as usize
             },
         };
-        let mut chunks = if count == 0 {
+        let chunks = if count == 0 {
             Either::Left(repeat_with(Vec::new))
         } else {
             Either::Right(meta.get_env_args()
@@ -2912,7 +2911,7 @@ impl Compile for ArgsRepeat {
         }.enumerate();
         meta.args_repeat_flags.push(true);
         meta.with_env_args_scope(|meta| {
-            while let Some((i, args)) = chunks.next() {
+            for (i, args) in chunks {
                 if set_args { meta.set_env_args(args); }
                 self.block.clone().compile(meta);
 
@@ -3166,9 +3165,9 @@ impl ConstMatchPat {
         }
     }
 
-    pub fn do_pattern<'a, C>(
+    pub fn do_pattern<C>(
         self,
-        meta: &'a mut CompileMeta,
+        meta: &mut CompileMeta,
         handles: &[Var],
         code: C,
     ) -> Result<(), C>
@@ -3468,8 +3467,7 @@ impl GSwitch {
         meta: &mut CompileMeta,
     ) -> Option<Var> {
         self.cases.iter()
-            .find(|x| f(&x.0))
-            .is_some()
+            .any(|x| f(&x.0))
             .then(|| meta.get_tmp_tag())
     }
 }
@@ -3587,20 +3585,24 @@ impl Compile for GSwitch {
             // generate
             LogicLine::from(Take(val_h.clone().into(), self.value))
                 .compile(meta);
-            underflow_lab
+            if let Some(line) = underflow_lab
                 .map(|lab| Goto(lab, JumpCmp::LessThan(
                     val_h.clone().into(),
                     Value::ReprVar("0".into()),
                 ).into()))
                 .map(LogicLine::from)
-                .map(|line| line.compile(meta));
-            overflow_lab
+            {
+                line.compile(meta)
+            }
+            if let Some(line) = overflow_lab
                 .map(|lab| Goto(lab, JumpCmp::GreaterThan(
                     val_h.clone().into(),
                     Value::ReprVar(max_case.to_string().into()),
                 ).into()))
                 .map(LogicLine::from)
-                .map(|line| line.compile(meta));
+            {
+                line.compile(meta)
+            }
             LogicLine::from(head)
                 .compile(meta);
             LogicLine::from(Expand(case_lines))
@@ -3674,9 +3676,9 @@ impl Compile for LogicLine {
                 for (i, value) in iter {
                     f(Const(
                             iarg(i).into(),
-                            value.into(),
+                            value,
                             Vec::with_capacity(0),
-                    ).into());
+                    ));
                 }
                 meta.set_env_args((0..len).map(iarg));
             },
@@ -3924,7 +3926,7 @@ where N: ops::DivAssign + ops::Rem<Output = N>
 }
 
 /// 当编号过大时, 使用62进制进行编码, 降低长度
-fn gen_anon_name<'a, R>(
+fn gen_anon_name<R>(
     id: usize,
     f: impl FnOnce(fmt::Arguments<'_>) -> R,
 ) -> R {
@@ -4271,7 +4273,7 @@ impl CompileMeta {
             .find_map(|env| {
                 env.consts().get(name)
             })
-            .map(|x| { assert!(! x.value().is_repr_var()); x })
+            .inspect(|x| { assert!(! x.value().is_repr_var()); })
     }
 
     /// 获取一个常量到值的使用次数与映射与其内部标记的可变引用,
@@ -4284,7 +4286,7 @@ impl CompileMeta {
             .find_map(|env| {
                 env.consts_mut().get_mut(name)
             })
-            .map(|x| { assert!(! x.value().is_repr_var()); x })
+            .inspect(|x| { assert!(! x.value().is_repr_var()); })
     }
 
     /// 获取各个绑定量
@@ -4605,7 +4607,7 @@ impl CompileMeta {
     where F: FnOnce(&mut Self)
     {
         self.env_args.push(None);
-        let _ = f(self);
+        f(self);
         self.env_args.pop().unwrap()
     }
 
@@ -4879,6 +4881,7 @@ where F: FnOnce() -> Op
 {
     f().into()
 }
+#[allow(clippy::ptr_eq)]
 pub fn op_expr_build_results(
     meta: &mut Meta,
     mut results: Vec<Value>,
