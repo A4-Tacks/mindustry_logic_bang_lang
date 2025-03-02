@@ -6,6 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-either = "1.13.0"
+either = { workspace = true }
 peg = "0.8.4"
 var_utils = { path = "../var_utils", version = "*" }

@@ -20,6 +20,7 @@ use std::{
 use builtins::{build_builtins, BuiltinFunc};
 use either::Either;
 use itermaps::{fields, MapExt, Unpack};
+use linked_hash_map::LinkedHashMap;
 use tag_code::{
     args,
     logic_parser::{Args as LArgs, IdxBox, ParseLine, ParseLines},
@@ -3989,7 +3990,7 @@ pub struct CompileMeta {
     /// 每层展开的句柄记录, 用于栈回溯
     const_expand_names: Vec<Var>,
     const_expand_max_depth: usize,
-    value_binds: HashMap<Var, HashMap<Var, Var>>,
+    value_binds: HashMap<Var, LinkedHashMap<Var, Var>>,
     last_builtin_exit_code: u8,
     enable_misses_match_log_info: bool,
     enable_misses_bind_info: bool,
