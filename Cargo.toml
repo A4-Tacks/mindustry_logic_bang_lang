@@ -31,6 +31,11 @@ parser = { path = "./tools/parser", version = "*" }
 syntax = { path = "./tools/syntax", version = "*" }
 logic_lint = { path = "./tools/logic_lint", version = "*" }
 
+[profile.dev]
+debug = false
+lto = "off"
+
 [profile.release]
+debug = false
 strip = true
 lto = true
