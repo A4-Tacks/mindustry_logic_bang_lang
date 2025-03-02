@@ -130,6 +130,10 @@ set a a-b
 set b let's
 ```
 
+For some words with special meanings, such as `if` and `print`,
+if you want to use them as regular Var, you can also use a universal format,
+such as `'if'` and `'print'`
+
 > [!WARNING]
 > Be careful not to use special characters, although Bang supports these characters,
 > they have other meanings in the logic, so when compiled into a logic language,
