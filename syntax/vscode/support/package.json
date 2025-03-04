@@ -2,7 +2,7 @@
     "name": "mdtlbl",
     "displayName": "mdtlbl",
     "description": "Mindustry Logic Bang Lang syntax highlight for VSCode",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "engines": {
         "vscode": "^1.80.0"
     },
