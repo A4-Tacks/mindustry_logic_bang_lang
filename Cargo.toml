@@ -4,6 +4,7 @@ version = "0.18.14"
 edition = "2021"
 
 authors = ["A4-Tacks <wdsjxhno1001@163.com>"]
+repository = "https://github.com/A4-Tacks/mindustry_logic_bang_lang"
 description = """\
     Mindustry logic extension meta-programming language compiler, \
     for zero additional overhead!"""
@@ -22,6 +23,7 @@ members = [
     "./tools/utils",
     "./tools/var_utils",
     "./tools/logic_lint",
+    "./tools/mdt-ops-generator",
 ]
 
 [workspace.dependencies]

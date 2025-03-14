@@ -1,0 +1,13 @@
+[package]
+name = "mdt-ops-generator"
+version = "0.1.0"
+edition = "2021"
+
+authors = ["A4-Tacks <wdsjxhno1001@163.com>"]
+repository = "https://github.com/A4-Tacks/mindustry_logic_bang_lang"
+
+[features]
+trace = ["peg/trace"]
+
+[dependencies]
+peg = "0.8.5"
