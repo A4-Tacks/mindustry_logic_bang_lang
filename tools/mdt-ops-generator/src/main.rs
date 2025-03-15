@@ -30,12 +30,24 @@ peg::parser!(grammar parser() for str {
             / "0b" "-"? ['0' | '1']+
             / "-"? ['0'..='9']+ (("." / "e" ['+'|'-']?) ['0'..='9']+)?
         } / expected!("number")
+    rule funcname() -> &'input str
+        = $(quiet!{
+            "max" / "min" / "angle" / "angleDiff" / "len" / "noise" / "abs"
+            / "log" / "log10" / "floor" / "ceil" / "sqrt" / "rand" / "sin"
+            / "cos" / "tan" / "asin" / "acos" / "atan"
+        }) / expected!("funcname")
     rule atom() -> Res<'input>
         = n:$(number() / var()) { (vec![], n) }
         / "(" e:equalty() ")" {e}
-    rule pow() -> Res<'input>
-        = s:sget(<a:atom() "**" b:pow() {(a, b)}>) { run(s, "pow") }
+    rule call() -> Res<'input>
+        = s:sget(<
+            op:funcname() "(" a:equalty() b:("," b:equalty() {b})? ")"
+            {(op, (a, b.unwrap_or((vec![], "0"))))}
+        >) { let ((op, x), h) = s; run((x, h), op) }
         / atom()
+    rule pow() -> Res<'input>
+        = s:sget(<a:call() "**" b:pow() {(a, b)}>) { run(s, "pow") }
+        / call()
     rule neg() -> Res<'input>
         = s:sget(<"!" a:neg() {(a, (vec![], "false"))}>) { run(s, "equal") }
         / s:sget(<"~" a:neg() {(a, (vec![], "0"))}>) { run(s, "not") }
