@@ -2202,6 +2202,28 @@ fn switch_catch_test() {
 }
 
 #[test]
+fn switch_ignore_append_test() {
+    let parser = TopLevelParser::new();
+
+    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
+    switch i {
+        end;
+    case*0: print 0;
+    case 1: print 1;
+    case*3: print 3;
+    }
+    "#).unwrap()).compile().unwrap();
+    assert_eq!(logic_lines, CompileMeta::new().compile(parse!(parser, r#"
+    select i {
+        { print 0; }
+        { print 1; end; }
+        { end; }
+        { print 3; }
+    }
+    "#).unwrap()).compile().unwrap());
+}
+
+#[test]
 fn quick_dexp_take_test() {
     let parser = TopLevelParser::new();
 

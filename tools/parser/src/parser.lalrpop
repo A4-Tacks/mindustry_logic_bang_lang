@@ -1333,6 +1333,7 @@ ControlWithoutOptionalEnd: LogicLine = {
         )*>
         <( // cases
             "case"
+            <Opt<"*">>
             <LiteralUInt*>
             ":"
             <Expand>
@@ -1347,7 +1348,7 @@ ControlWithoutOptionalEnd: LogicLine = {
         let case_num_max = cases
             .iter()
             .map(
-                |(nums, _)| {
+                |(_, nums, _)| {
                     let num = nums
                         .iter()
                         .max()
@@ -1425,9 +1426,11 @@ ControlWithoutOptionalEnd: LogicLine = {
         let mut cases_res_isline = vec![false; case_num_max + 1];
 
         let mut next_ignored_num = 0;
-        for (mut nums, mut expand) in cases {
+        for (ignore_append, mut nums, mut expand) in cases {
             if let Some(append) = &append {
-                expand.push(append.clone())
+                if !ignore_append {
+                    expand.push(append.clone())
+                }
             }
             if nums.is_empty() { nums.push(next_ignored_num) }
             for num in nums {
