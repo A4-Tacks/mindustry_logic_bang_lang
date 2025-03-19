@@ -4704,6 +4704,17 @@ fn cmper_test() {
     );
 
     assert_eq!(
+        parse!(parser, r#"
+        const Cmp = goto(_0 < _1);
+        do {} while ({const _0 = a; const _1 = b;} => !Cmp);
+        "#).unwrap(),
+        parse!(parser, r#"
+        const Cmp = goto(_0 < _1);
+        do {} while {const _0 = a; const _1 = b;} => !Cmp;
+        "#).unwrap(),
+    );
+
+    assert_eq!(
         CompileMeta::new().compile(parse!(parser, r#"
         const Cmp = goto(!_0 < _1);
         do {} while ({const _0 = a; const _1 = b;} => Cmp);

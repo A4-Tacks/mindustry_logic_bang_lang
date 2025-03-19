@@ -259,11 +259,12 @@ pub JumpCmpOnce: CmpTree = CmpTree1;
 
 // 可空的, 空时为总是的条件
 AlwaysJumpCmp: CmpTree = JumpCmp? => <>.unwrap_or(JumpCmp::Always.into());
+AlwaysJumpCmpOnce: CmpTree = JumpCmpOnce? => <>.unwrap_or(JumpCmp::Always.into());
 
 CmpTree1: CmpTree = {
-    <deps:MBlock<LogicLine*>> "=>" <cmp:CmpTree1>
+    <deps:LinesBlock> "=>" <cmp:CmpTree1>
         => CmpTree::Deps(deps.into(), cmp.into()),
-    <deps:MBlock<LogicLine*>?> "=>" <args:MList<ParamArgs>> <cmp:CmpTree1> => {
+    <deps:LinesBlock?> "=>" <args:MList<ParamArgs>> <cmp:CmpTree1> => {
         CmpTree::Deps(vec![
             InlineBlock::from(deps.unwrap_or_default()).into(),
             LogicLine::SetArgs(args),
@@ -354,7 +355,8 @@ pub Op: Op = {
 
 Label: Var = ":" <Var>;
 
-NoPrefixInlineBlock: InlineBlock = MBlock<LogicLine*> => <>.into();
+LinesBlock: Vec<LogicLine> = MBlock<LogicLine*>;
+NoPrefixInlineBlock: InlineBlock = LinesBlock => <>.into();
 
 #[inline]
 Expand: Expand = LogicLine+? => Expand(<>.unwrap_or_default());
@@ -387,7 +389,7 @@ QuickTake: LogicLine = <value:NonConstRangeValue> "!" <args:ParamArgsSL> LEnd =>
 
 Match: Match = {
     "match" <args:Loc<ParamArgs>> <cases:MBlock<(
-        <MatchPat*> <("@" <MatchPat*>)?> <MBlock<LogicLine*>>
+        <MatchPat*> <("@" <MatchPat*>)?> <LinesBlock>
     )*>> => {
         Match::new(args, cases.into_iter()
             .map(|(prep, sufp, body)| {
@@ -401,7 +403,7 @@ Match: Match = {
         )
     },
     "match" <args:Loc<ParamArgs>> "=>" <case:(
-        <MatchPat*> <("@" <MatchPat*>)?> <MBlock<LogicLine*>>
+        <MatchPat*> <("@" <MatchPat*>)?> <LinesBlock>
     )> => {
         Match::new(args, vec![case].into_iter()
             .map(|(prep, sufp, body)| {
@@ -781,7 +783,7 @@ OpExprAssignOper: OpExprAOperFun = {
 OpExprBody: OpExprInfo = OpExprBody13;
 
 OpExprBody13: OpExprInfo = {
-    "if" <cmp:JumpCmp> "?" <a:OpExprBody13> ":" <b:OpExprBody13> => {
+    "if" <cmp:JumpCmpOnce> "?" <a:OpExprBody13> ":" <b:OpExprBody13> => {
         OpExprInfo::new_if_else(meta, cmp, a, b)
     },
     OpExprBody12,
@@ -1114,7 +1116,7 @@ TakeAtom: LogicLine = {
     },
 }
 
-BlockExpand: Expand = MBlock<Expand> => <>;
+BlockExpand: Expand = MBlock<Expand>;
 pub Block: LogicLine = BlockExpand => <>.into();
 
 pub DExp: DExp = MTuple<MakeDExpBody<Expand>>;
@@ -1156,35 +1158,43 @@ SwitchCatchFlag: SwitchCatch = {
     "<" => SwitchCatch::Underflow,
     "!" => SwitchCatch::Misses,
     ">" => SwitchCatch::Overflow,
-    MTuple<JumpCmp> => SwitchCatch::UserDefine(<>),
+    MTuple<JumpCmpOnce> => SwitchCatch::UserDefine(<>),
 }
 
-ControlBlock: Expand = {
+ControlBlock: LogicLine = {
     "break" <bang:"!"?>
-    CtrlBreakStart <lines:Or<ControlBlock, BlockExpand>> <ctrl:CtrlBreakStop>
+    CtrlBreakStart <lines:Or<ControlBlock, Block>> <ctrl:CtrlBreakStop>
     => {
         let mut res = Vec::with_capacity(2);
         if bang.is_none() {
-            res.push(lines.into());
+            res.push(lines);
             meta.push_some_label_to(&mut res, ctrl);
         } else {
             meta.push_some_label_to(&mut res, ctrl);
-            res.push(lines.into());
+            res.push(lines);
         }
-        res.into()
+        Expand(res).into()
     },
     "continue" <bang:"!"?>
-    CtrlContinueStart <lines:Or<ControlBlock, BlockExpand>> <ctrl:CtrlContinueStop>
+    CtrlContinueStart <lines:Or<ControlBlock, Block>> <ctrl:CtrlContinueStop>
     => {
         let mut res = Vec::with_capacity(2);
         if bang.is_none() {
             meta.push_some_label_to(&mut res, ctrl);
-            res.push(lines.into());
+            res.push(lines);
         } else {
-            res.push(lines.into());
+            res.push(lines);
             meta.push_some_label_to(&mut res, ctrl);
         }
-        res.into()
+        Expand(res).into()
+    },
+
+    "break" <AlwaysJumpCmp> LEnd => {
+        Goto(meta.get_break().clone(), <>).into()
+    },
+
+    "continue" <AlwaysJumpCmp> LEnd => {
+        Goto(meta.get_continue().clone(), <>).into()
     },
 }
 
@@ -1207,21 +1217,13 @@ GSwitchCase: GSwitchCase = {
     <skip_extra:Opt<"*">> "<" "!" ">" <to:ConstKey?> => GSwitchCase::Catch { skip_extra, underflow: true, missed: true, overflow: true, to },
 }
 ControlWithoutOptionalEnd: LogicLine = {
-    "goto" <Label> <AlwaysJumpCmp> LEnd => {
+    "goto" <Label> <AlwaysJumpCmpOnce> LEnd => {
         Goto(<>).into()
     },
 
-    "break" <AlwaysJumpCmp> LEnd => {
-        Goto(meta.get_break().clone(), <>).into()
-    },
+    ControlBlock,
 
-    "continue" <AlwaysJumpCmp> LEnd => {
-        Goto(meta.get_continue().clone(), <>).into()
-    },
-
-    ControlBlock => <>.into(),
-
-    "skip" <cmp:JumpCmp> <body:LogicLine> => {
+    "skip" <cmp:JumpCmpOnce> <body:LogicLine> => {
         let lab = meta.get_tag();
         Expand(vec![
             Goto(lab.clone(), cmp).into(),
@@ -1239,7 +1241,7 @@ ControlWithoutOptionalEnd: LogicLine = {
         ]).into()
     },
 
-    "while" <cmp:JumpCmp> CtrlStart <body:LogicLine> <ctrl:CtrlStop> => {
+    "while" <cmp:JumpCmpOnce> CtrlStart <body:LogicLine> <ctrl:CtrlStop> => {
         let (break_lab, continue_lab) = ctrl;
         let [end, head] = [meta.get_tag(), meta.get_tag()];
         let rev_cmp = cmp.clone().reverse();
@@ -1260,7 +1262,7 @@ ControlWithoutOptionalEnd: LogicLine = {
         Expand(res).into()
     },
 
-    "do" CtrlStart <body:ControlBody> <ctrl:CtrlStop> "while" <cmp:AlwaysJumpCmp> LEnd => {
+    "do" CtrlStart <body:ControlBody> <ctrl:CtrlStop> "while" <cmp:AlwaysJumpCmpOnce> LEnd => {
         let (break_lab, continue_lab) = ctrl;
         let head = meta.get_tag();
         let mut res = Vec::with_capacity(5);
@@ -1276,7 +1278,7 @@ ControlWithoutOptionalEnd: LogicLine = {
         Expand(res).into()
     },
 
-    "gwhile" <cmp:JumpCmp> CtrlStart <body:LogicLine> <ctrl:CtrlStop> => {
+    "gwhile" <cmp:JumpCmpOnce> CtrlStart <body:LogicLine> <ctrl:CtrlStop> => {
         let (break_lab, continue_lab) = ctrl;
         let [to, head] = [meta.get_tag(), meta.get_tag()];
         let mut res = Vec::with_capacity(7);
@@ -1506,8 +1508,8 @@ ControlWithoutOptionalEnd: LogicLine = {
 }
 
 ControlWithOptionalEnd: LogicLine = {
-    "if" <cmp:JumpCmp> <body:Block>
-        <elifs:("elif" <JumpCmp> <Block>)*>
+    "if" <cmp:JumpCmpOnce> <body:Block>
+        <elifs:("elif" <JumpCmpOnce> <Block>)*>
         <else_body:("else" <LogicLine>)?> => {
 
         // 对于没有elif和else的直接优化成skip
