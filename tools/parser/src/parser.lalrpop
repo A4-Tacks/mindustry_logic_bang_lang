@@ -262,14 +262,10 @@ AlwaysJumpCmp: CmpTree = JumpCmp? => <>.unwrap_or(JumpCmp::Always.into());
 AlwaysJumpCmpOnce: CmpTree = JumpCmpOnce? => <>.unwrap_or(JumpCmp::Always.into());
 
 CmpTree1: CmpTree = {
-    <deps:LinesBlock> "=>" <cmp:CmpTree1>
-        => CmpTree::Deps(deps.into(), cmp.into()),
-    <deps:LinesBlock?> "=>" <args:MList<ParamArgs>> <cmp:CmpTree1> => {
-        CmpTree::Deps(vec![
-            InlineBlock::from(deps.unwrap_or_default()).into(),
-            LogicLine::SetArgs(args),
-        ].into(), cmp.into())
+    <deps:InlineBlock> "=>" <cmp:CmpTree1> => {
+        CmpTree::Deps(deps.into(), cmp.into())
     },
+    "=>" <CmpTree2>,
     CmpTree2,
 }
 
@@ -285,6 +281,11 @@ CmpTree3: CmpTree = {
 
 CmpTree4: CmpTree = {
     Or<"lnot", "!"> <CmpTree4> => <>.reverse(),
+    <args:MList<ParamArgs>> <cmp:CmpTree4> => {
+        CmpTree::Deps(vec![
+            LogicLine::SetArgs(args),
+        ].into(), cmp.into())
+    },
     CmpTree,
 }
 
@@ -356,7 +357,7 @@ pub Op: Op = {
 Label: Var = ":" <Var>;
 
 LinesBlock: Vec<LogicLine> = MBlock<LogicLine*>;
-NoPrefixInlineBlock: InlineBlock = LinesBlock => <>.into();
+InlineBlock: InlineBlock = LinesBlock => <>.into();
 
 #[inline]
 Expand: Expand = LogicLine+? => Expand(<>.unwrap_or_default());
@@ -364,7 +365,7 @@ pub LogicLine: LogicLine = {
     Control,
     BuiltinCommand,
     MBlock<Expand> => <>.into(),
-    "inline" <NoPrefixInlineBlock> => <>.into(),
+    "inline" <InlineBlock> => <>.into(),
     Label => LogicLine::new_label(<>, meta),
     "op" <Op> LEnd => <>.into(),
     "noop" LEnd => LogicLine::NoOp,
@@ -427,12 +428,12 @@ MatchPat: MatchPatAtom = {
 
 ConstMatch: ConstMatch = {
     "const" "match" <args:Loc<ParamArgs>> <cases:MBlock<(
-        ConstMatchPat NoPrefixInlineBlock
+        ConstMatchPat InlineBlock
     )*>> => {
         ConstMatch::new(args, cases)
     },
     "const" "match" <args:Loc<ParamArgs>> "=>" <case:(
-        ConstMatchPat NoPrefixInlineBlock
+        ConstMatchPat InlineBlock
     )> => {
         ConstMatch::new(args, vec![case])
     },
@@ -593,13 +594,13 @@ ParamArgs: Args = {
     },
 }
 ArgsRepeatBlock: ArgsRepeat = {
-    <chunk:Loc<LiteralUInt?>> "@" <block:NoPrefixInlineBlock> =>? {
+    <chunk:Loc<LiteralUInt?>> "@" <block:InlineBlock> =>? {
         Ok(ArgsRepeat::new(chunk.map(|n| n.unwrap_or(1)), block))
     },
-    "*" <value:Loc<NonConstRangeValue>> "@" <block:NoPrefixInlineBlock> => {
+    "*" <value:Loc<NonConstRangeValue>> "@" <block:InlineBlock> => {
         ArgsRepeat::new_valued(value, block)
     },
-    <l:Loc<"@">> <pats:Loc<ConstMatchPatAtom+>> <block:NoPrefixInlineBlock> => {
+    <l:Loc<"@">> <pats:Loc<ConstMatchPatAtom+>> <block:InlineBlock> => {
         let glob = pats.new_value(Args::GLOB_ONLY);
         ArgsRepeat::new(l.new_value(pats.len()), vec![
             ConstMatch::new(glob, vec![

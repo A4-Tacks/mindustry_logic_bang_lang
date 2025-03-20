@@ -22,3 +22,4 @@ const Cmper = goto(_0 > 0 && _0 < _1);
 while (=>[a b] Cmper) {
     noop;
 }
+# 在v0.18.18这个设置参数的语法糖优先级将和"!"保持一致

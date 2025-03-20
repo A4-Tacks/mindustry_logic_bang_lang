@@ -1812,11 +1812,19 @@ const C = goto({ foo; }=>[a b] _0 < _1);
 
 ```
 const C = goto({
-    inline {}
     # setArgs a b
 } => _0 < _1);
 const C = goto(=>[a b] _0 < _1);
 ```
+
+```
+const C = goto({
+    # setArgs a b
+} => _0 < _1);
+const C = goto([a b] _0 < _1);
+```
+
+Precedence level equivalent CmpNot (`!`)
 
 This will be explained in detail later
 

@@ -15,6 +15,7 @@ pub struct DisplaySourceMeta {
     /// 启用时, 接下来会加入缩进
     do_indent_flag: bool,
     space_str: String,
+    space_buf: usize,
     buffer: String,
 }
 impl PartialEq<&str> for DisplaySourceMeta {
@@ -43,6 +44,7 @@ impl Default for DisplaySourceMeta {
             indent_level: 0,
             do_indent_flag: true,
             space_str: " ".into(),
+            space_buf: 0,
             buffer: String::new(),
         }
     }
@@ -82,13 +84,13 @@ impl DisplaySourceMeta {
 
     /// 添加字符串到缓冲区
     pub fn push(&mut self, s: &str) {
-        self.check_indent();
-        self.buffer.push_str(s)
+        self.push_fmt(s)
     }
 
-    /// 添加字符串到缓冲区
+    /// 添加格式化到缓冲区
     pub fn push_fmt(&mut self, f: impl fmt::Display) {
         self.check_indent();
+        self.check_space();
         self.buffer.write_fmt(format_args!("{f}")).unwrap()
     }
 
@@ -96,7 +98,14 @@ impl DisplaySourceMeta {
     pub fn check_indent(&mut self) {
         if self.do_indent_flag {
             self.push_indent();
-            self.do_indent_flag_off()
+            self.do_indent_flag_off();
+        }
+    }
+
+    /// 如果有空白符, 则加入它, 可以避免行尾空白符
+    pub fn check_space(&mut self) {
+        for _ in 0..self.space_buf {
+            self.buffer.push_str(&self.space_str)
         }
     }
 
@@ -104,6 +113,7 @@ impl DisplaySourceMeta {
     pub fn add_lf(&mut self) {
         self.buffer.push(LF);
         self.do_indent_flag_on();
+        self.space_buf = 0;
     }
 
     /// 尝试去掉一个换行, 返回是否成功

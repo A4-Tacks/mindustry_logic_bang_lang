@@ -2228,8 +2228,7 @@ impl Compile for Goto {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
-#[derive(Default)]
+#[derive(Debug, PartialEq, Clone, Default)]
 pub struct Expand(pub Vec<LogicLine>);
 impl Compile for Expand {
     fn compile(self, meta: &mut CompileMeta) {
@@ -2270,7 +2269,7 @@ impl FromIterator<LogicLine> for Expand {
 }
 impl_derefs!(impl for Expand => (self: self.0): Vec<LogicLine>);
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Default)]
 pub struct InlineBlock(pub Vec<LogicLine>);
 impl Compile for InlineBlock {
     fn compile(self, meta: &mut CompileMeta) {
@@ -3804,6 +3803,14 @@ impl LogicLine {
         } else {
             None
         }
+    }
+
+    /// Returns `true` if the logic line is [`SetArgs`].
+    ///
+    /// [`SetArgs`]: LogicLine::SetArgs
+    #[must_use]
+    pub fn is_set_args(&self) -> bool {
+        matches!(self, Self::SetArgs(..))
     }
 }
 impl_enum_froms!(impl From for LogicLine {

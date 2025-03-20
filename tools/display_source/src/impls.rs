@@ -206,7 +206,7 @@ impl DisplaySource for DExp {
         }
         match self.lines().len() {
             0 => (),
-            1 => {
+            1 if !self.lines()[0].is_set_args() => {
                 if has_named_res {
                     meta.add_space();
                 }
@@ -274,13 +274,16 @@ impl DisplaySource for CmpTree {
             Self::Deps(deps, cmp) => {
                 meta.push("(");
                 meta.push("{");
-                if let [line] = &deps[..] {
-                    line.display_source(meta)
-                } else {
-                    meta.do_block(|meta| {
-                        meta.add_lf();
-                        deps.display_source(meta)
-                    })
+                match &deps[..] {
+                    [line] if !line.is_set_args() => {
+                        line.display_source(meta)
+                    },
+                    _ => {
+                        meta.do_block(|meta| {
+                            meta.add_lf();
+                            deps.display_source(meta)
+                        })
+                    },
                 }
                 meta.push("}");
                 meta.add_space();
@@ -974,19 +977,19 @@ fn display_source_test() {
         parse!(jumpcmp_parser, "(=>[A B] X == 2)")
             .unwrap()
             .display_source_and_get(&mut meta),
-        "({\n    inline {}\n    # setArgs A B;\n} => X == 2)"
+        "({\n    # setArgs A B;\n} => X == 2)"
     );
     assert_eq!(
         parse!(jumpcmp_parser, "(=>[] X == 2)")
             .unwrap()
             .display_source_and_get(&mut meta),
-        "({\n    inline {}\n    # setArgs;\n} => X == 2)"
+        "({\n    # setArgs;\n} => X == 2)"
     );
     assert_eq!(
         parse!(jumpcmp_parser, "(=>[@] X == 2)")
             .unwrap()
             .display_source_and_get(&mut meta),
-        "({\n    inline {}\n    # setArgs @;\n} => X == 2)"
+        "({\n    # setArgs @;\n} => X == 2)"
     );
     assert_eq!(
         parse!(line_parser, r#"set a "\n\\\[hi]\\n";"#)

@@ -4867,6 +4867,156 @@ fn cmper_test() {
             "print _0",
         ]
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        break (=> a);
+        print _0 @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "jump 0 notEqual a false",
+            "print _0",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        break ( [1 2 3] a);
+        print _0 @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "jump 0 notEqual a false",
+            "print _0",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        break [1 2 3] a;
+        print _0 @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "jump 0 notEqual a false",
+            "print _0",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        break [1 2 3] [4 5] _0;
+        print _0 @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "jump 0 notEqual 4 false",
+            "print _0",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        break ( [1 2 3] [4 5] _0);
+        print _0 @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "jump 0 notEqual 4 false",
+            "print _0",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        break (=>[1 2 3] a);
+        print _0 @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "jump 0 notEqual a false",
+            "print _0",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        break (=>[a] _0 && _0);
+        print _0 @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "jump 2 equal a false",
+            "jump 0 notEqual _0 false",
+            "print _0",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        break (=>[a] (_0 && _0));
+        print _0 @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "jump 2 equal a false",
+            "jump 0 notEqual a false",
+            "print _0",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        break (=>[1 2 3] _);
+        print _0 @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "jump 0 always 0 0",
+            "print _0",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        break ( [1 2 3]_);
+        print _0 @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "jump 0 always 0 0",
+            "print _0",
+        ]
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        break [1 2 3]_;
+        print _0 @;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "jump 0 always 0 0",
+            "print _0",
+        ]
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+            break (=>[1 2 3] _);
+        "#).unwrap(),
+        parse!(parser, r#"
+            break (=>[1 2 3] _);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+            break [1 2 3] _;
+        "#).unwrap(),
+        parse!(parser, r#"
+            break (=> [1 2 3] _);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+            goto( [a b] c);
+        "#).unwrap(),
+        parse!(parser, r#"
+            goto(=>[a b] c);
+        "#).unwrap(),
+    );
 }
 
 #[test]
