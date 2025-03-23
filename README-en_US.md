@@ -94,6 +94,8 @@ Provided basic support for some editors
   This is an Android file manager with a text editor that supports custom highlighting,
   It has been configured with basic syntax highlighting.
 
+  This plugin can be obtained at [here](./syntax/MT-Manager/)
+
 - [**VSCode**]\:
   This is a cross platform editor,
   Provided syntax support for Bang language by [westernat] in this editor
