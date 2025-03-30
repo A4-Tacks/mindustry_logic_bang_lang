@@ -424,9 +424,10 @@ fn unwrap_parse_err(result: ParseResult<'_>, src: &str) -> Expand {
                         },
                         Errors::OpExprInvalidResult { found, right } => {
                             out(format_args!(
-                                "op-expr can't pattern {} results, expected 1 or {}",
-                                found,
+                                "{} op-expr can't pattern {} results, expected 1 or {}",
                                 right,
+                                found,
+                                found,
                             ));
                         },
                         #[allow(unreachable_patterns)]
