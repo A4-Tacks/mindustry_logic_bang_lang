@@ -21,8 +21,8 @@ peg::parser!(grammar parser() for str {
         { (value, src) }
     rule var()
         = quiet!{
-            ! ['0'..='9' | '-']
-            ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' | '.' | ':' | '@' | '$']+
+            ! ['0'..='9']
+            ['a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '.' | ':' | '@' | '$']+
         } / expected!("var")
     rule number()
         = quiet!{
