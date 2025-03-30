@@ -424,7 +424,7 @@ fn unwrap_parse_err(result: ParseResult<'_>, src: &str) -> Expand {
                         },
                         Errors::OpExprInvalidResult { found, right } => {
                             out(format_args!(
-                                "op-expr {} results can't pattern, expected 1 or {}",
+                                "op-expr can't pattern {} results, expected 1 or {}",
                                 found,
                                 right,
                             ));
