@@ -380,10 +380,10 @@ pub LogicLine: LogicLine = {
 }
 
 #[inline]
-QuickTake: LogicLine = <value:NonConstRangeValue> "!" <args:ParamArgsSL> LEnd => {
+QuickTake: LogicLine = <value:Loc<NonConstRangeValue>> "!" <args:ParamArgsSL> LEnd => {
     let expand = Expand(vec![
         LogicLine::SetArgs(args),
-        Take(meta.unnamed_var().into(), value).into(),
+        Take::unused(meta, value).into(),
     ]);
     meta.pack_line(expand.into())
 };
@@ -1058,18 +1058,16 @@ pub BuiltinCommand: LogicLine = {
         }
     },
 
-    "take" <args:MList<Args?>> <var:(<Var> "=")?> <value:Value> LEnd => {
-        let do_leak_res = var.is_some();
-
+    "take" <args:MList<Args?>> <var:(<Var> "=")?> <value:Loc<Value>> LEnd => {
         Take::new(
             args.unwrap_or_default(),
-            var.unwrap_or_else(|| meta.unnamed_var()),
-            do_leak_res,
+            var,
+            meta,
             value
         )
     },
 
-    "take" <lines:TakeAtom+> LEnd => {
+    "take" <lines:(<TakeAtom> ","?)+> LEnd => {
         if lines.len() == 1 {
             lines.into_iter().next().unwrap()
         } else {
@@ -1108,12 +1106,14 @@ TakeOpExprMultInner: (Vec<ConstKey>, Vec<Value>) = {
 }
 #[inline]
 TakeAtom: LogicLine = {
-    "+" <key:ConstKey> ","? => {
+    "+" <key:ConstKey> => {
         Take(key, DExp::new_nores(vec![].into()).into()).into()
     },
-    <key:(<ConstKey> "=")?> <val:Value> ","? => {
-        let key = key.unwrap_or_else(|| meta.unnamed_var().into());
+    <key:ConstKey> "=" <val:Value> => {
         Take(key, val).into()
+    },
+    <val:Loc<Value>> => {
+        Take::unused(meta, val).into()
     },
 }
 

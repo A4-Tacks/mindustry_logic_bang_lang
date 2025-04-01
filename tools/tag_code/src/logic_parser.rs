@@ -353,7 +353,7 @@ impl<'a> Display for ParseLine<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
-pub struct IdxBox<T> {
+pub struct IdxBox<T = ()> {
     pub index: usize,
     pub value: T,
 }

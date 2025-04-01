@@ -306,7 +306,7 @@ impl TakeHandle for Value {
             Self::ValueBindRef(bindref) => bindref.take_handle(meta),
             Self::Binder => {
                 meta.get_dexp_expand_binder().cloned()
-                    .unwrap_or_else(|| "__".into())
+                    .unwrap_or_else(|| UNNAMED_VAR.into())
             },
             ref cmp @ Self::Cmper(Cmper(ref loc)) => {
                 let loc = loc.location(&meta.source);
@@ -648,7 +648,7 @@ impl ValueBindRef {
                     ));
                     meta.log_expand_stack::<false>();
                 }
-                "__".into()
+                UNNAMED_VAR.into()
             })
     }
 
@@ -1630,7 +1630,7 @@ impl CmpTree {
                 | V::ResultHandle
                 => Some(&**meta.dexp_handle()),
                 | V::Binder
-                => Some(meta.get_dexp_expand_binder().map(|s| &**s).unwrap_or("__")),
+                => Some(meta.get_dexp_expand_binder().map(|s| &**s).unwrap_or(UNNAMED_VAR)),
                 | V::DExp(_)
                 | V::ValueBind(_)
                 | V::ValueBindRef(_)
@@ -2307,7 +2307,7 @@ impl Compile for Select {
         let target = self.0;
 
         if let 0 | 1 = cases.len() {
-            Take("__".into(), target).compile(meta);
+            Take(UNNAMED_VAR.into(), target).compile(meta);
             if let Some(case) = cases.pop() {
                 meta.parse_lines_mut().extend(case)
             }
@@ -2403,7 +2403,7 @@ impl Select {
         // build head
         match max_len {
             0 => {          // no op
-                Take("__".into(), target)
+                Take(UNNAMED_VAR.into(), target)
                     .compile(meta)
             },
             1 => {          // no mul
@@ -2517,6 +2517,7 @@ impl SwitchCatch {
 #[derive(Debug, PartialEq, Clone)]
 pub enum ConstKey {
     Var(Var),
+    Unused(IdxBox<Var>),
     ValueBind(ValueBind),
 }
 impl ConstKey {
@@ -2531,6 +2532,11 @@ impl ConstKey {
                 *self = Self::ValueBind(ValueBind(bind.into(), name));
                 Ok(())
             },
+            ConstKey::Unused(var) => {
+                let name = mem::take(&mut **var);
+                *self = Self::ValueBind(ValueBind(bind.into(), name));
+                Ok(())
+            },
             ConstKey::ValueBind(_) => Err(bind),
         }
     }
@@ -2540,22 +2546,22 @@ impl ConstKey {
     /// [`Var`]: ConstKey::Var
     #[must_use]
     pub fn is_var(&self) -> bool {
-        matches!(self, Self::Var(..))
+        matches!(self, Self::Var(..) | Self::Unused(..))
     }
 
     pub fn as_var(&self) -> Option<&Var> {
-        if let Self::Var(v) = self {
-            Some(v)
-        } else {
-            None
+        match self {
+            Self::Var(v) => Some(v),
+            Self::Unused(v) => Some(v),
+            _ => None,
         }
     }
 
     pub fn as_var_mut(&mut self) -> Option<&mut Var> {
-        if let Self::Var(v) = self {
-            Some(v)
-        } else {
-            None
+        match self {
+            Self::Var(v) => Some(v),
+            Self::Unused(v) => Some(v),
+            _ => None,
         }
     }
 
@@ -2579,6 +2585,7 @@ impl From<ConstKey> for Value {
     fn from(value: ConstKey) -> Self {
         match value {
             ConstKey::Var(var) => var.into(),
+            ConstKey::Unused(var) => var.value.into(),
             ConstKey::ValueBind(vb) => vb.into(),
         }
     }
@@ -2587,6 +2594,7 @@ impl TakeHandle for ConstKey {
     fn take_handle(self, meta: &mut CompileMeta) -> Var {
         match self {
             Self::Var(var) => var,
+            Self::Unused(var) => var.value,
             Self::ValueBind(vb) => vb.take_handle(meta),
         }
     }
@@ -2683,30 +2691,57 @@ impl Take {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(
         args: Args,
-        var: Var,
-        do_leak_res: bool,
-        value: Value,
+        var: Option<Var>,
+        meta: &Meta,
+        value: IdxBox<Value>,
     ) -> LogicLine {
         if matches!(args, Args::Normal(ref args) if args.is_empty()) {
-            Take(var.into(), value).into()
+            let var = var.map_or_else(
+                || ConstKey::Unused(value.new_value(meta.unnamed_var())),
+                ConstKey::Var,
+            );
+            Take(var, value.value).into()
         } else {
-            let mut len = 2;
-            if do_leak_res { len += 1 }
+            let len = 2 + var.is_some() as usize;
             let mut expand = Vec::with_capacity(len);
             expand.push(LogicLine::SetArgs(args));
-            if do_leak_res {
-                expand.push(Take(var.clone().into(), value).into());
+
+            if let Some(var) = var {
+                expand.push(Take(var.clone().into(), value.value).into());
                 expand.push(LogicLine::ConstLeak(var));
             } else {
-                expand.push(Take(var.into(), value).into())
+                let key = ConstKey::Unused(value.new_value(meta.unnamed_var()));
+                expand.push(Take(key, value.value).into())
             }
+
             debug_assert_eq!(expand.len(), len);
             Expand(expand).into()
         }
     }
+
+    pub fn unused(meta: &Meta, value: IdxBox<Value>) -> Self {
+        let unused = value.new_value(meta.unnamed_var());
+        Self(ConstKey::Unused(unused), value.value)
+    }
+
+    fn check_unused(&self, meta: &mut CompileMeta) {
+        if !meta.enable_unused_no_effect_info { return };
+        let ConstKey::Unused(ref loc) = self.0 else { return };
+        let Value::Var(var) = &self.1 else { return };
+        let Some(Some(var)) = meta.get_const_value(var)
+            .map(|data| data.value().as_var())
+            .or(Some(Some(var))) else { return };
+
+        let (line, column) = loc.location(&meta.source);
+        meta.log_info(format_args!(
+                "{line}:{column} Unused take non-effect var: {}",
+                var.clone(),
+        ));
+    }
 }
 impl Compile for Take {
     fn compile(self, meta: &mut CompileMeta) {
+        self.check_unused(meta);
         let r#const = Const::new(self.0, self.1.take_handle(meta).into());
         meta.add_const_value(r#const);
     }
@@ -4017,6 +4052,7 @@ pub struct CompileMeta {
     enable_misses_match_log_info: bool,
     enable_misses_bind_info: bool,
     enable_misses_binder_ref_info: bool,
+    enable_unused_no_effect_info: bool,
     args_repeat_limit: usize,
     args_repeat_flags: Vec<bool>,
     noop_line: String,
@@ -4086,6 +4122,7 @@ impl CompileMeta {
             enable_misses_match_log_info: false,
             enable_misses_bind_info: false,
             enable_misses_binder_ref_info: true,
+            enable_unused_no_effect_info: true,
             noop_line: "noop".into(),
             args_repeat_limit: 10000,
             args_repeat_flags: Vec::new(),
@@ -4333,7 +4370,7 @@ impl CompileMeta {
         extra_binder: Option<Var>,
     ) -> Option<ConstData> {
         match var {
-            ConstKey::Var(_) => {
+            ConstKey::Var(_) | ConstKey::Unused(_) => {
                 let var = var.take_handle(self);
 
                 let mut data = ConstData::new(value, labels);

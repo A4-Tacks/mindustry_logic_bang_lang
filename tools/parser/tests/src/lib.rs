@@ -946,7 +946,7 @@ fn take_test() {
         take +A, B, C,;
         "#).unwrap(),
         parse!(parser, r#"
-        take +A B C;
+        take +A  B  C;
         "#).unwrap(),
     );
 
@@ -955,7 +955,7 @@ fn take_test() {
         take +A, B, C;
         "#).unwrap(),
         parse!(parser, r#"
-        take +A B C;
+        take +A  B  C;
         "#).unwrap(),
     );
 
@@ -1154,7 +1154,7 @@ fn take_default_result_test() {
     let parser = LogicLineParser::new();
 
     let ast = parse!(parser, "take 2;").unwrap();
-    assert_eq!(ast, Take("__".into(), "2".into()).into());
+    assert_eq!(ast, Take(ConstKey::Unused(IdxBox::new(5, "__".into())), "2".into()).into());
 }
 
 #[test]
@@ -1200,13 +1200,13 @@ fn take2_test() {
     let parser = LogicLineParser::new();
 
     let ast = parse!(parser, "take X;").unwrap();
-    assert_eq!(ast, Take("__".into(), "X".into()).into());
+    assert_eq!(ast, Take(ConstKey::Unused(IdxBox::new(5, "__".into())), "X".into()).into());
 
     let ast = parse!(parser, "take R = X;").unwrap();
     assert_eq!(ast, Take("R".into(), "X".into()).into());
 
     let ast = parse!(parser, "take[] X;").unwrap();
-    assert_eq!(ast, Take("__".into(), "X".into()).into());
+    assert_eq!(ast, Take(ConstKey::Unused(IdxBox::new(7, "__".into())), "X".into()).into());
 
     let ast = parse!(parser, "take[] R = X;").unwrap();
     assert_eq!(ast, Take("R".into(), "X".into()).into());
@@ -1221,7 +1221,7 @@ fn take2_test() {
     let ast = parse!(parser, "take[1 2] X;").unwrap();
     assert_eq!(ast, Expand(vec![
             LogicLine::SetArgs(vec!["1".into(), "2".into()].into()),
-            Take("__".into(), "X".into()).into(),
+            Take(ConstKey::Unused(IdxBox::new(10, "__".into())), "X".into()).into(),
     ]).into());
 }
 
@@ -2284,7 +2284,7 @@ fn quick_dexp_take_test() {
 
     assert_eq!(
         parse!(parser, r#"
-        Foo! a b c @ d;
+                        Foo! a b c @ d;
         "#).unwrap(),
         parse!(parser, r#"
         take[a b c @ d] Foo;
@@ -2293,6 +2293,7 @@ fn quick_dexp_take_test() {
 
     assert_eq!(
         parse!(parser, r#"
+        # align*************************************************
         Foo! a b c d++;
         "#).unwrap(),
         parse!(parser, r#"
@@ -2306,6 +2307,7 @@ fn quick_dexp_take_test() {
 
     assert_eq!(
         parse!(parser, r#"
+        # align*******************************************
         Foo! d++;
         "#).unwrap(),
         parse!(parser, r#"
@@ -2319,6 +2321,7 @@ fn quick_dexp_take_test() {
 
     assert_eq!(
         parse!(parser, r#"
+        # align***************************************************
         Foo! a b c @ d++;
         "#).unwrap(),
         parse!(parser, r#"
@@ -2332,6 +2335,7 @@ fn quick_dexp_take_test() {
 
     assert_eq!(
         parse!(parser, r#"
+        # align***************************************************
         Foo! @ a b c d++;
         "#).unwrap(),
         parse!(parser, r#"
@@ -2345,6 +2349,7 @@ fn quick_dexp_take_test() {
 
     assert_eq!(
         parse!(parser, r#"
+        # align***************************************************
         Foo! a++ b c @ d;
         "#).unwrap(),
         parse!(parser, r#"
@@ -2358,6 +2363,7 @@ fn quick_dexp_take_test() {
 
     assert_eq!(
         parse!(parser, r#"
+        # align*******************************************
         Foo! a++;
         "#).unwrap(),
         parse!(parser, r#"
@@ -2557,6 +2563,7 @@ fn quick_dexp_take_test() {
 
     assert_eq!(
         parse!(parser, r#"
+        # align*************************
         Foo! +A 2;
         "#).unwrap(),
         parse!(parser, r#"

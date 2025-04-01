@@ -36,6 +36,7 @@
 * * `MissesBind[enable]`: 当enable非0时, 创建值绑定句柄时将会打印日志
 * * `MissesMatch[enable]`: 当enable非0时, 将match失配打印日志功能开启
 * * `MissesBinderRef[enable]`: 当enable非0时, 绑定者引用未命中时将会打印日志
+* * `UnusedNoEffect[enable]`: 当enable非0时, 对指向Var的take不使用句柄时将会打印日志
 * * `NewBind[enable]`: 当enable非0时, 新建绑定量时将会打印日志
 * * `BindSep[sep]`: 当sep非空字符串时, 绑定量将以指定分隔的形式输出
 *   例如: take BindSep["%"]; a.b = 2;的a.b在take后的句柄会变成'a%b'

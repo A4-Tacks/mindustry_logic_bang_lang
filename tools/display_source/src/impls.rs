@@ -467,6 +467,7 @@ impl DisplaySource for ConstKey {
     fn display_source(&self, meta: &mut DisplaySourceMeta) {
         match self {
             Self::Var(var) => var.display_source(meta),
+            Self::Unused(var) => var.display_source(meta),
             Self::ValueBind(vbind) => vbind.display_source(meta),
         }
     }

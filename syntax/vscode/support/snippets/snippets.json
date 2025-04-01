@@ -451,6 +451,13 @@
             "Builtin.MissesBinderRef! ${1:1};"
         ]
     },
+    "Builtin.UnusedNoEffect! $1;": {
+        "prefix": "_UnusedNoEffect",
+        "description": "Builtin.UnusedNoEffect! $1;",
+        "body": [
+            "Builtin.UnusedNoEffect! ${1:1};"
+        ]
+    },
     "Builtin.NewBind! $1;": {
         "prefix": "_NewBind",
         "description": "Builtin.NewBind! $1;",
