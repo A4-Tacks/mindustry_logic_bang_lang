@@ -75,7 +75,10 @@ cargo install --path . # 执行这个你可以在你的shell中直接使用它(�
 ```
 
 # 编辑器支持
-为一些编辑器提供了基础的支持
+建议使用 VSCode 配合插件, 以获得一个较好的编辑体验
+
+为一些编辑器提供了基础的支持:
+
 - [**Vim**]\:
   这是一个活跃在Unix, Linux等平台的编辑器, 虽然相对来说比较小众<br/>
   为其配置了基础的语法高亮及折叠, 与缩进规则.<br/>
@@ -94,7 +97,7 @@ cargo install --path . # 执行这个你可以在你的shell中直接使用它(�
   这是一个跨平台的编辑器,
   由 [westernat] 提供了它对Bang语言的语法支持
 
-  插件可以在[此处](./syntax/vscode/support/)获取
+  扩展可以在[此处](./syntax/vscode/support/)获取
 
 - [**BlocklyEditor**]\:
   这是一个图形化代码编辑器框架, 使用此框架实现了一个关于Bang语言的编辑器

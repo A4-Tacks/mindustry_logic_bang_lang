@@ -80,7 +80,10 @@ cargo install --path .
 ```
 
 # Editor support
-Provided basic support for some editors
+Suggest using VSCode in conjunction with extensions for a better editing experience
+
+Provided basic support for some editors:
+
 - [**Vim**]\:
   This is an editor active on platforms such as Unix and Linux, although relatively niche<br/>
   Basic syntax highlighting and folding, as well as indentation rules, have been configured for it<br/>
@@ -100,7 +103,7 @@ Provided basic support for some editors
   This is a cross platform editor,
   Provided syntax support for Bang language by [westernat] in this editor
 
-  This plugin can be obtained at [here](./syntax/vscode/support/)
+  This extension can be obtained at [here](./syntax/vscode/support/)
 
 - [**BlocklyEditor**]\:
   This is a graphical code editor framework that implements an editor for Bang language.
