@@ -722,21 +722,35 @@ const InputController = (
             );
             write -2 cell1 cursor;
         }
+        :re_mr
+        fsave = floor(isave);
+        isave -= fsave;
         read cur_num cell1 cursor;
         if cursor >= 0 && cur_num >= 0 {
-            write MergeN[cur_num isave] cell1 cursor;
+            write MergeN[cur_num fsave] cell1 cursor;
         } else {
             cursor++;
             if cursor < length && (next_num:read $ cell1 cursor;) >= 0 {
                 # merge right num
-                write MergeN[isave next_num] cell1 cursor;
+                write MergeN[fsave next_num] cell1 cursor;
                 cursor--;
             } else {
                 For! j inrev length++....cursor (
                     write (read $ cell1 j;) cell1 (*j+1);
                 );
-                write isave cell1 cursor;
+                write fsave cell1 cursor;
             }
+        }
+        if isave != 0 {
+            isave = floor(isave*1e7 + 0.5);
+            while (*isave%10) == 0 {
+                isave //= 10;
+            }
+            For! j inrev length++....cursor++ (
+                write (read $ cell1 j;) cell1 (*j+1);
+            );
+            write -10 cell1 cursor;
+            goto :re_mr;
         }
     );
     Button! switch28 ( # MC
