@@ -806,6 +806,8 @@ print 2
   所以常量表内肯定不会有原始量
 - ValueBindRef (`X->$`): 求值X, 但是在追溯时
 - ValueBindRef (`X->..`): 追溯X, 得到X追溯结果的绑定者
+- ValueBindRef (`X->op`): 追溯X, 尝试对X进行[常量评估](#编译时运算),
+  如果失败则返回`__`, 而不是退化
 - ValueBindRef (`X->Name`): 求值X, 并按类似值绑定的结果得到绑定值,
   但是因为是在追溯所以不会将得到的绑定值求值
 - Closure (闭包): 捕获环境, 包括求值、追溯、捕获参数、捕获标签重命名,
@@ -830,6 +832,7 @@ print 2
   然后将绑定量和被绑定量进行绑定表查询到唯一映射量, 最后对这个量进行常量表查询
 - ValueBindRef (`->$`): 和被绑定值求值行为相同
 - ValueBindRef (`->..`): 和追溯时它的行为相同
+- ValueBindRef (`->op`): 和追溯时它的行为相同
 - ValueBindRef (`->Name`): 和值绑定求值行为相同
 - ClosuredValue: 求值内部值, 但是会先设置闭包捕获的环境,
   详见 [ClosuredValue (闭包值)](#ClosuredValue-闭包值)

@@ -7486,6 +7486,16 @@ fn builtin_func_test() {
 
     assert_eq!(
         CompileMeta::new().compile(parse!(parser, r#"
+        const F = ($ = 1+x;);
+        print Builtin.EvalNum[F];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print __",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
         const N = 2 S = "s" D = ();
         print Builtin.IsString[N];
         print Builtin.IsString[2];
@@ -7966,6 +7976,52 @@ fn value_bind_ref_test() {
             r#"print y"#,
             r#"print bind"#,
             r#"print bind"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = ($ = 1+2;);
+        print F->op;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 3",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = ($ = 1+x;);
+        print F->op;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print __",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const N = 1;
+        const F = ($ = N+2;);
+        const R = F->op;
+        const N = 2;
+        print R;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print 3",
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const N = 1;
+        const F = ($ = N+x;);
+        const R = F->op;
+        const N = 2;
+        print R;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            "print __",
         ],
     );
 }

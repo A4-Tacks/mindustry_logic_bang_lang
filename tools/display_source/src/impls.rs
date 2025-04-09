@@ -244,6 +244,7 @@ impl DisplaySource for ValueBindRef {
             ValueBindRefTarget::NameBind(bind) => bind.display_source(meta),
             ValueBindRefTarget::Binder(_) => meta.push(".."),
             ValueBindRefTarget::ResultHandle => meta.push("$"),
+            ValueBindRefTarget::Op => meta.push("op"),
         }
     }
 }

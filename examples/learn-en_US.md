@@ -877,7 +877,10 @@ This is a rough follow table, and values not listed will not be followed:
   And because its follow and take results are both Var,
   there will definitely not be ReprVar in the constant table
 - ValueBindRef (`X->$`): Take X, But when following
-- ValueBindRef (`X->..`): Follow X,  The Binder that obtains the follow result of X
+- ValueBindRef (`X->..`): Follow X, The Binder that obtains the follow result of X
+- ValueBindRef (`X->op`): Follow X, Attempt to perform
+  [Compile time Evaluation](#Compile-time-Evaluation) on X,
+  If failed, return `__`, instead of degradation
 - ValueBindRef (`X->Name`): Obtain a value similar to ValueBind,
   but do not take the value because it is being followed
 - Closure: Capture the environment, including take, follow, arguments and label renaming.

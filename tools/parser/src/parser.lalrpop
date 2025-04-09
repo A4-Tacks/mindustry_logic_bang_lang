@@ -189,6 +189,9 @@ NonConstRangeValue: Value = {
     <NonConstRangeValue> "->" "$" => {
         ValueBindRef::new(<>.into(), ValueBindRefTarget::ResultHandle).into()
     },
+    <NonConstRangeValue> "->" "op" => {
+        ValueBindRef::new(<>.into(), ValueBindRefTarget::Op).into()
+    },
     <value:NonConstRangeValue> "->" <args:MList<ParamArgs>> => {
         // Refed QuickDExpTake
         let value = DExp::new(meta.unnamed_var(), vec![

@@ -670,6 +670,12 @@ impl ValueBindRef {
             ValueBindRefTarget::ResultHandle => {
                 Either::Left(value.take_handle(meta))
             },
+            ValueBindRefTarget::Op => {
+                Either::Left(value.try_eval_const_num(meta)
+                    .map(fields!(0))
+                    .map(Value::fmt_literal_num)
+                    .unwrap_or_else(|| UNNAMED_VAR.into()))
+            },
         }
     }
 
@@ -694,14 +700,22 @@ impl TakeHandle for ValueBindRef {
             ValueBindRefTarget::ResultHandle => {
                 value.take_handle(meta)
             },
+            ValueBindRefTarget::Op => {
+                value.try_eval_const_num(meta)
+                    .map(fields!(0))
+                    .map(Value::fmt_literal_num)
+                    .unwrap_or_else(|| UNNAMED_VAR.into())
+            },
         }
     }
 }
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum ValueBindRefTarget {
     NameBind(Var),
     Binder(IdxBox<()>),
     ResultHandle,
+    Op,
 }
 impl_enum_froms!(impl From for ValueBindRefTarget {
     NameBind => Var;
