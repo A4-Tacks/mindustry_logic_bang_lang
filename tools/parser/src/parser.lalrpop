@@ -1222,6 +1222,12 @@ ControlWithoutOptionalEnd: LogicLine = {
         Goto(<>).into()
     },
 
+    "goto" "inline" <lab:Label> <cmp:AlwaysJumpCmpOnce> LEnd => {
+        Goto(meta.add_defined_label(lab), cmp).into()
+    },
+
+    "inline" <Label> LEnd? => LogicLine::Label(<>),
+
     ControlBlock,
 
     "skip" <cmp:JumpCmpOnce> <body:LogicLine> => {

@@ -7641,6 +7641,23 @@ fn builtin_func_test() {
             r#"print 3"#,
         ],
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const match (a;) (b;) => @ {}
+        start;
+        Builtin.MakeSelect! (i:c;);
+        end;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"start"#,
+            r#"c"#,
+            r#"op add @counter @counter i"#,
+            r#"a"#,
+            r#"b"#,
+            r#"end"#,
+        ],
+    );
 }
 
 #[test]

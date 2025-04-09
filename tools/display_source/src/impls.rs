@@ -36,6 +36,14 @@ where T: DisplaySource
     inline_labs_and_binder(labs, None, meta)
 }
 
+fn is_oneline(line: &LogicLine) -> bool {
+    matches!(line,
+        | LogicLine::SetArgs(..)
+        | LogicLine::ConstLeak(..)
+        | LogicLine::Ignore
+        )
+}
+
 impl DisplaySource for str {
     fn display_source(&self, meta: &mut DisplaySourceMeta) {
         meta.push(&Value::replace_ident(self))
@@ -206,7 +214,7 @@ impl DisplaySource for DExp {
         }
         match self.lines().len() {
             0 => (),
-            1 if !self.lines()[0].is_set_args() => {
+            1 if !is_oneline(&self.lines()[0]) => {
                 if has_named_res {
                     meta.add_space();
                 }

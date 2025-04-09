@@ -1090,6 +1090,15 @@ so that the labels defined between different takes will not conflict
 so you won't know which one to jump to when you jump to the foo label)
 
 
+> [!TIP]
+> Only when defining labels will they be added to constants,
+> The labels carried when taking a constant will be renamed
+>
+> If necessary,
+> you can register a label (`goto inline :lab;`) at the place of use,
+> Or the place of defined does not register a label (`inline :lab`)
+
+
 Compile time Evaluation
 ===============================================================================
 Before taking a value, we will first try whether it can be evaluation constant,

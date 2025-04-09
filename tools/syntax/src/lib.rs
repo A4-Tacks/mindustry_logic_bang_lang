@@ -2292,6 +2292,7 @@ impl_derefs!(impl for InlineBlock => (self: self.0): Vec<LogicLine>);
 pub struct Select(pub Value, pub Expand);
 impl Compile for Select {
     fn compile(self, meta: &mut CompileMeta) {
+        let target = self.0.take_handle(meta).into();
         let mut cases: Vec<Vec<IdxBox<ParseLine>>> = self.1.0
             .into_iter()
             .map(
@@ -2304,7 +2305,6 @@ impl Compile for Select {
                     .count()
             }).collect();
         let max_len = lens.iter().copied().max().unwrap_or_default();
-        let target = self.0;
 
         if let 0 | 1 = cases.len() {
             Take(UNNAMED_VAR.into(), target).compile(meta);
@@ -2338,7 +2338,8 @@ impl Compile for Select {
             assert_eq!(
                 meta.parse_lines.solid_count(),
                 old_tag_codes_len + simple_select_len,
-                "预期长度公式错误\n{:#?}",
+                "预期长度公式错误, old: {}\n{:#?}",
+                old_tag_codes_len,
                 meta.parse_lines,
             );
         } else {

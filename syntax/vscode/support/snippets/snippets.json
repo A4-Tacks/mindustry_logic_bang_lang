@@ -479,11 +479,18 @@
             "Builtin.SetNoOp! $1;"
         ]
     },
-    "Builtin.StopRepeat! $1;": {
+    "Builtin.StopRepeat!;": {
         "prefix": "_StopRepeat",
-        "description": "Builtin.StopRepeat! $1;",
+        "description": "Builtin.StopRepeat!;",
         "body": [
             "Builtin.StopRepeat!;"
+        ]
+    },
+    "Builtin.Select! $1;": {
+        "prefix": "_Select",
+        "description": "Builtin.Select! $1;",
+        "body": [
+            "Builtin.Select! $1;"
         ]
     },
     "read result cell1 0;": {

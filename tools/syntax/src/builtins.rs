@@ -325,6 +325,15 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
             })
         }
 
+        fn make_select:MakeSelect(meta) [i] {
+            let args = meta.get_env_second_args();
+            let lines = args.iter()
+                .map(|var| Take(UNNAMED_VAR.into(), var.into()).into())
+                .collect();
+            Select(i.into(), lines).compile(meta);
+            Ok("__".into())
+        }
+
         fn args_handle:ArgsHandle(meta) [i:idx] {
             check_type!("var" Value::Var(idx) = idx.value() => {
                 let Ok(idx) = idx.parse::<usize>() else {

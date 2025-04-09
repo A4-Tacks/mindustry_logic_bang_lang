@@ -24,9 +24,9 @@ syn keyword mdtlblKeyword
             \ const setres select match
             \ op noop print
 syn keyword mdtlblKeyword goto		nextgroup=mdtlblIdentLabelRest
-syn keyword mdtlblKeyword case		nextgroup=mdtlblStar			skipwhite
-syn keyword mdtlblKeyword take		nextgroup=mdtlblStar 			skipwhite
-syn keyword mdtlblKeyword inline	nextgroup=mdtlblStar,mdtlblRepeatZero	skipwhite
+syn keyword mdtlblKeyword inline	nextgroup=mdtlblIdentLabelRest,mdtlblStar,mdtlblRepeatZero	skipwhite
+syn keyword mdtlblKeyword case		nextgroup=mdtlblStar						skipwhite
+syn keyword mdtlblKeyword take		nextgroup=mdtlblStar						skipwhite
 syn match mdtlblStar /\*/ contained
 syn match mdtlblRepeatZero /0\ze\s*@/ contained
 

@@ -22,6 +22,7 @@
 * * `Status[]`: 获取上一个内置函数的退出代码, 通常情况下, 零代表正常, 非零即异常
 * * `ArgsLen[]`: 获取上层有效参数表长度
 * * `SliceArgs[start end]`: 将参数切分, 但不take
+* * `MakeSelect[i]`: 创建一个select, 每个分支取自上层每个参数的take
 * * `ArgsHandle[idx]`: 拿到指定下标的参数的const句柄, 配合Const内置函数转移其值
 * * `MetaDebug[]`: 以调试形式输出编译时元数据
 * * `MaxExpandDepth[]`: 获取最大展开层数限制
