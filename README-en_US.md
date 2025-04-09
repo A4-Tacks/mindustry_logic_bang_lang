@@ -104,6 +104,7 @@ Copy and paste the tool code into your code to use it
   const Foo = Function[a b (match @ => A B {
       ...result = A + B;
   })]->Call;
+  print Foo[2 3];
   ```
 
   If you have the ability to modify tool code,

@@ -106,6 +106,7 @@ Bang 提供了一个灵活的大型常量系统,
   const Foo = Function[a b (match @ => A B {
       ...result = A + B;
   })]->Call;
+  print Foo[2 3];
   ```
   如果你有能力修改工具代码, 你可以使参数成为全局变量, 或函数体内自动替换的常量
 
