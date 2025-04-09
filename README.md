@@ -67,7 +67,7 @@ Bang 提供了一个灵活的大型常量系统,
   i = 13;
   CountLoop! i 5 (
       print "x";
-  )
+  );
   ```
 
 - [包装栈](./examples/std/stack.mdtlbl)
@@ -84,7 +84,7 @@ Bang 提供了一个灵活的大型常量系统,
 
 - [基准测试](./examples/std/timeit.mdtlbl)
   ```
-  TimeIt! 100 # testing rounds
+  TimeIt! 100 # 测试次数
       (case1:
           _x = "a"+"b"; # 1 lines
       )

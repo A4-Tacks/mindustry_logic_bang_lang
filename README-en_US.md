@@ -65,7 +65,7 @@ Copy and paste the tool code into your code to use it
   i = 13;
   CountLoop! i 5 (
       print "x";
-  )
+  );
   ```
 
 - [Packed Stack](./examples/std/stack.mdtlbl)
