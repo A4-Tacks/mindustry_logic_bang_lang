@@ -42,9 +42,74 @@ when combined with compile-time arithmetic, DExp code passing, parameter system,
 and conditional compilation based on branch matching, can simulate overloading,
 compile-time data structures, simulate object-oriented features, chain calls, and more
 
+
 # Learn
 Please refer to the example [README](./examples/README-en_US.md),
 Or other instances of [example directory](./examples)
+
+
+# Advanced use
+Various ready-made tools can be used to conveniently solve the requirements
+
+Copy and paste the tool code into your code to use it
+
+- [For Loop](./examples/std/for_each.mdtlbl)
+  ```
+  For! i in 1..6 (
+      print i;
+  );
+  ```
+
+- [Loop Unrolling](./examples/std/count_loop.mdtlbl)
+  ```
+  i = 13;
+  CountLoop! i 5 (
+      print "x";
+  )
+  ```
+
+- [Packed Stack](./examples/std/stack.mdtlbl)
+  ```
+  NewStack! cell1;
+  cell1.Push! 1 2 3;
+  print cell1.Read[a b c];
+  print b c;
+  cell1.Write! a b c;
+  cell1.Pop!;
+  cell1.Pop! x;
+  print x;
+  ```
+
+- [Benchmark](./examples/std/timeit.mdtlbl)
+  ```
+  TimeIt! 100 # testing rounds
+      (case1:
+          _x = "a"+"b"; # 1 lines
+      )
+      (case2:
+          _x = (?"a"+"b"); # 2 lines
+      )
+      (case3:
+          noop;
+          noop;
+          _x = (?"a"+"b"); # 4 lines
+      )
+  ;
+  printflush message1;
+  stop;
+  ```
+
+- [Function](./examples/std/function.mdtlbl)
+  ```
+  const Foo = Function[a b (match @ => A B {
+      ...result = A + B;
+  })]->Call;
+  ```
+
+  If you have the ability to modify tool code,
+  you can make parameters global variables for direct use,
+  or constants that can be automatically replaced within the function body
+
 
 # How To Install
 Releases provide pre built products,

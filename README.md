@@ -43,10 +43,72 @@ Bang 提供了一个灵活的大型常量系统,
 配合编译期算数、DExp 代码传递、参数系统、基于分支匹配的条件编译,
 可以完成模拟重载、编译期数据结构、模拟面向对象特性、链式调用等
 
+
 # 学习
 请参考示例的 [README](./examples/README.md), 或[示例目录]的其它实例
 
 [示例目录]: ./examples
+
+
+# 高级使用
+可以使用各种现成的工具, 来方便的完成各种目的
+
+将工具代码复制粘贴到你的代码中即可使用
+
+- [For 循环](./examples/std/for_each.mdtlbl)
+  ```
+  For! i in 1..6 (
+      print i;
+  );
+  ```
+
+- [循环展开](./examples/std/count_loop.mdtlbl)
+  ```
+  i = 13;
+  CountLoop! i 5 (
+      print "x";
+  )
+  ```
+
+- [包装栈](./examples/std/stack.mdtlbl)
+  ```
+  NewStack! cell1;
+  cell1.Push! 1 2 3;
+  print cell1.Read[a b c];
+  print b c;
+  cell1.Write! a b c;
+  cell1.Pop!;
+  cell1.Pop! x;
+  print x;
+  ```
+
+- [基准测试](./examples/std/timeit.mdtlbl)
+  ```
+  TimeIt! 100 # testing rounds
+      (case1:
+          _x = "a"+"b"; # 1 lines
+      )
+      (case2:
+          _x = (?"a"+"b"); # 2 lines
+      )
+      (case3:
+          noop;
+          noop;
+          _x = (?"a"+"b"); # 4 lines
+      )
+  ;
+  printflush message1;
+  stop;
+  ```
+
+- [函数](./examples/std/function.mdtlbl)
+  ```
+  const Foo = Function[a b (match @ => A B {
+      ...result = A + B;
+  })]->Call;
+  ```
+  如果你有能力修改工具代码, 你可以使参数成为全局变量, 或函数体内自动替换的常量
+
 
 # 安装
 Releases 提供了预构建产物, 考虑先从其中下载自己所在平台的二进制文件,

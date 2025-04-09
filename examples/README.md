@@ -72,3 +72,6 @@ English README, please click on [**README-en_US.md**](./README-en_US.md)
 * [`std`](./std) 部分较为通用、大型的工具
 * [`for_each`](./std/for_each.mdtlbl) 方便的循环包装
 * [`function.mdtlbl`](./std/function.mdtlbl) 快速生成逻辑函数
+* [`stack.mdtlbl`](./std/stack.mdtlbl) 包装一个栈, 简化常用栈操作
+* [`count_loop.mdtlbl`](./std/count_loop.mdtlbl) 对动态次数循环生成循环展开
+* [`timeit.mdtlbl`](./std/timeit.mdtlbl) 测试执行行数, 衡量性能

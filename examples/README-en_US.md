@@ -78,3 +78,6 @@ or pasted into your code for quick and convenient use
 * [`std`](./std) Some of the more general and large tools
 * [`for_each`](./std/for_each.mdtlbl) Exquisite `for-each` implementation
 * [`function.mdtlbl`](./std/function.mdtlbl) Quickly generate non recursive functions
+* [`stack.mdtlbl`](./std/stack.mdtlbl) Packaging a stack to simplify common stack operations
+* [`count_loop.mdtlbl`](./std/count_loop.mdtlbl) Generate loop expansion for dynamic count
+* [`timeit.mdtlbl`](./std/timeit.mdtlbl) Test execution lines to measure performance
