@@ -1,0 +1,321 @@
+#**
+* 以近乎使用到全部的语法来写一个没什么意义的程序
+*#
+{
+    print;
+    print 1;
+    print -1;
+    print 1 2;
+    print (x: $=1;);
+    print (`x`: $=1;);
+    print (?1);
+    print (?x:1);
+    print (*1);
+    print (=1);
+    print (x:=1);
+    print x;
+    print @a-b;
+    print '@a+b';
+    print 1.2;
+    print 1e2;
+    print 1e+2;
+    print 1e-2;
+    print 1_000;
+    print 1__000;
+    print 0x1b;
+    print 0x-1b;
+    print 0x-ff_1b;
+    print 0b11;
+    print 0b-11;
+    print 0b-10_11;
+    print "foo";
+    print "foo\nbar";
+    print "foo\\nbar";
+    print "foo\\\nbar";
+    print "foo\[]";
+    print "foo\
+          \ bar";
+    print `x`;
+    print `'x'`;
+    print x.y;
+}
+skip goto(a < b) { }
+const x.B = (z:print ..;);
+take x.B;
+x.B!;
+(%x:%).B!;
+(%(x:)).B!;
+const B = x->B;
+print B;
+print B->..;
+print (?1+2)->$;
+print (?1+2)->op;
+print (?_0+2)->[1];
+const D = (take _0 _0;);
+D! const(do { } while;);
+const I = (setres _0;);
+D! const!I[(do { } while;)];
+y = 2+3+x;
+y = if a < b ? x+3 : ++y- 4;
+y = if a < b ? x++(_+3) : ++y- 4;
+skip { print 1; }
+skip x < y print 1;
+skip < x y print 1;
+skip lessThan x y print 1;
+skip x lessThan y print 1;
+skip x === y print 1;
+skip x !== y print 1;
+skip strictNotEqual x y print 1;
+skip x strictNotEqual y print 1;
+skip a == b && c print 1;
+skip a == b && c || d && e print 1;
+skip a == b && !c || d && e print 1;
+skip a == b && lnot c || d && e print 1;
+skip a == b && [c]I || d && e print 1;
+skip a == b && (=>[c]I) || d && e print 1;
+skip a == b && ({print m;}=>[c]I) || d && e print 1;
+op add x x 1;
+op x x add 1;
+op + x x 1;
+op x x + 1;
+op len r x y;
+op r len x y;
+op _n not r;
+op _n not r 0;
+op not _n r;
+op not _n r 0;
+op _n ~ r;
+op _n ~ r 0;
+op ~ _n r;
+op ~ _n r 0;
+op !== r a b;
+op r a !== b;
+op strictNotEqual r a b;
+op r a strictNotEqual b;
+if a<b { print 1; }
+if a<b { print 1; } else { print 2; }
+if a<b { print 1; } elif c<d { print 2; } else { print 3; }
+:x goto :x;
+:y goto :y a<b;
+:a goto inline :a;
+:b goto inline :b a<b;
+inline:c goto :d;
+inline:d goto :c a<b;
+inline:e; goto :e;
+inline:f; goto :f a<b;
+while a<b { }
+gwhile a<b { }
+do { } while;
+do { } while a<b;
+{
+    select i {
+        print 1;
+        print 2;
+    }
+    switch i {
+    case 0:
+        print 1;
+    case 1:
+        print 2;
+    }
+    switch i {
+        break;
+    case 0:
+        print 1;
+    case 1:
+        print 2;
+    }
+    switch i {
+        break;
+    case 0:
+        print 1;
+    case*1:
+        print 2;
+    }
+    switch i {
+        break;
+    case !:
+        print -1;
+    case 0:
+        print 1;
+    case 1:
+        print 2;
+    }
+    switch i {
+        break;
+    case <!:
+        print -1;
+    case 0:
+        print 1;
+    case 1:
+        print 2;
+    }
+    switch i {
+        break;
+    case <>:
+        print -1;
+    case 0:
+        print 1;
+    case 1:
+        print 2;
+    }
+    gswitch i {
+    case 0:
+        print 1;
+    case 1:
+        print 2;
+    }
+    gswitch i {
+        break;
+    case 0:
+        print 1;
+    case 1:
+        print 2;
+    }
+    gswitch i {
+        break;
+    case 0:
+        print 1;
+    case*1:
+        print 2;
+    }
+    gswitch i {
+        break;
+    case !:
+        print -1;
+    case 0:
+        print 1;
+    case 1:
+        print 2;
+    }
+    gswitch i {
+        break;
+    case <!>:
+        print -1;
+    case 0:
+        print 1;
+    case 1:
+        print 2;
+    }
+    gswitch i {
+        break;
+    case >:
+        print -1;
+    case 0:
+        print 1;
+    case 1:
+        print 2;
+    }
+    const A = 3;
+    gswitch i {
+        break;
+    case >:
+        print -1;
+    case 0:
+        print 1;
+    case 1 2 A @ if a<b:
+        print 2;
+    }
+}
+break;
+continue;
+break continue {
+    print 1;
+    break;
+    continue;
+    break a<b;
+    continue c>d;
+    print 2;
+}
+break! continue! {
+    print 1;
+    break;
+    continue;
+    break a<b;
+    continue c>d;
+    print 2;
+}
+const X = 2;
+const X = 2 Y = 3;
+const X = 2, Y = 3;
+const X = (), Y = (setres 3;);
+take X Y=2;
+take X, Y=2;
+take x.X, x.Y=2;
+take +Tmp X Y=2;
+take*A, B = 1, 2+2;
+const C = (res:print _0 $;);
+take C[2];
+take[1 2] I;
+const C = ([A](print A;));
+take C;
+const C = ([&A](print A;));
+take C;
+const C = ([|:a](goto :a;));
+const C = ([X:2](print X;));
+take C;
+const C = ([X:2 @ ..B](print .. B @;));
+Builtin.Info! "Some info";
+inline { const D = 3; }
+print D;
+noop;
+i++;
+i--;
+++i;
+--i;
+a, b = 2 *= 2, 3 min= b;
+match 1 => [1] { print 1; }
+const match 1 => [1] { print 1; }
+match 1 {
+    [1] { print 1; }
+    _ {}
+}
+const F = (const match @ {
+    *@ {
+        print @;
+    }
+});
+const F = (const match @ {
+    $R *@ {
+        print @;
+    }
+});
+const F = (const match @ {
+    $*X:[1 2] {
+        print @;
+    }
+});
+const F = (const match @ {
+    $*X:[?_0<3] {
+        print @;
+    }
+});
+const F = (const match @ {
+    $*X:[*2] _ {
+        print @;
+    }
+    [3] $_ {}
+    [4] *_ {}
+});
+read x cell1 i++;
+F! 3 z++;
+F! 3 (print m++;);
+F! 3, (print m++;);
+F! @;
+F! @, 1;
+
+inline@ { print @; }
+inline@ X { print X; }
+inline 0@ {
+    Builtin.StopRepeat!;
+}
+inline 2@ {
+    Builtin.StopRepeat!;
+}
+inline *0@ {
+    Builtin.StopRepeat!;
+}
+const N = 2;
+inline *N@ {
+    Builtin.StopRepeat!;
+}
