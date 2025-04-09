@@ -486,11 +486,11 @@
             "Builtin.StopRepeat!;"
         ]
     },
-    "Builtin.Select! $1;": {
-        "prefix": "_Select",
-        "description": "Builtin.Select! $1;",
+    "Builtin.MakeSelect! $1;": {
+        "prefix": "_MakeSelect",
+        "description": "Builtin.MakeSelect! $1;",
         "body": [
-            "Builtin.Select! $1;"
+            "Builtin.MakeSelect! $1;"
         ]
     },
     "read result cell1 0;": {
