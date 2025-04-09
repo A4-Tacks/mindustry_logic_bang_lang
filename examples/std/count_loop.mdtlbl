@@ -1,0 +1,46 @@
+#**
+* 循环指定次数的循环, 利用奇怪的展开来优化运行时性能
+* 输入循环次数必须不小于0, 且为整数
+*#
+
+Builtin.BindSep! '.';
+Builtin.MissesMatch! 1;
+
+const CountLoop = (const match @ {
+    *Count Chunk F {
+        match Builtin.EvalNum[Chunk] {
+            [`__`] {
+                Builtin.Err! "Invalid chunk size, can not eval:";
+                Builtin.Debug! Chunk;
+                Builtin.Exit! 2;
+            }
+            _ { take Chunk = Chunk; }
+        }
+        take+I C=0;
+        const match ([&F](inline:x setres F;)) => @ {}
+        inline 0@ {
+            take*C=C+1;
+            const match C {
+                [?_0 < Chunk] { const match @ F => @ {} }
+                _ {
+                    Builtin.StopRepeat!;
+
+                    I = 0;
+                    Builtin.MakeSelect! (*Chunk - Count%Chunk);
+                    I += Chunk;
+                    goto inline:x I <= Count;
+                }
+            }
+        }
+    }
+});
+
+i = 0; do {
+    print i":";
+    CountLoop! i 4 (
+        print i;
+    );
+    print "\n";
+} while (*++i) < 10;
+
+printflush message1;
