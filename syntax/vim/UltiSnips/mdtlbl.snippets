@@ -744,6 +744,9 @@ endsnippet
 snippet sensor.currentAmmoType "弹药类型" w
 sensor ${2:currentAmmoType} $1 @currentAmmoType;
 endsnippet
+snippet sensor.memoryCapacity "内存容量" w
+sensor ${2:memoryCapacity} $1 @memoryCapacity;
+endsnippet
 snippet sensor.health "血量" w
 sensor ${2:health} $1 @health;
 endsnippet
@@ -854,6 +857,12 @@ sensor ${2:payloadCount} $1 @payloadCount;
 endsnippet
 snippet sensor.payloadType "荷载类型" w
 sensor ${2:payloadType} $1 @payloadType;
+endsnippet
+snippet sensor.totalPayload "已用荷载空间" w
+sensor ${2:totalPayload} $1 @totalPayload;
+endsnippet
+snippet sensor.payloadCapacity "荷载容量" w
+sensor ${2:payloadCapacity} $1 @payloadCapacity;
 endsnippet
 snippet sensor.id "编号(lookup 反向, 用于 content)" w
 sensor ${2:id} $1 @id;
