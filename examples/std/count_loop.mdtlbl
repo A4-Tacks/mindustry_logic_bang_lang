@@ -24,6 +24,7 @@ const CountLoop = (const match @ {
                 [?_0 < Chunk] { const match @ F => @ {} }
                 _ {
                     Builtin.StopRepeat!;
+                    const match @ () => @ {}
 
                     I = 0;
                     Builtin.MakeSelect! (*Chunk - Count%Chunk);

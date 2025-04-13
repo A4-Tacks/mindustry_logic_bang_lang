@@ -31,7 +31,7 @@
 * * `SetRepeatLimit[limit]`: 设置最大重复块重复次数限制
 * * `StopRepeat[]`: 最里层的重复块在本次重复结束后将停止
 * * `ExpandStack[]`: 调试输出当前展开栈情况
-* * `EvalNum[num]`: 尝试常量计算一个值, 失败则返回`__`
+* * `EvalNum[num]`: 尝试常量计算一个值, 失败则返回`__`, 可以使用V->op语法代替
 * * `IsString[str]`: 返回给定量是否是一个字符串
 * * `RefArg[index]`: 返回指定下标的上层参数句柄, 一般再用Const解开
 * * `MissesBind[enable]`: 当enable非0时, 创建值绑定句柄时将会打印日志
