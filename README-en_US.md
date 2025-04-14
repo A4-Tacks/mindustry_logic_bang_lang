@@ -63,7 +63,7 @@ Copy and paste the tool code into your code to use it
 - [Loop Unrolling](./examples/std/count_loop.mdtlbl)
   ```
   i = 13;
-  CountLoop! i 5 (
+  CountLoop! i 5 const(
       print "x";
   );
   ```

@@ -38,7 +38,7 @@ const CountLoop = (const match @ {
 
 i = 0; do {
     print i":";
-    CountLoop! i 4 (
+    CountLoop! i 4 const(
         print i;
     );
     print "\n";

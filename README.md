@@ -65,7 +65,7 @@ Bang 提供了一个灵活的大型常量系统,
 - [循环展开](./examples/std/count_loop.mdtlbl)
   ```
   i = 13;
-  CountLoop! i 5 (
+  CountLoop! i 5 const(
       print "x";
   );
   ```
