@@ -57,8 +57,8 @@ endsnippet
 snippet take "take" w
 take ${1:${2:\$.$3} = ${4}};
 endsnippet
-snippet using "const bind to var" w
-$2=$1->$2
+snippet using "destructure value binds" w
+$1{$2} = $3
 endsnippet
 snippet iop "op self" w
 $1 ${2:+}= $3;

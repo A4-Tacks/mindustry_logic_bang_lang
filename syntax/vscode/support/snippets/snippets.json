@@ -110,11 +110,11 @@
             "take ${1:${2:\\$.$3} = ${4}};"
         ]
     },
-    "const bind to var": {
+    "destructure value binds": {
         "prefix": "using",
-        "description": "const bind to var",
+        "description": "destructure value binds",
         "body": [
-            "$2=$1->$2"
+            "$1{$2} = $3"
         ]
     },
     "op self": {
