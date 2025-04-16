@@ -976,6 +976,74 @@ fn take_test() {
         const A=2 B=3;
         "#).unwrap(),
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+        take X{A, B:C} = (c;);
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take X = (c;);
+            take A = X.A;
+            take B = X.C;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        take M=() X{A, B:C} = (c;);
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            inline {
+                take M=();
+                take X = (c;);
+            }
+            take A = X.A;
+            take B = X.C;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        take X{A, B:C} = (c;);
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take X = (c;);
+            take A = X.A;
+            take B = X.C;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        take X{A B:C} = (c;);
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take X = (c;);
+            take A = X.A;
+            take B = X.C;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        take X{A &B:C} = (c;);
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take X = (c;);
+            take A = X.A;
+            const B = X->C;
+        }
+        "#).unwrap(),
+    );
 }
 
 #[test]

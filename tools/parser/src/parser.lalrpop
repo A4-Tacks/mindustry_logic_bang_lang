@@ -1070,12 +1070,12 @@ pub BuiltinCommand: LogicLine = {
         )
     },
 
-    "take" <lines:(<TakeAtom> ","?)+> LEnd => {
-        if lines.len() == 1 {
+    "take" LinePackBegin <lines:(<TakeAtom> ","?)+> LEnd => {
+        meta.pack_line(if lines.len() == 1 {
             lines.into_iter().next().unwrap()
         } else {
             InlineBlock(lines).into()
-        }
+        })
     },
 
     "take" "*" <inner:TakeOpExprMultInner> LEnd => {
@@ -1107,12 +1107,25 @@ TakeOpExprMultInner: (Vec<ConstKey>, Vec<Value>) = {
         inner
     },
 }
+TakeDestructAtom: (bool, Var, Var) = {
+    <Opt<"&">> <Var> ":" <Var>,
+    <c:Opt<"&">> <v:Var> => (c, v.clone(), v),
+}
+TakeDestruct: Vec<(bool, Var, Var)> = "{" <(<TakeDestructAtom> ","?)*> "}";
 #[inline]
 TakeAtom: LogicLine = {
     "+" <key:ConstKey> => {
         Take(key, DExp::new_nores(vec![].into()).into()).into()
     },
-    <key:ConstKey> "=" <val:Value> => {
+    <mut key:ConstKey> <de:TakeDestruct?> "=" <val:Value> => {
+        if let Some(de) = de {
+            crate::make_take_destructs(meta, &mut key, de);
+        }
+        Take(key, val).into()
+    },
+    "_" <de:TakeDestruct> "=" <val:Value> => {
+        let mut key = meta.get_tmp_var().into();
+        crate::make_take_destructs(meta, &mut key, de);
         Take(key, val).into()
     },
     <val:Loc<Value>> => {

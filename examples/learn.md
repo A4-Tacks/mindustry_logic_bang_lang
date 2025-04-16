@@ -1387,6 +1387,26 @@ take Value;
 ```
 
 
+## Take 解构
+```
+inline {
+    take X = Foo;
+    const A = X->A;
+    take B = X.B;
+}
+take X{&A B} = Foo;
+```
+
+```
+inline {
+    take ___0 = Foo;
+    const A = ___0->A;
+    take B = ___0.B;
+}
+take _{&A B} = Foo;
+```
+
+
 ## 重复块匹配语法
 ```
 inline 1@ { const match @ => V {
