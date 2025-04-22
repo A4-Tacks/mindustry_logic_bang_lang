@@ -12,6 +12,7 @@
   ```rust
   x.into_iter()
       .for_each(|elem|
+ 
   {
       println!("{elem}");
   });
