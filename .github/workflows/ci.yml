@@ -17,4 +17,4 @@ jobs:
           fetch-depth: 2
       - name: Check whitespace
         run: |
-          ! git show | grep -P '[ \t\r]+$'
+          ! git show | grep -P '\+.*[ \t\r]+$'
