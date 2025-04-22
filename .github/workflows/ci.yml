@@ -1,0 +1,20 @@
+name: CI
+on:
+  pull_request:
+  merge_group:
+
+jobs:
+  check-empty:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+
+    steps:
+      - name: Checkout to PR
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+      - name: Check whitespace
+        run: |
+          ! git show | grep -P '[ \t\r]+$'
