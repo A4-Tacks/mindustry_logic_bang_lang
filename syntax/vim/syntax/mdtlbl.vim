@@ -26,7 +26,7 @@ syn keyword mdtlblKeyword
 syn keyword mdtlblKeyword goto		nextgroup=mdtlblIdentLabelRest
 syn keyword mdtlblKeyword inline	nextgroup=mdtlblIdentLabelRest,mdtlblStar,mdtlblRepeatZero	skipwhite
 syn keyword mdtlblKeyword case		nextgroup=mdtlblStar						skipwhite
-syn keyword mdtlblKeyword take		nextgroup=mdtlblStar						skipwhite
+syn keyword mdtlblKeyword take		nextgroup=mdtlblStar,mdtlblTmpHandleDeclare			skipwhite
 syn match mdtlblStar /\*/ contained
 syn match mdtlblRepeatZero /0\ze\s*@/ contained
 
@@ -70,6 +70,9 @@ syn region mdtlblSubParenNum matchgroup=mdtlblSubParenNumParen start=/\v-@<=\(\z
 syn match mdtlblSubSpaceNum /-\zs \%(\S- \)\@<=\ze\d/ conceal
 
 syn match mdtlblResultHandle /\$/
+syn match mdtlblTmpHandleDeclare /+\k\+/hs=s+1 contained nextgroup=mdtlblTmpHandleDeclare skipwhite
+syn match mdtlblTmpHandle /\v[ \t]@1<=\+\k+/ms=s+1
+syn match mdtlblTmpHandle /{\k\+}/hs=s+1,he=e-1
 syn match mdtlblBinder /\.\./
 
 " Label And ResultH {{{1
@@ -179,6 +182,8 @@ hi def link mdtlblNumber		Number
 hi def link mdtlblBoolean		Boolean
 hi def link mdtlblNull			Boolean
 hi def link mdtlblResultHandle		Identifier
+hi def link mdtlblTmpHandle		Identifier
+hi def link mdtlblTmpHandleDeclare	Identifier
 hi def link mdtlblBinder		Keyword
 hi def link mdtlblDefineResultHandle	Identifier
 hi def link mdtlblIdentLabel		Label
