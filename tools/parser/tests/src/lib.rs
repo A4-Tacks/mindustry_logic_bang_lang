@@ -1086,6 +1086,32 @@ fn take_test() {
         }
         "#).unwrap(),
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+        take {A &B:C} = (c;) {X}=M;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            inline {
+                take ___0 = (c;);
+                take ___1=M;
+            }
+            take A = ___0.A;
+            const B = ___0->C;
+            take X = ___1.X;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        take;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {}
+        "#).unwrap(),
+    );
 }
 
 #[test]

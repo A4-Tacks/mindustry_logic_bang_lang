@@ -1080,27 +1080,15 @@ pub BuiltinCommand: LogicLine = {
         )
     },
 
-    "take" LinePackBegin <lines:(<TakeAtom> ","?)+> LEnd => {
+    "take" LinePackBegin
+    <mut lines:(<TakeAtom> ","?)*> <exts:(<TakeAtomOpt> ","?)*>
+    LEnd => {
+        lines.extend(exts);
         meta.pack_line(if lines.len() == 1 {
             lines.into_iter().next().unwrap()
         } else {
             InlineBlock(lines).into()
         })
-    },
-
-    "take" LinePackBegin <de:TakeDestruct> "=" <val:Value> ","? LEnd => {
-        let mut key = meta.get_tmp_var().into();
-        crate::make_take_destructs(meta, &mut key, de);
-        meta.pack_line(Take(key, val).into())
-    },
-
-    "take" LinePackBegin <de:TakeDestruct> "=" <val:Value> ","?
-    <mut lines:(<TakeAtom> ","?)+> LEnd => {
-        let mut key = meta.get_tmp_var().into();
-        crate::make_take_destructs(meta, &mut key, de);
-
-        lines.insert(0, Take(key, val).into());
-        meta.pack_line(InlineBlock(lines).into())
     },
 
     "take" "*" <inner:TakeOpExprMultInner> LEnd => {
@@ -1137,7 +1125,6 @@ TakeDestructAtom: (bool, Var, Var) = {
     <c:Opt<"&">> <v:Var> => (c, v.clone(), v),
 }
 TakeDestruct: Vec<(bool, Var, Var)> = "{" <(<TakeDestructAtom> ","?)*> "}";
-#[inline]
 TakeAtom: LogicLine = {
     "+" <key:ConstKey> => {
         Take(key, DExp::new_nores(vec![].into()).into()).into()
@@ -1148,6 +1135,16 @@ TakeAtom: LogicLine = {
         }
         Take(key, val).into()
     },
+    <de:TakeDestruct> "=" <val:Value> => {
+        let mut key = meta.get_tmp_var().into();
+        crate::make_take_destructs(meta, &mut key, de);
+        Take(key, val).into()
+    },
+    "_" "=" <val:Loc<Value>> => {
+        Take::unused(meta, val).into()
+    },
+}
+TakeAtomOpt: LogicLine = {
     "_" <de:TakeDestruct> "=" <val:Value> => {
         let mut key = meta.get_tmp_var().into();
         crate::make_take_destructs(meta, &mut key, de);
