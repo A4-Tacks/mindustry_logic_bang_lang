@@ -1519,6 +1519,11 @@ inline {
 take _{&A B} = Foo;
 ```
 
+```
+take _{&A B} = Foo;
+take {&A B} = Foo;
+```
+
 
 ## Repeating Block Match
 ```

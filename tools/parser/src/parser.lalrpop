@@ -511,10 +511,10 @@ Args: Args = {
     },
 }
 ArgsSL: Args = {
-    <prefix:Args0G<SLValue>> "@" <suffix:Args0G<SLValue>> => {
+    <prefix:Args0G<(<SLValue> ","?)>> "@" ","? <suffix:Args0G<(<SLValue> ","?)>> => {
         Args::Expanded(prefix, suffix)
     },
-    <args:Args1G<SLValue>> => {
+    <args:Args1G<(<SLValue> ","?)>> => {
         args.into()
     },
 }
@@ -613,7 +613,7 @@ ArgsRepeatBlock: ArgsRepeat = {
     },
 }
 
-Print: LogicLine = <l:LinePack<Loc<"print">>> <args:ArgsSL?> LEnd => {
+Print: LogicLine = <l:LinePack<Loc<"print">>> ","? <args:ArgsSL?> LEnd => {
     fn one(arg: Value) -> LogicLine {
         LogicLine::Other(vec![
             ReprVar("print".into()),
@@ -1076,6 +1076,21 @@ pub BuiltinCommand: LogicLine = {
         } else {
             InlineBlock(lines).into()
         })
+    },
+
+    "take" LinePackBegin <de:TakeDestruct> "=" <val:Value> ","? LEnd => {
+        let mut key = meta.get_tmp_var().into();
+        crate::make_take_destructs(meta, &mut key, de);
+        meta.pack_line(Take(key, val).into())
+    },
+
+    "take" LinePackBegin <de:TakeDestruct> "=" <val:Value> ","?
+    <mut lines:(<TakeAtom> ","?)+> LEnd => {
+        let mut key = meta.get_tmp_var().into();
+        crate::make_take_destructs(meta, &mut key, de);
+
+        lines.insert(0, Take(key, val).into());
+        meta.pack_line(InlineBlock(lines).into())
     },
 
     "take" "*" <inner:TakeOpExprMultInner> LEnd => {

@@ -1406,6 +1406,11 @@ inline {
 take _{&A B} = Foo;
 ```
 
+```
+take _{&A B} = Foo;
+take {&A B} = Foo;
+```
+
 
 ## 重复块匹配语法
 ```

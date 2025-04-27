@@ -1044,6 +1044,48 @@ fn take_test() {
         }
         "#).unwrap(),
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+        take _{A &B:C} = (c;);
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = (c;);
+            take A = ___0.A;
+            const B = ___0->C;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        take {A &B:C} = (c;);
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = (c;);
+            take A = ___0.A;
+            const B = ___0->C;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        take {A &B:C} = (c;) X=M;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            inline {
+                take ___0 = (c;);
+                take X=M;
+            }
+            take A = ___0.A;
+            const B = ___0->C;
+        }
+        "#).unwrap(),
+    );
 }
 
 #[test]
@@ -6379,12 +6421,40 @@ fn param_comma_sugar_test() {
     let parser = TopLevelParser::new();
 
     assert_eq!(
+        parse!(parser, "print a, b;").unwrap(),
+        parse!(parser, "print a b;").unwrap(),
+    );
+    assert_eq!(
+        parse!(parser, "print a, b,;").unwrap(),
+        parse!(parser, "print a b;").unwrap(),
+    );
+    assert_eq!(
+        parse!(parser, "print, a, b,;").unwrap(),
+        parse!(parser, "print a b;").unwrap(),
+    );
+    assert_eq!(
         parse!(parser, "take Foo[1, 2, 3];").unwrap(),
         parse!(parser, "take Foo[1 2 3];").unwrap(),
     );
     assert_eq!(
         parse!(parser, "take Foo[1 2, 3];").unwrap(),
         parse!(parser, "take Foo[1 2 3];").unwrap(),
+    );
+    assert_eq!(
+        parse!(parser, r#"
+        take {A &B:C} = (c;)  M;
+        "#).unwrap(),
+        parse!(parser, r#"
+        take {A &B:C} = (c;), M,;
+        "#).unwrap(),
+    );
+    assert_eq!(
+        parse!(parser, r#"
+        take {A &B:C} = (c;),;
+        "#).unwrap(),
+        parse!(parser, r#"
+        take {A &B:C} = (c;);
+        "#).unwrap(),
     );
     assert_eq!(
         parse!(parser, "take Foo[1 @ 2, 3];").unwrap(),
