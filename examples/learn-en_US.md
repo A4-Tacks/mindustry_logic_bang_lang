@@ -1876,6 +1876,16 @@ Foo! +I;
 ```
 
 
+## Tmp Handle in Statement
+```
+inline {
+    take+Num;
+    read Num cell1 i;
+}
+read {Num} cell1 i;
+```
+
+
 ## Cmp Deps Quick Take
 ```
 const C = goto({

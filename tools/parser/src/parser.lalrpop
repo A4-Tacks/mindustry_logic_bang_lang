@@ -518,7 +518,11 @@ ArgsSL: Args = {
         args.into()
     },
 }
-SLValue: Value = SLAtom<Value>;
+SLValue: Value = {
+    <SLAtomImpl<MBlock<LocalVar>>> => <>.into(),
+    <MBlock<LocalVar>> => <>.into(),
+    SLAtom<Value>,
+}
 ArgRestSL: Vec<Value> = <fst:LinePack<Value>> <mut rest:Args0G<(","? <SLValue>)>> => {
     rest.insert(0, fst);
     rest
@@ -542,39 +546,45 @@ ParamArgsAtom: Value = {
     <Value>,
 };
 #[inline]
-SLAtom<V>: Value = {
+SLAtom<V>: V = {
+    V,
+    SLAtomImpl<SimpVar<V>> => <>.into(),
+};
+#[inline]
+SLAtomImpl<V>: V = {
     <V> "++" => {
-        let tmp = meta.get_tmp_var();
-        meta.add_line_dep(Take(tmp.clone().into(), <>).into());
         meta.add_line_post(Op::Add(
-            tmp.clone().into(),
-            tmp.clone().into(),
+            <>.clone().into(),
+            <>.clone().into(),
             ReprVar("1".into()),
         ).into());
-        tmp.into()
+        <>.into()
     },
     <V> "--" => {
-        let tmp = meta.get_tmp_var();
-        meta.add_line_dep(Take(tmp.clone().into(), <>).into());
         meta.add_line_post(Op::Sub(
-            tmp.clone().into(),
-            tmp.clone().into(),
+            <>.clone().into(),
+            <>.clone().into(),
             ReprVar("1".into()),
         ).into());
-        tmp.into()
+        <>.into()
     },
-    V,
+};
+LocalVar: Var = Var => {
+    meta.add_line_dep(Take(
+        <>.clone().into(),
+        DExp::new_nores(vec![].into()).into(),
+    ).into());
+    <>
+};
+SimpVar<V>: Var = V => {
+    let tmp = meta.get_tmp_var();
+    meta.add_line_dep(Take(tmp.clone().into(), <>.into()).into());
+    tmp
 };
 ParamArgsAtomC: Value = <ParamArgsAtom> ","?;
 #[inline]
 ParamArgsSLAtomInner: Value = {
-    "+" <Var> => {
-        meta.add_line_dep(Take(
-            <>.clone().into(),
-            DExp::new_nores(vec![].into()).into(),
-        ).into());
-        <>.into()
-    },
+    "+" <LocalVar> => <>.into(),
     ParamArgsAtom,
 }
 ParamArgsSLAtom: Value = <SLAtom<ParamArgsSLAtomInner>> ","?;

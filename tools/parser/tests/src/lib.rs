@@ -2683,6 +2683,31 @@ fn quick_dexp_take_test() {
         }
         "#).unwrap(),
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+        read {X} cell1 i;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take X = ();
+            read X cell1 i;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        read {X}++ cell1 i;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take X = ();
+            read X cell1 i;
+            X = X + `1`;
+        }
+        "#).unwrap(),
+    );
 }
 
 #[test]
