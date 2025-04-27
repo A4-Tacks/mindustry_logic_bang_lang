@@ -235,3 +235,6 @@ mindustry_logic_bang_lang
 3. **mindcode**:
    [code](./examples/pascals_triangle.mnd)
    *目前暂未编译*
+
+# 贡献
+详见 [CONTRIBUTING.md](./CONTRIBUTING.md).

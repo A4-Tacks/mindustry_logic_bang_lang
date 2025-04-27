@@ -251,3 +251,6 @@ A simple example for comparison
 3. **mindcode**:
    [code](./examples/pascals_triangle.mnd)
    *Currently not compiled*
+
+# Contributing
+See [CONTRIBUTING.md](./CONTRIBUTING.md).
