@@ -5022,6 +5022,60 @@ macro_rules! make_assign_oper {
     };
 }
 
+/// if elif1 elif2 else -> gotos else elif2 elif1 if
+pub fn make_if<I>(
+    meta: &mut Meta,
+    branches: I,
+    else_: Option<LogicLine>,
+) -> LogicLine
+where I: IntoIterator<Item = (CmpTree, LogicLine)>,
+      I::IntoIter: DoubleEndedIterator,
+{
+    let mut branches = branches.into_iter();
+
+    let mut lines = vec![];
+    let mut bodys = vec![];
+    let end = meta.get_tag();
+    let mut single = false;
+    let mut single = |bodys: &mut Vec<LogicLine>| {
+        if single {
+            bodys.push(Goto(end.clone(), JumpCmp::Always.into()).into())
+        }
+        single = true;
+    };
+
+    let (last_elif_cmp, last_elif_body) = branches.next_back().unwrap();
+
+    for (cmp, body) in branches {
+        let tag = meta.get_tag();
+        lines.push(Goto(tag.clone(), cmp).into());
+
+        single(&mut bodys);
+        bodys.push(body);
+        bodys.push(LogicLine::Label(tag));
+    }
+
+    single(&mut bodys);
+    if let Some(else_) = else_ {
+        let lasttag = meta.get_tag();
+        lines.push(Goto(lasttag.clone(), last_elif_cmp).into());
+
+        bodys.push(last_elif_body);
+        bodys.push(LogicLine::Label(lasttag));
+
+        bodys.push(Goto(end.clone(), JumpCmp::Always.into()).into());
+        bodys.push(else_);
+    } else {
+        bodys.push(last_elif_body);
+        lines.push(Goto(end.clone(), last_elif_cmp.reverse()).into());
+    }
+
+    lines.extend(bodys.into_iter().rev());
+    lines.push(LogicLine::Label(end));
+
+    LogicLine::Expand(lines.into())
+}
+
 pub mod op_expr_tools {
     use super::{LogicLine, Meta, OpExprInfo, Value};
 

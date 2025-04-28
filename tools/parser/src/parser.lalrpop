@@ -27,6 +27,7 @@ use ::syntax::{
     op_expr_build_results,
     op_expr_tools::TOP_ASSIGN_OPER,
     make_assign_oper,
+    make_if,
     OpExprInfo,
     OpExprAOperFun,
     JumpCmp,
@@ -1555,54 +1556,13 @@ ControlWithoutOptionalEnd: LogicLine = {
 ControlWithOptionalEnd: LogicLine = {
     "if" <cmp:JumpCmpOnce> <body:Block>
         <elifs:("elif" <JumpCmpOnce> <Block>)*>
-        <else_body:("else" <LogicLine>)?> => {
-
-        // 对于没有elif和else的直接优化成skip
-        if elifs.is_empty() && else_body.is_none() {
-            let lab = meta.get_tag();
-            return Expand(vec![
-                Goto(lab.clone(), cmp.reverse()).into(),
-                body,
-                LogicLine::new_label(lab, meta),
-            ]).into()
-        }
-
-        let end = meta.get_tag();
-        let true_start = meta.get_tag();
-        let mut elif_tags = Vec::with_capacity(elifs.len());
-        elif_tags.extend((0..elifs.len()).map(|_| meta.get_tag())); // build elif tags
-        let (mut elif_cmps, mut elif_bodys) = (
-            Vec::with_capacity(elifs.len()),
-            Vec::with_capacity(elifs.len())
-        );
-        let elif_count = elifs.len();
-        for (cmp, body) in elifs {
-            elif_cmps.push(cmp);
-            elif_bodys.push(body);
-        }
-        debug_assert_eq!(elif_cmps.len(), elif_count);
-
-        let mut res = Vec::new();
-        res.push(Goto(true_start.clone(), cmp).into()); // true jump
-        for (cmp, tag) in elif_cmps.into_iter().zip(&elif_tags) {
-            res.push(Goto(tag.clone(), cmp).into()); // true jump
-        }
-        else_body.map(|body| res.push(body));
-        res.push(Goto(end.clone(), JumpCmp::Always.into()).into()); // jump always to end
-
-        // elif body
-        for (tag, body) in elif_tags.into_iter().zip(elif_bodys) {
-            res.push(LogicLine::new_label(tag, meta));
-            res.push(body);
-            res.push(Goto(end.clone(), JumpCmp::Always.into()).into()); // jump always to end
-        }
-
-        // true body
-        res.push(LogicLine::new_label(true_start, meta));
-        res.push(body);
-        res.push(LogicLine::new_label(end, meta));
-
-        Expand(res).into()
+        <else_body:("else" <LogicLine>)?> =>
+    {
+        make_if(
+            meta,
+            std::iter::once((cmp, body)).into_iter().chain(elifs),
+            else_body,
+        )
     },
 }
 // vim:nowrap

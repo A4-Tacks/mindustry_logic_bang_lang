@@ -158,12 +158,43 @@ fn control_test() {
             goto :___3 4 < 5;
             print 4;
             goto :___0 _;
+            :___3 {
+                print 3;
+            }
+            goto :___0 _;
             :___2 {
                 print 2;
             }
             goto :___0 _;
-            :___3 {
+            :___1 {
+                print 1;
+            }
+            :___0
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        if 2 < 3 {
+            print 1;
+        } elif 3 < 4 {
+            print 2;
+        } elif 4 < 5 {
+            print 3;
+        }
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            goto :___1 2 < 3;
+            goto :___2 3 < 4;
+            goto :___0 !4 < 5;
+            {
                 print 3;
+            }
+            goto :___0 _;
+            :___2 {
+                print 2;
             }
             goto :___0 _;
             :___1 {
@@ -1273,12 +1304,48 @@ fn in_const_const_label_rename_test() {
             do {
                 op i i + 1;
             } while i < 10;
+            if a {
+                a1;
+            } elif b {
+                b1;
+            } elif c {
+                c1;
+            } else {
+                d1;
+            }
+            if a {
+                a1;
+            } elif b {
+                b1;
+            } elif c {
+                c1;
+            }
+            if a {
+                a1;
+            } else {
+                d1;
+            }
         );
         take __ = X;
         take __ = X;
     );
     take __ = X;
     take __ = X;
+    "#).unwrap();
+    let meta = CompileMeta::new();
+    let tag_codes = meta.compile(ast);
+    let _logic_lines = tag_codes.compile().unwrap();
+
+    let ast = parse!(parser, r#"
+    const Duplicate = (
+        take _0 _0;
+    );
+    const C = (
+        x = if c ? 1 : 2;
+        y = 1+(if c ? 3 : 4);
+    );
+    Duplicate! C;
+    Duplicate! C;
     "#).unwrap();
     let meta = CompileMeta::new();
     let tag_codes = meta.compile(ast);

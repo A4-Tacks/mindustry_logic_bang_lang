@@ -271,7 +271,7 @@ checksum = "30bde2b3dc3671ae49d8e2e9f044c7c005836e7a023ee57cffa25ab82764bb9e"
 
 [[package]]
 name = "logic_lint"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "lazy-regex",
  "tag_code",
@@ -293,7 +293,7 @@ checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
 name = "mindustry_logic_bang_lang"
-version = "0.18.27"
+version = "0.19.0"
 dependencies = [
  "display_source",
  "logic_lint",
@@ -339,7 +339,7 @@ dependencies = [
 
 [[package]]
 name = "parser"
-version = "0.3.46"
+version = "0.3.47"
 dependencies = [
  "lalrpop",
  "lalrpop-util",
@@ -350,7 +350,7 @@ dependencies = [
 
 [[package]]
 name = "parser-tests"
-version = "0.1.66"
+version = "0.1.67"
 dependencies = [
  "either",
  "parser",
@@ -540,7 +540,7 @@ dependencies = [
 
 [[package]]
 name = "syntax"
-version = "0.2.64"
+version = "0.2.65"
 dependencies = [
  "either",
  "itermaps",

@@ -17,11 +17,7 @@ pub struct Line<'a> {
     args: Vec<Var<'a>>,
 }
 impl<'a> Line<'a> {
-    pub fn from_line(lineno: usize, s: &'a str) -> Self {
-        let logic_args = mdt_logic_split_unwraped(s);
-        assert_ne!(
-            logic_args.len(), 0,
-            "line args count by zero ({})", lineno);
+    pub fn from_line(lineno: usize, logic_args: &[&'a str]) -> Self {
         let args = logic_args
             .into_iter()
             .enumerate()
@@ -82,13 +78,21 @@ impl<'a> Source<'a> {
         let env_assignables = &[
             "@counter",
         ][..];
+        let mut lineno = 0;
         let lines = s.lines()
             .map(str::trim_start)
             .filter(|line| !(line.starts_with('#') || line.is_empty()))
-            .enumerate()
-            .map(|(lineno, line)| Line::from_line(lineno, line))
-            .filter(|line| {
-                line.args().len() != 1 || !line.args()[0].ends_with(':')
+            .map(mdt_logic_split_unwraped)
+            .filter_map(|args| {
+                assert_ne!(args.len(), 0,
+                    "line {} args count by zero", lineno);
+                match args[..] {
+                    [fst] if fst.ends_with(':') => return None,
+                    _ => (),
+                }
+                let line = Line::from_line(lineno, &args);
+                lineno += 1;
+                Some(line)
             })
             .collect::<Vec<_>>();
 
@@ -327,5 +331,27 @@ mod tests {
                 WarningLint::SuspectedValueCmd,
             ),
         ]);
+    }
+
+    #[test]
+    fn todo_test() {
+        let s = r#"
+            jump __0_const__0____0 notEqual c false
+            set x 2
+            jump __1_const__0____1 always 0 0
+            __0_const__0____0:
+            set x 1
+            __1_const__0____1:
+            end
+            jump __2_const__0____0 notEqual c false
+            set x 2
+            jump __3_const__0____1 always 0 0
+            __2_const__0____0:
+            set x 1
+            __3_const__0____1:
+            end
+        "#;
+        let src = Source::from_str(s);
+        src.show_lints();
     }
 }

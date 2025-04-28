@@ -18,13 +18,13 @@ end;
 #* 以上代码会被展开为
 set n 2
 jump 10 lessThan n 0
-jump 6 equal n 1
-jump 8 greaterThan n 0
+jump 8 equal n 1
+jump 6 greaterThan n 0
 print "n == 0"
 jump 11 always 0 0
-print "n == 1"
-jump 11 always 0 0
 print "n > 0"
+jump 11 always 0 0
+print "n == 1"
 jump 11 always 0 0
 print "n < 0"
 end
