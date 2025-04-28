@@ -126,18 +126,18 @@ write 2 bank1 bank1.top
 op add bank1.top bank1.top 1
 write 1 bank1 bank1.top
 read a bank1 bank1.top
-op sub __42 bank1.top 1
-read b bank1 __42
-op sub __54 __42 1
-read c bank1 __54
+op sub __41 bank1.top 1
+read b bank1 __41
+op sub __53 __41 1
+read c bank1 __53
 print a
 print b
 print c
 write a bank1 bank1.top
-op sub __82 bank1.top 1
-write b bank1 __82
-op sub __94 __82 1
-write c bank1 __94
+op sub __81 bank1.top 1
+write b bank1 __81
+op sub __93 __81 1
+write c bank1 __93
 op sub bank1.top bank1.top 1
 read x bank1 bank1.top
 op sub bank1.top bank1.top 1

@@ -26,9 +26,9 @@ take Res = Foo[2 3 goto(_0 < _1 && _1 > 10)];
 jump 3 equal 2 3
 jump 3 greaterThanEq 2 3
 jump 5 greaterThan 3 10
-set __0 3
+set __3 3
 jump 0 always 0 0
-set __0 2
+set __3 2
 *#
 # 可以看到, 非常完美, 并没有因为注入比较产生多余的比较
 

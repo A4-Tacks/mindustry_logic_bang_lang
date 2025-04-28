@@ -86,9 +86,10 @@ print "expected"
 print "unexpected"
 jump 3 always 0 0
 *#
+
 # 可以看到, 并没有跳到Run里面的:x, 而是闭包捕获到的
 # 如果我们将闭包去掉的话, 会得到我们不希望看到的, 如下
-#* >>>
+#*
 print "expected"
 print "unexpected"
 jump 1 always 0 0

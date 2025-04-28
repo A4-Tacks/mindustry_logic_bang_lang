@@ -31,7 +31,7 @@ print 1
 printflush message1
 *#
 
-take N = (set $ (?1+2););
+take N = (`set` $ (?1+2););
 print N;
 #* >>>
 print 3

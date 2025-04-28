@@ -22,7 +22,7 @@ while i < length {
 }
 control enabled switch1 true 0 0 0;
 
-#* 以上程序会生成的代码
+#* >>>
 wait 0.1
 sensor __0 switch1 @enabled
 jump 0 notEqual __0 false

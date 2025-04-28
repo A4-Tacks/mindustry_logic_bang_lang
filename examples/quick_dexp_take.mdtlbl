@@ -20,6 +20,7 @@
 *   但是在你使用Func的地方这个外部量被遮蔽了.
 *#
 
+
 # 以下为一些使用实例
 const Add = (
     take A = _0;
@@ -36,12 +37,12 @@ print "1+2" Add[1 2];
 print "1+2+1" AddOne[Add[1 2]];
 #* >>>
 print "1+2"
-op add __0 1 2
-print __0
-print "1+2+1"
 op add __2 1 2
-op add __1 __2 1
-print __1
+print __2
+print "1+2+1"
+op add __7 1 2
+op add __4 __7 1
+print __4
 *#
 # 可以看到, 这可以使我们在需要传参并立即使用返回值时更加简洁
 # 但是你依旧需要谨记这个语法的原理与坑! 它是一个DExp!
@@ -64,14 +65,14 @@ print "方案2";
 take[Add[1 2]] Do;
 #* >>>
 print "方案1"
-op add __0 1 2
+op add __2 1 2
 print "start"
-print __0
+print __2
 print "stop"
 print "方案2"
 print "start"
-op add __1 1 2
-print __1
+op add __7 1 2
+print __7
 print "stop"
 *#
 # 这是两个方案, 乍一眼看去似乎没有毛病

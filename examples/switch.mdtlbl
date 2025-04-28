@@ -25,7 +25,7 @@ switch i {
         print "穿透到5\n";
 }
 printflush message1;
-#* 以上代码会生成如下结构:
+#* >>>
 set i 4
 op add @counter @counter i
 jump 8 always 0 0

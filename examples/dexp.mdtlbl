@@ -55,7 +55,7 @@
  *#
 
 set x (op a 1 + 2; op $ a + 2;);
-#* 会被编译为:
+#* >>>
 op add a 1 2
 op add __0 a 2
 set x __0

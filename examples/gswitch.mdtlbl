@@ -44,12 +44,11 @@ set x 2
 set y 2
 op mul __1 x 2
 op add @counter @counter __1
-jump 10 lessThan y 1
-jump 12 always 0 0
+jump 9 lessThan y 1
+jump 11 always 0 0
 jump 0 always 0 0
-jump 14 always 0 0
-jump 14 always 0 0
-jump 10 always 0 0
+jump 13 always 0 0
+jump 13 always 0 0
 print "Foo && y<1"
 jump 0 always 0 0
 print "Foo"

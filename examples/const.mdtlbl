@@ -18,7 +18,7 @@ print N;
 print "F: ";
 print F;
 
-#* 以上代码会被编译为:
+#* >>>
 print "N: "
 print 2
 print "F: "
@@ -41,7 +41,7 @@ print X;
 }
 print X;
 
-#* 以上代码会被编译为
+#* >>>
 print X
 print 2
 print 3
@@ -66,7 +66,7 @@ const FOO = (
     print "返回值为: " RES;
 }
 
-#* 以上代码会被编译为:
+#* >>>
 print "传入值为: "
 print 2
 print "\n"
@@ -86,7 +86,7 @@ const B = A;
 const A = 2;
 print B;
 
-#* 以上代码会被编译为
+#* >>>
 print 1
 *#
 # 如果在之前的版本它会被编译为`print 2`, 这显然不是我们所预期的
@@ -110,16 +110,16 @@ const DoOp = (
 );
 
 const Add = (
-    op $ _0 + _1;
+    {op $ _0 + _1;} # 用代码块避开某个确定性优化
 );
 
 take[Add 1 2] RES = DoOp;
 print RES;
 
-#* 以上代码会被编译为
-op add __1 1 2
-set __0 __1
-print __0
+#* >>>
+op add __6 1 2
+set __3 __6
+print __3
 *#
 # 我们可以看到, 我们传入的Add成功起效, 这可以提供更高的代码复用与抽象
 # 但是, 我们还可以看到, 我们经过了一次无操作赋值, 这是`$ = RES`带来的

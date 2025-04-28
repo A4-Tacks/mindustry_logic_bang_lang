@@ -15,7 +15,7 @@ case 2: print 2;
 }
 end;
 
-#* 以上代码会被编译为
+#* >>>
 op mul __0 1 2
 op add @counter @counter __0
 print 0

@@ -15,7 +15,7 @@ if n < 0 {
     print "n == 0";
 end;
 
-#* 以上代码会被展开为
+#* >>>
 set n 2
 jump 10 lessThan n 0
 jump 8 equal n 1
@@ -30,12 +30,46 @@ print "n < 0"
 end
 *#
 
+
+# 不含else的一系列elif具有优化
+n = 2;
+if n < 0 {
+    print "n < 0";
+} elif n == 1 {
+    print "n == 1";
+} elif n > 0 {
+    print "n > 0";
+}
+end;
+#* Li >>>
+    set n 2
+    jump ___1 lessThan n 0
+    jump ___2 equal n 1
+    jump ___0 lessThanEq n 0
+    print "n > 0"
+    jump ___0 always 0 0
+___2:
+    print "n == 1"
+    jump ___0 always 0 0
+___1:
+    print "n < 0"
+___0:
+    end
+*#
+
+
 skip n > 5 {
     print "! (n > 5)";
 }
 end;
 
-#* 以上代码会被展开为
+
+skip n > 5 {
+    print "! (n > 5)";
+}
+end;
+
+#* >>>
 jump 2 greaterThan n 5
 print "! (n > 5)"
 end
@@ -43,12 +77,24 @@ end
 # 由此可以看到, skip相当于构建了一个跨越这个块的goto
 
 
+# 单独的if会被转换成skip
+if a <= 5 {
+    print "a < 5";
+}
+end;
+#* >>>
+jump 2 greaterThan a 5
+print "a < 5"
+end
+*#
+
+
 while n < 2 {
     op n n + 1;
 }
 end;
 
-#* 以上代码会被展开为
+#* >>>
 jump 3 greaterThanEq n 2
 op add n n 1
 jump 1 lessThan n 2
@@ -66,7 +112,7 @@ do {
     op n n + 1;
 } while n < 6;
 
-#* 以上代码会被展开为
+#* >>>
 op add n n 1
 jump 0 lessThan n 6
 *#
@@ -76,7 +122,7 @@ jump 0 lessThan n 6
 op n n + 1;
 goto :x n < 9;
 
-#* 以上代码会被展开为
+#* >>>
 op add n n 1
 jump 0 lessThan n 9
 *#
@@ -127,7 +173,6 @@ jump 4 always 0 0
 print 1
 print "is one!"
 print 2
-jump 0 always 0 0
 *#
 # select是原始版本, 没有switch那么多的功能,
 # 但是相比switch的好处是不用编写case, 直接跳转到指定行

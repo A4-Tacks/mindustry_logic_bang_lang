@@ -14,7 +14,7 @@ take NUM_1 = F;
 print NUM_1;
 print NUM_1;
 
-#* 以上代码会被编译为
+#* >>>
 read __0 cell1 0
 print __0
 print __0

@@ -17,13 +17,13 @@ const DoOp = (
     setres RES;
 );
 
-take[(op $ _0 + _1;) 1 2] RES = DoOp;
+take[({op $ _0 + _1;}) 1 2] RES = DoOp;
 
 print RES;
 
 #* >>>
-op add __1 1 2
-print __1
+op add __6 1 2
+print __6
 *#
 
 # 可以看到, 在有了setres后, 零开销抽象更加完备了

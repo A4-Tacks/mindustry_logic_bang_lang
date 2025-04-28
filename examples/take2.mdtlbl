@@ -35,7 +35,7 @@ take[(
     print "hello";
 )] DO;
 
-#* 以上代码会被编译为
+#* >>>
 print "enter"
 print "hello"
 print "exit"
@@ -53,13 +53,14 @@ const ADD = (
     op $ $ * N;
 );
 
-take[(op $ 3 + 4;)] RES = ADD;
+# 这里如果不写{}的话, 可以利用编译期评估来计算常量
+take[({op $ 3 + 4;})] RES = ADD;
 print RES;
-#* 以上代码会被编译为
-op add __1 3 4
-op add __0 __1 1
-op mul __0 __0 __1
-print __0
+#* >>>
+op add __2 3 4
+op add __1 __2 1
+op mul __1 __1 __2
+print __1
 *#
 # 首先ADD头部的take会先将传入的DExp计算出来
 # 然后再使用
@@ -72,14 +73,14 @@ const ADD = (
     op $ $ * _0;
 );
 
-take[(op $ 3 + 4;)] RES = ADD;
+take[({op $ 3 + 4;})] RES = ADD;
 print RES;
-#* 以上代码会被编译为
-op add __1 3 4
-op add __0 __1 1
+#* >>>
 op add __2 3 4
-op mul __0 __0 __2
-print __0
+op add __1 __2 1
+op add __3 3 4
+op mul __1 __1 __3
+print __1
 *#
 # 我们可以看到, 3 + 4被重复计算了
 # 这就是先使用take计算出来的意义
@@ -90,7 +91,7 @@ const PRINT2 = (
     print _0 _1;
 );
 take[123 456] PRINT2;
-#* 以上代码会被编译为
+#* >>>
 print 123
 print 456
 *#

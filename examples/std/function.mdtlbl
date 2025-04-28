@@ -130,13 +130,17 @@ print "foo: "Foo[];
 printflush message1;
 
 #* >>>
-op add __6.define_line @counter 1
 jump 7 always 0 0
+set __6.b 2
+set __6.a 1
+op add __6.ret_counter @counter 1
+set @counter __6.define_line
+set __31.result __6.result
+set @counter __31.ret_counter
+op add __6.define_line @counter 1
+jump 11 always 0 0
 op add __6.result __6.a __6.b
 set @counter __6.ret_counter
-jump 7 always 0 0
-set __71.result 3
-set @counter __71.ret_counter
 set __6.b 2
 set __6.a 1
 op add __6.ret_counter @counter 1
@@ -150,8 +154,8 @@ set @counter __6.define_line
 print __6.result
 print "\n"
 print "foo: "
-op add __71.ret_counter @counter 1
-jump 5 always 0 0
-print __71.result
+op add __31.ret_counter @counter 1
+jump 1 always 0 0
+print __31.result
 printflush message1
 *#

@@ -2,9 +2,9 @@
  * 语法为`print Args`
  *#
 
-print "num: " (op $ 1 + 2;) "\n";
+ print "num: " ({op $ 1 + 2;}) "\n";
 
-#* 以上代码会被编译为
+#* >>>
 print "num: "
 op add __0 1 2
 print __0

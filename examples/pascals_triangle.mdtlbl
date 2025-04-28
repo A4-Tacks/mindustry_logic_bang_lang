@@ -206,11 +206,11 @@ set i 3
 write 1 cell1 0
 set j 1
 jump 15 greaterThanEq 1 lastSize
-op sub __85 j 1
-read __84 cell2 __85
-read __87 cell2 j
-op add __82 __84 __87
-write __82 cell1 j
+op sub __107 j 1
+read __106 cell2 __107
+read __109 cell2 j
+op add __104 __106 __109
+write __104 cell1 j
 op add j j 1
 jump 8 lessThan j lastSize
 write 1 cell1 lastSize
@@ -220,8 +220,8 @@ jump 27 greaterThanEq 0 lastSize
 read cur_c cell1 c
 print cur_c
 write cur_c cell2 c
-op sub __133 lastSize 1
-jump 25 greaterThanEq c __133
+op sub __169 lastSize 1
+jump 25 greaterThanEq c __169
 print " "
 op add c c 1
 jump 19 lessThan c lastSize

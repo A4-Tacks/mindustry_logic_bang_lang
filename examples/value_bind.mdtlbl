@@ -27,10 +27,10 @@ const Human_new = (
 take["jack" 18] Human = Human_new;
 print Human Human.age;
 #* >>>
-set __0 "jack"
-set __1 18
-print __0
-print __1
+set __2 "jack"
+set __3 18
+print __2
+print __3
 *#
 # 可以看到, 我们将额外的age绑定到了我们的Human
 # 这可以用来组织一些复杂结构
@@ -56,15 +56,15 @@ take[2 8] Num2 = Complex_new;
 take[Num1 Num2] Num3 = Complex_add;
 print Num3 "," Num3.i;
 #* >>>
-set __0 3
-set __1 5
-set __2 2
-set __3 8
-op add __4 __0 __2
-op add __5 __1 __3
-print __4
+set __2 3
+set __3 5
+set __6 2
+set __7 8
+op add __10 __2 __6
+op add __11 __3 __7
+print __10
 print ","
-print __5
+print __11
 *#
 # 可以看到, 这可以使我们方便的组织数据
 
