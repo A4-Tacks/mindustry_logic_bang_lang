@@ -3504,6 +3504,150 @@ fn op_expr_test() {
         print (y:{$=x;});
         "#).unwrap(),
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = abs((?x,));
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = abs(?x,);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = abs((?x,),);
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = abs(?x,);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = abs((?x));
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = abs(?x);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = abs((?x+1));
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = abs(?x+1);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = abs((?m:x+1));
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = abs(?m:x+1);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = abs((?m:x));
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = abs(?m:x);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = abs((?`m`:x));
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = abs(?`m`:x);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = abs((=x));
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = abs(=x);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = abs((m:=x));
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = abs(m:=x);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = abs((m:=x,));
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = abs(m:=x,);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = abs((m:=x,));
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = abs(m:=x);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = abs((`m`:=x));
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = abs(`m`:=x);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = abs((`m`:=x+1));
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = abs(`m`:=x+1);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x =? abs((`m`:=x+1));
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = abs(`m`:=x+1);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x =* abs((`m`:=x+1));
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = abs(`m`:=x+1);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x = *abs((`m`:=x+1));
+        "#).unwrap(),
+        parse!(parser, r#"
+        x = abs(`m`:=x+1);
+        "#).unwrap(),
+    );
 }
 
 #[test]

@@ -710,7 +710,7 @@ Args2G<V>: Vec<V> = {
 
 #[inline]
 OpExprOp: (OpExprAOperFun, Vec<OpExprInfo>) = {
-    <oper:OpExprAssignOper>
+    <oper:OpExprAssignOper> Or<"?", "*">?
     <mut values:(<OpExprBody> ",")*> <tail:OpExprBody>
     => { values.push(tail); (oper, values) },
 }
@@ -765,16 +765,26 @@ OpExprBodySetR: Expand = OpExprBody => {
 OpExprBodyToValue: Value = OpExprBody => {
     <>.into_value(meta)
 };
-OpExprDExp: DExp = METuple<MakeDExpBody<OpExprBodySetR>>;
-OpExprToValue: Value = MTuple<("*" <OpExprBodyToValue>)>;
-ForceSettedValue: Value = MTuple<(<(<Var> ":")?> "=" <OpExprBody>)> => {
-    let (result, expr) = <>;
-    DExp::new(result.unwrap_or_default(), vec![
-        Expand(vec![
-            expr.into_logic_line(meta, ResultHandle)
-        ]).into(),
-    ].into()).into()
-};
+OpExprDExp: DExp = METuple<(<MakeDExpBody<OpExprBodySetR>> ","?)>;
+OpExprToValue: Value = MTuple<("*" <OpExprBodyToValue> ","?)>;
+ForceSettedValue: Value = {
+    MTuple<(<(<Var> ":")?> "=" <OpExprBody> ","?)> => {
+        let (result, expr) = <>;
+        DExp::new(result.unwrap_or_default(), vec![
+            Expand(vec![
+                expr.into_logic_line(meta, ResultHandle)
+            ]).into(),
+        ].into()).into()
+    },
+    MTuple<(<("`" <Var> "`" ":")> "=" <OpExprBody> ","?)> => {
+        let (result, expr) = <>;
+        DExp::new_notake(result, vec![
+            Expand(vec![
+                expr.into_logic_line(meta, ResultHandle)
+            ]).into(),
+        ].into()).into()
+    },
+}
 
 OpExprAssignOper: OpExprAOperFun = {
     "+="            => { make_assign_oper!(Op::Add      ) },
@@ -907,7 +917,12 @@ OpExprBody1: OpExprInfo = {
     OpExprAtom,
 }
 
-OpExprFun1<Name> = Name <MTuple<(<OpExprBody> ","?)>>;
+OpExprFun1<Name>: OpExprInfo = {
+    Name <MTuple<(<OpExprBody> ","?)>>,
+    Name <OpExprDExp> => OpExprInfo::Value(<>.into()),
+    Name <OpExprToValue> => OpExprInfo::Value(<>),
+    Name <ForceSettedValue> => OpExprInfo::Value(<>),
+}
 OpExprFun2<Name> = Name <MTuple<(<OpExprBody> "," <OpExprBody> ","?)>>;
 
 
