@@ -9,8 +9,9 @@ peg::parser!(pub grammar parser() for str {
     rule _() = quiet!{ [' ' | '\t']+ } / expected!("whitespace")
     rule newline_raw() = quiet!{ "\r"? "\n" } / expected!("newline")
     rule comment() = quiet!{ "#" [^'\r' | '\n']* } / expected!("comment")
+    rule eof() = ![_] / expected!("eof")
     pub(crate) rule nl()
-        = ![_]
+        = _? eof()
         / _? (
             ";"
             / newline_raw()
@@ -47,7 +48,7 @@ peg::parser!(pub grammar parser() for str {
         / args:args()   { args.into() }
 
     pub rule lines() -> ParseLines<'input>
-        = nl()? lines:(
+        = _? nl()? lines:(
                 pos:position!()
                 l:line() nl() { (pos, l).into() }
             )* { lines.into() }
@@ -796,6 +797,15 @@ mod tests {
         jump follow_loop equal ctrl_type @ctrlPlayer # 仅在玩家控制期间进行执行, 玩家解除控制重新寻找
         printflush message1 # clear message
         "#;
+        let lines = parser::lines(&src).unwrap();
+        for line in lines {
+            println!("{line:#}");
+        }
+    }
+
+    #[test]
+    fn first_ws() {
+        let src = r#" end "#;
         let lines = parser::lines(&src).unwrap();
         for line in lines {
             println!("{line:#}");
