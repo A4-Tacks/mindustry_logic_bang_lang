@@ -72,7 +72,7 @@ syn match mdtlblSubSpaceNum /-\zs \%(\S- \)\@<=\ze\d/ conceal
 syn match mdtlblResultHandle /\$/
 syn match mdtlblTmpHandleDeclare /+\k\+/hs=s+1 contained nextgroup=mdtlblTmpHandleDeclare skipwhite
 syn match mdtlblTmpHandle /\v[ \t]@1<=\+\k+/ms=s+1
-syn match mdtlblTmpHandle /{\k\+}/hs=s+1,he=e-1
+syn match mdtlblTmpHandle /[ \t]\@1<={\k\+}/hs=s+1,he=e-1
 syn match mdtlblBinder /\.\./
 
 " Label And ResultH {{{1
