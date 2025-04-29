@@ -49,3 +49,62 @@ TimeIt! (?count:100)
 ;
 printflush message1;
 stop;
+
+#* Li >>>
+    printflush message1
+    printflush message1
+    set count 100
+    sensor __8 @this @timescale
+    op mul __7 @ipt __8
+    set __11 0
+    set __19 @tick
+__0_const___16____0:
+    op add _x "a" "b"
+    op add __11 __11 1
+    jump __0_const___16____0 lessThan __11 count
+    op sub __21 @tick __19
+    op div __25 __21 count
+    op mul __24 __25 __7
+    op sub __23 __24 1.5
+    op floor __22 __23 0
+    print "case1"
+    print ": "
+    print __22
+    print "lines\n"
+    set __30 0
+    set __38 @tick
+__1_const___35____0:
+    op add __39 "a" "b"
+    set _x __39
+    op add __30 __30 1
+    jump __1_const___35____0 lessThan __30 count
+    op sub __41 @tick __38
+    op div __45 __41 count
+    op mul __44 __45 __7
+    op sub __43 __44 1.5
+    op floor __42 __43 0
+    print "case2"
+    print ": "
+    print __42
+    print "lines\n"
+    set __50 0
+    set __58 @tick
+__2_const___55____0:
+    noop
+    noop
+    op add __59 "a" "b"
+    set _x __59
+    op add __50 __50 1
+    jump __2_const___55____0 lessThan __50 count
+    op sub __61 @tick __58
+    op div __65 __61 count
+    op mul __64 __65 __7
+    op sub __63 __64 1.5
+    op floor __62 __63 0
+    print "case3"
+    print ": "
+    print __62
+    print "lines\n"
+    printflush message1
+    stop
+*#

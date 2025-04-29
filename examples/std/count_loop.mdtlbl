@@ -45,3 +45,25 @@ i = 0; do {
 } while (*++i) < 10;
 
 printflush message1;
+
+#* Lil >>>
+    set i 0
+___0:
+    print i
+    print ":"
+    set __7 0
+    op mod __32 i 4
+    op sub __31 4 __32
+    op add @counter @counter __31
+__0_const_CountLoop_x:
+    print i
+    print i
+    print i
+    print i
+    op add __7 __7 4
+    jump __0_const_CountLoop_x lessThanEq __7 i
+    print "\n"
+    op add i i 1
+    jump ___0 lessThan i 10
+    printflush message1
+*#
