@@ -82,6 +82,16 @@ Bang 提供了一个灵活的大型常量系统,
   print x;
   ```
 
+- [从内存同步](./examples/std/mempack.mdtlbl)
+  ```
+  MemPack! cell1 0, num foo;
+
+  num.Store! 2;
+  foo.Write! 3;
+
+  print num", "foo.Load[];
+  ```
+
 - [基准测试](./examples/std/timeit.mdtlbl)
   ```
   TimeIt! 100 # 测试次数

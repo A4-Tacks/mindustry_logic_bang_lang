@@ -80,6 +80,16 @@ Copy and paste the tool code into your code to use it
   print x;
   ```
 
+- [Sync From Memory](./examples/std/mempack.mdtlbl)
+  ```
+  MemPack! cell1 0, num foo;
+
+  num.Store! 2;
+  foo.Write! 3;
+
+  print num", "foo.Load[];
+  ```
+
 - [Benchmark](./examples/std/timeit.mdtlbl)
   ```
   TimeIt! 100 # testing rounds

@@ -1,0 +1,89 @@
+#**
+* 用于方便的在多个逻辑中利用共享内存块传递数字,
+* 进行简单的包装, 避免直接使用地址进行不利于维护的读写
+*
+* Load: 读取内存并更新值
+* Store: 更新值并写入内存
+* Read: 仅读取内存
+* Write: 仅写入内存
+* Exchange: 将本地值和内存值交换, 或写入本地值并读入内存值
+*#
+
+Builtin.BindSep! '.';
+Builtin.MissesMatch! 1;
+
+const MemPack = (match @ {
+    [@impl] Mem Addr $Handle {
+        const $.Mem = Mem;
+        const $.Addr = Addr;
+        const $.Store = ([Mem Addr ..H](match @ {
+            {
+                setres H;
+                write H Mem Addr;
+            }
+            Value {
+                H = Value;
+                setres H.Store[];
+            }
+        }));
+        const $.Load = ([Mem Addr ..H](match @ {
+            {
+                setres H;
+                read H Mem Addr;
+            }
+            Result {
+                setres H;
+                Result = H;
+                read H Mem Addr;
+            }
+        }));
+        const $.Read = ([Mem Addr ..H](match @ {
+            {
+                read $ Mem Addr;
+            }
+            $Result {
+                read Result Mem Addr;
+            }
+        }));
+        const $.Write = ([Mem Addr ..H](match @ {
+            Value {
+                setres H;
+                write Value Mem Addr;
+            }
+        }));
+        const $.Exchange = ([Mem Addr ..H](match @ {
+            $Result {
+                read Result Mem Addr;
+                write H Mem Addr;
+            }
+            {
+                setres H;
+                H.Exchange! +Tmp;
+                H = Tmp;
+            }
+        }));
+    }
+    Mem Addr Fst @ {
+        MemPack! @impl Mem Addr Fst;
+        inline@ Handle {
+            take*Addr = Addr+1;
+            MemPack! @impl Mem Addr Handle;
+        }
+    }
+});
+
+MemPack! cell1 0, num foo;
+
+num.Store! 2;
+foo.Write! 3;
+
+print num", "foo.Load[];
+#* >>>
+set num 2
+write num cell1 0
+write 3 cell1 1
+print num
+print ", "
+read foo cell1 1
+print foo
+*#
