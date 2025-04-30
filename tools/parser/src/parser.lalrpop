@@ -97,7 +97,6 @@ OOCArgs<T, S>: Vec<T> = {
 }
 #[inline]
 Opt<T>: bool = T? => <>.is_some();
-#[inline]
 MakeDExpBody<T>: DExp = {
     <var:(<Var> ":")?> <value:T>
         => DExp::new_optional_res(var, value.into()),
@@ -125,15 +124,15 @@ pub TopLevel: Expand = CtrlStart <mut lines:Expand> <ctrl:CtrlStop> => {
     lines
 };
 
-pub String: Var = r#""(?:\\\r?\n\s*(?:\\ )?|\r?\n|\\[n\\\[]|[^"\r\n\\])*""#
+String: Var = r#""(?:\\\r?\n\s*(?:\\ )?|\r?\n|\\[n\\\[]|[^"\r\n\\])*""#
     => string_escape(<>).into();
-pub Ident: Var = r"[_\p{XID_Start}]\p{XID_Continue}*" => <>.into();
-pub OIdent: Var = r"@[_\p{XID_Start}][\p{XID_Continue}\-]*" => <>.into(); // `@abc-def`这种
+Ident: Var = r"[_\p{XID_Start}]\p{XID_Continue}*" => <>.into();
+OIdent: Var = r"@[_\p{XID_Start}][\p{XID_Continue}\-]*" => <>.into(); // `@abc-def`这种
 pub Number: Var = r"(?:0(?:x-?[\da-fA-F][_\da-fA-F]*|b-?[01][_01]*)|-?\d[_\d]*(?:\.\d[\d_]*|e[+\-]?\d[\d_]*)?)"
     => <>.chars().filter(|&c| c != '_').collect();
 // 原始字面量, 如`'@abc-def'`, 其中双引号会被替换为单引号.
 // 在一对单引号内可以写任意非空字符, 可避开关键字等
-pub OtherVar: Var = r"'[^'\s]+'" => {
+OtherVar: Var = r"'[^'\s]+'" => {
     <>[1..<>.len()-1].replace('"', "\'").into()
 };
 
@@ -259,7 +258,7 @@ JumpCmpBody: JumpCmp = {
 
 // 入口
 pub JumpCmp: CmpTree = CmpTree2;
-pub JumpCmpOnce: CmpTree = CmpTree1;
+JumpCmpOnce: CmpTree = CmpTree1;
 
 // 可空的, 空时为总是的条件
 AlwaysJumpCmp: CmpTree = JumpCmp? => <>.unwrap_or(JumpCmp::Always.into());
@@ -293,12 +292,12 @@ CmpTree4: CmpTree = {
     CmpTree,
 }
 
-pub CmpTree: CmpTree = {
+CmpTree: CmpTree = {
     JumpCmpBody => <>.into(),
     MTuple<JumpCmpOnce>,
 }
 
-pub Op: Op = {
+Op: Op = {
     // 2
     <a:OrShl<Or<"add", "+">, <Value>, <Value>>> <b:Value> => Op::Add(a.0, a.1, b),
     <a:OrShl<Or<"sub", "-">, <Value>, <Value>>> <b:Value> => Op::Sub(a.0, a.1, b),
@@ -383,7 +382,6 @@ pub LogicLine: LogicLine = {
     ConstMatch => <>.into(),
 }
 
-#[inline]
 QuickTake: LogicLine = <value:Loc<NonConstRangeValue>> "!" <args:ParamArgsSL> LEnd => {
     let expand = Expand(vec![
         LogicLine::SetArgs(args),
@@ -528,7 +526,6 @@ ArgRestSL: Vec<Value> = <fst:LinePack<Value>> <mut rest:Args0G<(","? <SLValue>)>
     rest.insert(0, fst);
     rest
 };
-#[inline]
 OtherLogicLine: Args = {
     LinePack<"@"> <suffix:Args0G<SLValue>> => {
         Args::Expanded(vec![], suffix)
@@ -546,12 +543,10 @@ ParamArgsAtom: Value = {
     },
     <Value>,
 };
-#[inline]
 SLAtom<V>: V = {
     V,
     SLAtomImpl<SimpVar<V>> => <>.into(),
 };
-#[inline]
 SLAtomImpl<V>: V = {
     <V> "++" => {
         meta.add_line_post(Op::Add(
@@ -583,7 +578,6 @@ SimpVar<V>: Var = V => {
     tmp
 };
 ParamArgsAtomC: Value = <ParamArgsAtom> ","?;
-#[inline]
 ParamArgsSLAtomInner: Value = {
     "+" <LocalVar> => <>.into(),
     ParamArgsAtom,
@@ -700,7 +694,6 @@ Args1G<V>: Vec<V> = {
     V => vec![<>],
     Args2G<V>,
 }
-#[inline]
 Args2G<V>: Vec<V> = {
     <fst:V> <mut rest:V+> => {
         rest.insert(0, fst);
@@ -708,14 +701,12 @@ Args2G<V>: Vec<V> = {
     },
 }
 
-#[inline]
 OpExprOp: (OpExprAOperFun, Vec<OpExprInfo>) = {
     <oper:OpExprAssignOper> Or<"?", "*">?
     <mut values:(<OpExprBody> ",")*> <tail:OpExprBody>
     => { values.push(tail); (oper, values) },
 }
 
-#[inline]
 OpExpr: LogicLine = {
     <l:@L> <mut results:ArgRestSL> <r:@R> <ops:OpExprOp+> =>? {
         if ops.len() > 1 {
@@ -752,7 +743,6 @@ OpExpr: LogicLine = {
         }))
     }
 }
-#[inline]
 OpExprBodySetR: Expand = OpExprBody => {
     let line = op_expr_build_results(
         meta,
@@ -761,7 +751,6 @@ OpExprBodySetR: Expand = OpExprBody => {
     );
     vec![line].into()
 };
-#[inline]
 OpExprBodyToValue: Value = OpExprBody => {
     <>.into_value(meta)
 };
@@ -1071,7 +1060,7 @@ OpExprValueSelfOps: OpExprInfo = {
 ConstStart: () = () => meta.add_label_scope();
 ConstStop: Vec<Var> = () => Vec::from_iter(meta.pop_label_scope());
 
-pub BuiltinCommand: LogicLine = {
+BuiltinCommand: LogicLine = {
     "const" <mut values:(<ConstKey> "=" ConstStart <Value> <ConstStop> ","?)+> LEnd
     => {
         if values.len() == 1 {
@@ -1172,11 +1161,10 @@ TakeAtomOpt: LogicLine = {
 }
 
 BlockExpand: Expand = MBlock<Expand>;
-pub Block: LogicLine = BlockExpand => <>.into();
+Block: LogicLine = BlockExpand => <>.into();
 
-pub DExp: DExp = MTuple<MakeDExpBody<Expand>>;
+DExp: DExp = MTuple<MakeDExpBody<Expand>>;
 FEDExp: DExp = MFETuple<MakeDExpBody<Expand>>;
-#[inline]
 ValueDExp: Value = DExp => <>.into();
 
 ClosuredValueCatch: ClosuredValueMethod = {
@@ -1187,16 +1175,16 @@ ClosuredValueCatch: ClosuredValueMethod = {
     "&" <name:Var> ":" ConstStart <val:Value> <labels:ConstStop>
         => Const(name.into(), val, labels).into(),
 }
+ClosuredValueCatchs: (
+    Vec<ClosuredValueMethod>,
+    bool,
+    Option<Var>,
+    Option<Vec<Var>>,
+) = {
+    ClosuredValueCatch* Opt<"@"> (".." <Var>)?  ("|" <Label*>)?,
+}
 ClosuredValue: ClosuredValue = {
-    MLTuple<
-        (
-            ClosuredValueCatch*
-            Opt<"@">
-            (".." <Var>)?
-            ("|" <Label*>)?
-        ),
-        (ConstStart <Value> <ConstStop>),
-    > => {
+    MLTuple<ClosuredValueCatchs, (ConstStart <Value> <ConstStop>)> => {
         let ((catchs, catch_args, binder_to, catch_labels), (value, labels)) = <>;
         ClosuredValue::Uninit {
             catch_values: catchs,
@@ -1253,7 +1241,7 @@ ControlBlock: LogicLine = {
     },
 }
 
-pub Control: LogicLine = {
+Control: LogicLine = {
     ControlWithoutOptionalEnd,
     ControlWithOptionalEnd,
 }
@@ -1261,15 +1249,16 @@ ControlBody: LogicLine = {
     Control,
     Block,
 }
+OptConstKey: Option<ConstKey> = ConstKey?;
 GSwitchCase: GSwitchCase = {
     <skip_extra:Opt<"*">> <ids:Loc<Args?>> <guard:("if" <JumpCmp>)?> => GSwitchCase::Normal { skip_extra, ids: ids.map(Option::unwrap_or_default), guard },
-    <skip_extra:Opt<"*">> "<" <to:ConstKey?> => GSwitchCase::Catch { skip_extra, underflow: true, missed: false, overflow: false, to },
-    <skip_extra:Opt<"*">> "!" <to:ConstKey?> => GSwitchCase::Catch { skip_extra, underflow: false, missed: true, overflow: false, to },
-    <skip_extra:Opt<"*">> ">" <to:ConstKey?> => GSwitchCase::Catch { skip_extra, underflow: false, missed: false, overflow: true, to },
-    <skip_extra:Opt<"*">> "<" "!" <to:ConstKey?> => GSwitchCase::Catch { skip_extra, underflow: true, missed: true, overflow: false, to },
-    <skip_extra:Opt<"*">> "!" ">" <to:ConstKey?> => GSwitchCase::Catch { skip_extra, underflow: false, missed: true, overflow: true, to },
-    <skip_extra:Opt<"*">> "<" ">" <to:ConstKey?> => GSwitchCase::Catch { skip_extra, underflow: true, missed: false, overflow: true, to },
-    <skip_extra:Opt<"*">> "<" "!" ">" <to:ConstKey?> => GSwitchCase::Catch { skip_extra, underflow: true, missed: true, overflow: true, to },
+    <skip_extra:Opt<"*">> "<" <to:OptConstKey> => GSwitchCase::Catch { skip_extra, underflow: true, missed: false, overflow: false, to },
+    <skip_extra:Opt<"*">> "!" <to:OptConstKey> => GSwitchCase::Catch { skip_extra, underflow: false, missed: true, overflow: false, to },
+    <skip_extra:Opt<"*">> ">" <to:OptConstKey> => GSwitchCase::Catch { skip_extra, underflow: false, missed: false, overflow: true, to },
+    <skip_extra:Opt<"*">> "<" "!" <to:OptConstKey> => GSwitchCase::Catch { skip_extra, underflow: true, missed: true, overflow: false, to },
+    <skip_extra:Opt<"*">> "!" ">" <to:OptConstKey> => GSwitchCase::Catch { skip_extra, underflow: false, missed: true, overflow: true, to },
+    <skip_extra:Opt<"*">> "<" ">" <to:OptConstKey> => GSwitchCase::Catch { skip_extra, underflow: true, missed: false, overflow: true, to },
+    <skip_extra:Opt<"*">> "<" "!" ">" <to:OptConstKey> => GSwitchCase::Catch { skip_extra, underflow: true, missed: true, overflow: true, to },
 }
 ControlWithoutOptionalEnd: LogicLine = {
     "goto" <Label> <AlwaysJumpCmpOnce> LEnd => {
