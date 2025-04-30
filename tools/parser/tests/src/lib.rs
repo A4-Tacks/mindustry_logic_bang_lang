@@ -1939,6 +1939,18 @@ fn cmptree_test() {
                "foo",
                "end",
     ]);
+
+    assert_eq!(
+        parse!(parser, r#"
+        :x
+        goto :x a < b and c > d or not e != f;
+        "#).unwrap(),
+        parse!(parser, r#"
+        :x
+        goto :x a < b && c > d || ! e != f;
+        "#).unwrap()
+    );
+
 }
 
 #[test]

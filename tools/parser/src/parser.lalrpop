@@ -274,17 +274,17 @@ CmpTree1: CmpTree = {
 }
 
 CmpTree2: CmpTree = {
-    <a:CmpTree2> "||" <b:CmpTree3> => CmpTree::Or(Box::new(a.into()), b.into()),
+    <a:CmpTree2> Or<"||", "or"> <b:CmpTree3> => CmpTree::Or(Box::new(a.into()), b.into()),
     CmpTree3,
 }
 
 CmpTree3: CmpTree = {
-    <a:CmpTree3> "&&" <b:CmpTree4> => CmpTree::And(Box::new(a.into()), b.into()),
+    <a:CmpTree3> Or<"&&", "and"> <b:CmpTree4> => CmpTree::And(Box::new(a.into()), b.into()),
     CmpTree4,
 }
 
 CmpTree4: CmpTree = {
-    Or<"lnot", "!"> <CmpTree4> => <>.reverse(),
+    Or3<"lnot", "not", "!"> <CmpTree4> => <>.reverse(),
     <args:MList<ParamArgs>> <cmp:CmpTree4> => {
         CmpTree::Deps(vec![
             LogicLine::SetArgs(args),

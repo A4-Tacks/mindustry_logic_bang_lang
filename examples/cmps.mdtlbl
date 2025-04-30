@@ -22,3 +22,12 @@ end
 *#
 # 可以看到, 我们的多条件正确的生成了.
 # 我们可以在while skip goto do_while 等地方编写它
+
+
+# 在0.19.3版本中, 可以使用or and not 来表示 || && !
+:x
+goto :x a<b and c>d or not e!=2;
+#* A >>>
+:x
+goto :x ((a < b && c > d) || e == 2);
+*#
