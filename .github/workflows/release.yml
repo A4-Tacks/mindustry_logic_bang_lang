@@ -1,5 +1,3 @@
-name: Rust
-
 permissions:
   contents: write
 
@@ -30,6 +28,7 @@ jobs:
   upload-assets:
     needs: create-release
     strategy:
+      fail-fast: false
       matrix:
         include:
           - target: aarch64-unknown-linux-musl
