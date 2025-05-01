@@ -69,6 +69,10 @@ Var 指的是逻辑语言中一切的 logic-value 逻辑值,
 > 由一个 (xid-start 或下划线) 和若干个 xid-continue 组成一个普通的变量,
 > 例如: `foo_bar` `i` `x2` `你好` `_x`, 而错误的写法例如: `2x` `a-b`
 >
+> 注意, 变量名请不要和 Bang 的关键字冲突,
+> 例如`print` `_` `min` `add` `if` `lessThan` 等都是关键字,
+> 如要作为变量使用请写为 `'print'` `'_'` `'min'` `'add'` `'if'` `'lessThan'`
+>
 > 如果在前面加上`@`符号, 后面类似普通变量, 但是 xid-continue 的部分还允许短横线,
 > 用于逻辑常用的一些环境变量(内置变量), 例如: `@overflow-gate`
 
@@ -1595,6 +1599,23 @@ take Do[const(:x goto :x;)];
 > [!NOTE]
 > 使用这种方式是因为, 传参过程中, 参数不会被记录标签等, 需要经过一下 const,
 > 否则标签不会被重命名, 重复展开就会炸, 所以需要这个语法糖, 使其好看一些
+
+
+## Unquote ignored argument
+```
+ulocate building core false 0 '_' '_' '_' core;
+ulocate building core false 0 _ _ _ core;
+```
+
+```
+ulocate building core false 0 `'_'` `'_'` `'_'` core;
+ulocate building core false 0 `_` `_` `_` core;
+```
+
+```
+F! _;
+F! '_';
+```
 
 
 ## Statement like value op-expr

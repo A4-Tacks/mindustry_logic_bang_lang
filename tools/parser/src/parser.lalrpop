@@ -502,6 +502,10 @@ ConstMatchPatAtom: ConstMatchPatAtom = {
     },
 }
 
+APValueExt: Value = {
+    "_" => Var::from("_").into(),
+    "`" "_" "`" => ReprVar(Var::from("_")),
+}
 Args: Args = {
     <prefix:Args0> "@" <suffix:Args0> => {
         Args::Expanded(prefix, suffix)
@@ -522,6 +526,7 @@ SLValue: Value = {
     <SLAtomImpl<MBlock<LocalVar>>> => <>.into(),
     <MBlock<LocalVar>> => <>.into(),
     SLAtom<Value>,
+    APValueExt,
 }
 ArgRestSL: Vec<Value> = <fst:LinePack<Value>> <mut rest:Args0G<(","? <SLValue>)>> => {
     rest.insert(0, fst);
@@ -542,7 +547,8 @@ ParamArgsAtom: Value = {
     "*" <Value> => {
         ValueBindRef::new(<>.into(), ValueBindRefTarget::ResultHandle).into()
     },
-    <Value>,
+    APValueExt,
+    Value,
 };
 SLAtom<V>: V = {
     V,

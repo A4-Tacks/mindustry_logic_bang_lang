@@ -91,6 +91,11 @@ which are essentially the parts of logic that can be used as literals, such as:
 > A normal variable is composed of one (xid-start or underline) and multiple xid-continue,
 > e.g `foo_bar` `i` `x2` `你好` `_x`, And incorrect usage, for example: `2x` `a-b`
 >
+> Note that variable names should not conflict with Bang keywords,
+> such as `print` `_` `min` `add` `if` `lessThan`, etc.
+> If you want to use them as variables,
+> please write them as `'print'` `'_'` `'min'` `'add'` `'if'` `'lessThan'` etc
+>
 > If the `@` character is added before it, the following part will be similar to a normal variable,
 > but the part of xid-continue allows for extra dashes (`-`),
 >
@@ -1713,6 +1718,23 @@ take Do[const(:x goto :x;)];
 >
 > If there is no renaming, repeating 'take' will result in duplicate label definitions,
 > so this syntax sugar is needed to make it more convenient
+
+
+## Unquote ignored argument
+```
+ulocate building core false 0 '_' '_' '_' core;
+ulocate building core false 0 _ _ _ core;
+```
+
+```
+ulocate building core false 0 `'_'` `'_'` `'_'` core;
+ulocate building core false 0 `_` `_` `_` core;
+```
+
+```
+F! _;
+F! '_';
+```
 
 
 ## Statement like value op-expr

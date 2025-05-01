@@ -9678,3 +9678,41 @@ fn param_inf_len_test() {
         ],
     );
 }
+
+#[test]
+fn underline_sugar_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        parse!(parser, r#"
+        foo _ a;
+        foo `_` a;
+        "#).unwrap(),
+        parse!(parser, r#"
+        foo '_' a;
+        foo `'_'` a;
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        X! _ b;
+          X! `_` b;
+        "#).unwrap(),
+        parse!(parser, r#"
+        X! '_' b;
+        X! `'_'` b;
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        take F[_ c];
+          take F[`_` c];
+        "#).unwrap(),
+        parse!(parser, r#"
+        take F['_' c];
+        take F[`'_'` c];
+        "#).unwrap(),
+    );
+}
