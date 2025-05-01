@@ -768,6 +768,7 @@ pub enum ClosuredValue {
         value: Box<Value>,
         labels: Vec<Var>,
         catch_args: bool,
+        lazy: bool,
     },
     Inited {
         bind_handle: Var,
@@ -775,6 +776,7 @@ pub enum ClosuredValue {
         rename_labels: HashMap<Var, Var>,
         vars: Vec<Var>,
         reset_argc: Option<usize>,
+        lazy: bool,
     },
     /// 操作过程中使用, 过程外不能使用
     Empty,
@@ -802,6 +804,7 @@ impl ClosuredValue {
             value,
             labels,
             catch_args,
+            lazy,
         } = this else { panic!() };
 
         let vars = catch_values.iter()
@@ -845,10 +848,14 @@ impl ClosuredValue {
             rename_labels,
             vars,
             reset_argc,
+            lazy,
         };
     }
 
-    pub fn expand_with<R, F>(mut self, meta: &mut CompileMeta, f: F) -> R
+    pub fn expand_with<F, R>(mut self,
+        meta: &mut CompileMeta,
+        f: F,
+    ) -> R
     where F: FnOnce(Var, &mut CompileMeta) -> R,
     {
         self.catch_env(meta);
@@ -858,6 +865,7 @@ impl ClosuredValue {
             rename_labels,
             vars,
             reset_argc,
+            lazy: _,
         } = self else {
             panic!("closured value uninit, {:?}", self)
         };
@@ -910,9 +918,17 @@ impl ClosuredValue {
 }
 impl TakeHandle for ClosuredValue {
     fn take_handle(self, meta: &mut CompileMeta) -> Var {
+        if let Self::Inited { ref bind_handle, lazy: true, .. } = self {
+            let binded = meta.get_value_binded(
+                bind_handle.clone(),
+                Self::BINDED_VALUE_NAME.into(),
+            );
+            meta.closure_lazy_expands.push(Some(self));
+            return binded.take_handle(meta);
+        }
         self.expand_with(meta, |v, meta| {
-            v.take_handle(meta)
-        })
+            Some(v.take_handle(meta))
+        }).unwrap()
     }
 }
 
@@ -2985,11 +3001,18 @@ pub struct Match {
 }
 impl Compile for Match {
     fn compile(self, meta: &mut CompileMeta) {
+        let closure = meta.consume_lazy_closure();
         let loc = self.args.unit();
         let args = self.args.value.into_taked_args_handle(meta);
         for (pat, block) in self.cases {
             if pat.do_pattern(&args, meta) {
-                block.compile(meta);
+                if let Some(closure) = closure {
+                    closure.expand_with(meta, |_, meta| {
+                        block.compile(meta)
+                    });
+                } else {
+                    block.compile(meta)
+                }
                 return;
             }
         }
@@ -3162,6 +3185,7 @@ impl ConstMatch {
 }
 impl Compile for ConstMatch {
     fn compile(self, meta: &mut CompileMeta) {
+        let closure = meta.consume_lazy_closure();
         let loc = self.args.unit();
         let args = self.args.value.into_value_args(meta)
             .into_iter()
@@ -3181,7 +3205,14 @@ impl Compile for ConstMatch {
             })
             .collect::<Vec<_>>();
         for (pat, code) in self.cases {
-            if let Ok(()) = pat.do_pattern(meta, &args, code) {
+            if pat.do_pattern(meta, &args) {
+                if let Some(closure) = closure {
+                    closure.expand_with(meta, |_, meta| {
+                        code.compile(meta)
+                    });
+                } else {
+                    code.compile(meta)
+                }
                 return;
             }
         }
@@ -3214,13 +3245,11 @@ impl ConstMatchPat {
         }
     }
 
-    pub fn do_pattern<C>(
+    pub fn do_pattern(
         self,
         meta: &mut CompileMeta,
         handles: &[Var],
-        code: C,
-    ) -> Result<(), C>
-    where C: Compile,
+    ) -> bool
     {
         fn do_iter<'a>(
             iter: impl IntoIterator<Item = ConstMatchPatAtom>,
@@ -3272,32 +3301,31 @@ impl ConstMatchPat {
         }
 
         if !self.check_len(handles.len()) {
-            return Err(code);
+            return false;
         }
         match self {
             Self::Normal(norm) => {
                 let Some(datas)
                     = do_iter(norm, meta, handles)
                     else {
-                        return Err(code);
+                        return false;
                     };
                 for ele in datas {
                     make(ele, meta);
                 }
-                code.compile(meta);
-                Ok(())
+                true
             },
             Self::Expanded(left, do_take, right) => {
                 let mid_rng = left.len()..handles.len()-right.len();
                 let Some(left_datas)
                     = do_iter(left, meta, handles)
                     else {
-                        return Err(code);
+                        return false;
                     };
                 let Some(right_datas)
                     = do_iter(right, meta, &handles[mid_rng.end..])
                     else {
-                        return Err(code);
+                        return false;
                     };
 
                 for ele in left_datas {
@@ -3317,8 +3345,7 @@ impl ConstMatchPat {
 
                 LogicLine::SetArgs(expand_args.into()).compile(meta);
 
-                code.compile(meta);
-                Ok(())
+                true
             },
         }
     }
@@ -4061,6 +4088,7 @@ pub struct CompileMeta {
     const_expand_tag_name_map: Vec<HashMap<Var, Var>>,
     /// 每层展开的句柄记录, 用于栈回溯
     const_expand_names: Vec<Var>,
+    closure_lazy_expands: Vec<Option<ClosuredValue>>,
     const_expand_max_depth: usize,
     value_binds: HashMap<Var, LinkedHashMap<Var, Var>>,
     last_builtin_exit_code: u8,
@@ -4131,6 +4159,7 @@ impl CompileMeta {
             tmp_tag_count: Counter::new(Self::tmp_tag_getter),
             const_expand_tag_name_map: Vec::new(),
             const_expand_names: Vec::new(),
+            closure_lazy_expands: Vec::new(),
             const_expand_max_depth: 500,
             value_binds: HashMap::new(),
             last_builtin_exit_code: 0,
@@ -4312,6 +4341,14 @@ impl CompileMeta {
         });
 
         (block_res, inner_res.unwrap())
+    }
+
+    pub fn consume_lazy_closure(&mut self) -> Option<ClosuredValue> {
+        if let Some(Some(_)) = self.closure_lazy_expands.last() {
+            self.closure_lazy_expands.pop().unwrap().unwrap().into()
+        } else {
+            None
+        }
     }
 
     /// 添加一个需泄露的const

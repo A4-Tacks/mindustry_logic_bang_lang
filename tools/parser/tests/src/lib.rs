@@ -8226,6 +8226,210 @@ fn closure_value_test() {
             r#"print x"#,
         ],
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        # 污染
+        const F = ([N:2](match @ => F {
+            foo F;
+        }));
+        const N = 3;
+        F! (m:print N;);
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 2"#,
+            r#"foo m"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        # 懒闭包
+        const F = ([N:2]match @ => F {
+            foo F;
+        });
+        const N = 3;
+        F! (m:print N;);
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 3"#,
+            r#"foo m"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = ([N:2]match @ {
+            {}
+            F {
+                foo F;
+            }
+        });
+        const N = 3;
+        F! (m:print N;);
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 3"#,
+            r#"foo m"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = ([N:2](const match @ {
+            {}
+            F {
+                mid;
+                foo F;
+            }
+        }));
+        const N = 3;
+        F! (m:print N;);
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"mid"#,
+            r#"print 2"#,
+            r#"foo m"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = ([N:2]const match @ {
+            {}
+            F {
+                mid;
+                foo F;
+            }
+        });
+        const N = 3;
+        F! (m:print N;);
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"mid"#,
+            r#"print 2"#,
+            r#"foo m"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = ([N:2]const match @ {
+            {}
+            *F {
+                mid;
+                foo F;
+            }
+        });
+        const N = 3;
+        F! (m:print N;);
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 3"#,
+            r#"mid"#,
+            r#"foo m"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = ([N:2]r:const match @ {
+            {}
+            *F {
+                mid;
+                foo F;
+            }
+        });
+        const N = 3;
+        ret F[(m:print N;)];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 3"#,
+            r#"mid"#,
+            r#"foo m"#,
+            r#"ret r"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = ([N:2]r:match @ {
+            {}
+            F {
+                mid;
+                foo F;
+            }
+        });
+        const N = 3;
+        ret F[(m:print N;)];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 3"#,
+            r#"mid"#,
+            r#"foo m"#,
+            r#"ret r"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = ([N:2]r:const match @ {
+            [?(0:const match @ {})] {}
+            *F {
+                mid;
+                foo F;
+            }
+        });
+        const N = 3;
+        ret F[(m:print N;)];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 3"#,
+            r#"mid"#,
+            r#"foo m"#,
+            r#"ret r"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = ([N:2]r:const match @ {
+            [?(0:const match @ {})] {}
+            *F {
+                mid;
+                foo F;
+            }
+        });
+        const N = 3;
+        ret F[(m:print N;)];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 3"#,
+            r#"mid"#,
+            r#"foo m"#,
+            r#"ret r"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const F = ([N:2]r:const match @ {
+            [?(0:const match @ {})] {}
+            F {
+                mid;
+                foo F;
+            }
+        });
+        const N = 3;
+        ret F[(m:print N;)];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"mid"#,
+            r#"print 2"#,
+            r#"foo m"#,
+            r#"ret r"#,
+        ],
+    );
 }
 
 #[test]

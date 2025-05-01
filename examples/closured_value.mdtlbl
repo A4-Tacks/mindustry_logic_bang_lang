@@ -117,3 +117,40 @@ print a
 print b
 print c
 *#
+
+
+# 在0.19.5版本添加了懒闭包, 配合match编写,
+# 用于避免闭包展开环境时破坏立即求值的传参环境卫生,
+# 可以在match匹配后再展开闭包环境
+const F = ([N:2]match @ {
+    R { print R; }
+});
+const N = 3;
+F! (x:print N;);
+#* >>>
+print 3
+print x
+*#
+# 如果不使用懒闭包的话, 例如
+const F = ([N:2](match @ {
+    R { print R; }
+}));
+const N = 3;
+F! (x:print N;);
+#* >>>
+print 2
+print x
+*#
+# 可以看到, N 获取到了闭包内展开的环境N:2
+
+# 也可以使用const match, 支持指定返回句柄, 例如
+const F = ([N:2]res:match @ {
+    R { print R; }
+});
+const N = 3;
+print F[(x:print N;)];
+#* >>>
+print 3
+print x
+print res
+*#

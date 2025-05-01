@@ -83,6 +83,7 @@ impl DisplaySource for ClosuredValue {
                 value,
                 labels,
                 catch_args,
+                lazy,
             } => {
                 meta.push("([");
                 meta.display_source_iter_by_space(catch_values);
@@ -111,6 +112,7 @@ impl DisplaySource for ClosuredValue {
                     }
                 }
                 meta.push("]");
+                if *lazy { meta.push("#*lazy*#"); }
                 value.display_source(meta);
                 inline_labs(labels, meta);
                 meta.push(")");
@@ -121,6 +123,7 @@ impl DisplaySource for ClosuredValue {
                 rename_labels,
                 vars,
                 reset_argc: reset_args,
+                lazy,
             } => {
                 struct CatchedVar<'a>(&'a Var);
                 impl DisplaySource for CatchedVar<'_> {
@@ -165,6 +168,7 @@ impl DisplaySource for ClosuredValue {
                     }
                 }
                 meta.push("]");
+                if *lazy { meta.push("#*lazy*#"); }
                 bind_handle.display_source(meta);
                 meta.push(")");
             },

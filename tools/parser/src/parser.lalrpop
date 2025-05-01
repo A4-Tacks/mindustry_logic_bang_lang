@@ -105,6 +105,7 @@ MakeDExpBody<T>: DExp = {
 }
 #[inline]
 Boxed<T>: Box<T> = T => Box::new(<>);
+One<T>: Vec<T> = T => vec![<>];
 
 #[inline]
 Loc<T>: IdxBox<T> = @L T => IdxBox::new(<>);
@@ -378,8 +379,8 @@ pub LogicLine: LogicLine = {
     <OpExpr> LEnd,
     QuickTake,
     "inline" <ArgsRepeatBlock> => <>.into(),
-    Match => <>.into(),
-    ConstMatch => <>.into(),
+    Match,
+    ConstMatch,
 }
 
 QuickTake: LogicLine = <value:Loc<NonConstRangeValue>> "!" <args:ParamArgsSL> LEnd => {
@@ -390,7 +391,7 @@ QuickTake: LogicLine = <value:Loc<NonConstRangeValue>> "!" <args:ParamArgsSL> LE
     meta.pack_line(expand.into())
 };
 
-Match: Match = {
+Match: LogicLine = {
     "match" <args:Loc<ParamArgs>> <cases:MBlock<(
         <MatchPat*> <("@" <MatchPat*>)?> <LinesBlock>
     )*>> => {
@@ -403,7 +404,7 @@ Match: Match = {
                 }, body.into())
             })
             .collect()
-        )
+        ).into()
     },
     "match" <args:Loc<ParamArgs>> "=>" <case:(
         <MatchPat*> <("@" <MatchPat*>)?> <LinesBlock>
@@ -417,7 +418,7 @@ Match: Match = {
                 }, body.into())
             })
             .collect()
-        )
+        ).into()
     },
 }
 
@@ -428,16 +429,16 @@ MatchPat: MatchPatAtom = {
     <sr:Opt<"$">> <name:Var> ":" <pat:MList<Args1>> => MatchPatAtom::new(name, pat, sr),
 }
 
-ConstMatch: ConstMatch = {
+ConstMatch: LogicLine = {
     "const" "match" <args:Loc<ParamArgs>> <cases:MBlock<(
         ConstMatchPat InlineBlock
     )*>> => {
-        ConstMatch::new(args, cases)
+        ConstMatch::new(args, cases).into()
     },
     "const" "match" <args:Loc<ParamArgs>> "=>" <case:(
         ConstMatchPat InlineBlock
     )> => {
-        ConstMatch::new(args, vec![case])
+        ConstMatch::new(args, vec![case]).into()
     },
 }
 
@@ -1193,6 +1194,37 @@ ClosuredValue: ClosuredValue = {
             value: value.into(),
             labels,
             catch_args,
+            lazy: false,
+        }
+    },
+    MLTuple<ClosuredValueCatchs, (ConstStart <MakeDExpBody<One<Match>>> <ConstStop>)> => {
+        let (
+            (catchs, catch_args, binder_to, catch_labels),
+            (value, labels),
+        ) = <>;
+        ClosuredValue::Uninit {
+            catch_values: catchs,
+            catch_labels: catch_labels.unwrap_or_default(),
+            binder_to,
+            value: Box::new(value.into()),
+            labels,
+            catch_args,
+            lazy: true,
+        }
+    },
+    MLTuple<ClosuredValueCatchs, (ConstStart <MakeDExpBody<One<ConstMatch>>> <ConstStop>)> => {
+        let (
+            (catchs, catch_args, binder_to, catch_labels),
+            (value, labels),
+        ) = <>;
+        ClosuredValue::Uninit {
+            catch_values: catchs,
+            catch_labels: catch_labels.unwrap_or_default(),
+            binder_to,
+            value: Box::new(value.into()),
+            labels,
+            catch_args,
+            lazy: true,
         }
     },
 }
