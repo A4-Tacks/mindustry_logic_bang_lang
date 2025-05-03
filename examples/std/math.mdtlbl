@@ -49,3 +49,13 @@ const Bit64HighOne = (
 
     $ = floor(Log2[Num]);
 );
+
+const DepackColor = (match @ {
+    R G B A Color {
+        take*D = Color / '%00000001';
+        R G B A = D>>24, D>>16&0xFF, D>>8&0xFF, D&0xFF;
+    }
+    $H Color {
+        DepackColor! H.r H.g H.b H.a Color;
+    }
+});
