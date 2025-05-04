@@ -669,6 +669,9 @@ You can also use parentheses to avoid priority: `(a < 2 || b < 2) && c < 2`
 >
 > Reasonable use of this short-circuit characteristic can bring many conveniences
 
+> [!TIP]
+> Here, `&&` can be written as `and`, `||` can be written as `or`
+
 
 Simple Statement
 ===============================================================================
