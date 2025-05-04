@@ -34,6 +34,9 @@ fn var_test() {
     assert_eq!(parse!(parser, "0x1_b").unwrap(), "0x1b");
     assert_eq!(parse!(parser, "-4_3_.7_29").unwrap(), "-43.729");
     assert_eq!(parse!(parser, "0b-00_10").unwrap(), "0b-0010");
+    assert_eq!(parse!(parser, "-0b00_10").unwrap(), "-0b0010");
+    assert_eq!(parse!(parser, "-0x00_10").unwrap(), "-0x0010");
+    assert_eq!(parse!(parser, "-0x00_1f").unwrap(), "-0x001f");
     assert_eq!(parse!(parser, "@abc-def").unwrap(), "@abc-def");
     assert_eq!(parse!(parser, "@abc-def_30").unwrap(), "@abc-def_30");
     assert_eq!(parse!(parser, "@abc-def-34").unwrap(), "@abc-def-34");
@@ -2935,7 +2938,7 @@ fn value_bind_test() {
 
 #[test]
 fn no_string_var_test() {
-    let parser = NoStringVarParser::new();
+    let parser = VarParser::new();
 
     assert!(parse!(parser, r#"1"#).is_ok());
     assert!(parse!(parser, r#"1.5"#).is_ok());
@@ -2944,9 +2947,6 @@ fn no_string_var_test() {
     assert!(parse!(parser, r#"@abc"#).is_ok());
     assert!(parse!(parser, r#"'My_name"s'"#).is_ok());
     assert!(parse!(parser, r#"'"no_str"'"#).is_ok());
-
-    assert!(parse!(parser, r#""abc""#).is_err());
-    assert!(parse!(parser, r#""""#).is_err());
 }
 
 #[test]

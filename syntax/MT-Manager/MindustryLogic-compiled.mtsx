@@ -23,8 +23,8 @@
         "raw-string": /(?:"(?:(\[\[|\\n)|[^"\n])*(?:"|/ + include("ed") + /))/
         "string": /(/ + include("raw-string") + /)/
         "arg-body": /(?:[^ \t"#;\n]+)/
-        "hex-oct": /(?:0(?:x-?[\da-fA-F]+|b-?[01]+))/
-        "normal-number": /(?:-?\d+(?:\.\d+|e[+\-]?\d+)?)/
+        "hex-oct": /(?:[+-]?0(?:x[+-]?[\da-fA-F]+|b[+-]?[01]+))/
+        "normal-number": /(?:[+-]?\d+(?:\.\d+|e[+\-]?\d+)?)/
         "number": /(true|false|null|/ + include("hex-oct") + /|/ + include("normal-number") + /)/
         "val": /(?:/ + include("string") + /|/ + include("number") + /|/ + include("arg-body") + /)/
         "var": /((?:/ + include("raw-string") + /|/ + include("arg-body") + /))/

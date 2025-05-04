@@ -107,15 +107,15 @@ impl AsVarType for str {
             if !(s.starts_with('"') && s.ends_with('"')) { return None; }
             Some(&s[1..s.len()-1])
         }
-        fn as_number(s: &str) -> Option<f64> {
+        fn as_number(mut s: &str) -> Option<f64> {
             static NUM_REGEX: &Lazy<Regex> = regex!(
                 r"^-?(?:\d+(?:e[+\-]?\d+|\.\d*)?|\d*\.\d+)$"
             );
             static HEX_REGEX: &Lazy<Regex> = regex!(
-                r"^0x-?[0-9A-Fa-f]+$"
+                r"^0x[+\-]?[0-9A-Fa-f]+$"
             );
             static BIN_REGEX: &Lazy<Regex> = regex!(
-                r"^0b-?[01]+$"
+                r"^0b[+\-]?[01]+$"
             );
             fn parse_radix(src: &str, radix: u32) -> Option<f64> {
                 match i64::from_str_radix(src, radix) {
@@ -130,6 +130,15 @@ impl AsVarType for str {
                     },
                 }
             }
+
+            let mut neg = false;
+            if s.starts_with('+') {
+                s = &s[1..]
+            } else if s.starts_with('-') {
+                neg = true;
+                s = &s[1..]
+            }
+
             if NUM_REGEX.is_match(s) {
                 let res = match s.parse() {
                     Ok(n) => n,
@@ -142,7 +151,7 @@ impl AsVarType for str {
                 parse_radix(&s[2..], 2)
             } else {
                 None
-            }
+            }.map(|n| if neg { -n } else { n })
         }
         match self {
             "null"  => return VarType::Number(f64::NAN),

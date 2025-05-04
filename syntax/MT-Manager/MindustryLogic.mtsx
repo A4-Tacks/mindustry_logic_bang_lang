@@ -27,8 +27,8 @@
 
         arg-body = /(?:[^ \t"#;\n]+)/
 
-        hex-oct = (?:/0(?:x-?[\da-fA-F]+|b-?[01]+)/)
-        normal-number = (?:/-?\d+(?:\.\d+|e[+\-]?\d+)?/)
+        hex-oct = (?:/[+-]?0(?:x[+-]?[\da-fA-F]+|b[+-]?[01]+)/)
+        normal-number = (?:/[+-]?\d+(?:\.\d+|e[+\-]?\d+)?/)
         number = ($number /true|false|null/ | @hex-oct | @normal-number)
         val = (?:@string | @number | @arg-body)
         var = (?:@raw-string | @arg-body)

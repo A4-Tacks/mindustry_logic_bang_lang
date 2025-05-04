@@ -44,7 +44,7 @@ syn match	logicPrintRest		/;[ \t]*print[ \t]/		contained nextgroup=logicPrintBod
 syn region	logicString		start=/"/ end=/"/		contains=logicStringEscape,logicStringColor
 syn match	logicStringColor					contained /\[\v%(#\x{6,8}|%(c%(lear|yan|oral)|b%(l%(ack|ue)|r%(own|ick))|white|li%(ghtgray|me)|g%(r%(ay|een)|old%(enrod)?)|darkgray|navy|r%(oyal|ed)|s%(late|ky|carlet|almon)|t%(eal|an)|acid|forest|o%(live|range)|yellow|p%(ink|urple)|ma%(genta|roon)|violet))=\]/
 syn match	logicStringEscape	/\\n\|\[\[/			contained
-syn match	logicNumber		/\v%(<0%(x\-?[0-9a-fA-F]+|b\-?[01]+)|\-?<\d+%(\.\d+|e[+-]?\d+)?)>/
+syn match	logicNumber		/\v[+-]?%(<0x[+-]?[0-9a-fA-F]+|0b[+-]?[01]+|<\d+%(\.\d+|e[+-]?\d+)?)>/
 syn match	logicNumber		/\v<%(true|false)>/
 syn match	logicNull		/\v<null>/
 syn match	logicMeta		/\v<\@[^ \t\r;:#]+>/

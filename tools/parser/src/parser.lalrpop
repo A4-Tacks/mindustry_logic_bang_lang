@@ -129,7 +129,7 @@ String: Var = r#""(?:\\\r?\n\s*(?:\\ )?|\r?\n|\\[n\\\[]|[^"\r\n\\])*""#
     => string_escape(<>).into();
 Ident: Var = r"[_\p{XID_Start}]\p{XID_Continue}*" => <>.into();
 OIdent: Var = r"@[_\p{XID_Start}][\p{XID_Continue}\-]*" => <>.into(); // `@abc-def`这种
-pub Number: Var = r"(?:0(?:x-?[\da-fA-F][_\da-fA-F]*|b-?[01][_01]*)|-?\d[_\d]*(?:\.\d[\d_]*|e[+\-]?\d[\d_]*)?)"
+pub Number: Var = r"-?(?:0x-?[\da-fA-F][_\da-fA-F]*|0b-?[01][_01]*|\d[_\d]*(?:\.\d[\d_]*|e[+\-]?\d[\d_]*)?)"
     => <>.chars().filter(|&c| c != '_').collect();
 // 原始字面量, 如`'@abc-def'`, 其中双引号会被替换为单引号.
 // 在一对单引号内可以写任意非空字符, 可避开关键字等
@@ -139,7 +139,7 @@ OtherVar: Var = r"'[^'\s]+'" => {
 
 // 逻辑里面一个单元
 // 但不包含字符串
-pub NoStringVar: Var = {
+NoStringVar: Var = {
     Ident,
     OIdent,
     Number,
