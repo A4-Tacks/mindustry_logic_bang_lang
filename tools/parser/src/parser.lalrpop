@@ -523,14 +523,25 @@ ArgsSL: Args = {
     },
 }
 SLValue: Value = {
-    <SLAtomImpl<MBlock<LocalVar>>> => <>.into(),
-    <MBlock<LocalVar>> => <>.into(),
-    SLAtom<Value>,
+    SLAtomImpl<MBlock<LocalVar>>,
+    MBlock<LocalVar>,
     APValueExt,
+    SLAtom<Value>,
 }
-ArgRestSL: Vec<Value> = <fst:LinePack<Value>> <mut rest:Args0G<(","? <SLValue>)>> => {
-    rest.insert(0, fst);
-    rest
+SLPValue: Value = {
+    "+" <SLAtomImpl<LocalVar>>,
+    "+" <LocalVar>,
+    SLValue,
+}
+ArgRestSL: Vec<Value> = {
+    LinePack<"+"> <fst:LocalVar> <mut rest:Args0G<(","? <SLPValue>)>> => {
+        rest.insert(0, fst);
+        rest
+    },
+    <fst:LinePack<Value>> <mut rest:Args0G<(","? <SLValue>)>> => {
+        rest.insert(0, fst);
+        rest
+    },
 };
 OtherLogicLine: Args = {
     LinePack<"@"> <suffix:Args0G<SLValue>> => {
@@ -572,12 +583,12 @@ SLAtomImpl<V>: V = {
         <>.into()
     },
 };
-LocalVar: Var = Var => {
+LocalVar: Value = Var => {
     meta.add_line_dep(Take(
         <>.clone().into(),
         DExp::new_nores(vec![].into()).into(),
     ).into());
-    <>
+    <>.into()
 };
 SimpVar<V>: Var = V => {
     let tmp = meta.get_tmp_var();
@@ -586,7 +597,7 @@ SimpVar<V>: Var = V => {
 };
 ParamArgsAtomC: Value = <ParamArgsAtom> ","?;
 ParamArgsSLAtomInner: Value = {
-    "+" <LocalVar> => <>.into(),
+    "+" <LocalVar>,
     ParamArgsAtom,
 }
 ParamArgsSLAtom: Value = <SLAtom<ParamArgsSLAtomInner>> ","?;
@@ -1136,7 +1147,7 @@ TakeDestructAtom: (bool, Var, Var) = {
     <Opt<"&">> <Var> ":" <Var>,
     <c:Opt<"&">> <v:Var> => (c, v.clone(), v),
 }
-TakeDestruct: Vec<(bool, Var, Var)> = "{" <(<TakeDestructAtom> ","?)*> "}";
+TakeDestruct: Vec<(bool, Var, Var)> = MBlock<(<TakeDestructAtom> ","?)*>;
 TakeAtom: LogicLine = {
     "+" <key:ConstKey> => {
         Take(key, DExp::new_nores(vec![].into()).into()).into()

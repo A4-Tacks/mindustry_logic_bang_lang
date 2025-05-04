@@ -1783,6 +1783,25 @@ read {Num} cell1 i;
 ```
 
 
+## Tmp Handle in op-expr
+```
+inline {
+    take+A;
+    take+B;
+    A B = 2, 3;
+}
++A+B = 2, 3;
+```
+
+```
+inline {
+    take+A;
+    A B = 2, 3;
+}
++A B = 2, 3;
+```
+
+
 ## Cmp Deps Quick Take
 ```
 const C = goto({

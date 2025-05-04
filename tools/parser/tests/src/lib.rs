@@ -2813,6 +2813,55 @@ fn quick_dexp_take_test() {
         }
         "#).unwrap(),
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+        +X = 2;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take X = ();
+            X = 2;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        +X+Y = 2;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take X = ();
+            take Y = ();
+            X Y = 2;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        +X Y = 2;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take X = ();
+            X Y = 2;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        +X,Y = 2;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take X = ();
+            X Y = 2;
+        }
+        "#).unwrap(),
+    );
 }
 
 #[test]
