@@ -1809,6 +1809,20 @@
             "sensor ${2:dead} $1 @dead;"
         ]
     },
+    "显示屏宽度": {
+        "prefix": "sensor.displayWidth",
+        "description": "显示屏宽度",
+        "body": [
+            "sensor ${2:displayWidth} $1 @displayWidth;"
+        ]
+    },
+    "显示屏高度": {
+        "prefix": "sensor.displayHeight",
+        "description": "显示屏高度",
+        "body": [
+            "sensor ${2:displayHeight} $1 @displayHeight;"
+        ]
+    },
     "范围": {
         "prefix": "sensor.range",
         "description": "范围",
@@ -1828,6 +1842,13 @@
         "description": "是否助推",
         "body": [
             "sensor ${2:boosting} $1 @boosting;"
+        ]
+    },
+    "当前 draw 已使用的缓冲区条数": {
+        "prefix": "sensor.bufferUsage",
+        "description": "当前 draw 已使用的缓冲区条数",
+        "body": [
+            "sensor ${2:bufferUsage} $1 @bufferUsage;"
         ]
     },
     "挖矿点X": {
