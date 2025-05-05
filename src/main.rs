@@ -430,6 +430,11 @@ fn unwrap_parse_err(result: ParseResult<'_>, src: &str) -> Expand {
                                 found,
                             ));
                         },
+                        Errors::MultipleOpExpr => {
+                            out(format_args!(
+                                "此处不应展开多个 op-expr",
+                            ));
+                        },
                         #[allow(unreachable_patterns)]
                         e => {
                             out(format_args!("未被枚举的错误: {:?}", e));

@@ -689,6 +689,9 @@ i, x = 2, abs(a-b) + sqrt(a)*2;
 
 > [!TIP]
 > op-expr 等号左侧的逗号可以省略
+>
+> op-expr 支持组合展开,
+> `x, y = [cos(i), sin(i)]*r;` 和 `x, y = cos(i)*r, sin(i)*r;` 等价
 
 
 关于注释

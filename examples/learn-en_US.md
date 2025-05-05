@@ -756,6 +756,9 @@ please refer to [op-expr](./op_expr.mdtlbl) for details
 
 > [!TIP]
 > op-expr results comma can ignore, such as `a b = 1, 2;`
+>
+> op-expr supports combination expanding,
+> `x, y = [cos(i), sin(i)]*r;` and `x, y = cos(i)*r, sin(i)*r;` are equivalent
 
 
 About Comments

@@ -5,9 +5,12 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = ["parser/lalrpop"]
+
 [dependencies]
 either = { workspace = true }
 syntax = { path = "../syntax", version = "*" }
 
 [dev-dependencies]
-parser = { path = "../parser", version = "*" }
+parser = { path = "../parser", version = "*", default-features = false }

@@ -251,3 +251,18 @@ x = abs((y:=2)); # 等价
 # 并且为了方便剪切出括号内容直接用, 可以加上可选的? *
 x = ?a+1; # from (?a+1)
 x = *a+1; # from (*a+1)
+
+
+# 在0.19.9版本可以使用op-expr组合展开
+x, y = [cos(i), sin(i)]*r;
+x, y = cos(i)*r, sin(i)*r; # 相当于
+#* A >>>
+{
+    op x (op $ cos i;) * r;
+    op y (op $ sin i;) * r;
+}
+{
+    op x (op $ cos i;) * r;
+    op y (op $ sin i;) * r;
+}
+*#

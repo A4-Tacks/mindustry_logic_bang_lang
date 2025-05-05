@@ -1,12 +1,15 @@
 [package]
 name = "parser"
-version = "0.3.54"
+version = "0.3.55"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = ["lalrpop"]
+
 [build-dependencies]
-lalrpop = "=0.22.1"
+lalrpop = { version = "=0.22.1", optional = true }
 
 [dependencies]
 syntax = { path = "../syntax", version = "*" }

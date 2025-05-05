@@ -3709,6 +3709,57 @@ fn op_expr_test() {
         x = abs(`m`:=x+1);
         "#).unwrap(),
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a, b, c = x*2, -y*2, (z+3)*2;
+        "#).unwrap(),
+        parse!(parser, r#"
+        a, b, c = [x, -y, z+3]*2;
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a, b, c = x*2, -y*2, z+3;
+        "#).unwrap(),
+        parse!(parser, r#"
+        a, b, c = [x, -y]*2, z+3;
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a, b, c = z+3, x*2, -y*2;
+        "#).unwrap(),
+        parse!(parser, r#"
+        a, b, c = z+3, [x, -y]*2;
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a, b, c = z+3, x*2, -y*2;
+        "#).unwrap(),
+        parse!(parser, r#"
+        a, b, c = z+3, [x, -y,]*2;
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a, b, c, d = a*c, a*d, b*c, b*d;
+        "#).unwrap(),
+        parse!(parser, r#"
+        a, b, c, d = [a,b]*[c,d];
+        "#).unwrap(),
+    );
+
+    assert!(
+        parse!(parser, r#"
+        a, b, c = z+3, []*2;
+        "#).is_err()
+    );
 }
 
 #[test]

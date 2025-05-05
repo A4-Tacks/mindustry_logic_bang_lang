@@ -153,6 +153,7 @@ impl From<((Location, Location), Errors)> for Error {
 pub enum Errors {
     NotALiteralUInteger(Var, ParseIntError),
     OpExprInvalidResult { found: usize, right: usize },
+    MultipleOpExpr,
 }
 
 /// 带有错误前缀, 并且文本为红色的eprintln
@@ -4801,8 +4802,78 @@ pub fn line_first_add(lines: &mut Vec<String>, insert: &str) {
     }
 }
 
-#[derive(Debug)]
-pub enum OpExprInfo {
+#[derive(Debug, Clone)]
+pub struct OpExprInfo {
+    pub exprs: Vec<OpExprType>,
+}
+impl From<OpExprInfo> for Vec<OpExprType> {
+    fn from(value: OpExprInfo) -> Self {
+        value.exprs
+    }
+}
+impl From<OpExprType> for OpExprInfo {
+    fn from(value: OpExprType) -> Self {
+        Self { exprs: vec![value] }
+    }
+}
+impl FromIterator<OpExprType> for OpExprInfo {
+    fn from_iter<T: IntoIterator<Item = OpExprType>>(iter: T) -> Self {
+        Self { exprs: iter.into_iter().collect() }
+    }
+}
+impl FromIterator<OpExprInfo> for OpExprInfo {
+    fn from_iter<T: IntoIterator<Item = OpExprInfo>>(iter: T) -> Self {
+        Self { exprs: iter.into_iter().flat_map(fields!(exprs)).collect() }
+    }
+}
+impl IntoIterator for OpExprInfo {
+    type Item = OpExprType;
+    type IntoIter = <Vec<OpExprType> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.exprs.into_iter()
+    }
+}
+impl OpExprInfo {
+    fn each<F, I>(mut self, f: F) -> Self
+    where F: FnMut(OpExprType) -> I,
+          I: IntoIterator<Item = OpExprType>,
+    {
+        self.exprs = self.exprs.into_iter()
+            .flat_map(f)
+            .collect();
+        self
+    }
+
+    pub fn new_if_else(self, meta: &mut Meta, cmp: CmpTree, rhs: Self) -> Self {
+        self.each(|lhs| rhs.clone().each(|rhs| {
+            once(OpExprType::new_if_else(
+                meta,
+                cmp.clone(),
+                lhs.clone(),
+                rhs,
+            ))
+        }))
+    }
+
+    pub fn new_op2<F>(self, rhs: Self, mut f: F) -> Self
+    where F: FnMut(OpExprType, OpExprType) -> Op,
+    {
+        self.each(|lhs| rhs.clone().each(|rhs| {
+            let op = f(lhs.clone(), rhs);
+            once(OpExprType::Op(op))
+        }))
+    }
+
+    pub fn new_op1<F>(self, mut f: F) -> Self
+    where F: FnMut(OpExprType) -> Op,
+    {
+        self.each(|lhs| once(f(lhs).into()))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum OpExprType {
     Value(Value),
     Op(Op),
     IfElse {
@@ -4814,12 +4885,12 @@ pub enum OpExprInfo {
     SufSelfOp {
         op: Op,
         value: Value,
-        ext: Option<Box<OpExprInfo>>,
+        ext: Option<Box<OpExprType>>,
         handle: Var,
     },
     Ref(Var),
 }
-impl OpExprInfo {
+impl OpExprType {
     pub fn new_if_else(
         meta: &mut Meta,
         cmp: CmpTree,
@@ -4839,7 +4910,7 @@ impl OpExprInfo {
         meta: &mut Meta,
         op: Op,
         value: Value,
-        ext: Option<Box<OpExprInfo>>,
+        ext: Option<Box<OpExprType>>,
     ) -> Self {
         Self::SufSelfOp {
             op,
@@ -4963,25 +5034,19 @@ impl OpExprInfo {
         }
     }
 }
-impl_enum_froms!(impl From for OpExprInfo {
+impl_enum_froms!(impl From for OpExprType {
     Value => Value;
     Value => Var;
     Op => Op;
 });
 
-pub type OpExprAOperFun = fn(&mut Meta, Value, OpExprInfo) -> LogicLine;
+pub type OpExprAOperFun = fn(&mut Meta, Value, OpExprType) -> LogicLine;
 
-/// 构建一个op运算
-pub fn op_expr_build_op<F>(f: F) -> OpExprInfo
-where F: FnOnce() -> Op
-{
-    f().into()
-}
 #[allow(clippy::ptr_eq)]
 pub fn op_expr_build_results(
     meta: &mut Meta,
     mut results: Vec<Value>,
-    mut values: Vec<OpExprInfo>,
+    mut values: Vec<OpExprType>,
     f: OpExprAOperFun,
 ) -> LogicLine {
     match (results.len(), values.len()) {
@@ -5008,7 +5073,7 @@ pub fn op_expr_build_results(
             ));
             for result in results {
                 let value
-                    = OpExprInfo::Value(first_result_handle.clone().into());
+                    = OpExprType::Value(first_result_handle.clone().into());
                 lines.push(value.into_logic_line(meta, result.clone()))
             }
             assert_eq!(lines.len(), len + 1);
@@ -5114,15 +5179,15 @@ where I: IntoIterator<Item = (CmpTree, LogicLine)>,
 }
 
 pub mod op_expr_tools {
-    use super::{LogicLine, Meta, OpExprInfo, Value};
+    use super::{LogicLine, Meta, OpExprType, Value};
 
-    pub const TOP_ASSIGN_OPER: fn(&mut Meta, Value, OpExprInfo) -> LogicLine
+    pub const TOP_ASSIGN_OPER: fn(&mut Meta, Value, OpExprType) -> LogicLine
         = top_assign_oper;
 
     pub fn top_assign_oper(
         meta: &mut Meta,
         res: Value,
-        value: OpExprInfo,
+        value: OpExprType,
     ) -> LogicLine {
         value.into_logic_line(meta, res)
     }

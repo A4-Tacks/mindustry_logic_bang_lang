@@ -1,6 +1,6 @@
 [package]
 name = "mindustry_logic_bang_lang"
-version = "0.19.8"
+version = "0.19.9"
 edition = "2021"
 
 authors = ["A4-Tacks <wdsjxhno1001@163.com>"]
@@ -29,10 +29,13 @@ members = [
 [workspace.dependencies]
 either = "1.14.0"
 
+[features]
+default = ["parser/lalrpop"]
+
 [dependencies]
 tag_code = { path = "./tools/tag_code", version = "*" }
 display_source = { path = "./tools/display_source", version = "*" }
-parser = { path = "./tools/parser", version = "*" }
+parser = { path = "./tools/parser", version = "*", default-features = false }
 syntax = { path = "./tools/syntax", version = "*" }
 logic_lint = { path = "./tools/logic_lint", version = "*" }
 
