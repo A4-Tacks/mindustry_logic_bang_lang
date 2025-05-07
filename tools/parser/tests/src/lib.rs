@@ -1954,6 +1954,28 @@ fn cmptree_test() {
         "#).unwrap()
     );
 
+    assert_eq!(
+        parse!(parser, r#"
+        :x
+        goto :x ++a < b and c > d or not e != f;
+        "#).unwrap(),
+        parse!(parser, r#"
+        :x
+        goto :x (__:setres a;$=$+`1`) < b && c > d || ! e != f;
+        "#).unwrap()
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        :x
+        goto :x --a < b and c > d or not e != f;
+        "#).unwrap(),
+        parse!(parser, r#"
+        :x
+        goto :x (__:setres a;$=$-`1`) < b && c > d || ! e != f;
+        "#).unwrap()
+    );
+
 }
 
 #[test]
@@ -9843,5 +9865,63 @@ fn global_bind_test() {
             r#"print b"#,
             r#"print 2"#,
         ],
+    );
+}
+
+fn lines_end_no_semicolon_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        parse!(parser, r#"
+        {x=2}
+        "#).unwrap(),
+        parse!(parser, r#"
+        {x=2;}
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        x=2
+        "#).unwrap(),
+        parse!(parser, r#"
+        x=2;
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        take X
+        "#).unwrap(),
+        parse!(parser, r#"
+        take X;
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        {y=3; x=2}
+        "#).unwrap(),
+        parse!(parser, r#"
+        {y=3; x=2;}
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        do {noop} while
+        "#).unwrap(),
+        parse!(parser, r#"
+        do {noop;} while;
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        do {noop} while a<b
+        "#).unwrap(),
+        parse!(parser, r#"
+        do {noop;} while a<b;
+        "#).unwrap(),
     );
 }

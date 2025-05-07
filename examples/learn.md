@@ -1759,6 +1759,31 @@ Foo! 1 2 3 @ 4;
 ```
 
 
+## Lines Tail Ignore Semicolons
+```
+print (x=2;);
+print (x=2);
+
+print (F! 2;);
+print (F! 2);
+
+print (op add a a 1;);
+print (op add a a 1);
+
+print (noop;);
+print (noop);
+
+print (print x;);
+print (print x);
+
+print (take X;);
+print (take X);
+
+print (setres X;);
+print (setres X);
+```
+
+
 ## Take Param Prefix Reference
 ```
 const Foo = (2: print _0;);
@@ -1854,6 +1879,18 @@ const C = goto( [a b] _0 < _1);
 优先级和 CmpNot (`!`) 保持一致
 
 这在之后会讲到
+
+
+## Cmp Prefix Inc and Dec
+```
+goto :x (__: setres x; op $ $ + 1;);
+goto :x ++x;
+```
+
+```
+goto :x (__: setres x; op $ $ - 1;) < 2;
+goto :x --x < 2;
+```
 
 
 ## Packed Statement Inc and Dec

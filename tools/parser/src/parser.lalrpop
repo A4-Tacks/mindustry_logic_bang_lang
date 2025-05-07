@@ -86,13 +86,15 @@ MFETuple<T> = Wrap<"(%", T, "%)">;
 MList<T> = Wrap<"[", T, "]">;
 MBlock<T> = Wrap<"{", T, "}">;
 #[inline]
+Cat<Acc, End>: Acc = <mut acc:Acc> <end:End> => { acc.push(end); acc };
+#[inline]
+Ext<Acc, End>: Acc = <mut acc:Acc> <end:End> => { acc.extend(end); acc };
+#[inline]
+IntoLL<T>: LogicLine = T => <>.into();
+#[inline]
 OpenArgs<T, S> = (<T> S)*; // 零至多个有分隔后缀值
 #[inline]
-CloseArgs<T, S>: Vec<T> = OpenArgs<T, S> T => { // 一至多个有分隔无后缀值
-    let (mut args, tail) = (<>);
-    args.push(tail);
-    args
-};
+CloseArgs<T, S>: Vec<T> = Cat<OpenArgs<T, S>, T>; // 一至多个有分隔无后缀值
 #[inline]
 OOCArgs<T, S>: Vec<T> = {
     OpenArgs<T, S>,
@@ -250,18 +252,34 @@ pub LiteralUInt: usize = <l:@L> <num:Number> <r:@R> =>? {
 
 LEnd: () = ";" => ();
 
+CmpVAT: Value = {
+    Value,
+    "++" <Value> => {
+        DExp::new(meta.unnamed_var(), vec![
+            LogicLine::SetResultHandle(<>),
+            Op::Add(ResultHandle, ResultHandle, ReprVar("1".into())).into(),
+        ].into()).into()
+    },
+    "--" <Value> => {
+        DExp::new(meta.unnamed_var(), vec![
+            LogicLine::SetResultHandle(<>),
+            Op::Sub(ResultHandle, ResultHandle, ReprVar("1".into())).into(),
+        ].into()).into()
+    },
+}
+
 JumpCmpBody: JumpCmp = {
-    <OrSwap<Or<"equal", "==">, <Value>>> <Value> => JumpCmp::Equal(<>),
-    <OrSwap<Or<"notEqual", "!=">, <Value>>> <Value> => JumpCmp::NotEqual(<>),
-    <OrSwap<Or<"lessThan", "<">, <Value>>> <Value> => JumpCmp::LessThan(<>),
-    <OrSwap<Or<"lessThanEq", "<=">, <Value>>> <Value> => JumpCmp::LessThanEq(<>),
-    <OrSwap<Or<"greaterThan", ">">, <Value>>> <Value> => JumpCmp::GreaterThan(<>),
-    <OrSwap<Or<"greaterThanEq", ">=">, <Value>>> <Value> => JumpCmp::GreaterThanEq(<>),
-    <OrSwap<Or<"strictEqual", "===">, <Value>>> <Value> => JumpCmp::StrictEqual(<>),
+    <OrSwap<Or<"equal", "==">, <CmpVAT>>> <CmpVAT> => JumpCmp::Equal(<>),
+    <OrSwap<Or<"notEqual", "!=">, <CmpVAT>>> <CmpVAT> => JumpCmp::NotEqual(<>),
+    <OrSwap<Or<"lessThan", "<">, <CmpVAT>>> <CmpVAT> => JumpCmp::LessThan(<>),
+    <OrSwap<Or<"lessThanEq", "<=">, <CmpVAT>>> <CmpVAT> => JumpCmp::LessThanEq(<>),
+    <OrSwap<Or<"greaterThan", ">">, <CmpVAT>>> <CmpVAT> => JumpCmp::GreaterThan(<>),
+    <OrSwap<Or<"greaterThanEq", ">=">, <CmpVAT>>> <CmpVAT> => JumpCmp::GreaterThanEq(<>),
+    <OrSwap<Or<"strictEqual", "===">, <CmpVAT>>> <CmpVAT> => JumpCmp::StrictEqual(<>),
     Or<"always", "_"> => JumpCmp::Always,
     // 扩展
-    <OrSwap<Or<"strictNotEqual", "!==">, <Value>>> <Value> => JumpCmp::StrictNotEqual(<>),
-    <Value> => JumpCmp::bool(<>),
+    <OrSwap<Or<"strictNotEqual", "!==">, <CmpVAT>>> <CmpVAT> => JumpCmp::StrictNotEqual(<>),
+    <CmpVAT> => JumpCmp::bool(<>),
 }
 
 // 入口
@@ -367,30 +385,39 @@ Op: Op = {
 
 Label: Var = ":" <Var>;
 
-LinesBlock: Vec<LogicLine> = MBlock<LogicLine*>;
+#[inline]
+Lines: Vec<LogicLine> = Ext<LogicLine*, LogicLineSingle?>;
+LinesBlock: Vec<LogicLine> = MBlock<Lines>;
 InlineBlock: InlineBlock = LinesBlock => <>.into();
 
 #[inline]
-Expand: Expand = LogicLine+? => Expand(<>.unwrap_or_default());
+Expand: Expand = Lines => Expand(<>);
 pub LogicLine: LogicLine = {
+    LogicLineNormal,
+    <LogicLineSingle> LEnd,
+}
+LogicLineNormal: LogicLine = {
     Control,
-    BuiltinCommand,
-    MBlock<Expand> => <>.into(),
-    "inline" <InlineBlock> => <>.into(),
+    IntoLL<MBlock<Expand>>,
+    "inline" <IntoLL<InlineBlock>>,
     Label => LogicLine::new_label(<>, meta),
-    "op" <Op> LEnd => <>.into(),
-    "noop" LEnd => LogicLine::NoOp,
     <OpExprTopSelfOps> LEnd,
-    Print,
     <OtherLogicLine> LEnd => meta.pack_line(LogicLine::Other(<>)),
-    <OpExpr> LEnd,
-    QuickTake,
     "inline" <ArgsRepeatBlock> => <>.into(),
     Match,
     ConstMatch,
 }
+LogicLineSingle: LogicLine = {
+    "op" <IntoLL<Op>>,
+    "noop" => LogicLine::NoOp,
+    Print,
+    OpExpr,
+    QuickTake,
+    ControlSingle,
+    BuiltinCommand,
+}
 
-QuickTake: LogicLine = <value:Loc<NonConstRangeValue>> "!" <args:ParamArgsSL> LEnd => {
+QuickTake: LogicLine = <value:Loc<NonConstRangeValue>> "!" <args:ParamArgsSL> => {
     let expand = Expand(vec![
         LogicLine::SetArgs(args),
         Take::unused(meta, value).into(),
@@ -643,7 +670,7 @@ ArgsRepeatBlock: ArgsRepeat = {
     },
 }
 
-Print: LogicLine = <l:LinePack<Loc<"print">>> ","? <args:ArgsSL?> LEnd => {
+Print: LogicLine = <l:LinePack<Loc<"print">>> ","? <args:ArgsSL?> => {
     fn one(arg: Value) -> LogicLine {
         LogicLine::Other(vec![
             ReprVar("print".into()),
@@ -728,8 +755,8 @@ Args2G<V>: Vec<V> = {
 
 OpExprOp: (OpExprAOperFun, OpExprInfo) = {
     <oper:OpExprAssignOper> Or<"?", "*">?
-    <mut values:(<OpExprBody> ",")*> <tail:OpExprBody>
-    => { values.push(tail); (oper, OpExprInfo::from_iter(values)) },
+    <values:Cat<(<OpExprBody> ",")*, OpExprBody>>
+    => { (oper, OpExprInfo::from_iter(values)) },
 }
 
 OpExpr: LogicLine = {
@@ -1094,7 +1121,7 @@ ConstStart: () = () => meta.add_label_scope();
 ConstStop: Vec<Var> = () => Vec::from_iter(meta.pop_label_scope());
 
 BuiltinCommand: LogicLine = {
-    "const" <mut values:(<ConstKey> "=" ConstStart <Value> <ConstStop> ","?)+> LEnd
+    "const" <mut values:(<ConstKey> "=" ConstStart <Value> <ConstStop> ","?)+>
     => {
         if values.len() == 1 {
             let (var, value, labels) = values.pop().unwrap();
@@ -1109,7 +1136,7 @@ BuiltinCommand: LogicLine = {
         }
     },
 
-    "take" <args:MList<Args?>> <var:(<Var> "=")?> <value:Loc<Value>> LEnd => {
+    "take" <args:MList<Args?>> <var:(<Var> "=")?> <value:Loc<Value>> => {
         Take::new(
             args.unwrap_or_default(),
             var,
@@ -1118,9 +1145,7 @@ BuiltinCommand: LogicLine = {
         )
     },
 
-    "take" LinePackBegin
-    <mut lines:(<TakeAtom> ","?)*> <exts:(<TakeAtomOpt> ","?)*>
-    LEnd => {
+    "take" LinePackBegin <mut lines:(<TakeAtom> ","?)*> <exts:(<TakeAtomOpt> ","?)*> => {
         lines.extend(exts);
         meta.pack_line(if lines.len() == 1 {
             lines.into_iter().next().unwrap()
@@ -1129,7 +1154,7 @@ BuiltinCommand: LogicLine = {
         })
     },
 
-    "take" "*" <inner:TakeOpExprMultInner> LEnd => {
+    "take" "*" <inner:TakeOpExprMultInner> => {
         let (keys, vals) = inner;
         assert_eq!(keys.len(), vals.len());
 
@@ -1148,7 +1173,7 @@ BuiltinCommand: LogicLine = {
         }
     },
 
-    "setres" <Value> LEnd => LogicLine::SetResultHandle(<>),
+    "setres" <Value> => LogicLine::SetResultHandle(<>),
 }
 TakeOpExprMultInner: (Vec<ConstKey>, Vec<Value>) = {
     <key:ConstKey> "=" <val:OpExprBodyToValue> => (vec![key], vec![val]),
@@ -1295,14 +1320,6 @@ ControlBlock: LogicLine = {
         }
         Expand(res).into()
     },
-
-    "break" <AlwaysJumpCmp> LEnd => {
-        Goto(meta.get_break().clone(), <>).into()
-    },
-
-    "continue" <AlwaysJumpCmp> LEnd => {
-        Goto(meta.get_continue().clone(), <>).into()
-    },
 }
 
 Control: LogicLine = {
@@ -1310,6 +1327,7 @@ Control: LogicLine = {
     ControlWithOptionalEnd,
 }
 ControlBody: LogicLine = {
+    <ControlSingle> LEnd?,
     Control,
     Block,
 }
@@ -1324,20 +1342,8 @@ GSwitchCase: GSwitchCase = {
     <skip_extra:Opt<"*">> "<" ">" <to:OptConstKey> => GSwitchCase::Catch { skip_extra, underflow: true, missed: false, overflow: true, to },
     <skip_extra:Opt<"*">> "<" "!" ">" <to:OptConstKey> => GSwitchCase::Catch { skip_extra, underflow: true, missed: true, overflow: true, to },
 }
-ControlWithoutOptionalEnd: LogicLine = {
-    "goto" <Label> <AlwaysJumpCmpOnce> LEnd => {
-        Goto(<>).into()
-    },
-
-    "goto" "inline" <lab:Label> <cmp:AlwaysJumpCmpOnce> LEnd => {
-        Goto(meta.add_defined_label(lab), cmp).into()
-    },
-
-    "inline" <Label> LEnd? => LogicLine::Label(<>),
-
-    ControlBlock,
-
-    "skip" <cmp:JumpCmpOnce> <body:LogicLine> => {
+ControlEndLine<Line>: LogicLine = {
+    "skip" <cmp:JumpCmpOnce> <body:Line> => {
         let lab = meta.get_tag();
         Expand(vec![
             Goto(lab.clone(), cmp).into(),
@@ -1346,16 +1352,7 @@ ControlWithoutOptionalEnd: LogicLine = {
         ]).into()
     },
 
-    "skip" <body:BlockExpand> => {
-        let lab = meta.get_tag();
-        Expand(vec![
-            Goto(lab.clone(), JumpCmp::Always.into()).into(),
-            body.into(),
-            LogicLine::new_label(lab, meta),
-        ]).into()
-    },
-
-    "while" <cmp:JumpCmpOnce> CtrlStart <body:LogicLine> <ctrl:CtrlStop> => {
+    "while" <cmp:JumpCmpOnce> CtrlStart <body:Line> <ctrl:CtrlStop> => {
         let (break_lab, continue_lab) = ctrl;
         let [end, head] = [meta.get_tag(), meta.get_tag()];
         let rev_cmp = cmp.clone().reverse();
@@ -1376,23 +1373,7 @@ ControlWithoutOptionalEnd: LogicLine = {
         Expand(res).into()
     },
 
-    "do" CtrlStart <body:ControlBody> <ctrl:CtrlStop> "while" <cmp:AlwaysJumpCmpOnce> LEnd => {
-        let (break_lab, continue_lab) = ctrl;
-        let head = meta.get_tag();
-        let mut res = Vec::with_capacity(5);
-
-        res.extend([
-            LogicLine::new_label(head.clone(), meta),
-            body,
-        ]);
-        meta.push_some_label_to(&mut res, continue_lab);
-        res.push(Goto(head, cmp).into());
-        meta.push_some_label_to(&mut res, break_lab);
-
-        Expand(res).into()
-    },
-
-    "gwhile" <cmp:JumpCmpOnce> CtrlStart <body:LogicLine> <ctrl:CtrlStop> => {
+    "gwhile" <cmp:JumpCmpOnce> CtrlStart <body:Line> <ctrl:CtrlStop> => {
         let (break_lab, continue_lab) = ctrl;
         let [to, head] = [meta.get_tag(), meta.get_tag()];
         let mut res = Vec::with_capacity(7);
@@ -1408,6 +1389,57 @@ ControlWithoutOptionalEnd: LogicLine = {
         meta.push_some_label_to(&mut res, break_lab);
 
         Expand(res).into()
+    },
+}
+ControlSingle: LogicLine = {
+    "goto" <Label> <AlwaysJumpCmpOnce> => {
+        Goto(<>).into()
+    },
+
+    "goto" "inline" <lab:Label> <cmp:AlwaysJumpCmpOnce> => {
+        Goto(meta.add_defined_label(lab), cmp).into()
+    },
+
+    "break" <AlwaysJumpCmp> => {
+        Goto(meta.get_break().clone(), <>).into()
+    },
+
+    "continue" <AlwaysJumpCmp> => {
+        Goto(meta.get_continue().clone(), <>).into()
+    },
+
+    "do" CtrlStart <body:ControlBody> <ctrl:CtrlStop> "while" <cmp:AlwaysJumpCmpOnce> => {
+        let (break_lab, continue_lab) = ctrl;
+        let head = meta.get_tag();
+        let mut res = Vec::with_capacity(5);
+
+        res.extend([
+            LogicLine::new_label(head.clone(), meta),
+            body,
+        ]);
+        meta.push_some_label_to(&mut res, continue_lab);
+        res.push(Goto(head, cmp).into());
+        meta.push_some_label_to(&mut res, break_lab);
+
+        Expand(res).into()
+    },
+
+    ControlEndLine<LogicLineSingle>,
+}
+ControlWithoutOptionalEnd: LogicLine = {
+    ControlBlock,
+
+    "inline" <Label> LEnd? => LogicLine::Label(<>),
+
+    ControlEndLine<LogicLineNormal>,
+
+    "skip" <body:BlockExpand> => {
+        let lab = meta.get_tag();
+        Expand(vec![
+            Goto(lab.clone(), JumpCmp::Always.into()).into(),
+            body.into(),
+            LogicLine::new_label(lab, meta),
+        ]).into()
     },
 
     "gswitch" <value:Value>
@@ -1437,7 +1469,7 @@ ControlWithoutOptionalEnd: LogicLine = {
     "switch" <value:Value>
     CtrlStart
     <cases:MBlock<(
-        <LogicLine*> // append line
+        <Lines> // append line
         <( // catch 拦截
             "case"
             <SwitchCatchFlag+> // 捕获模式, 至少有一个
