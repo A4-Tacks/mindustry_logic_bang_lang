@@ -176,6 +176,7 @@ pub const FALSE_VAR: &str = "false";
 pub const ZERO_VAR: &str = "0";
 pub const UNUSED_VAR: &str = "0";
 pub const UNNAMED_VAR: &str = "__";
+pub const GLOBAL_VAR: &str = "__global";
 
 trait DisplaySrc {
     fn display_src<'a>(&self, meta: &'a CompileMeta) -> Cow<'a, str>;
@@ -2622,15 +2623,6 @@ impl From<ConstKey> for Value {
         }
     }
 }
-impl TakeHandle for ConstKey {
-    fn take_handle(self, meta: &mut CompileMeta) -> Var {
-        match self {
-            Self::Var(var) => var,
-            Self::Unused(var) => var.value,
-            Self::ValueBind(vb) => vb.take_handle(meta),
-        }
-    }
-}
 impl_enum_froms!(impl From for ConstKey {
     Var => &str;
     Var => String;
@@ -4091,7 +4083,7 @@ pub struct CompileMeta {
     const_expand_names: Vec<Var>,
     closure_lazy_expands: Vec<Option<ClosuredValue>>,
     const_expand_max_depth: usize,
-    value_binds: HashMap<Var, LinkedHashMap<Var, Var>>,
+    value_bind_pairs: HashMap<Var, LinkedHashMap<Var, Var>>,
     last_builtin_exit_code: u8,
     enable_misses_match_log_info: bool,
     enable_misses_bind_info: bool,
@@ -4122,7 +4114,7 @@ impl Debug for CompileMeta {
             .field("dexp_expand_binders", &self.dexp_expand_binders)
             .field("tmp_tag_count", &self.tmp_tag_count.counter())
             .field("const_expand_tag_name_map", &self.const_expand_tag_name_map)
-            .field("value_binds", &self.value_binds)
+            .field("value_binds", &self.value_bind_pairs)
             .field("last_builtin_exit_code", &self.last_builtin_exit_code)
             .field("enable_misses_match_log_info", &self.enable_misses_match_log_info)
             .field("..", &DotDot)
@@ -4162,7 +4154,7 @@ impl CompileMeta {
             const_expand_names: Vec::new(),
             closure_lazy_expands: Vec::new(),
             const_expand_max_depth: 500,
-            value_binds: HashMap::new(),
+            value_bind_pairs: HashMap::new(),
             last_builtin_exit_code: 0,
             enable_misses_match_log_info: false,
             enable_misses_bind_info: false,
@@ -4177,7 +4169,7 @@ impl CompileMeta {
         let builtin = Var::from(Self::BUILTIN_FUNCS_BINDER);
         for builtin_func in build_builtins() {
             let handle = format!("__{builtin}__{}", builtin_func.name());
-            meta.value_binds
+            meta.value_bind_pairs
                 .entry(builtin.clone())
                 .or_default()
                 .insert(builtin_func.name().into(), handle.into());
@@ -4214,12 +4206,41 @@ impl CompileMeta {
         self.tmp_var_count.get()
     }
 
+    fn apply_global(&mut self, handle: Var, bind: Var) {
+        if handle == GLOBAL_VAR { return }
+        if let Some(binded) = self.value_bind_pairs
+            .get(GLOBAL_VAR)
+            .and_then(|b| b.get(&bind))
+            .cloned()
+        {
+            if self.value_bind_pairs
+                .get(&handle)
+                .and_then(|b| b.get(&bind))
+                .is_some()
+            {
+                return
+            }
+
+            Const(
+                ValueBind(Box::new(handle.into()), bind.clone()).into(),
+                binded.into(),
+                vec![],
+            ).compile(self);
+        }
+    }
+
     /// 获取绑定值, 如果绑定关系不存在则自动插入
     pub fn get_value_binded(&mut self, handle: Var, bind: Var) -> Var {
+        self.apply_global(handle.clone(), bind.clone());
+        self.getadd_value_binded(handle, bind)
+    }
+
+    /// 获取绑定值, 但是用来插入不会检查全局默认绑定
+    pub fn getadd_value_binded(&mut self, handle: Var, bind: Var) -> Var {
         let mut warn_builtin = (handle == Self::BUILTIN_FUNCS_BINDER)
             .then_some(false);
         let mut show_new_bind = false;
-        let binded = self.value_binds
+        let binded = self.value_bind_pairs
             .entry(handle.clone())
             .or_default()
             .entry(bind.clone())
@@ -4391,7 +4412,7 @@ impl CompileMeta {
     where F: FnOnce(BindsDisplayer<'_>) -> R,
     {
         let mut none_iter = None.into_iter();
-        f(self.value_binds
+        f(self.value_bind_pairs
             .get(&handle)
             .map(|binds| binds.iter()
                 .flat_map(|(name, val_h)| {
@@ -4419,25 +4440,30 @@ impl CompileMeta {
     /// 如果扩展绑定者存在的话, 忽略键中的绑定者而采用扩展绑定者
     pub fn add_const_value_with_extra_binder(
         &mut self,
-        Const(var, value, labels): Const,
+        Const(key, value, labels): Const,
         extra_binder: Option<Var>,
     ) -> Option<ConstData> {
-        match var {
-            ConstKey::Var(_) | ConstKey::Unused(_) => {
-                let var = var.take_handle(self);
+        match key {
+            ConstKey::Var(key)
+            | ConstKey::Unused(IdxBox { value: key, .. }) =>
+            {
 
                 let mut data = ConstData::new(value, labels);
                 if let Some(extra_binder) = extra_binder {
                     data = data.set_binder(extra_binder)
                 }
-                self.add_local_const_data(var, data)
+                self.add_local_const_data(key, data)
             },
             ConstKey::ValueBind(ValueBind(binder, name)) => {
                 let binder_handle = binder.take_handle(self);
-                let data = ConstData::new(value, labels)
-                    .set_binder(extra_binder
-                        .unwrap_or_else(|| binder_handle.clone()));
-                let binded = self.get_value_binded(
+                let mut data = ConstData::new(value, labels);
+                    if let Some(extra_binder) = extra_binder
+                        .or((binder_handle != GLOBAL_VAR)
+                            .then_some(binder_handle.clone()))
+                    {
+                        data = data.set_binder(extra_binder);
+                    }
+                let binded = self.getadd_value_binded(
                     binder_handle, name);
                 self.add_global_const_data(binded, data)
             },

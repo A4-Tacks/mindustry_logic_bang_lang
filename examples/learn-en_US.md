@@ -1447,6 +1447,26 @@ foo 7
 > 所以对于一些值你可能需要先求值再给重复块使用
 
 
+Default Const ValueBind
+-------------------------------------------------------------------------------
+你可以给 `__global` 句柄绑定值, 如果你在求值一个值绑定时, 并没有查询到,
+那么将会额外在 `__global` 上进行查询值绑定
+
+如果查询到了, 会将 `__global` 上的值绑定 `const` 到你正在查询的绑定句柄
+
+```
+const __global.Print = (print ..;);
+const a.Print = (print "this a";);
+take a.Print; # print "this a"
+take b.Print; # print b
+```
+
+> [!NOTE]
+> 被 const 到 `__global` 的值并不会尝试将 `__global` 作为值绑定句柄设置默认绑定者
+> 所以 `const __global.Print = (...);` 展开时的 `..` 才不会是 `__global`,
+> 而是触发时再次 `const` 的 `b`
+
+
 Common Syntax Sugar
 ===============================================================================
 Here are some commonly used syntax sugar introduced.

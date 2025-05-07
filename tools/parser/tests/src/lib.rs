@@ -9816,3 +9816,32 @@ fn underline_sugar_test() {
         "#).unwrap(),
     );
 }
+
+#[test]
+fn global_bind_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        const MakeBind = (
+            const _0.Foo = ([N:_1 ..B](
+                print B N;
+            ));
+        );
+        MakeBind! a 1;
+        a.Foo!;
+
+        MakeBind! __global 2;
+        a.Foo!;
+        b.Foo!;
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print a"#,
+            r#"print 1"#,
+            r#"print a"#,
+            r#"print 1"#,
+            r#"print b"#,
+            r#"print 2"#,
+        ],
+    );
+}
