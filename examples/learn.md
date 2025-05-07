@@ -1925,18 +1925,11 @@ Foo! i--;
 
 
 ## Packed DExp like
-一些 DExp 在语法上不能被直接使用, 需要使用包裹语法`(%)`
-
-这算是语法设计的妥协, 也可以提醒过长的 DExp 后面可能接着其它东西
+一些值不能被直接使用, 需要添加括号`(% )`
 
 ```
-print ().x; # syntax error
-print (%()).x; # passed
-```
-
-```
-print (%(v: $.x = 2;)).x;
-print (%v: $.x = 2;%).x;
+print const().x; # syntax error
+print (%const()).x; # passed
 ```
 
 

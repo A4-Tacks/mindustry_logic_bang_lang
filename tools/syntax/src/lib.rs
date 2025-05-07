@@ -1120,6 +1120,12 @@ impl Meta {
         self.defined_labels.pop().unwrap()
     }
 
+    pub fn ext_label_scope(&mut self) {
+        let scope = self.defined_labels.pop().unwrap();
+        self.defined_labels.last_mut().unwrap()
+            .extend(scope);
+    }
+
     pub fn add_control_break_level(&mut self, r#break: Option<Var>) {
         self.break_labels.push(r#break);
     }

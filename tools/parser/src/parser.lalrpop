@@ -214,13 +214,13 @@ NonConstRangeValue: Value = {
             ValueBindRefTarget::ResultHandle,
         ).into()
     },
+    DExp => <>.into(),
+    OpExprToValue,
+    ForceSettedValue,
 }
 
 pub Value: Value = {
     NonConstRangeValue,
-    DExp => <>.into(),
-    OpExprToValue,
-    ForceSettedValue,
     // consted-dexp
     "const" ConstStart <value:Or<ValueDExp, ("!" <Value>)>> <labels:ConstStop> => {
         let tmp_name = meta.get_tmp_var();
@@ -1119,10 +1119,13 @@ OpExprValueSelfOps: OpExprInfo = {
 // 开始一个const, 开启了必须负责清理
 ConstStart: () = () => meta.add_label_scope();
 ConstStop: Vec<Var> = () => Vec::from_iter(meta.pop_label_scope());
+ConstExt: () = () => meta.ext_label_scope();
 
 BuiltinCommand: LogicLine = {
-    "const" <mut values:(<ConstKey> "=" ConstStart <Value> <ConstStop> ","?)+>
-    => {
+    "const" <mut values:(
+        ConstStart <ConstKey> ConstExt
+        "=" ConstStart <Value> <ConstStop> ","?
+    )+> => {
         if values.len() == 1 {
             let (var, value, labels) = values.pop().unwrap();
             Const(var, value, labels).into()

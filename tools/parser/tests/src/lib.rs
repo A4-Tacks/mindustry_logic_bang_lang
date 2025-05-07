@@ -2956,6 +2956,24 @@ fn value_bind_test() {
         print (print 2;);
         "#),
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+        print (%(%(%(print 2;)))).x;
+        "#),
+        parse!(parser, r#"
+        print (print 2;).x;
+        "#),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        print (%(?2)).x;
+        "#),
+        parse!(parser, r#"
+        print (?2).x;
+        "#),
+    );
 }
 
 #[test]
@@ -9868,6 +9886,7 @@ fn global_bind_test() {
     );
 }
 
+#[test]
 fn lines_end_no_semicolon_test() {
     let parser = TopLevelParser::new();
 

@@ -2051,19 +2051,11 @@ adding it to the end of the current statement (**is not op-expr!**)
 
 
 ## Packed DExp like
-Some DExp syntax cannot be directly used in certain places and require the use of packed syntax `(%)`
-
-This can be considered a compromise in syntax design,
-and it can also serve as a reminder that lengthy DExp may be followed by other things
+Some values cannot be used in certain places, parentheses `(% )` need to be added
 
 ```
-print ().x; # syntax error
-print (%()).x; # passed
-```
-
-```
-print (%(v: $.x = 2;)).x;
-print (%v: $.x = 2;%).x;
+print const().x; # syntax error
+print (%const()).x; # passed
 ```
 
 
