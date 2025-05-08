@@ -1,0 +1,81 @@
+#**
+* 给一个 Var 绑定一系列的 sensor 选项获取器, 使其可以像 block.@x 一样使用
+*
+* 注意: 这为了简单的实现与使用风格, 会经常造成额外的语句,
+* 使用take代替赋值可以缓解部分
+*
+* 可以传入 __global, 这样所有的 Var 将具有默认的绑定
+*#
+
+const MakeSensors = (inline@ *H {
+    const H.@totalItems = (sensor $ .. @totalItems;);
+    const H.@firstItem = (sensor $ .. @firstItem;);
+    const H.@totalLiquids = (sensor $ .. @totalLiquids;);
+    const H.@totalPower = (sensor $ .. @totalPower;);
+    const H.@itemCapacity = (sensor $ .. @itemCapacity;);
+    const H.@liquidCapacity = (sensor $ .. @liquidCapacity;);
+    const H.@powerCapacity = (sensor $ .. @powerCapacity;);
+    const H.@powerNetStored = (sensor $ .. @powerNetStored;);
+    const H.@powerNetCapacity = (sensor $ .. @powerNetCapacity;);
+    const H.@powerNetIn = (sensor $ .. @powerNetIn;);
+    const H.@powerNetOut = (sensor $ .. @powerNetOut;);
+    const H.@ammo = (sensor $ .. @ammo;);
+    const H.@ammoCapacity = (sensor $ .. @ammoCapacity;);
+    const H.@currentAmmoType = (sensor $ .. @currentAmmoType;);
+    const H.@memoryCapacity = (sensor $ .. @memoryCapacity;);
+    const H.@health = (sensor $ .. @health;);
+    const H.@maxHealth = (sensor $ .. @maxHealth;);
+    const H.@heat = (sensor $ .. @heat;);
+    const H.@shield = (sensor $ .. @shield;);
+    const H.@armor = (sensor $ .. @armor;);
+    const H.@efficiency = (sensor $ .. @efficiency;);
+    const H.@progress = (sensor $ .. @progress;);
+    const H.@timescale = (sensor $ .. @timescale;);
+    const H.@rotation = (sensor $ .. @rotation;);
+    const H.@x = (sensor $ .. @x;);
+    const H.@y = (sensor $ .. @y;);
+    const H.@velocityX = (sensor $ .. @velocityX;);
+    const H.@velocityY = (sensor $ .. @velocityY;);
+    const H.@shootX = (sensor $ .. @shootX;);
+    const H.@shootY = (sensor $ .. @shootY;);
+    const H.@cameraX = (sensor $ .. @cameraX;);
+    const H.@cameraY = (sensor $ .. @cameraY;);
+    const H.@cameraWidth = (sensor $ .. @cameraWidth;);
+    const H.@cameraHeight = (sensor $ .. @cameraHeight;);
+    const H.@size = (sensor $ .. @size;);
+    const H.@solid = (sensor $ .. @solid;);
+    const H.@dead = (sensor $ .. @dead;);
+    const H.@displayWidth = (sensor $ .. @displayWidth;);
+    const H.@displayHeight = (sensor $ .. @displayHeight;);
+    const H.@range = (sensor $ .. @range;);
+    const H.@shooting = (sensor $ .. @shooting;);
+    const H.@boosting = (sensor $ .. @boosting;);
+    const H.@bufferUsage = (sensor $ .. @bufferUsage;);
+    const H.@mineX = (sensor $ .. @mineX;);
+    const H.@mineY = (sensor $ .. @mineY;);
+    const H.@mining = (sensor $ .. @mining;);
+    const H.@speed = (sensor $ .. @speed;);
+    const H.@team = (sensor $ .. @team;);
+    const H.@type = (sensor $ .. @type;);
+    const H.@flag = (sensor $ .. @flag;);
+    const H.@controlled = (sensor $ .. @controlled;);
+    const H.@controller = (sensor $ .. @controller;);
+    const H.@name = (sensor $ .. @name;);
+    const H.@payloadCount = (sensor $ .. @payloadCount;);
+    const H.@payloadType = (sensor $ .. @payloadType;);
+    const H.@totalPayload = (sensor $ .. @totalPayload;);
+    const H.@payloadCapacity = (sensor $ .. @payloadCapacity;);
+    const H.@id = (sensor $ .. @id;);
+    const H.@enabled = (sensor $ .. @enabled;);
+    const H.@config = (sensor $ .. @config;);
+    const H.@color = (sensor $ .. @color;);
+});
+
+MakeSensors! __global;
+
+print (getlink $ 0;).@x;
+#* >>>
+getlink __64 0
+sensor __66 __64 @x
+print __66
+*#
