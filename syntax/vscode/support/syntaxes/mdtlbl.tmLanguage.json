@@ -236,15 +236,15 @@
 		"numbers": {
 			"patterns": [
 				{
-					"match": "[+\\-]?\\b0x-[+\\-]?[\\da-fA-F][\\d_a-fA-F]*\\b",
+					"match": "[+\\-]?\\b0x-[+\\-]?[\\da-fA-F][\\d_a-fA-F]*",
 					"name": "constant.numeric.hex.mdtlbl"
 				},
 				{
-					"match": "[+\\-]?\\b0b[+\\-]?[01][_01]*\\b",
+					"match": "[+\\-]?\\b0b[+\\-]?[01][_01]*",
 					"name": "constant.numeric.binary.mdtlbl"
 				},
 				{
-					"match": "[+\\-]??\\d[\\d_]*(?:\\.\\d[0-9_]*|e[+\\-]?\\d[\\d_]*)?\\b",
+					"match": "[+\\-]??\\b\\d[\\d_]*(?:\\.\\d[0-9_]*|e[+\\-]?\\d[\\d_]*)?",
 					"name": "constant.numeric.decimal.mdtlbl"
 				}
 			]
