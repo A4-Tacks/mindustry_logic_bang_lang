@@ -1,4 +1,4 @@
-#!/bin/jq -nRf
+#!/usr/bin/env -S /bin/jq --indent 4 -nRf
 "^snippet\\s+(?<prefix>\\S+)\\s+\"(?<description>[^\"]*)\"" as $title
 | reduce inputs as $line ([]; if $line | test($title) then
   .+[$line | capture($title) | {key: .description, value: .}]
