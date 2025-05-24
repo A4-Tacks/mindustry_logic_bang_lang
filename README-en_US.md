@@ -134,8 +134,10 @@ Building this project will be relatively slow due to the following reasons:
 1. Compile using `rustc`, which is slightly slower compared to `gcc` and `clang`
 2. Using the large syntax analysis framework 'lalrpop', generated over 320000 lines of code and works together with 'rustc' to make compilation very slower
 
-You can first check the Releases to see if there is a built program,
+You can first check the [Releases] to see if there is a built program,
 and if it does not exist or cannot be used, try building it yourself
+
+[Releases]: https://github.com/A4-Tacks/mindustry_logic_bang_lang/releases
 
 ## Build Method
 Firstly, install the `rust` toolchain, as shown in <https://www.rust-lang.org/tools/install>

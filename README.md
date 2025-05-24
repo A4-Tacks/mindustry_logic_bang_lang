@@ -132,7 +132,10 @@ Releases 提供了预构建产物, 考虑先从其中下载自己所在平台的
 1. 使用`rustc`进行编译, 而它略慢, 相对于`gcc` `clang`
 2. 使用了大型语法分析框架`lalrpop`, 它会生成三十二万行代码, 再叠加上`rustc`编译更慢
 
-你可以先翻一翻Releases, 看一看有没有已构建的程序, 如果没有或无法使用再尝试自己构建.
+> [!NOTE]
+> 正常情况你应该不需要自己构建, 请在 [Releases] 中获取最新预编译版本
+
+[Releases]: https://github.com/A4-Tacks/mindustry_logic_bang_lang/releases
 
 ## 构建方法
 首先安装`rust`工具链, 安装方式可以参考 <https://www.rust-lang.org/tools/install>
