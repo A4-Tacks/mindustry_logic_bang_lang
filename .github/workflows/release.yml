@@ -55,7 +55,7 @@ jobs:
       - run: cd ./${{ matrix.bin-config.cwd }}
       - uses: A4-Tacks/upload-rust-binary-action@use-v1
         with:
-          bin: ${{ matrix.bin-config }}
+          bin: ${{ matrix.bin-config.name }}
           archive: $bin-$tag_$target
           tar: none
           tar-xz: unix
