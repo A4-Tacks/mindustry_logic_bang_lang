@@ -47,18 +47,18 @@ jobs:
         bin-config:
           - name: mindustry_logic_bang_lang
           - name: mdt-ops-generator
-            cwd: tools/mdt-ops-generator
+            package: mdt-ops-generator
 
     runs-on: ${{ matrix.build.os }}
     steps:
       - uses: actions/checkout@v4
-      - run: cd ./${{ matrix.bin-config.cwd }}
       - uses: A4-Tacks/upload-rust-binary-action@use-v1
         with:
           bin: ${{ matrix.bin-config.name }}
           archive: $bin-$tag_$target
           tar: none
           tar-xz: unix
+          package: ${{ matrix.bin-config.package }}
           target: ${{ matrix.build.target }}
           checksum: sha256
           token: ${{ secrets.GITHUB_TOKEN }}
