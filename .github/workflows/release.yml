@@ -30,7 +30,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
+        build:
           - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
           - target: aarch64-apple-darwin
@@ -44,19 +44,21 @@ jobs:
           - target: x86_64-pc-windows-gnu
             os: windows-latest
 
-        bin-name:
-          - mindustry_logic_bang_lang
-          - mdt-ops-generator
+        bin-config:
+          - name: mindustry_logic_bang_lang
+          - name: mdt-ops-generator
+            cwd: tools/mdt-ops-generator
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.build.os }}
     steps:
       - uses: actions/checkout@v4
+      - run: cd ./${{ matrix.bin-config.cwd }}
       - uses: A4-Tacks/upload-rust-binary-action@use-v1
         with:
-          bin: ${{ matrix.bin-name }}
+          bin: ${{ matrix.bin-config }}
           archive: $bin-$tag_$target
           tar: none
           tar-xz: unix
-          target: ${{ matrix.target }}
+          target: ${{ matrix.build.target }}
           checksum: sha256
           token: ${{ secrets.GITHUB_TOKEN }}
