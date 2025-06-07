@@ -43,14 +43,17 @@ jobs:
             os: macos-latest
           - target: x86_64-pc-windows-gnu
             os: windows-latest
+
+        bin-name:
+          - mindustry_logic_bang_lang
+          - mdt-ops-generator
+
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: A4-Tacks/upload-rust-binary-action@use-v1
         with:
-          bin:
-            - mindustry_logic_bang_lang
-            - mdt-ops-generator
+          bin: ${{ matrix.bin-name }}
           archive: $bin-$tag_$target
           tar: none
           tar-xz: unix
