@@ -26,7 +26,8 @@
         "hex-oct": /(?:[+-]?0(?:x[+-]?[\da-fA-F]+|b[+-]?[01]+))/
         "normal-number": /(?:[+-]?\d+(?:\.\d+|e[+\-]?\d+)?)/
         "number": /(true|false|null|/ + include("hex-oct") + /|/ + include("normal-number") + /)/
-        "val": /(?:/ + include("string") + /|/ + include("number") + /|/ + include("arg-body") + /)/
+        "color-def": /(%([0-9a-fA-F]{6})[0-9a-fA-F]{0,2})/
+        "val": /(?:/ + include("string") + /|/ + include("number") + /|/ + include("color-def") + /|/ + include("arg-body") + /)/
         "var": /((?:/ + include("raw-string") + /|/ + include("arg-body") + /))/
         "fill": /((?:/ + include("raw-string") + /|/ + include("arg-body") + /))/
         "err": /((?:/ + include("raw-string") + /|/ + include("arg-body") + /))/
@@ -49,6 +50,7 @@
             2: "string"
             3: "strEscape"
             4: "number"
+            5: "parseColor(auto,6,HEX,default)"
         }
         "logic-lines-io": [
             {
@@ -64,6 +66,7 @@
                 4: "string"
                 5: "strEscape"
                 6: "number"
+                7: "parseColor(auto,8,HEX,default)"
             }
             {
                 match: include("bg") + /(write)(?:/ + include("_") + include("val") + /){3}/ + include("ed")
@@ -72,17 +75,25 @@
                 2: "string"
                 3: "strEscape"
                 4: "number"
+                5: "parseColor(auto,6,HEX,default)"
             }
             {
-                match: include("bg") + /(draw)/ + include("_") + /(?:(c(?:lear|ol(?:or)?)|stroke|line(?:Rect|Poly)?|rect|poly|triangle|image|print|translate|scale|rotate|reset)|/ + include("err") + /)(?:/ + include("_") + include("val") + /){6}/ + include("ed")
+                match: include("bg") + /(draw)/ + include("_") + /(?:(/ + "c(?:olor|lear)" + /)/ + include("_") + /(\d+(?:/ + include("_") + /\d+){2})(?:/ + include("_") + include("val") + /){3}|(?:(c(?:lear|ol(?:or)?)|stroke|line(?:Rect|Poly)?|rect|poly|triangle|image|print|translate|scale|rotate|reset)|/ + include("err") + /)(?:/ + include("_") + include("val") + /){6})/ + include("ed")
                 recordAllGroups: true
                 1: "io"
                 2: "io"
-                3: "error"
-                4: "strEscape"
-                5: "string"
-                6: "strEscape"
-                7: "number"
+                3: "parseColor(auto,3,RGB,error)"
+                4: "string"
+                5: "strEscape"
+                6: "number"
+                7: "parseColor(auto,8,HEX,default)"
+                9: "io"
+                10: "error"
+                11: "strEscape"
+                12: "string"
+                13: "strEscape"
+                14: "number"
+                15: "parseColor(auto,16,HEX,default)"
             }
             {
                 match: include("bg") + /(print)/ + include("_") + include("val") + include("ed")
@@ -91,6 +102,7 @@
                 2: "string"
                 3: "strEscape"
                 4: "number"
+                5: "parseColor(auto,6,HEX,default)"
             }
             {
                 match: include("bg") + /(printchar)/ + include("_") + include("val") + include("ed")
@@ -99,6 +111,7 @@
                 2: "string"
                 3: "strEscape"
                 4: "number"
+                5: "parseColor(auto,6,HEX,default)"
             }
             {
                 match: include("bg") + /(format)/ + include("_") + include("val") + include("ed")
@@ -107,6 +120,7 @@
                 2: "string"
                 3: "strEscape"
                 4: "number"
+                5: "parseColor(auto,6,HEX,default)"
             }
         ]
         "logic-lines-block": [
@@ -117,6 +131,7 @@
                 2: "string"
                 3: "strEscape"
                 4: "number"
+                5: "parseColor(auto,6,HEX,default)"
             }
             {
                 match: include("bg") + /(getlink)/ + include("_") + include("var") + include("_") + include("val") + include("ed")
@@ -127,6 +142,7 @@
                 4: "string"
                 5: "strEscape"
                 6: "number"
+                7: "parseColor(auto,8,HEX,default)"
             }
             {
                 match: include("bg") + /(control)/ + include("_") + /(?:(enabled|shootp?|co(?:nfig|lor))|/ + include("err") + /)(?:/ + include("_") + include("val") + /){5}/ + include("ed")
@@ -138,6 +154,7 @@
                 5: "string"
                 6: "strEscape"
                 7: "number"
+                8: "parseColor(auto,9,HEX,default)"
             }
             {
                 match: include("bg") + /(radar)((?:/ + include("_") + include("radar-selecter") + /){3}/ + include("_") + include("radar-order") + /)/ + include("_") + include("val") + include("_") + include("val") + include("_") + include("var") + include("ed")
@@ -151,11 +168,13 @@
                 7: "string"
                 8: "strEscape"
                 9: "number"
-                10: "string"
-                11: "strEscape"
-                12: "number"
-                13: "resultVar"
-                14: "strEscape"
+                10: "parseColor(auto,11,HEX,default)"
+                12: "string"
+                13: "strEscape"
+                14: "number"
+                15: "parseColor(auto,16,HEX,default)"
+                17: "resultVar"
+                18: "strEscape"
             }
             {
                 match: include("bg") + /(sensor)/ + include("_") + include("var") + include("_") + include("val") + include("_") + include("val") + include("ed")
@@ -166,9 +185,11 @@
                 4: "string"
                 5: "strEscape"
                 6: "number"
-                7: "string"
-                8: "strEscape"
-                9: "number"
+                7: "parseColor(auto,8,HEX,default)"
+                9: "string"
+                10: "strEscape"
+                11: "number"
+                12: "parseColor(auto,13,HEX,default)"
             }
         ]
         "logic-lines-operation": [
@@ -181,6 +202,7 @@
                 4: "string"
                 5: "strEscape"
                 6: "number"
+                7: "parseColor(auto,8,HEX,default)"
             }
             {
                 match: include("bg") + /(op)/ + include("_") + /(?:(/ + include("op-operator1") + /)/ + include("_") + /(?<a1>/ + include("var") + /)/ + include("_") + /(?:(\k<a1>)|/ + include("val") + /)/ + include("_") + include("fill") + /|(/ + include("op-operator2") + /)/ + include("_") + /(?<a2>/ + include("var") + /)(?:/ + include("_") + /(?:(\k<a2>)|/ + include("val") + /)){2}|/ + include("err") + /(?:/ + include("_") + include("val") + /){3})/ + include("ed")
@@ -193,20 +215,23 @@
                 7: "string"
                 8: "strEscape"
                 9: "number"
-                10: "comment"
-                11: "strEscape"
-                12: "operation"
-                14: "resultVar"
-                15: "strEscape"
+                10: "parseColor(auto,11,HEX,default)"
+                12: "comment"
+                13: "strEscape"
+                14: "operation"
                 16: "resultVar"
-                17: "string"
-                18: "strEscape"
-                19: "number"
-                20: "error"
-                21: "strEscape"
-                22: "string"
-                23: "strEscape"
-                24: "number"
+                17: "strEscape"
+                18: "resultVar"
+                19: "string"
+                20: "strEscape"
+                21: "number"
+                22: "parseColor(auto,23,HEX,default)"
+                24: "error"
+                25: "strEscape"
+                26: "string"
+                27: "strEscape"
+                28: "number"
+                29: "parseColor(auto,30,HEX,default)"
             }
             {
                 match: include("bg") + /(lookup)/ + include("_") + /(?:(item|block|unit|liquid)|/ + include("err") + /)/ + include("_") + include("var") + include("_") + include("val") + include("ed")
@@ -220,6 +245,7 @@
                 7: "string"
                 8: "strEscape"
                 9: "number"
+                10: "parseColor(auto,11,HEX,default)"
             }
             {
                 match: include("bg") + /(packcolor)/ + include("_") + include("var") + /(?:/ + include("_") + include("val") + /){4}/
@@ -230,6 +256,7 @@
                 4: "string"
                 5: "strEscape"
                 6: "number"
+                7: "parseColor(auto,8,HEX,default)"
             }
         ]
         "logic-lines-control": [
@@ -241,18 +268,21 @@
                 3: "string"
                 4: "strEscape"
                 5: "number"
-                6: "control"
-                7: "comment"
-                8: "strEscape"
-                9: "control"
-                10: "error"
-                11: "strEscape"
-                12: "string"
+                6: "parseColor(auto,7,HEX,default)"
+                8: "control"
+                9: "comment"
+                10: "strEscape"
+                11: "control"
+                12: "error"
                 13: "strEscape"
-                14: "number"
-                15: "string"
-                16: "strEscape"
-                17: "number"
+                14: "string"
+                15: "strEscape"
+                16: "number"
+                17: "parseColor(auto,18,HEX,default)"
+                19: "string"
+                20: "strEscape"
+                21: "number"
+                22: "parseColor(auto,23,HEX,default)"
             }
             {
                 match: include("bg") + /(end|stop)/ + include("ed")
@@ -265,6 +295,7 @@
                 2: "string"
                 3: "strEscape"
                 4: "number"
+                5: "parseColor(auto,6,HEX,default)"
             }
         ]
         "logic-lines-unit": [
@@ -275,6 +306,7 @@
                 2: "string"
                 3: "strEscape"
                 4: "number"
+                5: "parseColor(auto,6,HEX,default)"
             }
             {
                 match: include("bg") + /(ucontrol)/ + include("_") + /(?:/ + include("ucontrol-normal") + /|/ + include("ucontrol-extend") + /|/ + include("ucontrol-failed") + /)/ + include("ed")
@@ -284,26 +316,31 @@
                 3: "string"
                 4: "strEscape"
                 5: "number"
-                6: "unit"
-                7: "string"
-                8: "strEscape"
-                9: "number"
-                10: "resultVar"
-                11: "strEscape"
-                12: "unit"
-                13: "string"
-                14: "strEscape"
-                15: "number"
-                16: "resultVar"
-                17: "strEscape"
-                18: "string"
-                19: "strEscape"
-                20: "number"
-                21: "error"
-                22: "strEscape"
-                23: "string"
-                24: "strEscape"
-                25: "number"
+                6: "parseColor(auto,7,HEX,default)"
+                8: "unit"
+                9: "string"
+                10: "strEscape"
+                11: "number"
+                12: "parseColor(auto,13,HEX,default)"
+                14: "resultVar"
+                15: "strEscape"
+                16: "unit"
+                17: "string"
+                18: "strEscape"
+                19: "number"
+                20: "parseColor(auto,21,HEX,default)"
+                22: "resultVar"
+                23: "strEscape"
+                24: "string"
+                25: "strEscape"
+                26: "number"
+                27: "parseColor(auto,28,HEX,default)"
+                29: "error"
+                30: "strEscape"
+                31: "string"
+                32: "strEscape"
+                33: "number"
+                34: "parseColor(auto,35,HEX,default)"
             }
             {
                 match: include("bg") + /(uradar)((?:/ + include("_") + include("radar-selecter") + /){3}/ + include("_") + include("radar-order") + /)(?:/ + include("_") + include("val") + /){2}/ + include("_") + include("var") + include("ed")
@@ -317,8 +354,9 @@
                 7: "string"
                 8: "strEscape"
                 9: "number"
-                10: "resultVar"
-                11: "strEscape"
+                10: "parseColor(auto,11,HEX,default)"
+                12: "resultVar"
+                13: "strEscape"
             }
             {
                 match: include("bg") + /(ulocate)/ + include("_") + /(?:(ore)/ + include("_") + include("ulocate-type") + include("_") + include("fill") + include("_") + include("val") + /(?:/ + include("_") + include("var") + /){3}/ + include("_") + include("val") + /|(building)/ + include("_") + include("ulocate-type") + include("_") + include("val") + include("_") + include("fill") + /(?:/ + include("_") + include("var") + /){4}|(spawn|damaged)/ + include("_") + include("ulocate-type") + /(?:/ + include("_") + include("fill") + /){2}(?:/ + include("_") + include("var") + /){4}|/ + include("err") + include("_") + include("ulocate-type") + /(?:/ + include("_") + include("val") + /){6})/ + include("ed")
@@ -333,38 +371,42 @@
                 8: "string"
                 9: "strEscape"
                 10: "number"
-                11: "resultVar"
-                12: "strEscape"
-                13: "string"
+                11: "parseColor(auto,12,HEX,default)"
+                13: "resultVar"
                 14: "strEscape"
-                15: "number"
-                16: "unit"
-                17: "unit"
-                18: "error"
-                19: "strEscape"
-                20: "string"
-                21: "strEscape"
-                22: "number"
-                23: "comment"
-                24: "strEscape"
-                25: "resultVar"
-                26: "strEscape"
-                27: "unit"
-                28: "unit"
-                29: "error"
+                15: "string"
+                16: "strEscape"
+                17: "number"
+                18: "parseColor(auto,19,HEX,default)"
+                20: "unit"
+                21: "unit"
+                22: "error"
+                23: "strEscape"
+                24: "string"
+                25: "strEscape"
+                26: "number"
+                27: "parseColor(auto,28,HEX,default)"
+                29: "comment"
                 30: "strEscape"
-                31: "comment"
+                31: "resultVar"
                 32: "strEscape"
-                33: "resultVar"
-                34: "strEscape"
+                33: "unit"
+                34: "unit"
                 35: "error"
                 36: "strEscape"
-                37: "unit"
-                38: "error"
-                39: "strEscape"
-                40: "string"
-                41: "strEscape"
-                42: "number"
+                37: "comment"
+                38: "strEscape"
+                39: "resultVar"
+                40: "strEscape"
+                41: "error"
+                42: "strEscape"
+                43: "unit"
+                44: "error"
+                45: "strEscape"
+                46: "string"
+                47: "strEscape"
+                48: "number"
+                49: "parseColor(auto,50,HEX,default)"
             }
         ]
         "logic-lines-world": [
@@ -379,6 +421,7 @@
                 6: "string"
                 7: "strEscape"
                 8: "number"
+                9: "parseColor(auto,10,HEX,default)"
             }
             {
                 match: include("bg") + /(setblock)/ + include("_") + /(?:(floor|ore)(?:/ + include("_") + include("val") + /){3}(?:/ + include("_") + include("fill") + /){2}|(block)(?:/ + include("_") + include("val") + /){5}|/ + include("err") + /(?:/ + include("_") + include("val") + /){5})/ + include("ed")
@@ -388,17 +431,20 @@
                 3: "string"
                 4: "strEscape"
                 5: "number"
-                6: "comment"
-                7: "strEscape"
-                8: "world"
-                9: "string"
-                10: "strEscape"
-                11: "number"
-                12: "error"
-                13: "strEscape"
-                14: "string"
-                15: "strEscape"
-                16: "number"
+                6: "parseColor(auto,7,HEX,default)"
+                8: "comment"
+                9: "strEscape"
+                10: "world"
+                11: "string"
+                12: "strEscape"
+                13: "number"
+                14: "parseColor(auto,15,HEX,default)"
+                16: "error"
+                17: "strEscape"
+                18: "string"
+                19: "strEscape"
+                20: "number"
+                21: "parseColor(auto,22,HEX,default)"
             }
             {
                 match: include("bg") + /(spawn)(?:/ + include("_") + include("val") + /){5}/ + include("_") + include("var") + include("ed")
@@ -407,8 +453,9 @@
                 2: "string"
                 3: "strEscape"
                 4: "number"
-                5: "resultVar"
-                6: "strEscape"
+                5: "parseColor(auto,6,HEX,default)"
+                7: "resultVar"
+                8: "strEscape"
             }
             {
                 match: include("bg") + /(status)/ + include("_") + /(?:(false/ + include("_") + include("status-effects") + /)(?:/ + include("_") + include("val") + /){2}|((?:true|/ + include("err") + /)/ + include("_") + include("status-effects") + /)/ + include("_") + include("val") + include("_") + include("fill") + /)/ + include("ed")
@@ -420,16 +467,18 @@
                 5: "string"
                 6: "strEscape"
                 7: "number"
-                8: "world"
-                9: "error"
-                10: "strEscape"
+                8: "parseColor(auto,9,HEX,default)"
+                10: "world"
                 11: "error"
                 12: "strEscape"
-                13: "string"
+                13: "error"
                 14: "strEscape"
-                15: "number"
-                16: "comment"
-                17: "strEscape"
+                15: "string"
+                16: "strEscape"
+                17: "number"
+                18: "parseColor(auto,19,HEX,default)"
+                20: "comment"
+                21: "strEscape"
             }
             {
                 match: include("bg") + /(weathersense)/ + include("_") + include("var") + include("_") + include("val") + /(?:)/ + include("ed")
@@ -440,6 +489,7 @@
                 4: "string"
                 5: "strEscape"
                 6: "number"
+                7: "parseColor(auto,8,HEX,default)"
             }
             {
                 match: include("bg") + /(weatherset)/ + include("_") + include("val") + include("_") + include("val") + /(?:)/ + include("ed")
@@ -448,9 +498,11 @@
                 2: "string"
                 3: "strEscape"
                 4: "number"
-                5: "string"
-                6: "strEscape"
-                7: "number"
+                5: "parseColor(auto,6,HEX,default)"
+                7: "string"
+                8: "strEscape"
+                9: "number"
+                10: "parseColor(auto,11,HEX,default)"
             }
             {
                 match: include("bg") + /(spawnwave)(?:/ + include("_") + include("val") + /){3}/ + include("ed")
@@ -459,6 +511,7 @@
                 2: "string"
                 3: "strEscape"
                 4: "number"
+                5: "parseColor(auto,6,HEX,default)"
             }
             {
                 match: include("bg") + /(setrule)/ + include("_") + /(/ + include("logic-rules") + /)(?:/ + include("_") + include("val") + /){5}/ + include("ed")
@@ -470,6 +523,7 @@
                 5: "string"
                 6: "strEscape"
                 7: "number"
+                8: "parseColor(auto,9,HEX,default)"
             }
             {
                 match: include("bg") + /(message)/ + include("_") + /(?:(announce|toast)/ + include("_") + include("val") + /|(mission|notify)/ + include("_") + include("fill") + /|/ + include("err") + include("_") + include("val") + /)(?:/ + include("_") + include("val") + /)?/ + include("ed")
@@ -479,17 +533,20 @@
                 3: "string"
                 4: "strEscape"
                 5: "number"
-                6: "world"
-                7: "comment"
-                8: "strEscape"
-                9: "error"
+                6: "parseColor(auto,7,HEX,default)"
+                8: "world"
+                9: "comment"
                 10: "strEscape"
-                11: "string"
+                11: "error"
                 12: "strEscape"
-                13: "number"
-                14: "string"
-                15: "strEscape"
-                16: "number"
+                13: "string"
+                14: "strEscape"
+                15: "number"
+                16: "parseColor(auto,17,HEX,default)"
+                18: "string"
+                19: "strEscape"
+                20: "number"
+                21: "parseColor(auto,22,HEX,default)"
             }
             {
                 match: include("bg") + /(cutscene)/ + include("_") + /(?:(pan)/ + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + /|(zoom)/ + include("_") + include("val") + include("_") + include("fill") + include("_") + include("fill") + include("_") + include("fill") + /|(stop)/ + include("_") + include("fill") + include("_") + include("fill") + include("_") + include("fill") + include("_") + include("fill") + /|/ + include("err") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + /)/ + include("ed")
@@ -499,48 +556,57 @@
                 3: "string"
                 4: "strEscape"
                 5: "number"
-                6: "string"
-                7: "strEscape"
-                8: "number"
-                9: "string"
-                10: "strEscape"
-                11: "number"
-                12: "string"
-                13: "strEscape"
-                14: "number"
-                15: "world"
-                16: "string"
-                17: "strEscape"
-                18: "number"
-                19: "comment"
-                20: "strEscape"
-                21: "comment"
-                22: "strEscape"
-                23: "comment"
-                24: "strEscape"
-                25: "world"
-                26: "comment"
-                27: "strEscape"
-                28: "comment"
-                29: "strEscape"
-                30: "comment"
-                31: "strEscape"
-                32: "comment"
-                33: "strEscape"
-                34: "error"
-                35: "strEscape"
-                36: "string"
+                6: "parseColor(auto,7,HEX,default)"
+                8: "string"
+                9: "strEscape"
+                10: "number"
+                11: "parseColor(auto,12,HEX,default)"
+                13: "string"
+                14: "strEscape"
+                15: "number"
+                16: "parseColor(auto,17,HEX,default)"
+                18: "string"
+                19: "strEscape"
+                20: "number"
+                21: "parseColor(auto,22,HEX,default)"
+                23: "world"
+                24: "string"
+                25: "strEscape"
+                26: "number"
+                27: "parseColor(auto,28,HEX,default)"
+                29: "comment"
+                30: "strEscape"
+                31: "comment"
+                32: "strEscape"
+                33: "comment"
+                34: "strEscape"
+                35: "world"
+                36: "comment"
                 37: "strEscape"
-                38: "number"
-                39: "string"
-                40: "strEscape"
-                41: "number"
-                42: "string"
+                38: "comment"
+                39: "strEscape"
+                40: "comment"
+                41: "strEscape"
+                42: "comment"
                 43: "strEscape"
-                44: "number"
-                45: "string"
-                46: "strEscape"
-                47: "number"
+                44: "error"
+                45: "strEscape"
+                46: "string"
+                47: "strEscape"
+                48: "number"
+                49: "parseColor(auto,50,HEX,default)"
+                51: "string"
+                52: "strEscape"
+                53: "number"
+                54: "parseColor(auto,55,HEX,default)"
+                56: "string"
+                57: "strEscape"
+                58: "number"
+                59: "parseColor(auto,60,HEX,default)"
+                61: "string"
+                62: "strEscape"
+                63: "number"
+                64: "parseColor(auto,65,HEX,default)"
             }
             {
                 match: include("bg") + /(effect)/ + include("_") + /(/ + include("val") + /)/ + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + /(?:/ + include("_") + include("val") + /)?/ + include("ed")
@@ -550,21 +616,27 @@
                 3: "string"
                 4: "strEscape"
                 5: "number"
-                6: "string"
-                7: "strEscape"
-                8: "number"
-                9: "string"
-                10: "strEscape"
-                11: "number"
-                12: "string"
-                13: "strEscape"
-                14: "number"
-                15: "string"
-                16: "strEscape"
-                17: "number"
+                6: "parseColor(auto,7,HEX,default)"
+                8: "string"
+                9: "strEscape"
+                10: "number"
+                11: "parseColor(auto,12,HEX,default)"
+                13: "string"
+                14: "strEscape"
+                15: "number"
+                16: "parseColor(auto,17,HEX,default)"
                 18: "string"
                 19: "strEscape"
                 20: "number"
+                21: "parseColor(auto,22,HEX,default)"
+                23: "string"
+                24: "strEscape"
+                25: "number"
+                26: "parseColor(auto,27,HEX,default)"
+                28: "string"
+                29: "strEscape"
+                30: "number"
+                31: "parseColor(auto,32,HEX,default)"
             }
             {
                 match: include("bg") + /(explosion)(?:/ + include("_") + include("val") + /){8,9}/ + include("ed")
@@ -573,6 +645,7 @@
                 2: "string"
                 3: "strEscape"
                 4: "number"
+                5: "parseColor(auto,6,HEX,default)"
             }
             {
                 match: include("bg") + /(setrate)/ + include("_") + include("val") + include("ed")
@@ -581,6 +654,7 @@
                 2: "string"
                 3: "strEscape"
                 4: "number"
+                5: "parseColor(auto,6,HEX,default)"
             }
             {
                 match: include("bg") + /(fetch)/ + include("_") + /(/ + include("fetch-type") + /)/ + include("_") + include("var") + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("ed")
@@ -594,12 +668,15 @@
                 7: "string"
                 8: "strEscape"
                 9: "number"
-                10: "string"
-                11: "strEscape"
-                12: "number"
-                13: "string"
-                14: "strEscape"
-                15: "number"
+                10: "parseColor(auto,11,HEX,default)"
+                12: "string"
+                13: "strEscape"
+                14: "number"
+                15: "parseColor(auto,16,HEX,default)"
+                17: "string"
+                18: "strEscape"
+                19: "number"
+                20: "parseColor(auto,21,HEX,default)"
             }
             {
                 match: include("bg") + /(sync)/ + include("_") + include("val") + include("ed")
@@ -608,6 +685,7 @@
                 2: "string"
                 3: "strEscape"
                 4: "number"
+                5: "parseColor(auto,6,HEX,default)"
             }
             {
                 match: include("bg") + /(getflag)/ + include("_") + include("var") + include("_") + include("val") + include("ed")
@@ -618,6 +696,7 @@
                 4: "string"
                 5: "strEscape"
                 6: "number"
+                7: "parseColor(auto,8,HEX,default)"
             }
             {
                 match: include("bg") + /(setflag)/ + include("_") + include("val") + include("_") + include("val") + include("ed")
@@ -626,9 +705,11 @@
                 2: "string"
                 3: "strEscape"
                 4: "number"
-                5: "string"
-                6: "strEscape"
-                7: "number"
+                5: "parseColor(auto,6,HEX,default)"
+                7: "string"
+                8: "strEscape"
+                9: "number"
+                10: "parseColor(auto,11,HEX,default)"
             }
             {
                 match: include("bg") + /(setprop)/ + include("_") + include("val") + include("_") + include("val") + include("_") + include("val") + include("ed")
@@ -637,12 +718,15 @@
                 2: "string"
                 3: "strEscape"
                 4: "number"
-                5: "string"
-                6: "strEscape"
-                7: "number"
-                8: "string"
-                9: "strEscape"
-                10: "number"
+                5: "parseColor(auto,6,HEX,default)"
+                7: "string"
+                8: "strEscape"
+                9: "number"
+                10: "parseColor(auto,11,HEX,default)"
+                12: "string"
+                13: "strEscape"
+                14: "number"
+                15: "parseColor(auto,16,HEX,default)"
             }
             {
                 match: include("bg") + /(playsound)/ + include("_") + /(?:(false)(?:/ + include("_") + include("val") + /){4}(?:/ + include("_") + include("fill") + /){2}|(true)(?:/ + include("_") + include("val") + /){3}/ + include("_") + include("fill") + /(?:/ + include("_") + include("val") + /){2}|/ + include("err") + /(?:/ + include("_") + include("val") + /){6})/ + include("_") + include("val") + include("ed")
@@ -652,25 +736,30 @@
                 3: "string"
                 4: "strEscape"
                 5: "number"
-                6: "comment"
-                7: "strEscape"
-                8: "world"
-                9: "string"
-                10: "strEscape"
-                11: "number"
-                12: "comment"
-                13: "strEscape"
-                14: "string"
-                15: "strEscape"
-                16: "number"
-                17: "error"
-                18: "strEscape"
-                19: "string"
-                20: "strEscape"
-                21: "number"
-                22: "string"
-                23: "strEscape"
-                24: "number"
+                6: "parseColor(auto,7,HEX,default)"
+                8: "comment"
+                9: "strEscape"
+                10: "world"
+                11: "string"
+                12: "strEscape"
+                13: "number"
+                14: "parseColor(auto,15,HEX,default)"
+                16: "comment"
+                17: "strEscape"
+                18: "string"
+                19: "strEscape"
+                20: "number"
+                21: "parseColor(auto,22,HEX,default)"
+                23: "error"
+                24: "strEscape"
+                25: "string"
+                26: "strEscape"
+                27: "number"
+                28: "parseColor(auto,29,HEX,default)"
+                30: "string"
+                31: "strEscape"
+                32: "number"
+                33: "parseColor(auto,34,HEX,default)"
             }
             {
                 match: include("bg") + /(setmarker)/ + include("_") + /(/ + include("val") + /)(?:/ + include("_") + include("val") + /){4}/ + include("ed")
@@ -680,9 +769,11 @@
                 3: "string"
                 4: "strEscape"
                 5: "number"
-                6: "string"
-                7: "strEscape"
-                8: "number"
+                6: "parseColor(auto,7,HEX,default)"
+                8: "string"
+                9: "strEscape"
+                10: "number"
+                11: "parseColor(auto,12,HEX,default)"
             }
             {
                 match: include("bg") + /(makemarker)/ + include("_") + /(/ + include("val") + /)(?:/ + include("_") + include("val") + /){4}/ + include("ed")
@@ -692,9 +783,11 @@
                 3: "string"
                 4: "strEscape"
                 5: "number"
-                6: "string"
-                7: "strEscape"
-                8: "number"
+                6: "parseColor(auto,7,HEX,default)"
+                8: "string"
+                9: "strEscape"
+                10: "number"
+                11: "parseColor(auto,12,HEX,default)"
             }
             {
                 match: include("bg") + /(localeprint)/ + include("_") + include("val") + include("ed")
@@ -703,6 +796,7 @@
                 2: "string"
                 3: "strEscape"
                 4: "number"
+                5: "parseColor(auto,6,HEX,default)"
             }
         ]
         "logic-lines": [

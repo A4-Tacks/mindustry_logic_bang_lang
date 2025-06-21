@@ -30,7 +30,9 @@
         hex-oct = (?:/[+-]?0(?:x[+-]?[\da-fA-F]+|b[+-]?[01]+)/)
         normal-number = (?:/[+-]?\d+(?:\.\d+|e[+\-]?\d+)?/)
         number = ($number /true|false|null/ | @hex-oct | @normal-number)
-        val = (?:@string | @number | @arg-body)
+        color-def = /%([0-9a-fA-F]{6})[0-9a-fA-F]{0,2}/
+            $0: parseColor(auto,1,HEX,default)
+        val = (?:@string | @number | @color-def | @arg-body)
         var = (?:@raw-string | @arg-body)
             $0: "resultVar"
         fill = (?:@raw-string | @arg-body)
@@ -87,10 +89,14 @@
             : @bg /(write)(?:/ @_ @val /){3}/ @ed
                 $recordAllGroups: true
                 $1: "io"
-            : @bg /(draw)/ @_ /(?:(c(?:lear|ol(?:or)?)|stroke|line(?:Rect|Poly)?|rect|poly|triangle|image|print|translate|scale|rotate|reset)|/ @err /)(?:/ @_ @val /){6}/ @ed
+            : @bg /(draw)/ @_
+                (?: ($io "c(?:olor|lear)") @_ (/\d+/ (?:@_ /\d+/){2}) (?:@_ @val){3}
+                | /(?:(c(?:lear|ol(?:or)?)|stroke|line(?:Rect|Poly)?|rect|poly|triangle|image|print|translate|scale|rotate|reset)|/ @err /)(?:/ @_ @val /){6}/
+                ) @ed
                 $recordAllGroups: true
                 $1: "io"
-                $2: "io"
+                $2: parseColor(auto,2,RGB,error)
+                $3: "io"
             : @bg /(print)/ @_ @val @ed
                 $recordAllGroups: true
                 $1: "io"
