@@ -1030,12 +1030,12 @@ fn take_test() {
         "#).unwrap(),
         parse!(parser, r#"
         inline {
+            take M=();
             inline {
-                take M=();
                 take X = (c;);
+                take A = X.A;
+                take B = X.C;
             }
-            take A = X.A;
-            take B = X.C;
         }
         "#).unwrap(),
     );
@@ -1113,10 +1113,10 @@ fn take_test() {
         inline {
             inline {
                 take ___0 = (c;);
-                take X=M;
+                take A = ___0.A;
+                const B = ___0->C;
             }
-            take A = ___0.A;
-            const B = ___0->C;
+            take X=M;
         }
         "#).unwrap(),
     );
@@ -1129,11 +1129,36 @@ fn take_test() {
         inline {
             inline {
                 take ___0 = (c;);
-                take ___1=M;
+                take A = ___0.A;
+                const B = ___0->C;
             }
-            take A = ___0.A;
-            const B = ___0->C;
-            take X = ___1.X;
+            inline {
+                take ___1=M;
+                take X = ___1.X;
+            }
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        take {A &B:C} = (c;) {X}=M {Y}=N;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            inline {
+                take ___0 = (c;);
+                take A = ___0.A;
+                const B = ___0->C;
+            }
+            inline {
+                take ___1=M;
+                take X = ___1.X;
+            }
+            inline {
+                take ___2=N;
+                take Y = ___2.Y;
+            }
         }
         "#).unwrap(),
     );

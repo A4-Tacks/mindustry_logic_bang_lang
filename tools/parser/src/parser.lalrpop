@@ -1148,13 +1148,12 @@ BuiltinCommand: LogicLine = {
         )
     },
 
-    "take" LinePackBegin <mut lines:(<TakeAtom> ","?)*> <exts:(<TakeAtomOpt> ","?)*> => {
-        lines.extend(exts);
-        meta.pack_line(if lines.len() == 1 {
+    "take" <lines:TakeAtomList> => {
+        if lines.len() == 1 {
             lines.into_iter().next().unwrap()
         } else {
             InlineBlock(lines).into()
-        })
+        }
     },
 
     "take" "*" <inner:TakeOpExprMultInner> => {
@@ -1191,34 +1190,42 @@ TakeDestructAtom: (bool, Var, Var) = {
     <c:Opt<"&">> <v:Var> => (c, v.clone(), v),
 }
 TakeDestruct: Vec<(bool, Var, Var)> = MBlock<(<TakeDestructAtom> ","?)*>;
+TakeDestructSin: LogicLine = <de:TakeDestruct> "=" <val:Value> => {
+    let key = meta.get_tmp_var().into();
+    crate::make_take_destructs(meta, key, val, de)
+};
+
 TakeAtom: LogicLine = {
     "+" <key:ConstKey> => {
         Take(key, DExp::new_nores(vec![].into()).into()).into()
     },
-    <mut key:ConstKey> <de:TakeDestruct?> "=" <val:Value> => {
+    <key:ConstKey> <de:TakeDestruct?> "=" <val:Value> => {
         if let Some(de) = de {
-            crate::make_take_destructs(meta, &mut key, de);
+            crate::make_take_destructs(meta, key, val, de)
+        } else {
+            Take(key, val).into()
         }
-        Take(key, val).into()
-    },
-    <de:TakeDestruct> "=" <val:Value> => {
-        let mut key = meta.get_tmp_var().into();
-        crate::make_take_destructs(meta, &mut key, de);
-        Take(key, val).into()
     },
     "_" "=" <val:Loc<Value>> => {
         Take::unused(meta, val).into()
     },
-}
-TakeAtomOpt: LogicLine = {
     "_" <de:TakeDestruct> "=" <val:Value> => {
-        let mut key = meta.get_tmp_var().into();
-        crate::make_take_destructs(meta, &mut key, de);
-        Take(key, val).into()
+        let key = meta.get_tmp_var().into();
+        crate::make_take_destructs(meta, key, val, de)
     },
-    <val:Loc<Value>> => {
-        Take::unused(meta, val).into()
+}
+TakeAtomD: (LogicLine, Vec<LogicLine>) = {
+    <atom:TakeAtom> ","? <tdes:(<TakeDestructSin> ","?)*> => (atom, tdes),
+    <val:Loc<Value>> ","? => {
+        (Take::unused(meta, val).into(), vec![])
     },
+}
+TakeAtomList: Vec<LogicLine> = {
+    <hdes:(<TakeDestructSin> ","?)*> <lines:TakeAtomD*> => {
+        hdes.into_iter()
+            .chain(lines.into_iter().flat_map(|(line, tdes)| std::iter::once(line).chain(tdes)))
+            .collect()
+    }
 }
 
 BlockExpand: Expand = MBlock<Expand>;
@@ -1663,7 +1670,7 @@ ControlWithOptionalEnd: LogicLine = {
     {
         make_if(
             meta,
-            std::iter::once((cmp, body)).into_iter().chain(elifs),
+            std::iter::once((cmp, body)).chain(elifs),
             else_body,
         )
     },

@@ -4,9 +4,12 @@ pub use ::lalrpop_util;
 
 use ::syntax::{
     Var,
+    Value,
     ValueBind,
     ValueBindRef,
     ValueBindRefTarget,
+    LogicLine,
+    InlineBlock,
     Const,
     Take,
     ConstKey,
@@ -15,25 +18,34 @@ use ::syntax::{
 
 fn make_take_destructs(
     meta: &mut Meta,
-    key: &mut ConstKey,
+    mut key: ConstKey,
+    val: Value,
     de: Vec<(bool, Var, Var)>,
-) {
-    if let ConstKey::ValueBind(ValueBind(binder, _)) = key {
+) -> LogicLine {
+    let pre = if let ConstKey::ValueBind(ValueBind(binder, _)) = &mut key {
         let tmp = meta.get_tmp_var();
         let binder = core::mem::replace(&mut **binder, tmp.clone().into());
-        meta.add_line_dep(Take(tmp.into(), binder).into());
-    }
-    for (c, dst, src) in de {
-        meta.add_line_post(if c {
-            Const(dst.into(), ValueBindRef::new(
-                Box::new((*key).clone().into()),
-                ValueBindRefTarget::NameBind(src),
-            ).into(), vec![]).into()
-        } else {
-            Take(dst.into(), ValueBind(
-                Box::new(key.clone().into()),
-                src,
-            ).into()).into()
-        });
-    }
+        Some(Take(tmp.into(), binder).into())
+    } else {
+        None
+    };
+
+    let lines = pre.into_iter()
+        .chain(std::iter::once(Take(key.clone(), val).into()))
+        .chain(de.into_iter().map(|(c, dst, src)|
+        {
+            if c {
+                Const(dst.into(), ValueBindRef::new(
+                    Box::new(key.clone().into()),
+                    ValueBindRefTarget::NameBind(src),
+                ).into(), vec![]).into()
+            } else {
+                Take(dst.into(), ValueBind(
+                    Box::new(key.clone().into()),
+                    src,
+                ).into()).into()
+            }
+        }))
+        .collect();
+    InlineBlock(lines).into()
 }
