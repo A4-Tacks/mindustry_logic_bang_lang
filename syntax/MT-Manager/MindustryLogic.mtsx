@@ -73,217 +73,182 @@
                 | @err
                 )
 
+        [[statement]] := @bg [[]] @ed
+            $recordAllGroups: true
 
+        [[statement]]
         logic-lines-label := {
-            : @bg /(/ @val /:)/ @ed
-                $recordAllGroups: true
+            : /(/ @val /:)/
                 $1: "label"
         }
 
+        [[statement]]
         logic-lines-io := {
-            : @bg /noop/ @ed
+            : /noop/
                 $0: "control"
-            : @bg /(read)/ @_ @var (?:@_ @val){2} @ed
-                $recordAllGroups: true
+            : /(read)/ @_ @var (?:@_ @val){2}
                 $1: "io"
-            : @bg /(write)(?:/ @_ @val /){3}/ @ed
-                $recordAllGroups: true
+            : /(write)(?:/ @_ @val /){3}/
                 $1: "io"
-            : @bg /(draw)/ @_
+            : /(draw)/ @_
                 (?: ($io "c(?:olor|lear)") @_ (/\d+/ (?:@_ /\d+/){2}) (?:@_ @val){3}
                 | /(?:(c(?:lear|ol(?:or)?)|stroke|line(?:Rect|Poly)?|rect|poly|triangle|image|print|translate|scale|rotate|reset)|/ @err /)(?:/ @_ @val /){6}/
-                ) @ed
-                $recordAllGroups: true
+                )
                 $1: "io"
                 $2: parseColor(auto,2,RGB,error)
                 $3: "io"
-            : @bg /(print)/ @_ @val @ed
-                $recordAllGroups: true
+            : /(print)/ @_ @val
                 $1: "io"
-            : @bg /(printchar)/ @_ @val @ed
-                $recordAllGroups: true
+            : /(printchar)/ @_ @val
                 $1: "io"
-            : @bg /(format)/ @_ @val @ed
-                $recordAllGroups: true
+            : /(format)/ @_ @val
                 $1: "io"
         }
 
+        [[statement]]
         logic-lines-block := {
-            : @bg /((?:draw|print)flush)/ @_ @val @ed
-                $recordAllGroups: true
+            : /((?:draw|print)flush)/ @_ @val
                 $1: "block"
-            : @bg /(getlink)/ @_ @var @_ @val @ed
-                $recordAllGroups: true
+            : /(getlink)/ @_ @var @_ @val
                 $1: "block"
-            : @bg /(control)/ @_ /(?:(enabled|shootp?|co(?:nfig|lor))|/ @err /)(?:/ @_ @val /){5}/ @ed
-                $recordAllGroups: true
+            : /(control)/ @_ /(?:(enabled|shootp?|co(?:nfig|lor))|/ @err /)(?:/ @_ @val /){5}/
                 $1: "block"
                 $2: "block"
-            : @bg /(radar)/ ((?:@_ @radar-selecter){3} @_ @radar-order) @_ @val @_ @val @_ @var @ed
-                $recordAllGroups: true
+            : /(radar)/ ((?:@_ @radar-selecter){3} @_ @radar-order) @_ @val @_ @val @_ @var
                 $1: "block"
                 $2: "block"
-            : @bg /(sensor)/ @_ @var @_ @val @_ @val @ed
-                $recordAllGroups: true
+            : /(sensor)/ @_ @var @_ @val @_ @val
                 $1: "block"
         }
 
+        [[statement]]
         logic-lines-operation := {
-            : @bg /(set)/ @_ @var @_ @val @ed
-                $recordAllGroups: true
+            : /(set)/ @_ @var @_ @val
                 $1: "operation"
-            : @bg /(op)/ @_ (?:
+            : /(op)/ @_ (?:
                     ($operation @op-operator1) @_ (/?<a1>/ @var)
                         @_ (?:($resultVar /\k<a1>/) | @val) @_ @fill
                     | ($operation @op-operator2) @_ (/?<a2>/ @var)
                         (?:@_ (?:($resultVar /\k<a2>/) | @val)){2}
                     | @err (?:@_ @val){3}
-                    ) @ed
-                $recordAllGroups: true
+                    )
                 $1: "operation"
-            : @bg /(lookup)/ @_ /(?:(item|block|unit|liquid)|/ @err /)/ @_ @var @_ @val @ed
-                $recordAllGroups: true
+            : /(lookup)/ @_ /(?:(item|block|unit|liquid)|/ @err /)/ @_ @var @_ @val
                 $1: "operation"
                 $2: "operation"
-            : @bg /(packcolor)/ @_ @var /(?:/ @_ @val /){4}/
-                $recordAllGroups: true
+            : /(packcolor)/ @_ @var /(?:/ @_ @val /){4}/
                 $1: "operation"
         }
 
+        [[statement]]
         logic-lines-control := {
-            : @bg /(jump/ @_ /:?)/ (@val) @_ (?:
+            : /(jump/ @_ /:?)/ (@val) @_ (?:
                     /(always)/ (?:@_ @fill){2}
                     | (@jump-cmper) @_ @val @_ @val
-                    ) @ed
-                $recordAllGroups: true
+                    )
                 $1: "control"
                 $2: "label"
                 $3: "control"
                 $4: "control"
-            : @bg /(end|stop)/ @ed
+            : /(end|stop)/
                 $1: "control"
-            : @bg /(wait)/ @_ @val @ed
-                $recordAllGroups: true
+            : /(wait)/ @_ @val
                 $1: "control"
         }
 
+        [[statement]]
         logic-lines-unit := {
-            : @bg /(ubind)/ @_ @val @ed
-                $recordAllGroups: true
+            : /(ubind)/ @_ @val
                 $1: "unit"
-            : @bg /(ucontrol)/ @_ (?:@ucontrol-normal | @ucontrol-extend | @ucontrol-failed) @ed
-                $recordAllGroups: true
+            : /(ucontrol)/ @_ (?:@ucontrol-normal | @ucontrol-extend | @ucontrol-failed)
                 $1: "unit"
                 $2: "unit"
-            : @bg /(uradar)/ ((?:@_ @radar-selecter){3} @_ @radar-order) (?:@_ @val){2} @_ @var @ed
-                $recordAllGroups: true
+            : /(uradar)/ ((?:@_ @radar-selecter){3} @_ @radar-order) (?:@_ @val){2} @_ @var
                 $1: "unit"
                 $2: "unit"
-            : @bg /(ulocate)/ @_ (?:
+            : /(ulocate)/ @_ (?:
                     /(ore)/ @_ @ulocate-type @_ @fill @_ @val (?:@_ @var){3} @_ @val
                     | /(building)/ @_ @ulocate-type @_ @val @_ @fill (?:@_ @var){4}
                     | /(spawn|damaged)/ @_ @ulocate-type (?:@_ @fill){2} (?:@_ @var){4}
                     | @err @_ @ulocate-type (?:@_ @val){6}
-                    ) @ed
-                $recordAllGroups: true
+                    )
                 $1: "unit"
                 $2: "unit"
                 $3: "unit"
                 $4: "unit"
         }
 
+        [[statement]]
         logic-lines-world := {
-            : @bg (/getblock/ @_ (?:/floor|ore|block|building/ | @err))
-                    @_ @var (?:@_ @val){2} @ed
-                $recordAllGroups: true
+            : (/getblock/ @_ (?:/floor|ore|block|building/ | @err))
+                    @_ @var (?:@_ @val){2}
                 $1: "world"
-            : @bg /(setblock)/ @_ (?:
+            : /(setblock)/ @_ (?:
                     ($world /floor|ore/) (?:@_ @val){3} (?:@_ @fill){2}
                     | ($world /block/) (?:@_ @val){5}
                     | @err (?:@_ @val){5}
-                    ) @ed
-                $recordAllGroups: true
+                    )
                 $1: "world"
-            : @bg /(spawn)/ (?:@_ @val){5} @_ @var @ed
-                $recordAllGroups: true
+            : /(spawn)/ (?:@_ @val){5} @_ @var
                 $1: "world"
-            : @bg /(status)/ @_ (?:
+            : /(status)/ @_ (?:
                     ($world /false/ @_ @status-effects) (?:@_ @val){2}
                     | ($world (?:/true/ | @err) @_ @status-effects) @_ @val @_ @fill
-                    ) @ed
-                $recordAllGroups: true
+                    )
                 $1: "world"
-            : @bg /(weathersense)/ @_ @var @_ @val (?:) @ed
-                $recordAllGroups: true
+            : /(weathersense)/ @_ @var @_ @val (?:)
                 $1: "world"
-            : @bg /(weatherset)/ @_ @val @_ @val (?:) @ed
-                $recordAllGroups: true
+            : /(weatherset)/ @_ @val @_ @val (?:)
                 $1: "world"
-            : @bg /(spawnwave)/ (?:@_ @val){3} @ed
-                $recordAllGroups: true
+            : /(spawnwave)/ (?:@_ @val){3}
                 $1: "world"
-            : @bg /(setrule)/ @_ ($world @logic-rules) (?:@_ @val){5} @ed
-                $recordAllGroups: true
+            : /(setrule)/ @_ ($world @logic-rules) (?:@_ @val){5}
                 $1: "world"
-            : @bg /(message)/ @_ (?:
+            : /(message)/ @_ (?:
                     ($world /announce|toast/) @_ @val
                     | ($world /mission|notify/) @_ @fill
                     | @err @_ @val
-                    ) (?:@_ @val)? @ed
-                $recordAllGroups: true
+                    ) (?:@_ @val)?
                 $1: "world"
-            : @bg /(cutscene)/ @_ (?:
+            : /(cutscene)/ @_ (?:
                     ($world /pan/) @_ @val @_ @val @_ @val @_ @val
                     | ($world /zoom/) @_ @val @_ @fill @_ @fill @_ @fill
                     | ($world /stop/) @_ @fill @_ @fill @_ @fill @_ @fill
                     | @err @_ @val @_ @val @_ @val @_ @val
-                    ) @ed
-                $recordAllGroups: true
+                    )
                 $1: "world"
-            : @bg /(effect)/ @_ (@val) @_ @val @_ @val @_ @val @_ @val (?:@_ @val)? @ed
-                $recordAllGroups: true
+            : /(effect)/ @_ (@val) @_ @val @_ @val @_ @val @_ @val (?:@_ @val)?
                 $1: "world"
                 $2: "world"
-            : @bg /(explosion)/ (?:@_ @val){8,9} @ed
-                $recordAllGroups: true
+            : /(explosion)/ (?:@_ @val){8,9}
                 $1: "world"
-            : @bg /(setrate)/ @_ @val @ed
-                $recordAllGroups: true
+            : /(setrate)/ @_ @val
                 $1: "world"
-            : @bg /(fetch)/ @_ (@fetch-type) @_ @var @_ @val @_ @val @_ @val @ed
-                $recordAllGroups: true
+            : /(fetch)/ @_ (@fetch-type) @_ @var @_ @val @_ @val @_ @val
                 $1: "world"
                 $2: "world"
-            : @bg /(sync)/ @_ @val @ed
-                $recordAllGroups: true
+            : /(sync)/ @_ @val
                 $1: "world"
-            : @bg /(getflag)/ @_ @var @_ @val @ed
-                $recordAllGroups: true
+            : /(getflag)/ @_ @var @_ @val
                 $1: "world"
-            : @bg /(setflag)/ @_ @val @_ @val @ed
-                $recordAllGroups: true
+            : /(setflag)/ @_ @val @_ @val
                 $1: "world"
-            : @bg /(setprop)/ @_ @val @_ @val @_ @val @ed
-                $recordAllGroups: true
+            : /(setprop)/ @_ @val @_ @val @_ @val
                 $1: "world"
-            : @bg /(playsound)/ @_ (?:
+            : /(playsound)/ @_ (?:
                     ($world /false/)  (?:@_ @val){4} (?:@_ @fill){2}
                     | ($world /true/) (?:@_ @val){3} @_ @fill (?:@_ @val){2}
                     | @err  (?:@_ @val){6}
-                    ) @_ @val @ed
-                $recordAllGroups: true
+                    ) @_ @val
                 $1: "world"
                 $2: "world"
-            : @bg /(setmarker)/ @_ (@val) (?:@_ @val){4} @ed
-                $recordAllGroups: true
+            : /(setmarker)/ @_ (@val) (?:@_ @val){4}
                 $1: "world"
                 $2: "world"
-            : @bg /(makemarker)/ @_ (@val) (?:@_ @val){4} @ed
-                $recordAllGroups: true
+            : /(makemarker)/ @_ (@val) (?:@_ @val){4}
                 $1: "world"
                 $2: "world"
-            : @bg /(localeprint)/ @_ @val @ed
-                $recordAllGroups: true
+            : /(localeprint)/ @_ @val
                 $1: "world"
         }
 

@@ -55,6 +55,7 @@
         "logic-lines-io": [
             {
                 match: /(/ + include("bg") + /noop/ + include("ed") + /)/
+                recordAllGroups: true
                 1: "control"
             }
             {
@@ -248,7 +249,7 @@
                 10: "parseColor(auto,11,HEX,default)"
             }
             {
-                match: include("bg") + /(packcolor)/ + include("_") + include("var") + /(?:/ + include("_") + include("val") + /){4}/
+                match: include("bg") + /(packcolor)/ + include("_") + include("var") + /(?:/ + include("_") + include("val") + /){4}/ + include("ed")
                 recordAllGroups: true
                 1: "operation"
                 2: "resultVar"
@@ -286,6 +287,7 @@
             }
             {
                 match: include("bg") + /(end|stop)/ + include("ed")
+                recordAllGroups: true
                 1: "control"
             }
             {
