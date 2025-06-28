@@ -109,7 +109,7 @@ Opt<T>: bool = T? => <>.is_some();
 MakeDExpBody<T>: DExp = {
     <var:(<Var> ":")?> <value:T>
         => DExp::new_optional_res(var, value.into()),
-    "`" <var:Var> "`" ":" <value:T>
+    <var:ReprVar> ":" <value:T>
         => DExp::new_notake(var, value.into()),
 }
 #[inline]
@@ -134,6 +134,10 @@ pub TopLevel: Expand = CtrlStart <mut lines:Expand> <ctrl:CtrlStop> => {
     lines
 };
 
+ReprVar: Var = {
+    "`" <Var> "`" => Var::from(<>),
+    "`" <Keywords> "`" => Var::from(<>),
+}
 String: Var = r#""(?:\\\r?\n\s*(?:\\ )?|\r?\n|\\[n\\\[]|[^"\r\n\\])*""#
     => string_escape(<>).into();
 Ident: Var = r"[_\p{XID_Start}]\p{XID_Continue}*" => <>.into();
@@ -174,7 +178,7 @@ ConstKey: ConstKey = {
 
 NonConstRangeValue: Value = {
     ConstKey => <>.into(),
-    "`" <Var> "`" => ReprVar(<>), // 原始值
+    ReprVar => ReprVar(<>), // 原始值
     "$" => ResultHandle,
     <value:NonConstRangeValue> <args:MList<ParamArgs>> => {
         // QuickDExpTake
@@ -536,9 +540,24 @@ ConstMatchPatAtom: ConstMatchPatAtom = {
     },
 }
 
+APValueExtAtom: &'input str = {
+    "_", "op", "noop", "print", "rand", "len", "sqrt", "angle",
+}
+Keywords: &'input str = {
+    "_", "goto", "not", "abs", "greaterThan", "notEqual",
+    "acos", "greaterThanEq", "op", "add", "gswitch", "or",
+    "always", "gwhile", "pow", "and", "idiv", "print",
+    "angle", "if", "rand", "angleDiff", "inline", "select",
+    "asin", "land", "setres", "atan", "len", "shl",
+    "break", "lessThan", "shr", "case", "lessThanEq", "sin",
+    "ceil", "lnot", "skip", "const", "log", "sqrt",
+    "continue", "log10", "strictEqual", "cos", "match", "strictNotEqual",
+    "div", "max", "sub", "do", "min", "switch",
+    "elif", "mod", "take", "else", "mul", "tan",
+    "equal", "noise", "while", "floor", "noop", "xor",
+}
 APValueExt: Value = {
-    "_" => Var::from("_").into(),
-    "`" "_" "`" => ReprVar(Var::from("_")),
+    APValueExtAtom => Var::from(<>).into(),
 }
 Args: Args = {
     <prefix:Args0> "@" <suffix:Args0> => {
@@ -817,7 +836,7 @@ ForceSettedValue: Value = {
             ]).into(),
         ].into()).into()
     },
-    MTuple<(<("`" <Var> "`" ":")> "=" <OpExprBodyOne> ","?)> => {
+    MTuple<(<(<ReprVar> ":")> "=" <OpExprBodyOne> ","?)> => {
         let (result, expr) = <>;
         DExp::new_notake(result, vec![
             Expand(vec![

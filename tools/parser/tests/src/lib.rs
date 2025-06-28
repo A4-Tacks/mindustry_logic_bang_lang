@@ -2033,12 +2033,20 @@ fn repr_var_test() {
     const a = b;
     print a;
     print `a`;
+    print `print`;
+    print `op`;
+    print `_`;
+    print len;
     "#).unwrap()).compile().unwrap();
     assert_eq!(logic_lines, vec![
                "print a",
                "print a",
                "print b",
                "print a",
+               "print print",
+               "print op",
+               "print _",
+               "print len",
     ]);
 }
 
@@ -9845,7 +9853,7 @@ fn param_inf_len_test() {
 }
 
 #[test]
-fn underline_sugar_test() {
+fn keywords_sugar_test() {
     let parser = TopLevelParser::new();
 
     assert_eq!(
@@ -9856,6 +9864,15 @@ fn underline_sugar_test() {
         parse!(parser, r#"
         foo '_' a;
         foo `'_'` a;
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        foo op a;
+        "#).unwrap(),
+        parse!(parser, r#"
+        foo 'op' a;
         "#).unwrap(),
     );
 
@@ -9878,6 +9895,15 @@ fn underline_sugar_test() {
         parse!(parser, r#"
         take F['_' c];
         take F[`'_'` c];
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        take F[op c];
+        "#).unwrap(),
+        parse!(parser, r#"
+        take F['op' c];
         "#).unwrap(),
     );
 }
