@@ -258,6 +258,7 @@ LEnd: () = ";" => ();
 
 CmpVAT: Value = {
     Value,
+    CmpValueExtAtom => <>.into(),
     "++" <Value> => {
         DExp::new(meta.unnamed_var(), vec![
             LogicLine::SetResultHandle(<>),
@@ -541,7 +542,14 @@ ConstMatchPatAtom: ConstMatchPatAtom = {
 }
 
 APValueExtAtom: &'input str = {
-    "_", "op", "noop", "print", "rand", "len", "sqrt", "angle",
+    // NOTE: 不要加入 match, switch, 给可能的语法留下空位
+    "_", "op", "noop", "print", "skip", "break", "continue",
+    "rand", "len", "sqrt", "angle", "pow", "log", "cos", "floor", "ceil",
+    "max", "min", "land", "abs",
+}
+CmpValueExtAtom: &'input str = {
+    "rand", "len", "sqrt", "angle", "pow", "log", "cos", "floor", "ceil",
+    "max", "min", "land", "abs",
 }
 Keywords: &'input str = {
     "_", "goto", "not", "abs", "greaterThan", "notEqual",
@@ -860,8 +868,8 @@ OpExprAssignOper: OpExprAOperFun = {
     "|="            => { make_assign_oper!(Op::Or       ) },
     "&="            => { make_assign_oper!(Op::And      ) },
     "^="            => { make_assign_oper!(Op::Xor      ) },
-    "max" "="       => { make_assign_oper!(Op::Max      ) },
-    "min" "="       => { make_assign_oper!(Op::Min      ) },
+    "max="          => { make_assign_oper!(Op::Max      ) },
+    "min="          => { make_assign_oper!(Op::Min      ) },
     "="             => { TOP_ASSIGN_OPER },
 }
 

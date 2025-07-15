@@ -9906,6 +9906,15 @@ fn keywords_sugar_test() {
         take F['op' c];
         "#).unwrap(),
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+        if max < 2 && len == 3 { noop }
+        "#).unwrap(),
+        parse!(parser, r#"
+        if 'max' < 2 && 'len' == 3 { noop; }
+        "#).unwrap(),
+    );
 }
 
 #[test]
