@@ -186,7 +186,9 @@ thread_local! {
             ["set" a v]
             ["op" _ a v v]
             ["lookup" _ a v]
+            ["select" a _ v v v v]
             ["packcolor" a v v v v]
+            ["unpackcolor" a a a a v]
             ["wait" v]
             ["stop"]
             ["end"]
@@ -349,12 +351,12 @@ fn check_oper<'a>(
 }
 
 const OP_METHODS: &[&str] = &[
-    "add", "sub", "mul", "div", "idiv", "mod",
+    "add", "sub", "mul", "div", "idiv", "mod", "emod",
     "pow", "equal", "notEqual", "land", "lessThan", "lessThanEq",
-    "greaterThan", "greaterThanEq", "strictEqual", "shl", "shr", "or",
+    "greaterThan", "greaterThanEq", "strictEqual", "shl", "shr", "ushr", "or",
     "and", "xor", "not", "max", "min", "angle",
-    "angleDiff", "len", "noise", "abs", "log", "log10",
-    "floor", "ceil", "sqrt", "rand", "sin", "cos",
+    "angleDiff", "len", "noise", "abs", "sign", "log", "logn", "log10",
+    "floor", "ceil", "round", "sqrt", "rand", "sin", "cos",
     "tan", "asin", "acos", "atan",
 ];
 const JUMP_METHODS: &[&str] = &[
@@ -403,7 +405,7 @@ make_lints! {
     }
     "lookup" (3) {
         if let [_, mode, result, index, ..] = line.args() {
-            lints.extend(check_oper(mode, &["block", "unit", "item", "liquid"]));
+            lints.extend(check_oper(mode, &["block", "unit", "item", "liquid", "team"]));
             lints.extend(check_assign_var(src, line, result));
             lints.extend(check_vars(src, line, [index]));
         }
@@ -430,10 +432,25 @@ make_lints! {
             lints.extend(check_vars(src, line, [var]))
         }
     }
+    "select" (6) {
+        if let [_, result, method, args @ ..] = line.args() {
+            lints.extend(check_oper(method, JUMP_METHODS));
+            lints.extend(check_assign_var(src, line, result));
+            lints.extend(check_vars(src, line, args));
+        }
+    }
     "packcolor" (5) {
         if let [_, result, args @ ..] = line.args() {
             lints.extend(check_assign_var(src, line, result));
             lints.extend(check_vars(src, line, args));
+        }
+    }
+    "unpackcolor" (5) {
+        if let [_, results @ .., arg] = line.args() {
+            for result in results {
+                lints.extend(check_assign_var(src, line, result));
+            }
+            lints.extend(check_vars(src, line, [arg]));
         }
     }
     "control" (6) {
