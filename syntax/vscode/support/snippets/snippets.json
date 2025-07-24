@@ -570,11 +570,25 @@
             "lookup ${1:item} ${2:result} ${3:0};"
         ]
     },
+    "select result notEqual x false a b": {
+        "prefix": "eselect",
+        "description": "select result notEqual x false a b",
+        "body": [
+            "'select' ${1:result} \\`${2:!=}\\` ${3:x} ${4:0} ${5:a} ${6:b};"
+        ]
+    },
     "packcolor result r g b a # color in [0,1]": {
         "prefix": "packcolor",
         "description": "packcolor result r g b a # color in [0,1]",
         "body": [
             "packcolor ${1:result} ${2:1} ${3:0} ${4:1} ${5:1};"
+        ]
+    },
+    "unpackcolor r g b a color # r g b a in [0,1]": {
+        "prefix": "unpackcolor",
+        "description": "unpackcolor r g b a color # r g b a in [0,1]",
+        "body": [
+            "unpackcolor ${1:r} ${2:g} ${3:b} ${4:a} ${5:color};"
         ]
     },
     "wait sec": {

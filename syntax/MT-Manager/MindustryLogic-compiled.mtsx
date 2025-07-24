@@ -235,7 +235,7 @@
                 29: "parseColor(auto,30,HEX,default)"
             }
             {
-                match: include("bg") + /(lookup)/ + include("_") + /(?:(item|block|unit|liquid)|/ + include("err") + /)/ + include("_") + include("var") + include("_") + include("val") + include("ed")
+                match: include("bg") + /(lookup)/ + include("_") + /(?:(item|block|unit|liquid|team)|/ + include("err") + /)/ + include("_") + include("var") + include("_") + include("val") + include("ed")
                 recordAllGroups: true
                 1: "operation"
                 2: "operation"

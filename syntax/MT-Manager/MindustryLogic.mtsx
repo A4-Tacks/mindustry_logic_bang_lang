@@ -133,7 +133,7 @@
                     | @err (?:@_ @val){3}
                     )
                 $1: "operation"
-            : /(lookup)/ @_ /(?:(item|block|unit|liquid)|/ @err /)/ @_ @var @_ @val
+            : /(lookup)/ @_ /(?:(item|block|unit|liquid|team)|/ @err /)/ @_ @var @_ @val
                 $1: "operation"
                 $2: "operation"
             : /(packcolor)/ @_ @var /(?:/ @_ @val /){4}/
