@@ -378,14 +378,14 @@ impl DisplaySource for Op {
 
         build_match! {
             op1: [
-                Not, Abs, Log, Log10, Floor, Ceil, Sqrt,
+                Not, Abs, Sign, Log, Log10, Floor, Ceil, Round, Sqrt,
                 Rand, Sin, Cos, Tan, Asin, Acos, Atan,
             ]
             op2: [
-                Add, Sub, Mul, Div, Idiv,
-                Mod, Pow, Equal, NotEqual, Land,
+                Add, Sub, Mul, Div, Idiv, LogN,
+                Mod, EMod, Pow, Equal, NotEqual, Land,
                 LessThan, LessThanEq, GreaterThan, GreaterThanEq, StrictEqual,
-                Shl, Shr, Or, And, Xor,
+                Shl, Shr, UShr, Or, And, Xor,
             ]
             op2l: [
                 Max, Min, Angle, AngleDiff, Len, Noise,

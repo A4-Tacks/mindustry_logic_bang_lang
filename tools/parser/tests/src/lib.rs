@@ -3127,6 +3127,23 @@ fn op_expr_test() {
 
     assert_eq!(
         parse!(parser, r#"
+        x = round(8);
+        y = sign(6);
+        z = logn(4, 2);
+        t = log(4, 2);
+        m = 8 >>> 3;
+        "#).unwrap(),
+        parse!(parser, r#"
+        op round x 8;
+        op sign y 6;
+        op logn z 4 2;
+        op logn t 4 2;
+        op ushr m 8 3;
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
         x = 1+2*3;
         y = (1+2)*3;
         z = 1+2+3;
@@ -3845,6 +3862,24 @@ fn op_test() {
         "#).unwrap(),
         parse!(parser, r#"
         op x (op $ a === b;) == `false`;
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        op x a %% b;
+        "#).unwrap(),
+        parse!(parser, r#"
+        op x a emod b;
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        op x round a b;
+        "#).unwrap(),
+        parse!(parser, r#"
+        op round x a b;
         "#).unwrap(),
     );
 

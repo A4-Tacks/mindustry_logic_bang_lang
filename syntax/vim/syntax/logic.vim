@@ -67,6 +67,8 @@ syn match	logicJumpAlways		/\<always\>/						contained conceal cchar=_
 syn match	logicOpOperStar	/./		conceal cchar=*	contained
 syn match	logicOpOperLt	/./		conceal cchar=<	contained
 syn match	logicOpOperGt	/./		conceal cchar=>	contained
+syn match	logicOpOperGt2	/./		conceal cchar=>	contained nextgroup=logicOpOperGt
+syn match	logicOpOperMod	/./		conceal cchar=%	contained
 syn match	logicOpOperSl	/./		conceal cchar=/	contained
 syn match	logicOpOperAnd	/./		conceal cchar=&	contained
 syn keyword	logicOpOper	add		conceal cchar=+	contained
@@ -78,14 +80,16 @@ syn keyword	logicOpOper	or		conceal cchar=|	contained
 syn keyword	logicOpOper	and		conceal cchar=&	contained
 syn keyword	logicOpOper	xor		conceal cchar=^	contained
 syn keyword	logicOpOper	not		conceal cchar=!	contained
+syn match	logicOpOper	/\<emo\zed\>/	conceal cchar=%	contained nextgroup=logicOpOperMod
 syn match	logicOpOper	/\<idi\zev\>/	conceal cchar=/	contained nextgroup=logicOpOperSl
 syn match	logicOpOper	/\<sh\zel\>/	conceal cchar=<	contained nextgroup=logicOpOperLt
 syn match	logicOpOper	/\<sh\zer\>/	conceal cchar=>	contained nextgroup=logicOpOperGt
+syn match	logicOpOper	/\<us\zehr\>/	conceal cchar=>	contained nextgroup=logicOpOperGt2
 syn match	logicOpOper	/\<po\zew\>/	conceal cchar=*	contained nextgroup=logicOpOperStar
 syn match	logicOpOper	/\<lan\zed\>/	conceal cchar=&	contained nextgroup=logicOpOperAnd
 syn keyword	logicOpOper	contained
 				\ max min angle angleDiff len noise
-				\ abs log log10 floor ceil sqrt rand
+				\ abs sign log logn log10 floor ceil round sqrt rand
 				\ sin cos tan asin acos atan
 " }}}
 
@@ -115,8 +119,10 @@ hi def link logicOpOper			Operator
 hi def link logicOpOperStar		logicOpOper
 hi def link logicOpOperLt		logicOpOper
 hi def link logicOpOperGt		logicOpOper
+hi def link logicOpOperGt2		logicOpOper
 hi def link logicOpOperSl		logicOpOper
 hi def link logicOpOperAnd		logicOpOper
+hi def link logicOpOperMod		logicOpOper
 
 " End {{{1
 " vim:nowrap ts=8 sts=8 noet

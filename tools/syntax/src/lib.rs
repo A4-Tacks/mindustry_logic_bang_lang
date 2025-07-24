@@ -1879,6 +1879,7 @@ pub enum Op {
     Div(Value, Value, Value),
     Idiv(Value, Value, Value),
     Mod(Value, Value, Value),
+    EMod(Value, Value, Value),
     Pow(Value, Value, Value),
     Equal(Value, Value, Value),
     NotEqual(Value, Value, Value),
@@ -1890,6 +1891,7 @@ pub enum Op {
     StrictEqual(Value, Value, Value),
     Shl(Value, Value, Value),
     Shr(Value, Value, Value),
+    UShr(Value, Value, Value),
     Or(Value, Value, Value),
     And(Value, Value, Value),
     Xor(Value, Value, Value),
@@ -1899,13 +1901,16 @@ pub enum Op {
     AngleDiff(Value, Value, Value),
     Len(Value, Value, Value),
     Noise(Value, Value, Value),
+    LogN(Value, Value, Value),
 
     Not(Value, Value),
     Abs(Value, Value),
+    Sign(Value, Value),
     Log(Value, Value),
     Log10(Value, Value),
     Floor(Value, Value),
     Ceil(Value, Value),
+    Round(Value, Value),
     Sqrt(Value, Value),
     Rand(Value, Value),
     Sin(Value, Value),
@@ -1964,10 +1969,12 @@ impl Op {
                 op1: [
                     Not => "not" "~",
                     Abs => "abs",
+                    Sign => "sign",
                     Log => "log",
                     Log10 => "log10",
                     Floor => "floor",
                     Ceil => "ceil",
+                    Round => "round",
                     Sqrt => "sqrt",
                     Rand => "rand",
                     Sin => "sin",
@@ -1984,7 +1991,9 @@ impl Op {
                     Div => "div" "/",
                     Idiv => "idiv" "//",
                     Mod => "mod" "%",
+                    EMod => "emod" "%%",
                     Pow => "pow" "**",
+                    LogN => "logn",
                     Equal => "equal" "==",
                     NotEqual => "notEqual" "!=",
                     Land => "land" "&&",
@@ -1995,6 +2004,7 @@ impl Op {
                     StrictEqual => "strictEqual" "===",
                     Shl => "shl" "<<",
                     Shr => "shr" ">>",
+                    UShr => "ushr" ">>>",
                     Or => "or" "|",
                     And => "and" "&",
                     Xor => "xor" "^",
@@ -2080,6 +2090,9 @@ impl Op {
         fn bool_as(x: bool) -> f64 {
             if x { 1. } else { 0. }
         }
+        fn zero_like(n: f64) -> bool {
+            matches!(n.classify(), FpC::Zero | FpC::Subnormal)
+        }
         let OpInfo { result, arg1, arg2, .. } = self.get_info();
         result.as_result_handle()?;
         let (a, b) = (
@@ -2095,17 +2108,24 @@ impl Op {
             Op::Sub(..) => a - b,
             Op::Mul(..) => a * b,
             Op::Div(..) | Op::Idiv(..) | Op::Mod(..)
-                if matches!(b.classify(), FpC::Zero | FpC::Subnormal) => f64::NAN,
+                if zero_like(b) => f64::NAN,
             Op::Div(..) => a / b,
             Op::Idiv(..) => (a / b).floor(),
             Op::Mod(..) => a % b,
+            Op::EMod(..) => (a % b + b) % b,
             Op::Pow(..) => a.powf(b),
             Op::Abs(..) => a.abs(),
-            Op::Log(..) | Op::Log10(..) if a <= 0. => f64::NAN,
+            Op::Sign(..)
+                if zero_like(a) => 0.0,
+            Op::Sign(..) => a.signum(),
+            Op::Log(..) | Op::Log10(..) | Op::LogN(..) if a <= 0. => f64::NAN,
+            Op::LogN(..) if b <= 0. => f64::NAN,
             Op::Log(..) => a.ln(),
+            Op::LogN(..) => a.ln() / b.ln(),
             Op::Log10(..) => a.log10(),
             Op::Floor(..) => a.floor(),
             Op::Ceil(..) => a.ceil(),
+            Op::Round(..) => a.round(),
             Op::Sqrt(..) => a.sqrt(),
             Op::Sin(..) => a.to_radians().sin(),
             Op::Cos(..) => a.to_radians().cos(),
@@ -2124,6 +2144,7 @@ impl Op {
 
             Op::Shl(..) => ((a as i64) << b as i64) as f64,
             Op::Shr(..) => ((a as i64) >> b as i64) as f64,
+            Op::UShr(..) => ((a as u64) >> b as u64) as f64,
             Op::Or(..) => ((a as i64) | b as i64) as f64,
             Op::And(..) => ((a as i64) & b as i64) as f64,
             Op::Xor(..) => ((a as i64) ^ b as i64) as f64,

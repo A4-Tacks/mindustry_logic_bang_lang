@@ -48,7 +48,7 @@
 				},
 				{
 					"name": "storage.modifier.mdtlbl",
-					"match": "\\b(equal|notEqual|strictNotEqual|lessThan|lessThanEq|greaterThan|greaterThanEq|strictEqual|always|lnot|add|sub|mul|div|idiv|mod|pow|shl|shr|or|and|land|xor|max|min|angle|angleDiff|len|noise|not|abs|log|log10|floor|ceil|sqrt|rand|sin|cos|tan|asin|acos|atan)\\b"
+					"match": "\\b(equal|notEqual|strictNotEqual|lessThan|lessThanEq|greaterThan|greaterThanEq|strictEqual|always|lnot|add|sub|mul|div|idiv|mod|emod|pow|shl|shr|ushr|or|and|land|xor|max|min|angle|angleDiff|len|noise|not|abs|sign|log|logn|log10|floor|ceil|round|sqrt|rand|sin|cos|tan|asin|acos|atan)\\b"
 				},
 				{
 					"match": "((?<!\\p{XID_Continue})!|&&|\\|\\||=>)(?!=)",
@@ -59,7 +59,7 @@
 					"name": "keyword.operator.comparison.mdtlbl"
 				},
 				{
-					"match": "((?://|\\*\\*|&&|<<|>>|[+\\-*/%|&^])=|(?<![<>])=|\\+\\+|--)",
+					"match": "((?://|\\*\\*|&&|<<|>>>?|[+\\-*/%|&^])=|(?<![<>])=|\\+\\+|--)",
 					"name": "keyword.operator.new.mdtlbl"
 				}
 			]

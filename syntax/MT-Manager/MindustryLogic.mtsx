@@ -43,8 +43,8 @@
 
         radar-selecter = /(?:(?:a(?:ny|lly|ttacker)|enemy|player|flying|boss|ground)|/ @err /)/
         radar-order = /(?:(?:distance|health|shield|armor|maxHealth)|/ @err /)/
-        op-operator1 = /(?:not|a(?:bs|sin|cos|tan)|log(?:10)?|floor|c(?:eil|os)|s(?:qrt|in)|rand|tan)/
-        op-operator2 = /(?:a(?:dd|n(?:d|gle(?:Diff)?))|s(?:ub|trictEqual|h(?:l|r))|m(?:ul|od|ax|in)|div|idiv|pow|equal|no(?:tEqual|ise)|l(?:and|e(?:ssThan(?:Eq)?|n))|greaterThan(?:Eq)?|or|xor)/
+        op-operator1 = /(?:not|a(?:bs|sin|cos|tan)|log(?:10)?|floor|c(?:eil|os)|s(?:qrt|in|ign)|r(?:and|ound)|tan)/
+        op-operator2 = /(?:a(?:dd|n(?:d|gle(?:Diff)?))|s(?:ub|trictEqual|h(?:l|r))|m(?:ul|od|ax|in)|div|idiv|pow|e(?:qual|mod)|no(?:tEqual|ise)|l(?:and|e(?:ssThan(?:Eq)?|n)|ogn)|greaterThan(?:Eq)?|or|xor|ushr)/
         jump-cmper = /(?:(?:equal|notEqual|lessThan(?:Eq)?|greaterThan(?:Eq)?|strictEqual|always)|/ @err /)/
 
         ucontrol-normal = /(i(?:dle|tem(?:Drop|Take))|stop|m(?:ove|ine)|a(?:pproach|utoPathfind)|pa(?:thfind|y(?:Drop|Take|Enter))|b(?:oost|uild)|targetp?|flag|unbind)/ (?:@_ @val){5}
@@ -138,6 +138,11 @@
                 $2: "operation"
             : /(packcolor)/ @_ @var /(?:/ @_ @val /){4}/
                 $1: "operation"
+            : /(unpackcolor)/ (?:@_ @var){4} @_ @val
+                $1: "operation"
+            : /(select)/ @_ @var @_ (@jump-cmper) (?:@_ @val){4}
+                $1: "operation"
+                $2: "operation"
         }
 
         [[statement]]
@@ -162,7 +167,6 @@
                 $1: "unit"
             : /(ucontrol)/ @_ (?:@ucontrol-normal | @ucontrol-extend | @ucontrol-failed)
                 $1: "unit"
-                $2: "unit"
             : /(uradar)/ ((?:@_ @radar-selecter){3} @_ @radar-order) (?:@_ @val){2} @_ @var
                 $1: "unit"
                 $2: "unit"
@@ -241,7 +245,6 @@
                     | @err  (?:@_ @val){6}
                     ) @_ @val
                 $1: "world"
-                $2: "world"
             : /(setmarker)/ @_ (@val) (?:@_ @val){4}
                 $1: "world"
                 $2: "world"

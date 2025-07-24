@@ -31,12 +31,12 @@ syn match mdtlblStar /\*/ contained
 syn match mdtlblRepeatZero /0\ze\s*@/ contained
 
 syn keyword mdtlblOpFunKeyword
-            \ add sub mul div idiv mod pow
+            \ add sub mul div idiv mod emod pow
             \ equal notEqual land lessThan lessThanEq greaterThan greaterThanEq
             \ strictEqual strictNotEqual always _
-            \ shl shr or and xor max
-            \ min angle angleDiff len noise not abs log log10
-            \ floor ceil sqrt rand sin cos tan
+            \ shl shr ushr or and xor max
+            \ min angle angleDiff len noise not abs sign log log10 logn
+            \ floor ceil round sqrt rand sin cos tan
             \ asin acos atan lnot
 
 syn match mdtlblOpExprCtrl "\%(//\|\*\*\|&&\|<<\|>>\|[+\-*/%|&^]\)\=="

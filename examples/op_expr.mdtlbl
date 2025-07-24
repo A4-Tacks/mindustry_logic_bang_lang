@@ -16,11 +16,13 @@
 * | `a * b`    | `a * b`      | -4     | LR     |
 * | `a / b`    | `a / b`      | -4     | LR     |
 * | `a % b`    | `a % b`      | -4     | LR     |
+* | `a %& b`   | `a %% b`     | -4     | LR     |
 * | `a // b`   | `a // b`     | -4     | LR     |
 * | `a + b`    | `a + b`      | -5     | LR     |
 * | `a - b`    | `a - b`      | -5     | LR     |
 * | `a << b`   | `a << b`     | -6     | LR     |
 * | `a >> b`   | `a >> b`     | -6     | LR     |
+* | `a >>> b`  | `a >>> b`    | -6     | LR     |
 * | `a & b`    | `a & b`      | -7     | LR     |
 * | `a ^ b`    | `a ^ b`      | -8     | LR     |
 * | `a | b`    | `a | b`      | -9     | LR     |
@@ -265,4 +267,15 @@ x, y = cos(i)*r, sin(i)*r; # 相当于
     op x (op $ cos i;) * r;
     op y (op $ sin i;) * r;
 }
+*#
+
+
+# 在0.20.0版本引入了来自150的新运算
+a b c d e = 1 >>> 2, 3 %% 4, round(5), sign(6), log(7, 8);
+#* >>>
+op ushr a 1 2
+op emod b 3 4
+op round c 5 0
+op sign d 6 0
+op logn e 7 8
 *#

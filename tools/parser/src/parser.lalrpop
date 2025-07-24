@@ -336,6 +336,7 @@ Op: Op = {
     <a:OrShl<Or<"div", "/">, <Value>, <Value>>> <b:Value> => Op::Div(a.0, a.1, b),
     <a:OrShl<Or<"idiv", "//">, <Value>, <Value>>> <b:Value> => Op::Idiv(a.0, a.1, b),
     <a:OrShl<Or<"mod", "%">, <Value>, <Value>>> <b:Value> => Op::Mod(a.0, a.1, b),
+    <a:OrShl<Or<"emod", "%%">, <Value>, <Value>>> <b:Value> => Op::EMod(a.0, a.1, b),
     <a:OrShl<Or<"pow", "**">, <Value>, <Value>>> <b:Value> => Op::Pow(a.0, a.1, b),
     <a:OrShl<Or<"equal", "==">, <Value>, <Value>>> <b:Value> => Op::Equal(a.0, a.1, b),
     <a:OrShl<Or<"notEqual", "!=">, <Value>, <Value>>> <b:Value> => Op::NotEqual(a.0, a.1, b),
@@ -347,6 +348,7 @@ Op: Op = {
     <a:OrShl<Or<"strictEqual", "===">, <Value>, <Value>>> <b:Value> => Op::StrictEqual(a.0, a.1, b),
     <a:OrShl<Or<"shl", "<<">, <Value>, <Value>>> <b:Value> => Op::Shl(a.0, a.1, b),
     <a:OrShl<Or<"shr", ">>">, <Value>, <Value>>> <b:Value> => Op::Shr(a.0, a.1, b),
+    <a:OrShl<Or<"ushr", ">>>">, <Value>, <Value>>> <b:Value> => Op::UShr(a.0, a.1, b),
     <a:OrShl<Or<"or", "|">, <Value>, <Value>>> <b:Value> => Op::Or(a.0, a.1, b),
     <a:OrShl<Or<"and", "&">, <Value>, <Value>>> <b:Value> => Op::And(a.0, a.1, b),
     <a:OrShl<Or<"xor", "^">, <Value>, <Value>>> <b:Value> => Op::Xor(a.0, a.1, b),
@@ -357,15 +359,18 @@ Op: Op = {
     <OrSwap<"angleDiff", <Value>>> <Value> <Value> => Op::AngleDiff(<>),
     <OrSwap<"len", <Value>>> <Value> <Value> => Op::Len(<>),
     <OrSwap<"noise", <Value>>> <Value> <Value> => Op::Noise(<>),
+    <OrSwap<"logn", <Value>>> <Value> <Value> => Op::LogN(<>),
 
     // 1
     // 此处使用`Value`来接受逻辑导出时的占位符
     <OrSwap<Or<"not", "~">, <Value>>> <Value> Value? => Op::Not(<>),
     <OrSwap<"abs", <Value>>> <Value> Value? => Op::Abs(<>),
+    <OrSwap<"sign", <Value>>> <Value> Value? => Op::Sign(<>),
     <OrSwap<"log", <Value>>> <Value> Value? => Op::Log(<>),
     <OrSwap<"log10", <Value>>> <Value> Value? => Op::Log10(<>),
     <OrSwap<"floor", <Value>>> <Value> Value? => Op::Floor(<>),
     <OrSwap<"ceil", <Value>>> <Value> Value? => Op::Ceil(<>),
+    <OrSwap<"round", <Value>>> <Value> Value? => Op::Round(<>),
     <OrSwap<"sqrt", <Value>>> <Value> Value? => Op::Sqrt(<>),
     <OrSwap<"rand", <Value>>> <Value> Value? => Op::Rand(<>),
     <OrSwap<"sin", <Value>>> <Value> Value? => Op::Sin(<>),
@@ -544,24 +549,23 @@ ConstMatchPatAtom: ConstMatchPatAtom = {
 APValueExtAtom: &'input str = {
     // NOTE: 不要加入 match, switch, 给可能的语法留下空位
     "_", "op", "noop", "print", "skip", "break", "continue",
-    "rand", "len", "sqrt", "angle", "pow", "log", "cos", "floor", "ceil",
-    "max", "min", "land", "abs",
+    CmpValueExtAtom,
 }
 CmpValueExtAtom: &'input str = {
-    "rand", "len", "sqrt", "angle", "pow", "log", "cos", "floor", "ceil",
-    "max", "min", "land", "abs",
+    "rand", "len", "sqrt", "angle", "pow", "log", "logn", "cos", "floor", "ceil", "round",
+    "max", "min", "land", "abs", "sign", "shr", "ushr",
 }
 Keywords: &'input str = {
-    "_", "goto", "not", "abs", "greaterThan", "notEqual",
+    "_", "goto", "not", "abs", "sign", "greaterThan", "notEqual",
     "acos", "greaterThanEq", "op", "add", "gswitch", "or",
     "always", "gwhile", "pow", "and", "idiv", "print",
     "angle", "if", "rand", "angleDiff", "inline", "select",
-    "asin", "land", "setres", "atan", "len", "shl",
+    "asin", "land", "setres", "atan", "len", "shl", "ushr",
     "break", "lessThan", "shr", "case", "lessThanEq", "sin",
-    "ceil", "lnot", "skip", "const", "log", "sqrt",
+    "ceil", "round", "lnot", "skip", "const", "log", "logn", "sqrt",
     "continue", "log10", "strictEqual", "cos", "match", "strictNotEqual",
     "div", "max", "sub", "do", "min", "switch",
-    "elif", "mod", "take", "else", "mul", "tan",
+    "elif", "mod", "emod", "take", "else", "mul", "tan",
     "equal", "noise", "while", "floor", "noop", "xor",
     OpKeywords,
 }
@@ -572,6 +576,7 @@ OpKeywords: &'input str = {
     "/" => "div",
     "//" => "idiv",
     "%" => "mod",
+    "%%" => "emod",
     "**" => "pow",
     "==" => "equal",
     "!=" => "notEqual",
@@ -583,6 +588,7 @@ OpKeywords: &'input str = {
     "===" => "strictEqual",
     "<<" => "shl",
     ">>" => "shr",
+    ">>>" => "ushr",
     "|" => "or",
     "&" => "and",
     "^" => "xor",
@@ -977,6 +983,8 @@ OpExprBody5: OpExprInfo = {
         |a, b| Op::Shl(ResultHandle, a.into_value(meta), b.into_value(meta))),
     <a:OpExprBody5> ">>" <b:OpExprBody4> => a.new_op2(b,
         |a, b| Op::Shr(ResultHandle, a.into_value(meta), b.into_value(meta))),
+    <a:OpExprBody5> ">>>" <b:OpExprBody4> => a.new_op2(b,
+        |a, b| Op::UShr(ResultHandle, a.into_value(meta), b.into_value(meta))),
     OpExprBody4,
 }
 
@@ -997,6 +1005,8 @@ OpExprBody3: OpExprInfo = {
         |a, b| Op::Idiv(ResultHandle, a.into_value(meta), b.into_value(meta))),
     <a:OpExprBody3> "%" <b:OpExprBody2> => a.new_op2(b,
         |a, b| Op::Mod(ResultHandle, a.into_value(meta), b.into_value(meta))),
+    <a:OpExprBody3> "%%" <b:OpExprBody2> => a.new_op2(b,
+        |a, b| Op::EMod(ResultHandle, a.into_value(meta), b.into_value(meta))),
     OpExprBody2,
 }
 
@@ -1056,10 +1066,24 @@ OpExprCallOp: OpExprInfo = {
         a.new_op2(b,
             |a, b| Op::Noise(ResultHandle, a.into_value(meta), b.into_value(meta)))
     },
+    OpExprFun2<"log"> => {
+        let (a, b) = <>;
+        a.new_op2(b,
+            |a, b| Op::LogN(ResultHandle, a.into_value(meta), b.into_value(meta)))
+    },
+    OpExprFun2<"logn"> => {
+        let (a, b) = <>;
+        a.new_op2(b,
+            |a, b| Op::LogN(ResultHandle, a.into_value(meta), b.into_value(meta)))
+    },
 
     OpExprFun1<"abs"> => {
         <>.new_op1(
             |a| Op::Abs(ResultHandle, a.into_value(meta)))
+    },
+    OpExprFun1<"sign"> => {
+        <>.new_op1(
+            |a| Op::Sign(ResultHandle, a.into_value(meta)))
     },
     OpExprFun1<"log"> => {
         <>.new_op1(
@@ -1076,6 +1100,10 @@ OpExprCallOp: OpExprInfo = {
     OpExprFun1<"ceil"> => {
         <>.new_op1(
             |a| Op::Ceil(ResultHandle, a.into_value(meta)))
+    },
+    OpExprFun1<"round"> => {
+        <>.new_op1(
+            |a| Op::Round(ResultHandle, a.into_value(meta)))
     },
     OpExprFun1<"sqrt"> => {
         <>.new_op1(

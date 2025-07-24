@@ -96,11 +96,11 @@
 		}
 		{ // operator
 			match: keywordsToRegex(
-				"abs acos add always and angle angleDiff asin atan ceil"
-				"cos div equal floor greaterThan greaterThanEq"
-				"idiv land len lessThan lessThanEq lnot log"
-				"max min mod mul noise not notEqual or"
-				"pow rand shl shr sin sqrt strictEqual"
+				"abs sign acos add always and angle angleDiff asin atan ceil"
+				"round cos div equal floor greaterThan greaterThanEq"
+				"idiv land len lessThan lessThanEq lnot log logn log10"
+				"max min mod emod mul noise not notEqual or"
+				"pow rand shl shr ushr sin sqrt strictEqual"
 				"strictNotEqual sub tan xor"
 			)
 			0: "tagName"
@@ -118,7 +118,7 @@
 			0: "tagName"
 		}
 		{ // self operator
-			match: /(?:\/\/|\*\*|&&|<<|>>|[+\-*\/%|&^])?=/
+			match: /(?:\/\/|\*\*|&&|<<|>>>?|[+\-*\/%|&^])?=/
 			0: "tagName"
 		}
 		{ // label

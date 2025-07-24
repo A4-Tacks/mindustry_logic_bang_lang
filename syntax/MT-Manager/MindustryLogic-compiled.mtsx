@@ -33,8 +33,8 @@
         "err": /((?:/ + include("raw-string") + /|/ + include("arg-body") + /))/
         "radar-selecter": /(?:(?:a(?:ny|lly|ttacker)|enemy|player|flying|boss|ground)|/ + include("err") + /)/
         "radar-order": /(?:(?:distance|health|shield|armor|maxHealth)|/ + include("err") + /)/
-        "op-operator1": /(?:not|a(?:bs|sin|cos|tan)|log(?:10)?|floor|c(?:eil|os)|s(?:qrt|in)|rand|tan)/
-        "op-operator2": /(?:a(?:dd|n(?:d|gle(?:Diff)?))|s(?:ub|trictEqual|h(?:l|r))|m(?:ul|od|ax|in)|div|idiv|pow|equal|no(?:tEqual|ise)|l(?:and|e(?:ssThan(?:Eq)?|n))|greaterThan(?:Eq)?|or|xor)/
+        "op-operator1": /(?:not|a(?:bs|sin|cos|tan)|log(?:10)?|floor|c(?:eil|os)|s(?:qrt|in|ign)|r(?:and|ound)|tan)/
+        "op-operator2": /(?:a(?:dd|n(?:d|gle(?:Diff)?))|s(?:ub|trictEqual|h(?:l|r))|m(?:ul|od|ax|in)|div|idiv|pow|e(?:qual|mod)|no(?:tEqual|ise)|l(?:and|e(?:ssThan(?:Eq)?|n)|ogn)|greaterThan(?:Eq)?|or|xor|ushr)/
         "jump-cmper": /(?:(?:equal|notEqual|lessThan(?:Eq)?|greaterThan(?:Eq)?|strictEqual|always)|/ + include("err") + /)/
         "ucontrol-normal": /(i(?:dle|tem(?:Drop|Take))|stop|m(?:ove|ine)|a(?:pproach|utoPathfind)|pa(?:thfind|y(?:Drop|Take|Enter))|b(?:oost|uild)|targetp?|flag|unbind)(?:/ + include("_") + include("val") + /){5}/
         "ucontrol-extend": /(?:(getBlock)(?:/ + include("_") + include("val") + /){2}(?:/ + include("_") + include("var") + /){3}|(within)(?:/ + include("_") + include("val") + /){3}/ + include("_") + include("var") + include("_") + include("val") + /)/
@@ -258,6 +258,31 @@
                 5: "strEscape"
                 6: "number"
                 7: "parseColor(auto,8,HEX,default)"
+            }
+            {
+                match: include("bg") + /(unpackcolor)(?:/ + include("_") + include("var") + /){4}/ + include("_") + include("val") + include("ed")
+                recordAllGroups: true
+                1: "operation"
+                2: "resultVar"
+                3: "strEscape"
+                4: "string"
+                5: "strEscape"
+                6: "number"
+                7: "parseColor(auto,8,HEX,default)"
+            }
+            {
+                match: include("bg") + /(select)/ + include("_") + include("var") + include("_") + /(/ + include("jump-cmper") + /)(?:/ + include("_") + include("val") + /){4}/ + include("ed")
+                recordAllGroups: true
+                1: "operation"
+                2: "resultVar"
+                3: "strEscape"
+                4: "operation"
+                5: "error"
+                6: "strEscape"
+                7: "string"
+                8: "strEscape"
+                9: "number"
+                10: "parseColor(auto,11,HEX,default)"
             }
         ]
         "logic-lines-control": [
