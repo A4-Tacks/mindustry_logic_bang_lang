@@ -1492,6 +1492,13 @@ while the lower part is in syntax sugar form
 > the following examples are only for demonstrating syntax sugar
 
 
+## Operational Name ReprVar
+```
+print `add`;
+print `+`;
+```
+
+
 ## One Branch Match
 ```
 match a @ b {

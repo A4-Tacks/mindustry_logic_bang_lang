@@ -9915,6 +9915,15 @@ fn keywords_sugar_test() {
         if 'max' < 2 && 'len' == 3 { noop; }
         "#).unwrap(),
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+        print `+`;
+        "#).unwrap(),
+        parse!(parser, r#"
+        print `add`;
+        "#).unwrap(),
+    );
 }
 
 #[test]

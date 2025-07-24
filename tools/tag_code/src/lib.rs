@@ -839,7 +839,7 @@ impl TagCodes {
             .map(|(i, _line)| i)
     }
 
-    pub fn iter(&self) -> std::slice::Iter<TagLine> {
+    pub fn iter(&self) -> std::slice::Iter<'_, TagLine> {
         self.lines.iter()
     }
 

@@ -1378,6 +1378,13 @@ take b.Print; # print b
 > 这两种形式都不要手动写, 以下示例只是为了演示语法糖
 
 
+## Operational Name ReprVar
+```
+print `add`;
+print `+`;
+```
+
+
 ## 单分支匹配语法
 ```
 match a @ b {
