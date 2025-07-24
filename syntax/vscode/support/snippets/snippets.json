@@ -563,9 +563,9 @@
             "sensor ${1:result} ${2:block1} ${3:@${4:copper}};"
         ]
     },
-    "each block | unit | item | liquid": {
+    "each block | unit | item | liquid | team": {
         "prefix": "lookup",
-        "description": "each block | unit | item | liquid",
+        "description": "each block | unit | item | liquid | team",
         "body": [
             "lookup ${1:item} ${2:result} ${3:0};"
         ]
@@ -1046,6 +1046,13 @@
             "@liquidCount"
         ]
     },
+    "队伍 team 软总数": {
+        "prefix": "env.teamCountSoft",
+        "description": "队伍 team 软总数",
+        "body": [
+            "7"
+        ]
+    },
     "0: 灰队(废墟)": {
         "prefix": "env.team.derelict",
         "description": "0: 灰队(废墟)",
@@ -1088,6 +1095,13 @@
             "@blue"
         ]
     },
+    "6: 肿瘤": {
+        "prefix": "env.team.neoplastic",
+        "description": "6: 肿瘤",
+        "body": [
+            "@neoplastic"
+        ]
+    },
     "@derelict: 灰队(废墟)": {
         "prefix": "env.team.0",
         "description": "@derelict: 灰队(废墟)",
@@ -1128,6 +1142,13 @@
         "description": "@blue: 蓝队",
         "body": [
             "@blue"
+        ]
+    },
+    "@neoplastic: 肿瘤": {
+        "prefix": "env.team.6",
+        "description": "@neoplastic: 肿瘤",
+        "body": [
+            "@neoplastic"
         ]
     },
     "0: 铜": {
@@ -2136,6 +2157,13 @@
         "description": "lookup liquid",
         "body": [
             "lookup liquid ${2:liquid} $1;"
+        ]
+    },
+    "lookup team": {
+        "prefix": "lookup.team",
+        "description": "lookup team",
+        "body": [
+            "lookup team ${2:team} $1;"
         ]
     },
     "控制建筑的启用禁用": {
