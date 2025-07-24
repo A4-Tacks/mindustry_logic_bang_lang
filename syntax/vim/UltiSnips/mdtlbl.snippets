@@ -264,7 +264,7 @@ endsnippet
 snippet sensor "sensor" w
 sensor ${1:result} ${2:block1} ${3:@${4:copper}};
 endsnippet
-snippet lookup "each block | unit | item | liquid" w
+snippet lookup "each block | unit | item | liquid | team" w
 lookup ${1:item} ${2:result} ${3:0};
 endsnippet
 snippet eselect "select result notEqual x false a b" w
@@ -834,8 +834,11 @@ endsnippet
 snippet sensor.boosting "是否助推" w
 sensor ${2:boosting} $1 @boosting;
 endsnippet
-snippet sensor.bufferUsage "当前 draw 已使用的缓冲区条数" w
-sensor ${2:bufferUsage} $1 @bufferUsage;
+snippet sensor.bufferSize "显示器图形缓冲区中未处理的指令数" w
+sensor ${2:bufferSize} $1 @bufferSize;
+endsnippet
+snippet sensor.operations "块被操作的次数, 例如屏幕被drawflush的次数" w
+sensor ${2:operations} $1 @operations;
 endsnippet
 snippet sensor.mineX "挖矿点X" w
 sensor ${2:mineX} $1 @mineX;
@@ -954,6 +957,9 @@ lookup item ${2:item} $1;
 endsnippet
 snippet lookup.liquid "lookup liquid" w
 lookup liquid ${2:liquid} $1;
+endsnippet
+snippet lookup.team "lookup team" w
+lookup team ${2:team} $1;
 endsnippet
 
 # control expanded

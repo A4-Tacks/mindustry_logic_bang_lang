@@ -1858,11 +1858,18 @@
             "sensor ${2:boosting} $1 @boosting;"
         ]
     },
-    "当前 draw 已使用的缓冲区条数": {
-        "prefix": "sensor.bufferUsage",
-        "description": "当前 draw 已使用的缓冲区条数",
+    "显示器图形缓冲区中未处理的指令数": {
+        "prefix": "sensor.bufferSize",
+        "description": "显示器图形缓冲区中未处理的指令数",
         "body": [
-            "sensor ${2:bufferUsage} $1 @bufferUsage;"
+            "sensor ${2:bufferSize} $1 @bufferSize;"
+        ]
+    },
+    "块被操作的次数, 例如屏幕被drawflush的次数": {
+        "prefix": "sensor.operations",
+        "description": "块被操作的次数, 例如屏幕被drawflush的次数",
+        "body": [
+            "sensor ${2:operations} $1 @operations;"
         ]
     },
     "挖矿点X": {
