@@ -891,6 +891,7 @@ OpExprAssignOper: OpExprAOperFun = {
     "/="            => { make_assign_oper!(Op::Div      ) },
     "//="           => { make_assign_oper!(Op::Idiv     ) },
     "%="            => { make_assign_oper!(Op::Mod      ) },
+    "%%="           => { make_assign_oper!(Op::EMod     ) },
     "**="           => { make_assign_oper!(Op::Pow      ) },
     "&&="           => { make_assign_oper!(Op::Land     ) },
     "<<="           => { make_assign_oper!(Op::Shl      ) },
