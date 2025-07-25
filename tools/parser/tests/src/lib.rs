@@ -3845,6 +3845,87 @@ fn op_expr_test() {
         "#).unwrap(),
     );
 
+    assert_eq!(
+        parse!(parser, r#"
+        a = sign abs x.y;
+        "#).unwrap(),
+        parse!(parser, r#"
+        a = sign(abs(x.y));
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a = sign abs angle(x, y);
+        "#).unwrap(),
+        parse!(parser, r#"
+        a = sign(abs(angle(x, y)));
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a = sign abs x;
+        "#).unwrap(),
+        parse!(parser, r#"
+        a = sign(abs(x));
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a = sign x;
+        "#).unwrap(),
+        parse!(parser, r#"
+        a = sign(x);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a = sign x++;
+        "#).unwrap(),
+        parse!(parser, r#"
+        a = sign(x++);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a = sign x++(_+1);
+        "#).unwrap(),
+        parse!(parser, r#"
+        a = sign(x++(_+1));
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a = sign x.y++;
+        "#).unwrap(),
+        parse!(parser, r#"
+        a = sign(x.y++);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a = sign ++x.y;
+        "#).unwrap(),
+        parse!(parser, r#"
+        a = sign(++x.y);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a = abs sign (x:=2);
+        "#).unwrap(),
+        parse!(parser, r#"
+        a = abs sign((x:=2));
+        "#).unwrap(),
+    );
+
     assert!(
         parse!(parser, r#"
         a, b, c = z+3, []*2;

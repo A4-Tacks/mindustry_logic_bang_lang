@@ -4869,6 +4869,11 @@ impl From<OpExprType> for OpExprInfo {
         Self { exprs: vec![value] }
     }
 }
+impl From<Value> for OpExprInfo {
+    fn from(value: Value) -> Self {
+        Self { exprs: vec![value.into()] }
+    }
+}
 impl FromIterator<OpExprType> for OpExprInfo {
     fn from_iter<T: IntoIterator<Item = OpExprType>>(iter: T) -> Self {
         Self { exprs: iter.into_iter().collect() }

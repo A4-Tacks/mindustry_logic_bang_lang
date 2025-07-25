@@ -92,6 +92,10 @@ Ext<Acc, End>: Acc = <mut acc:Acc> <end:End> => { acc.extend(end); acc };
 #[inline]
 IntoLL<T>: LogicLine = T => <>.into();
 #[inline]
+IntoV<T>: Value = T => <>.into();
+#[inline]
+IntoBoxV<T>: Box<Value> = IntoV<T> => <>.into();
+#[inline]
 OpenArgs<T, S> = (<T> S)*; // 零至多个有分隔后缀值
 #[inline]
 CloseArgs<T, S>: Vec<T> = Cat<OpenArgs<T, S>, T>; // 一至多个有分隔无后缀值
@@ -165,62 +169,78 @@ pub Var: Var = {
     NoStringVar,
 }
 
-ValueBind: ValueBind = {
-    <value:NonConstRangeValue> "." <attr:NoStringVar> => {
-        ValueBind(value.into(), attr)
+ValueBind<Left>: ValueBind = {
+    <value:IntoBoxV<Left>> "." <attr:NoStringVar> => {
+        ValueBind(value, attr)
     },
 }
 
 ConstKey: ConstKey = {
-    ValueBind => <>.into(),
+    ValueBind<NonConstRangeValue> => <>.into(),
     Var => <>.into(),
 }
 
-NonConstRangeValue: Value = {
-    ConstKey => <>.into(),
-    ReprVar => ReprVar(<>), // 原始值
-    "$" => ResultHandle,
-    <value:NonConstRangeValue> <args:MList<ParamArgs>> => {
+RCombValue<Left>: Left = {
+    <value:IntoV<Left>> <args:MList<ParamArgs>> => {
         // QuickDExpTake
         DExp::new(meta.unnamed_var(), vec![
             LogicLine::SetArgs(args),
             LogicLine::SetResultHandle(value),
         ].into()).into()
     },
-    <l:Loc<"goto">> <v:MTuple<Boxed<JumpCmpOnce>>> => Cmper(l.new_value(v)).into(),
-    ".." => Value::Binder,
-    FEDExp => <>.into(),
-    MFTuple<Value>,
-    OpExprDExp => <>.into(),
-    ClosuredValue => <>.into(),
-    <value:NonConstRangeValue> "->" <name:NoStringVar> => {
+    <value:IntoBoxV<Left>> "->" <name:NoStringVar> => {
         let target = ValueBindRefTarget::NameBind(name);
-        ValueBindRef::new(value.into(), target.into()).into()
+        ValueBindRef::new(value, target.into()).into()
     },
-    <value:NonConstRangeValue> "->" <l:Loc<"..">> => {
-        ValueBindRef::new(value.into(), ValueBindRefTarget::Binder(l.unit())).into()
+    <value:IntoBoxV<Left>> "->" <l:Loc<"..">> => {
+        ValueBindRef::new(value, ValueBindRefTarget::Binder(l.unit())).into()
     },
-    <NonConstRangeValue> "->" "$" => {
-        ValueBindRef::new(<>.into(), ValueBindRefTarget::ResultHandle).into()
+    <IntoBoxV<Left>> "->" "$" => {
+        ValueBindRef::new(<>, ValueBindRefTarget::ResultHandle).into()
     },
-    <NonConstRangeValue> "->" "op" => {
-        ValueBindRef::new(<>.into(), ValueBindRefTarget::Op).into()
+    <IntoBoxV<Left>> "->" "op" => {
+        ValueBindRef::new(<>, ValueBindRefTarget::Op).into()
     },
-    <value:NonConstRangeValue> "->" <args:MList<ParamArgs>> => {
+    <value:IntoV<Left>> "->" <args:MList<ParamArgs>> => {
         // Refed QuickDExpTake
-        let value = DExp::new(meta.unnamed_var(), vec![
+        let dexp = DExp::new(meta.unnamed_var(), vec![
             LogicLine::SetArgs(args),
             LogicLine::SetResultHandle(value),
         ].into()).into();
 
-        ValueBindRef::new(
-            Box::new(value),
-            ValueBindRefTarget::ResultHandle,
-        ).into()
+        ValueBindRef::new(Box::new(dexp), ValueBindRefTarget::ResultHandle).into()
     },
+}
+RCombValueKeyLike<Left>: Value = {
+    ConstKey => <>.into(),
+    RCombValue<Left>,
+}
+RCombValuePure<Left>: Left = {
+    ValueBind<Left> => <>.into(),
+    RCombValue<Left>,
+}
+
+TrivialValue: Value = {
+    Var => <>.into(),
+    TrivialValueExt,
+}
+TrivialValueExt: Value = {
+    "$" => ResultHandle,
+    ".." => Value::Binder,
+    ReprVar => ReprVar(<>), // 原始值
+}
+
+NonConstRangeValue: Value = {
+    TrivialValueExt,
+    <l:Loc<"goto">> <v:MTuple<Boxed<JumpCmpOnce>>> => Cmper(l.new_value(v)).into(),
+    FEDExp => <>.into(),
+    MFTuple<Value>,
+    OpExprDExp => <>.into(),
+    ClosuredValue => <>.into(),
     DExp => <>.into(),
-    OpExprToValue,
+    OpExprValueLike,
     ForceSettedValue,
+    RCombValueKeyLike<NonConstRangeValue>,
 }
 
 pub Value: Value = {
@@ -860,11 +880,9 @@ OpExprBodySetR: Expand = OpExprBodyOne => {
     );
     vec![line].into()
 };
-OpExprBodyToValue: Value = OpExprBodyOne => {
-    <>.into_value(meta)
-};
+OpExprBodyToValue: Value = OpExprToValue<OpExprBody>;
 OpExprDExp: DExp = METuple<(<MakeDExpBody<OpExprBodySetR>> ","?)>;
-OpExprToValue: Value = MTuple<("*" <OpExprBodyToValue> ","?)>;
+OpExprValueLike: Value = MTuple<("*" <OpExprBodyToValue> ","?)>;
 ForceSettedValue: Value = {
     MTuple<(<(<Var> ":")?> "=" <OpExprBodyOne> ","?)> => {
         let (result, expr) = <>;
@@ -905,13 +923,16 @@ OpExprAssignOper: OpExprAOperFun = {
 }
 
 OpExprBody: OpExprInfo = OpExprBody13;
-OpExprBodyOne: OpExprType = <l:@L> <x:OpExprBody> <r:@R> =>? {
+OpExprOne<Body>: OpExprType = <l:@L> <x:Body> <r:@R> =>? {
+    let x: OpExprInfo = x.into();
     if x.exprs.len() == 1 {
         Ok(x.exprs.into_iter().next().unwrap())
     } else {
         Err(Error::from(([l, r], Errors::MultipleOpExpr)).into())
     }
 };
+OpExprBodyOne: OpExprType = OpExprOne<OpExprBody>;
+OpExprToValue<Body>: Value = OpExprOne<Body> => <>.into_value(meta);
 
 OpExprBody13: OpExprInfo = {
     "if" <cmp:JumpCmpOnce> "?" <a:OpExprBody13> ":" <b:OpExprBody13> => {
@@ -1027,11 +1048,24 @@ OpExprBody1: OpExprInfo = {
     OpExprAtom,
 }
 
+OpExprFun1TrivialValueAtom: OpExprInfo = {
+    RCombValuePure<OpExprToValue<OpExprFun1TrivialValueAtom>> => <>.into(),
+    MTuple<(<OpExprBody> ","?)>,
+    TrivialValue => <>.into(),
+}
+OpExprFun1TrivialValueSelfOp: OpExprInfo = {
+    OpExprValueSelfOps<OpExprToValue<OpExprFun1TrivialValueAtom>>,
+    OpExprFun1TrivialValueAtom,
+}
+OpExprFun1TrivialValue: OpExprInfo = {
+    OpExprCallOp,
+    OpExprFun1TrivialValueSelfOp,
+}
 OpExprFun1<Name>: OpExprInfo = {
-    Name <MTuple<(<OpExprBody> ","?)>>,
     Name <OpExprDExp> => OpExprType::Value(<>.into()).into(),
-    Name <OpExprToValue> => OpExprType::Value(<>).into(),
+    Name <OpExprValueLike> => OpExprType::Value(<>).into(),
     Name <ForceSettedValue> => OpExprType::Value(<>).into(),
+    Name <OpExprFun1TrivialValue>,
 }
 OpExprFun2<Name> = Name <MTuple<(<OpExprBody> "," <OpExprBody> ","?)>>;
 
@@ -1140,13 +1174,16 @@ OpExprCallOp: OpExprInfo = {
     },
 }
 
-OpExprAtom: OpExprInfo = {
-    Value => OpExprType::Value(<>).into(),
-    OpExprValueSelfOps,
-    MTuple<OpExprBody>,
+OpExprAtomExt: OpExprInfo = {
     MList<COArgs<OpExprBody, ",">> => <>.into_iter().flatten().collect(),
     OpExprCallOp,
     "_" => OpExprType::Ref(meta.op_expr_ref()).into(),
+}
+OpExprAtom: OpExprInfo = {
+    Value => OpExprType::Value(<>).into(),
+    OpExprValueSelfOps<Value>,
+    MTuple<OpExprBody>,
+    OpExprAtomExt,
 }
 OpExprTopSelfOps: LogicLine = {
     OrSwap<<Value>, "++"> => {
@@ -1167,27 +1204,27 @@ OpExprTopSelfOps: LogicLine = {
 OpExprSelfOpsSuf<O>: () = O => {
     OpExprType::add_suf_selfop_handle_to_meta(meta);
 };
-OpExprValueSelfOps: OpExprInfo = {
-    "++" <Value> => {
+OpExprValueSelfOps<O>: OpExprInfo = {
+    "++" <O> => {
         OpExprType::Value(DExp::new(meta.unnamed_var(), vec![
             LogicLine::SetResultHandle(<>),
             Op::Add(ResultHandle, ResultHandle, ReprVar("1".into())).into(),
         ].into()).into()).into()
     },
-    "--" <Value> => {
+    "--" <O> => {
         OpExprType::Value(DExp::new(meta.unnamed_var(), vec![
             LogicLine::SetResultHandle(<>),
             Op::Sub(ResultHandle, ResultHandle, ReprVar("1".into())).into(),
         ].into()).into()).into()
     },
-    <Value> OpExprSelfOpsSuf<"++"> <MTuple<Boxed<OpExprBodyOne>>?> => {
+    <O> OpExprSelfOpsSuf<"++"> <MTuple<Boxed<OpExprBodyOne>>?> => {
         OpExprType::new_suf_selfop(
             meta,
             Op::Add(ResultHandle, ResultHandle, ReprVar("1".into())),
             <>,
         ).into()
     },
-    <Value> OpExprSelfOpsSuf<"--"> <MTuple<Boxed<OpExprBodyOne>>?> => {
+    <O> OpExprSelfOpsSuf<"--"> <MTuple<Boxed<OpExprBodyOne>>?> => {
         OpExprType::new_suf_selfop(
             meta,
             Op::Sub(ResultHandle, ResultHandle, ReprVar("1".into())),
