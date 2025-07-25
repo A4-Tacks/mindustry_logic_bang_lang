@@ -3926,6 +3926,15 @@ fn op_expr_test() {
         "#).unwrap(),
     );
 
+    assert_eq!(
+        parse!(parser, r#"
+        a, b = abs sign [x, y];
+        "#).unwrap(),
+        parse!(parser, r#"
+        a, b = abs sign x, abs sign y;
+        "#).unwrap(),
+    );
+
     assert!(
         parse!(parser, r#"
         a, b, c = z+3, []*2;

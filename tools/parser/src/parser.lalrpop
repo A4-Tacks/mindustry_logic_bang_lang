@@ -1058,7 +1058,7 @@ OpExprFun1TrivialValueSelfOp: OpExprInfo = {
     OpExprFun1TrivialValueAtom,
 }
 OpExprFun1TrivialValue: OpExprInfo = {
-    OpExprCallOp,
+    OpExprAtomExt,
     OpExprFun1TrivialValueSelfOp,
 }
 OpExprFun1<Name>: OpExprInfo = {
