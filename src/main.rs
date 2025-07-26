@@ -103,6 +103,7 @@ enum CompileMode {
     IndentLogic,
     RenameLabel,
     BangToMdtLabel,
+    BuildExpr,
 }
 impl CompileMode {
     fn compile(&self, src: String) -> String {
@@ -178,6 +179,12 @@ impl CompileMode {
                 meta.parse_lines_mut().index_label_popup();
                 format!("{}", meta.parse_lines())
             },
+            Self::BuildExpr => {
+                let lines = logic_parse(&src);
+                let out = tag_code::expr_builder::build(lines.iter()
+                    .map(|x| &**x));
+                out.join("\n")
+            },
         }
     }
 }
@@ -231,6 +238,7 @@ pub const HELP_MSG: &str = concat_lines! {
     "\t", "i: indent MdtLogicCode";
     "\t", "n: rename MdtLogicCode";
     "\t", "L: compile MdtBangLang to MdtLabelCode";
+    "\t", "b: compile MdtLogicCode to expressions";
     ;
     "input from stdin";
     "output to stdout";
@@ -259,6 +267,7 @@ impl TryFrom<char> for CompileMode {
             'i' => Self::IndentLogic,
             'n' => Self::RenameLabel,
             'L' => Self::BangToMdtLabel,
+            'b' => Self::BuildExpr,
             mode => return Err(mode),
         })
     }

@@ -9,6 +9,7 @@ use std::{
 
 use logic_parser::{IdxBox, ParseLine, ParseLines};
 
+pub mod expr_builder;
 pub mod logic_parser;
 
 pub type Tag = usize;
