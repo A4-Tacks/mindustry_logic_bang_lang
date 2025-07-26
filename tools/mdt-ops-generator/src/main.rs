@@ -34,7 +34,8 @@ peg::parser!(grammar parser() for str {
         = $(quiet!{
             "max" / "min" / "angle" / "angleDiff" / "len" / "noise" / "abs"
             / "log" / "log10" / "floor" / "ceil" / "sqrt" / "rand" / "sin"
-            / "cos" / "tan" / "asin" / "acos" / "atan"
+            / "cos" / "tan" / "asin" / "acos" / "atan" / "sign" / "round"
+            / "logn"
         }) / expected!("funcname")
     rule atom() -> Res<'input>
         = n:$(number() / var()) { (vec![], n) }
@@ -59,6 +60,7 @@ peg::parser!(grammar parser() for str {
         / s:sget(<a:mul() "/" b:neg() {(a, b)}>) { run(s, "div") }
         / s:sget(<a:mul() "%" b:neg() {(a, b)}>) { run(s, "mod") }
         / s:sget(<a:mul() "//" b:neg() {(a, b)}>) { run(s, "idiv") }
+        / s:sget(<a:mul() "%%" b:neg() {(a, b)}>) { run(s, "emod") }
         / neg()
     #[cache_left_rec]
     rule add() -> Res<'input>
@@ -69,6 +71,7 @@ peg::parser!(grammar parser() for str {
     rule shift() -> Res<'input>
         = s:sget(<a:shift() "<<" b:add() {(a, b)}>) { run(s, "shl") }
         / s:sget(<a:shift() ">>" b:add() {(a, b)}>) { run(s, "shr") }
+        / s:sget(<a:shift() ">>>" b:add() {(a, b)}>) { run(s, "ushr") }
         / add()
     #[cache_left_rec]
     rule band() -> Res<'input>
