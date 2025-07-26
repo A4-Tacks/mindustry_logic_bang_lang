@@ -50,10 +50,6 @@ syn region mdtlblComment	start=/#\%([^*]\|$\)/	end=/$/		contains=mdtlblCommentMe
 syn region mdtlblLongComment	start=/#\*/		end=/\*#/	contains=mdtlblCommentMeta fold
 syn keyword mdtlblCommentMeta Todo TODO Note NOTE Hint HINT
 
-setlocal comments=s:#*,mb:*,ex:*#,:#
-setlocal commentstring=#%s
-setlocal formatoptions+=rq
-
 " 值(Var) {{{1
 syn match	mdtlblStringFailedEscape /\\\%("\@=\|.\)/	contained
 syn match	mdtlblStringColor				contained /\[\v%(#\x{6,8}|%(c%(lear|yan|oral)|b%(l%(ack|ue)|r%(own|ick))|white|li%(ghtgray|me)|g%(r%(ay|een)|old%(enrod)?)|darkgray|navy|r%(oyal|ed)|s%(late|ky|carlet|almon)|t%(eal|an)|acid|forest|o%(live|range)|yellow|p%(ink|urple)|ma%(genta|roon)|violet))=\]/
@@ -97,7 +93,6 @@ syn match  mdtlblIdentLabelRest /\v:0%(x-=_@![0-9a-fA-F_]+|b-=_@![01_]+)/		nextg
 syn region mdtlblIdentLabelRest start=/:"/ end=/"/					contains=@mdtlblStringContains contained
 
 " Fold {{{1
-setlocal foldmethod=expr foldexpr=indent(prevnonblank(v:lnum))/&sw " fixed indent fold"
 
 "syn region mdtlblBlock					start=/{/	end=/}/		transparent
 "syn region mdtlblDExp					start=/(\[\@!/	end=/)/		transparent
@@ -105,61 +100,6 @@ syn region mdtlblArgs	matchgroup=mdtlblArgsBracket	start=/(\@<!\[/	end=/]/		tran
 "syn region mdtlblClos					start=/(\[\@=/	end=/)/		transparent
 syn region mdtlblClos					start=/(\@<=\[/	end=/]/		transparent
 
-" Indent (缩进控制) {{{1
-function! <SID>lineFilter(line)
-    " 过滤掉注释与字符串与原始标识符
-    let regex_a = ''
-                \. '#\*.\{-}\*#'
-                \. '\|#.*$'
-    let regex_b = '@\I\i*\%(-\i*\)*'
-                \. '\|' . "'[^' \\t]*'"
-                \. '\|"[^"]*"'
-    let line = substitute(a:line, regex_a, '', 'g')
-    return trim(substitute(line, regex_b, '_', 'g'))
-endfunction
-
-function! <SID>getMdtlblIndent()
-    if v:lnum <= 1 | return 0 | endif
-    let lnum = v:lnum
-    let pnum = prevnonblank(lnum - 1)
-    let p2num = prevnonblank(pnum - 1)
-
-    let line = <SID>lineFilter(getline(lnum))
-    let preline = <SID>lineFilter(getline(pnum))
-
-    let diff = 0
-
-    if preline =~# '\%(([%?*]\=\|[(:]=\|\[[*?]\=\|[{[:]\)$'
-        let diff += 1
-    endif
-
-    if line =~# '^\%(%\=)\|[}\]]\|\<case\>\)' && !(preline =~# '^\<case\>' && preline !~# ':$')
-        let diff -= 1
-    endif
-
-    let pat = '^\v%(\.\.@!|-\>|\=)'
-
-    if preline =~# pat && preline !~# '[:({\[]$'
-        let diff -= 1
-    endif
-
-    if line =~# pat
-        let diff += 1
-    endif
-
-    return indent(pnum) + diff * &shiftwidth
-endfunction
-
-setlocal indentexpr=<SID>getMdtlblIndent()
-setlocal indentkeys+=0case
-setlocal indentkeys+==case
-setlocal indentkeys+==}
-setlocal indentkeys+==]
-setlocal indentkeys+==)
-setlocal indentkeys+==:
-setlocal indentkeys+==.
-setlocal indentkeys+=0->
-setlocal indentkeys+=0=
 
 " END And Color Links {{{1
 hi def link mdtlblKeyword		Keyword

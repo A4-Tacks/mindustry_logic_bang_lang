@@ -33,3 +33,12 @@ function s:mdtlblQuickSingleQuote() abort
     return "''\<left>"
 endfunction
 inoremap <buffer><expr> ' <sid>mdtlblQuickSingleQuote()
+
+setlocal foldmethod=expr foldexpr=indent(prevnonblank(v:lnum))/&sw " fixed indent fold"
+setlocal comments=s:#*,mb:*,ex:*#,:#
+setlocal commentstring=#%s
+setlocal formatoptions+=rq
+
+let b:undo_ftplugin = 'setlocal foldmethod< foldexpr< comments< commentstring< formatoptions<'
+            \ . ' | aug mdtlblFtPlugin | au! | aug end'
+            \ . ' | iunmap <expr><buffer> '''
