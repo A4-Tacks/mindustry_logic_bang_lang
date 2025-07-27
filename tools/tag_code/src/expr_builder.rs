@@ -231,19 +231,29 @@ pub fn build<'a>(lines: impl IntoIterator<Item = &'a ParseLine<'a>>) -> Vec<Stri
     println!("");
     println!("-- no reference variables --");
 
+    let finish_start = out.len();
+
     for (name, &(c, _wc, ref expr)) in &ops {
         if c == 0 {
             println!("{name} = {expr};");
         }
     }
 
+    let finish_rng = finish_start..out.len();
+
     println!("");
     println!("-- strict no reference variables --");
+
+    let finish_start = out.len();
 
     for (name, &(c, wc, ref expr)) in &ops {
         if c == 0 && wc == 0 {
             println!("{name} = {expr};");
         }
+    }
+
+    if out.len() - finish_start == finish_rng.len() {
+        out.truncate(finish_rng.end);
     }
 
     out
