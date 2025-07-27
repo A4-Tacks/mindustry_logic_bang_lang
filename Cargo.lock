@@ -293,7 +293,7 @@ checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
 name = "mindustry_logic_bang_lang"
-version = "0.20.5"
+version = "0.20.6"
 dependencies = [
  "display_source",
  "logic_lint",
@@ -552,9 +552,10 @@ dependencies = [
 
 [[package]]
 name = "tag_code"
-version = "0.2.9"
+version = "0.2.10"
 dependencies = [
  "either",
+ "linked-hash-map",
  "peg",
  "var_utils",
 ]

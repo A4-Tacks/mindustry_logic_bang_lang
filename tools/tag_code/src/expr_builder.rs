@@ -1,6 +1,7 @@
-use std::{collections::HashMap, fmt::{self, Display, Write}, rc::Rc, str::FromStr};
+use std::{fmt::{self, Display, Write}, rc::Rc, str::FromStr};
 
 use either::{for_both, Either::{self, Left, Right}};
+use linked_hash_map::LinkedHashMap;
 use var_utils::Var;
 
 use crate::logic_parser::ParseLine;
@@ -112,7 +113,7 @@ impl Display for Expr {
 }
 
 pub fn build<'a>(lines: impl IntoIterator<Item = &'a ParseLine<'a>>) -> Vec<String> {
-    let mut ops: HashMap<Var, (u32, u32, Rc<Expr>)> = HashMap::new();
+    let mut ops: LinkedHashMap<Var, (i32, i32, Rc<Expr>)> = LinkedHashMap::new();
     let mut out = vec![];
 
     macro_rules! println {
