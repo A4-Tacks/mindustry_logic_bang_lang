@@ -914,6 +914,7 @@ OpExprAssignOper: OpExprAOperFun = {
     "&&="           => { make_assign_oper!(Op::Land     ) },
     "<<="           => { make_assign_oper!(Op::Shl      ) },
     ">>="           => { make_assign_oper!(Op::Shr      ) },
+    ">>>="          => { make_assign_oper!(Op::UShr     ) },
     "|="            => { make_assign_oper!(Op::Or       ) },
     "&="            => { make_assign_oper!(Op::And      ) },
     "^="            => { make_assign_oper!(Op::Xor      ) },
