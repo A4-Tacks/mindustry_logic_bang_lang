@@ -688,7 +688,11 @@ i, x = 2, abs(a-b) + sqrt(a)*2;
 > 只是为了有方便的优先级进行逻辑运算
 
 > [!TIP]
-> op-expr 等号左侧的逗号可以省略
+> op-expr 等号左侧的逗号可以省略 `a b = 1, 2;`
+>
+> op-expr 支持自运算 `x += 2; i++;`
+>
+> op-expr 单参数函数有时可以不加括号 `n = abs i * 2;`
 >
 > op-expr 支持组合展开,
 > `x, y = [cos(i), sin(i)]*r;` 和 `x, y = cos(i)*r, sin(i)*r;` 等价

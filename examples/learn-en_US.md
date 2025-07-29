@@ -757,6 +757,12 @@ please refer to [op-expr](./op_expr.mdtlbl) for details
 > [!TIP]
 > op-expr results comma can ignore, such as `a b = 1, 2;`
 >
+> op-expr supports self operation, such as `x += 2; i++;`
+>
+> op-expr single parameter functions sometimes do not require parentheses,
+> such as `n = abs i * 2;`
+>
+>
 > op-expr supports combination expanding,
 > `x, y = [cos(i), sin(i)]*r;` and `x, y = cos(i)*r, sin(i)*r;` are equivalent
 
