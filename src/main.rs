@@ -63,14 +63,17 @@ fn help() {
 }
 
 fn main() {
-    let mut args = args();
-    args.next().unwrap();
-    let Some(mode) = args.next() else {
+    let args = args().skip(1).collect::<Vec<_>>();
+    if args.iter().any(|arg| arg == "-h" || arg == "--help") {
+        help();
+        exit(0)
+    }
+    let Some(mode) = args.first() else {
         err!("missing MODE args");
         help();
         exit(1)
     };
-    if let Some(arg) = args.next() {
+    if let Some(arg) = args.get(1) {
         err!("多余的参数: {:?}", arg);
         exit(2);
     }
