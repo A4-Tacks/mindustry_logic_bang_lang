@@ -939,6 +939,9 @@ OpExprBody13: OpExprInfo = {
     "if" <cmp:JumpCmpOnce> "?" <a:OpExprBody13> ":" <b:OpExprBody13> => {
         a.new_if_else(meta, cmp, b)
     },
+    "select" <cond:JumpCmpBody> "?" <a:OpExprBody13> ":" <b:OpExprBody13> => {
+        a.new_select(meta, cond, b)
+    },
     OpExprBody12,
 }
 

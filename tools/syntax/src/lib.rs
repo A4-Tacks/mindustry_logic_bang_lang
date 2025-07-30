@@ -4914,6 +4914,17 @@ impl OpExprInfo {
         }))
     }
 
+    pub fn new_select(self, meta: &mut Meta, cond: JumpCmp, rhs: Self) -> Self {
+        self.each(|lhs| rhs.clone().each(|rhs| {
+            once(OpExprType::new_select(
+                meta,
+                cond.clone(),
+                lhs.clone(),
+                rhs,
+            ))
+        }))
+    }
+
     pub fn new_op2<F>(self, rhs: Self, mut f: F) -> Self
     where F: FnMut(OpExprType, OpExprType) -> Op,
     {
@@ -4940,6 +4951,11 @@ pub enum OpExprType {
         true_line: LogicLine,
         false_line: LogicLine,
     },
+    Select {
+        cond: JumpCmp,
+        true_value: Value,
+        false_value: Value,
+    },
     SufSelfOp {
         op: Op,
         value: Value,
@@ -4961,6 +4977,19 @@ impl OpExprType {
             cmp,
             true_line: true_line.into_logic_line(meta, result.clone().into()),
             false_line: false_line.into_logic_line(meta, result.into()),
+        }
+    }
+
+    pub fn new_select(
+        meta: &mut Meta,
+        cond: JumpCmp,
+        true_value: Self,
+        false_value: Self,
+    ) -> Self {
+        Self::Select {
+            cond,
+            true_value: true_value.into_value(meta),
+            false_value: false_value.into_value(meta),
         }
     }
 
@@ -5009,6 +5038,22 @@ impl OpExprType {
                     LogicLine::Label(true_lab),
                     true_line,
                     LogicLine::Label(skip_lab),
+                ].into()).into()
+            },
+            Self::Select { cond, true_value, false_value } => {
+                let cond = cond.do_start_compile_into();
+                let cmp_str = cond.cmp_str();
+                let (a, b) = cond.get_values();
+                DExp::new_nores(vec![
+                    LogicLine::Other(Args::Normal(vec![
+                        Value::ReprVar("select".into()),
+                        Value::ResultHandle,
+                        Value::ReprVar(cmp_str.into()),
+                        a,
+                        b,
+                        true_value,
+                        false_value,
+                    ]))
                 ].into()).into()
             },
             Self::SufSelfOp {
@@ -5063,6 +5108,20 @@ impl OpExprType {
                     true_line,
                     LogicLine::Label(skip_lab),
                 ]).into()
+            },
+            Self::Select { cond, true_value, false_value } => {
+                let cond = cond.do_start_compile_into();
+                let cmp_str = cond.cmp_str();
+                let (a, b) = cond.get_values();
+                LogicLine::Other(Args::Normal(vec![
+                    Value::ReprVar("select".into()),
+                    result,
+                    Value::ReprVar(cmp_str.into()),
+                    a,
+                    b,
+                    true_value,
+                    false_value,
+                ]))
             },
             Self::SufSelfOp {
                 mut op,

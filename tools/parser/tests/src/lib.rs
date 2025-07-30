@@ -3250,6 +3250,32 @@ fn op_expr_test() {
         "#).unwrap(),
     );
 
+    assert_eq!(
+        parse!(parser, r#"
+        a = if x ? y : y+z;
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            take ___0 = a;
+            goto :___0 x;
+                ___0 = y + z;
+            goto :___1;
+            :___0
+                ___0 = y;
+            :___1
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a = select x ? y : y+z;
+        "#).unwrap(),
+        parse!(parser, r#"
+        `select` a `notEqual` x `false` y (?y+z);
+        "#).unwrap(),
+    );
+
     assert!(
         parse!(parser, r#"
         x = a == b == c;
@@ -3842,6 +3868,24 @@ fn op_expr_test() {
         "#).unwrap(),
         parse!(parser, r#"
         a, b, c, d = [a,b]*[c,d];
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a, b = if x ? [1, 2] : 3;
+        "#).unwrap(),
+        parse!(parser, r#"
+        a, b = if x ? 1 : 3, if x ? 2 : 3;
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a, b = select x ? [1, 2] : 3;
+        "#).unwrap(),
+        parse!(parser, r#"
+        a, b = select x ? 1 : 3, select x ? 2 : 3;
         "#).unwrap(),
     );
 
