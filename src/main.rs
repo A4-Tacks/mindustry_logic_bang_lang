@@ -104,6 +104,7 @@ enum CompileMode {
     RenameLabel,
     BangToMdtLabel,
     BuildExpr,
+    ParenToMdtLogic,
 }
 impl CompileMode {
     fn compile(&self, src: String) -> String {
@@ -185,6 +186,23 @@ impl CompileMode {
                     .map(|x| &**x));
                 out.join("\n")
             },
+            Self::ParenToMdtLogic => {
+                let lines = match mini_paren::parser::lines(&src) {
+                    Ok(lines) => lines,
+                    Err(e) => {
+                        err!("ParseParenCode {}:{} expected {}",
+                            e.location.line,
+                            e.location.column,
+                            e.expected,
+                        );
+                        exit(9)
+                    },
+                };
+                let mut state = mini_paren::State::default();
+                state.process_lines(&lines);
+                state.out.truncate(state.out.trim_end().len());
+                state.out
+            },
         }
     }
 }
@@ -239,6 +257,7 @@ pub const HELP_MSG: &str = concat_lines! {
     "\t", "n: rename MdtLogicCode";
     "\t", "L: compile MdtBangLang to MdtLabelCode";
     "\t", "b: compile MdtLogicCode to expressions";
+    "\t", "p: compile MdtParenCode to MdtLogicCode";
     ;
     "input from stdin";
     "output to stdout";
@@ -268,6 +287,7 @@ impl TryFrom<char> for CompileMode {
             'n' => Self::RenameLabel,
             'L' => Self::BangToMdtLabel,
             'b' => Self::BuildExpr,
+            'p' => Self::ParenToMdtLogic,
             mode => return Err(mode),
         })
     }

@@ -32,7 +32,7 @@ setlocal foldmethod=indent
 
 syn match	logicEOL		/^\|;/				transparent nextgroup=logicHead,logicJump,logicOp,logicPrint		skipwhite
 syn match	logicComment		/#.*/				contains=logicCommentMeta
-syn match	logicHead		/[^ \t\r;:#]\+/			contained
+syn match	logicHead		/[()]\@![^ \t\r;:#]\+/		contained
 syn match	logicOp			/op[ \t]/			contained nextgroup=logicOpOper,logicJumpOper		skipwhite
 syn match	logicJump		/jump[ \t]/			contained nextgroup=logicJumpLabel			skipwhite
 syn match	logicJumpLabel		/\s*:\=[^ \t\r;:#]\+[ \t]/	contained nextgroup=logicJumpOper,logicJumpAlways	skipwhite

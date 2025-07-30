@@ -1,5 +1,5 @@
 # Study Guide
-If you want to learn this language,
+If you want to learn Bang language,
 first you need to be familiar with the logical exported syntax of Mindustry logical editor
 
 You also need to have the ability to manually write its exported syntax outside the logic editor
@@ -81,3 +81,26 @@ or pasted into your code for quick and convenient use
 * [`stack.mdtlbl`](./std/stack.mdtlbl) Packaging a stack to simplify common stack operations
 * [`count_loop.mdtlbl`](./std/count_loop.mdtlbl) Generate loop expansion for dynamic count
 * [`timeit.mdtlbl`](./std/timeit.mdtlbl) Test execution lines to measure performance
+
+## Simple Attempt
+If you feel that Bang language is too complex or does not require the capabilities it provides,
+you can try some of the additional features of this compiler
+
+### About Logical Language
+
+- Rename label: `mindustry_logic_bang_lang in`
+- Convert absolute address into label: `mindustry_logic_bang_lang i`
+- Some simplify variable check: `mindustry_logic_bang_lang l`
+- Extract and build op statements: `mindustry_logic_bang_lang b`
+
+### About Paren Language
+This is a lightweight logical language extension,
+that only provides the feature of embedding multiple statement return values into variables
+
+A simplified version similar to DExp in Bang
+
+The variable name starting with `$` in parentheses will be treated as the return variable of the current parentheses.
+
+If the variable name is empty, a new anonymous variable will be created
+
+For more examples, please refer to [`mini_paren.logic`](./mini_paren.logic)

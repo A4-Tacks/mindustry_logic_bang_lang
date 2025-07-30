@@ -1,7 +1,7 @@
 English README, please click on [**README-en_US.md**](./README-en_US.md)
 
 # 学习指南
-如果你想学习这门语言, 首先你需要对`Mindustry`的逻辑导出形式较为熟悉.
+如果你想学习 Bang 语言, 首先你需要对`Mindustry`的逻辑导出形式较为熟悉.
 
 而如果不熟悉可以阅读或参考
 [逻辑入门教程](https://github.com/A4-Tacks/learn-mindustry-logic)
@@ -75,3 +75,21 @@ English README, please click on [**README-en_US.md**](./README-en_US.md)
 * [`stack.mdtlbl`](./std/stack.mdtlbl) 包装一个栈, 简化常用栈操作
 * [`count_loop.mdtlbl`](./std/count_loop.mdtlbl) 对动态次数循环生成循环展开
 * [`timeit.mdtlbl`](./std/timeit.mdtlbl) 测试执行行数, 衡量性能
+
+## 简单尝试
+如果觉得 Bang 语言过于硬核、并不怎么需要等, 可以尝试此编译器的一些附属功能
+
+### 关于逻辑语言
+
+- 重命名标签: `mindustry_logic_bang_lang in`
+- 转换为标签跳转: `mindustry_logic_bang_lang i`
+- 进行简单的变量检查: `mindustry_logic_bang_lang l`
+- 提取逻辑中的 op 为表达式: `mindustry_logic_bang_lang b`
+
+### 关于括号语言
+这是一个极简逻辑语言强化, 仅提供了将返回值的多行嵌入一行中的能力,
+类似 Bang 中 DExp 的简化版本
+
+在括号内的$打头变量名将被当做当前括号的返回变量, 变量名为空则新建匿名变量
+
+更多例子参考 [`mini_paren.logic`](./mini_paren.logic)

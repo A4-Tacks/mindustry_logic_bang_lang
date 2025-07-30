@@ -1,0 +1,73 @@
+# 这是一门简单的括号语言, 虽然并不支持多行注释, 不过这是给自动测试使用的
+
+
+print $x
+#* p >>>
+print $x
+*#
+
+
+print $
+#* p >>>
+print $
+*#
+
+
+print (read $ cell1 0)
+#* p >>>
+read __0 cell1 0
+print __0
+*#
+
+
+print (read $x cell1 0)
+#* p >>>
+read x cell1 0
+print x
+*#
+
+
+print (read $x cell1 0; op add $ $ 1)
+#* p >>>
+read x cell1 0
+op add x x 1
+print x
+*#
+
+
+print (
+
+    # comments
+    read $x cell1 0
+    op add $ $ 1
+
+)
+#* p >>>
+read x cell1 0
+op add x x 1
+print x
+*#
+
+
+op min x (op min $ a b) (op min $ c d)
+#* p >>>
+op min __0 a b
+op min __1 c d
+op min x __0 __1
+*#
+
+
+print "foo: "
+print 1
+#* p >>>
+print "foo: "
+print 1
+*#
+
+
+label:
+jump label always 0 0
+#* p >>>
+label:
+jump label always 0 0
+*#

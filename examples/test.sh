@@ -16,7 +16,7 @@ function CATCH_ERROR {
 }
 trap CATCH_ERROR ERR
 
-hash mktemp mindustry_logic_bang_lang gawk find xargs diff cat
+hash mktemp mindustry_logic_bang_lang gawk find xargs diff cat sort
 
 OPTIND=1
 while getopts h opt; do case "$opt" in
@@ -44,7 +44,9 @@ fi
 cd -- "$(command dirname -- "$0")" || exit
 
 coproc ext {
-    find . -name '*.mdtlbl' -print0 | xargs -0 gawk '
+    find . \( -name '*.mdtlbl' -o -name '*.logic' \) -print0 |
+        sort -z |
+        xargs -0 gawk '
     BEGIN {
         ORS="\0"
     }
