@@ -104,3 +104,5 @@ The variable name starting with `$` in parentheses will be treated as the return
 If the variable name is empty, a new anonymous variable will be created
 
 For more examples, please refer to [`mini_paren.logic`](./mini_paren.logic)
+
+Compile it using `mindustry_logic_bang_lang p`

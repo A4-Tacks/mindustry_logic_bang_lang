@@ -93,3 +93,5 @@ English README, please click on [**README-en_US.md**](./README-en_US.md)
 在括号内的$打头变量名将被当做当前括号的返回变量, 变量名为空则新建匿名变量
 
 更多例子参考 [`mini_paren.logic`](./mini_paren.logic)
+
+使用 `mindustry_logic_bang_lang p` 来编译它
