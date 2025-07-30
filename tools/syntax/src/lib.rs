@@ -2144,7 +2144,12 @@ impl Op {
 
             Op::Shl(..) => ((a as i64) << b as i64) as f64,
             Op::Shr(..) => ((a as i64) >> b as i64) as f64,
-            Op::UShr(..) => ((a as u64) >> b as u64) as f64,
+            Op::UShr(..) => {
+                let (a, b) = (a as i64, b as i64);
+                let a = u64::from_ne_bytes(a.to_ne_bytes());
+                let b = u64::from_ne_bytes(b.to_ne_bytes());
+                (a >> b) as f64
+            },
             Op::Or(..) => ((a as i64) | b as i64) as f64,
             Op::And(..) => ((a as i64) & b as i64) as f64,
             Op::Xor(..) => ((a as i64) ^ b as i64) as f64,
