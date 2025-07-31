@@ -1064,6 +1064,7 @@ OpExprFun1TrivialValueSelfOp: OpExprInfo = {
 OpExprFun1TrivialValue: OpExprInfo = {
     OpExprAtomExt,
     OpExprFun1TrivialValueSelfOp,
+    // NOTE 不要添加负号等, 会使优先级变得怪异如 `abs -x**2`
 }
 OpExprFun1<Name>: OpExprInfo = {
     Name <OpExprDExp> => OpExprType::Value(<>.into()).into(),
