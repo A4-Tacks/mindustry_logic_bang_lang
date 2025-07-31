@@ -2148,7 +2148,7 @@ impl Op {
                 let (a, b) = (a as i64, b as i64);
                 let a = u64::from_ne_bytes(a.to_ne_bytes());
                 let b = u64::from_ne_bytes(b.to_ne_bytes());
-                (a >> b) as f64
+                i64::from_ne_bytes((a >> b).to_ne_bytes()) as f64
             },
             Op::Or(..) => ((a as i64) | b as i64) as f64,
             Op::And(..) => ((a as i64) & b as i64) as f64,
