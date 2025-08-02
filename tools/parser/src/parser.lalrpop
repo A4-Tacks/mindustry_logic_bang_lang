@@ -432,7 +432,7 @@ LogicLineNormal: LogicLine = {
     "inline" <IntoLL<InlineBlock>>,
     Label => LogicLine::new_label(<>, meta),
     <OpExprTopSelfOps> LEnd,
-    <OtherLogicLine> LEnd => meta.pack_line(LogicLine::Other(<>)),
+    <OtherLogicLineZL> LEnd => meta.pack_line(LogicLine::Other(<>)),
     "inline" <ArgsRepeatBlock> => <>.into(),
     Match,
     ConstMatch,
@@ -445,6 +445,7 @@ LogicLineSingle: LogicLine = {
     QuickTake,
     ControlSingle,
     BuiltinCommand,
+    OtherLogicLine => meta.pack_line(LogicLine::Other(<>)),
 }
 
 QuickTake: LogicLine = <value:Loc<NonConstRangeValue>> "!" <args:ParamArgsSL> => {
@@ -654,6 +655,16 @@ ArgRestSL: Vec<Value> = {
         rest
     },
 };
+ArgRestSLLong: Vec<Value> = {
+    LinePack<"+"> <fst:LocalVar> <mut rest:Args1G<(","? <SLPValue>)>> => {
+        rest.insert(0, fst);
+        rest
+    },
+    <fst:LinePack<Value>> <mut rest:Args1G<(","? <SLValue>)>> => {
+        rest.insert(0, fst);
+        rest
+    },
+};
 OtherLogicLine: Args = {
     LinePack<"@"> <suffix:Args0G<SLValue>> => {
         Args::Expanded(vec![], suffix)
@@ -661,10 +672,11 @@ OtherLogicLine: Args = {
     <prefix:ArgRestSL> "@" <suffix:Args0G<SLValue>> => {
         Args::Expanded(prefix, suffix)
     },
-    <args:ArgRestSL> => {
+    <args:ArgRestSLLong> => {
         args.into()
     },
 }
+OtherLogicLineZL: Args = LinePack<Value> => vec![<>].into();
 ParamArgsAtom: Value = {
     "*" <Value> => {
         ValueBindRef::new(<>.into(), ValueBindRefTarget::ResultHandle).into()

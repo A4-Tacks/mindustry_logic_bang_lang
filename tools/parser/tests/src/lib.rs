@@ -10181,4 +10181,22 @@ fn lines_end_no_semicolon_test() {
         do {noop;} while a<b;
         "#).unwrap(),
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+        print (op add $ x 1);
+        "#).unwrap(),
+        parse!(parser, r#"
+        print (op add $ x 1;);
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        print (read $ cell1 0);
+        "#).unwrap(),
+        parse!(parser, r#"
+        print (read $ cell1 0;);
+        "#).unwrap(),
+    );
 }
