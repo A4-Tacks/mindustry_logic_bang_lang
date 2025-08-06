@@ -844,7 +844,7 @@ Args2G<V>: Vec<V> = {
 
 OpExprOp: (OpExprAOperFun, OpExprInfo) = {
     <oper:OpExprAssignOper> Or<"?", "*">?
-    <values:Cat<(<OpExprBody> ",")*, OpExprBody>>
+    <values:CloseArgs<OpExprBody, ",">>
     => { (oper, OpExprInfo::from_iter(values)) },
 }
 
@@ -1290,34 +1290,62 @@ BuiltinCommand: LogicLine = {
         }
     },
 
-    "take" "*" <inner:TakeOpExprMultInner> => {
-        let (keys, vals) = inner;
-        assert_eq!(keys.len(), vals.len());
+    "take" "*" <results:CloseArgs<ConstKey, ",">> "="
+    <l:@L> <exprs:CloseArgs<OpExprBody, ",">> <r:@R>
+    =>? {
+        let values = OpExprInfo::from_iter(exprs).into_values(meta);
+        let len_pair = (results.len(), values.len());
+        let mut lines = vec![];
+        let mut values = values.into_iter();
+        let mut results = results.into_iter();
+        match len_pair {
+            (1, 1) => {
+                lines.push(Take(
+                    results.next().unwrap(),
+                    {values}.next().unwrap(),
+                ).into());
+            },
+            (_, 1) => {
+                let mut hresult = results.next().unwrap();
+                let value = {values}.next().unwrap();
 
-        let lines = keys.into_iter()
-            .rev()
-            .zip(vals)
-            .map(|(key, val)| {
-                Take(key, val).into()
-            })
-            .collect::<Vec<LogicLine>>();
+                if let ConstKey::ValueBind(ValueBind(bind, name)) = &mut hresult {
+                    let tmp = meta.get_tmp_var();
+                    let bind = std::mem::replace(&mut **bind, tmp.clone().into());
+                    lines.push(Take(tmp.into(), bind).into());
+                }
 
-        if lines.len() == 1 {
-            lines.into_iter().next().unwrap()
+                lines.push(Take(hresult.clone(), value).into());
+                for result in results {
+                    let key = match hresult.clone() {
+                        ConstKey::Var(v) => v.into(),
+                        ConstKey::ValueBind(vb) => vb.into(),
+                        ConstKey::Unused(..) => unreachable!(),
+                    };
+                    lines.push(Take(result, key).into());
+                }
+            },
+            (a, b) if a == b => {
+                lines.extend(results.zip(values).map(|(result, value)| {
+                    Take(result, value).into()
+                }))
+            },
+            (found, right) => {
+                return Err(Error::from((
+                    [l, r],
+                    Errors::OpExprInvalidResult { found, right },
+                )).into())
+            }
+        }
+
+        Ok(if lines.len() == 1 {
+            lines.pop().unwrap()
         } else {
             InlineBlock(lines).into()
-        }
+        })
     },
 
     "setres" <Value> => LogicLine::SetResultHandle(<>),
-}
-TakeOpExprMultInner: (Vec<ConstKey>, Vec<Value>) = {
-    <key:ConstKey> "=" <val:OpExprBodyToValue> => (vec![key], vec![val]),
-    <key:ConstKey> "," <mut inner:TakeOpExprMultInner> "," <val:OpExprBodyToValue> => {
-        inner.0.push(key);
-        inner.1.push(val);
-        inner
-    },
 }
 TakeDestructAtom: (bool, Var, Var) = {
     <Opt<"&">> <Var> ":" <Var>,

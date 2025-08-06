@@ -1241,6 +1241,7 @@ impl Meta {
         self.line_pack.last_mut().unwrap().1.push(line);
     }
 
+    #[track_caller]
     pub fn pack_line(&mut self, line: LogicLine) -> LogicLine {
         let (deps, posts) = self.line_pack.pop().unwrap();
         if deps.is_empty() && posts.is_empty() {
@@ -4906,6 +4907,11 @@ impl OpExprInfo {
             .flat_map(f)
             .collect();
         self
+    }
+
+    pub fn into_values(self, meta: &mut Meta) -> impl ExactSizeIterator<Item = Value> + use<'_> {
+        self.exprs.into_iter()
+            .map(|it| it.into_value(meta))
     }
 
     pub fn new_if_else(self, meta: &mut Meta, cmp: CmpTree, rhs: Self) -> Self {

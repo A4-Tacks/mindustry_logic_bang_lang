@@ -3565,6 +3565,42 @@ fn op_expr_test() {
         "#).unwrap(),
     );
 
+    assert_eq!(
+        parse!(parser, r#"
+        take*A, B = M;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take*A = M;
+            take*B = A;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        take*A.V, B.V = M;
+        "#).unwrap(),
+        parse!(parser, r#"
+        inline {
+            take ___0 = A;
+            take*___0.V = M;
+            take*B.V = ___0.V;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        take*A, B = [x+y, i++];
+        take*C = j--;
+        "#).unwrap(),
+        parse!(parser, r#"
+        take A = (*x+y) B = (*i++);
+        take C = (*j--);
+        "#).unwrap(),
+    );
+
     assert_eq!( // 连续运算, 返回者是最左边的
         parse!(parser, r#"
         a = b = c;
