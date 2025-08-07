@@ -7,26 +7,7 @@ const PrintLowerHexChar = (
     * - Num: 给定的数, 范围为0..16
     *#
     take Num = _0;
-
-    switch Num {
-        goto :end _;
-    case 0:  print "0";
-    case 1:  print "1";
-    case 2:  print "2";
-    case 3:  print "3";
-    case 4:  print "4";
-    case 5:  print "5";
-    case 6:  print "6";
-    case 7:  print "7";
-    case 8:  print "8";
-    case 9:  print "9";
-    case 10: print "a";
-    case 11: print "b";
-    case 12: print "c";
-    case 13: print "d";
-    case 14: print "e";
-    case 15: print "f";
-    } :end
+    printchar (read $ "0123456789abcdef" Num);
 );
 
 const PrintUpperHexChar = (
@@ -36,26 +17,7 @@ const PrintUpperHexChar = (
     * - Num: 给定的数, 范围为0..16
     *#
     take Num = _0;
-
-    switch Num {
-        goto :end _;
-    case 0:  print "0";
-    case 1:  print "1";
-    case 2:  print "2";
-    case 3:  print "3";
-    case 4:  print "4";
-    case 5:  print "5";
-    case 6:  print "6";
-    case 7:  print "7";
-    case 8:  print "8";
-    case 9:  print "9";
-    case 10: print "A";
-    case 11: print "B";
-    case 12: print "C";
-    case 13: print "D";
-    case 14: print "E";
-    case 15: print "F";
-    } :end
+    printchar (read $ "0123456789ABCDEF" Num);
 );
 
 const PrintNegativeChar = (
