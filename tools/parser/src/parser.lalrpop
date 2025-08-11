@@ -293,17 +293,23 @@ CmpVAT: Value = {
     },
 }
 
+CmpOperator<Sym, Named>: Value = {
+    Named <CmpVAT>,
+    Sym <CmpVAT>,
+    <CmpVAT> Sym,
+}
+
 JumpCmpBody: JumpCmp = {
-    <OrSwap<Or<"equal", "==">, <CmpVAT>>> <CmpVAT> => JumpCmp::Equal(<>),
-    <OrSwap<Or<"notEqual", "!=">, <CmpVAT>>> <CmpVAT> => JumpCmp::NotEqual(<>),
-    <OrSwap<Or<"lessThan", "<">, <CmpVAT>>> <CmpVAT> => JumpCmp::LessThan(<>),
-    <OrSwap<Or<"lessThanEq", "<=">, <CmpVAT>>> <CmpVAT> => JumpCmp::LessThanEq(<>),
-    <OrSwap<Or<"greaterThan", ">">, <CmpVAT>>> <CmpVAT> => JumpCmp::GreaterThan(<>),
-    <OrSwap<Or<"greaterThanEq", ">=">, <CmpVAT>>> <CmpVAT> => JumpCmp::GreaterThanEq(<>),
-    <OrSwap<Or<"strictEqual", "===">, <CmpVAT>>> <CmpVAT> => JumpCmp::StrictEqual(<>),
+    <CmpOperator<"==",  "equal">>           <CmpVAT> => JumpCmp::Equal(<>),
+    <CmpOperator<"!=",  "notEqual">>        <CmpVAT> => JumpCmp::NotEqual(<>),
+    <CmpOperator<"<",   "lessThan">>        <CmpVAT> => JumpCmp::LessThan(<>),
+    <CmpOperator<"<=",  "lessThanEq">>      <CmpVAT> => JumpCmp::LessThanEq(<>),
+    <CmpOperator<">",   "greaterThan">>     <CmpVAT> => JumpCmp::GreaterThan(<>),
+    <CmpOperator<">=",  "greaterThanEq">>   <CmpVAT> => JumpCmp::GreaterThanEq(<>),
+    <CmpOperator<"===", "strictEqual">>     <CmpVAT> => JumpCmp::StrictEqual(<>),
     Or<"always", "_"> => JumpCmp::Always,
     // 扩展
-    <OrSwap<Or<"strictNotEqual", "!==">, <CmpVAT>>> <CmpVAT> => JumpCmp::StrictNotEqual(<>),
+    <CmpOperator<"!==", "strictNotEqual">>  <CmpVAT> => JumpCmp::StrictNotEqual(<>),
     <CmpVAT> => JumpCmp::bool(<>),
 }
 
@@ -571,6 +577,11 @@ APValueExtAtom: &'input str = {
     // NOTE: 不要加入 match, switch, 给可能的语法留下空位
     "_", "op", "noop", "print", "skip", "break", "continue",
     CmpValueExtAtom,
+    CmperKwdAtom,
+}
+CmperKwdAtom: &'input str = {
+    "equal", "notEqual", "lessThan", "lessThanEq", "greaterThan",
+    "greaterThanEq", "strictEqual", "always", "strictNotEqual",
 }
 CmpValueExtAtom: &'input str = {
     "rand", "len", "sqrt", "angle", "pow", "log", "logn", "cos", "floor", "ceil", "round",

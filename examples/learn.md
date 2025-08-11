@@ -640,7 +640,6 @@ case 4:
 ```
 skip a < b print 2;
 skip < a b print 2;
-skip a lessThan b print 2;
 skip lessThan a b print 2;
 ```
 

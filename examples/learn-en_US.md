@@ -706,7 +706,6 @@ For example, each of the following `skip` is the same and can be compiled
 ```
 skip a < b print 2;
 skip < a b print 2;
-skip a lessThan b print 2;
 skip lessThan a b print 2;
 ```
 

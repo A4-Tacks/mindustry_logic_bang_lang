@@ -62,11 +62,9 @@ skip { print 1; }
 skip x < y print 1;
 skip < x y print 1;
 skip lessThan x y print 1;
-skip x lessThan y print 1;
 skip x === y print 1;
 skip x !== y print 1;
 skip strictNotEqual x y print 1;
-skip x strictNotEqual y print 1;
 skip a == b && c print 1;
 skip a == b && c || d && e print 1;
 skip a == b && !c || d && e print 1;
