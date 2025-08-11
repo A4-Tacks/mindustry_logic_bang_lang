@@ -43,6 +43,14 @@ fi
 
 cd -- "$(command dirname -- "$0")" || exit
 
+printf '\e[1;32m%s\e[m\n' 'Start for all sources'
+for f in *.mdtlbl; do
+    printf 'compile %q\n' "$f"
+    mindustry_logic_bang_lang c < "$f" >&- && continue
+
+    echo $'\e[1;31m''compile failed!'
+done
+
 coproc ext {
     find . \( -name '*.mdtlbl' -o -name '*.logic' \) -print0 |
         sort -z |
@@ -90,6 +98,7 @@ trap "rm -v ${tmp@Q}" exit
 declare -i count=0
 
 shopt -s extglob
+printf '\e[1;32m%s\e[m\n' 'Start for all examples'
 
 while
     IFS=: read -rd '' fnr mode file &&
