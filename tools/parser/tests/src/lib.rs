@@ -6136,6 +6136,26 @@ fn const_expr_eval_test() {
         print 0;
         "#).unwrap()).compile().unwrap(),
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print (*select 2 < 4 ? 5 : 8);
+        print (*select 4 < 2 ? 5 : 8);
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        print 5;
+        print 8;
+        "#).unwrap()).compile().unwrap(),
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print (*select 2 < 4 ? a : 8);
+        "#).unwrap()).compile().unwrap(),
+        CompileMeta::new().compile(parse!(parser, r#"
+        print ('select' $ lessThan 2 4 a 8);
+        "#).unwrap()).compile().unwrap(),
+    );
 }
 
 #[test]

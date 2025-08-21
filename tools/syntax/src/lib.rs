@@ -487,12 +487,30 @@ impl Value {
                         let Value::ReprVar(cmd) = &args[0] else {
                             return None;
                         };
-                        match &**cmd {
-                            "set"
-                            if args.len() == 3
+                        if cmd == "set" && args.len() == 3 && args[1].is_result_handle() {
+                            (args[2].try_eval_const_num(meta)?.0, true).into()
+                        } else if cmd == "select"
                             && args[1].is_result_handle()
-                            => (args[2].try_eval_const_num(meta)?.0, true).into(),
-                            _ => None,
+                            && let Value::ReprVar(cond) = args[2].clone()
+                        {
+                            let cmp_a = args[3].try_eval_const_num(meta)?.0;
+                            let cmp_b = args[4].try_eval_const_num(meta)?.0;
+                            let a = args[5].try_eval_const_num(meta)?.0;
+                            let b = args[6].try_eval_const_num(meta)?.0;
+
+                            let cmp = JumpCmp::from_mdt_args(vec![
+                                cond,
+                                cmp_a.to_string().into(),
+                                cmp_b.to_string().into(),
+                            ].try_into().unwrap()).ok()?;
+
+                            if cmp.try_eval_const_cond(meta)? {
+                                Some((a, true))
+                            } else {
+                                Some((b, true))
+                            }
+                        } else {
+                            None
                         }
                     },
                     _ => None,
@@ -1453,6 +1471,40 @@ impl JumpCmp {
     pub fn is_always(&self) -> bool {
         matches!(self, Self::Always)
     }
+
+    pub fn try_eval_const_cond(&self, meta: &CompileMeta) -> Option<bool> {
+        fn conv(n: f64) -> f64 {
+            match n.classify() {
+                std::num::FpCategory::Nan => 0.0,
+                std::num::FpCategory::Infinite => f64::MAX*n.signum(),
+                std::num::FpCategory::Zero
+                | std::num::FpCategory::Subnormal
+                | std::num::FpCategory::Normal => n,
+            }
+        }
+        match self {
+            JumpCmp::StrictEqual(..) | JumpCmp::StrictNotEqual(..) => return Some(false),
+            JumpCmp::Always => return Some(true),
+            JumpCmp::Never => return Some(false),
+            _ => (),
+        }
+        let (a, b) = self.get_values_ref()?;
+        let a = conv(a.try_eval_const_num(meta)?.0);
+        let b = conv(b.try_eval_const_num(meta)?.0);
+
+        match self {
+            JumpCmp::Equal(..) => a == b,
+            JumpCmp::NotEqual(..) => a != b,
+            JumpCmp::LessThan(..) => a < b,
+            JumpCmp::LessThanEq(..) => a <= b,
+            JumpCmp::GreaterThan(..) => a > b,
+            JumpCmp::GreaterThanEq(..) => a >= b,
+            JumpCmp::StrictEqual(..)
+            | JumpCmp::StrictNotEqual(..)
+            | JumpCmp::Always
+            | JumpCmp::Never => return None,
+        }.into()
+    }
 }
 impl Display for JumpCmpRParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -2056,11 +2108,11 @@ impl Op {
     /// 根据自身运算类型尝试获取一个比较器
     pub fn get_cmper(&self) -> Option<fn(Value, Value) -> JumpCmp> {
         macro_rules! build_match {
-            ($( $sname:ident : $cname:ident ),* $(,)?) => {{
+            ($( $vname:ident ),* $(,)?) => {{
                 match self {
                     $(
-                        Self::$sname(..) => {
-                            Some(JumpCmp::$cname)
+                        Self::$vname(..) => {
+                            Some(JumpCmp::$vname)
                         },
                     )*
                     _ => None,
@@ -2068,13 +2120,13 @@ impl Op {
             }};
         }
         build_match! [
-            LessThan: LessThan,
-            LessThanEq: LessThanEq,
-            GreaterThan: GreaterThan,
-            GreaterThanEq: GreaterThanEq,
-            Equal: Equal,
-            NotEqual: NotEqual,
-            StrictEqual: StrictEqual,
+            LessThan,
+            LessThanEq,
+            GreaterThan,
+            GreaterThanEq,
+            Equal,
+            NotEqual,
+            StrictEqual,
         ]
     }
 
