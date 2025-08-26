@@ -574,7 +574,7 @@
         "prefix": "eselect",
         "description": "select result notEqual x false a b",
         "body": [
-            "'select' ${1:result} \\`${2:!=}\\` ${3:x} ${4:0} ${5:a} ${6:b};"
+            "select $1 ? $2 : $0"
         ]
     },
     "packcolor result r g b a # color in [0,1]": {
