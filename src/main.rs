@@ -454,6 +454,13 @@ fn unwrap_parse_err(result: ParseResult<'_>, src: &str) -> Expand {
                                 err,
                             ));
                         },
+                        Errors::UnpairBranches(left, right) => {
+                            out(format_args!(
+                                "unpair branches, left: {}, right: {}",
+                                left,
+                                right,
+                            ));
+                        },
                         Errors::OpExprInvalidResult { found, right } => {
                             out(format_args!(
                                 "{} op-expr can't pattern {} results, expected 1 or {}",

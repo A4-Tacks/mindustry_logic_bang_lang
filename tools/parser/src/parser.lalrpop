@@ -6,6 +6,8 @@
 #![allow(clippy::needless_lifetimes)]
 #![allow(clippy::deprecated_cfg_attr)]
 
+use std::iter::zip;
+
 use ::syntax::{
     Errors,
     Error,
@@ -958,12 +960,28 @@ OpExprOne<Body>: OpExprType = <l:@L> <x:Body> <r:@R> =>? {
 OpExprBodyOne: OpExprType = OpExprOne<OpExprBody>;
 OpExprToValue<Body>: Value = OpExprOne<Body> => <>.into_value(meta);
 
-OpExprBody13: OpExprInfo = {
-    "if" <cmp:JumpCmpOnce> "?" <a:OpExprBody13> ":" <b:OpExprBody13> => {
-        a.new_if_else(meta, cmp, b)
+OpExprBranch: (Vec<OpExprInfo>, Vec<OpExprInfo>) = {
+    <One<OpExprBody13>> ":" <One<OpExprBody13>>,
+    MList<(<COArgs<OpExprBody, ",">> <(<@L> ":" <@R>)> <COArgs<OpExprBody, ",">>)> =>? {
+        let (a, loc, b) = <>;
+        if a.len() == b.len() {
+            Ok((a, b))
+        } else {
+            Err(Error::from((loc, Errors::UnpairBranches(a.len(), b.len()))).into())
+        }
     },
-    "select" <cond:JumpCmpBody> "?" <a:OpExprBody13> ":" <b:OpExprBody13> => {
-        a.new_select(meta, cond, b)
+}
+
+OpExprBody13: OpExprInfo = {
+    "if" <cmp:JumpCmpOnce> "?" <branch:OpExprBranch> => {
+        zip(branch.0, branch.1).flat_map(|(a, b)| {
+            a.new_if_else(meta, cmp.clone(), b)
+        }).collect()
+    },
+    "select" <cond:JumpCmpBody> "?" <branch:OpExprBranch> => {
+        zip(branch.0, branch.1).flat_map(|(a, b)| {
+            a.new_select(meta, cond.clone(), b)
+        }).collect()
     },
     OpExprBody12,
 }

@@ -695,6 +695,9 @@ i, x = 2, abs(a-b) + sqrt(a)*2;
 >
 > op-expr 支持组合展开,
 > `x, y = [cos(i), sin(i)]*r;` 和 `x, y = cos(i)*r, sin(i)*r;` 等价
+>
+> op-expr 支持分支展开,
+> `x, y = if z ? [1, 3 : 2, 4];` 和 `x, y = if z ? 1 : 3, if z ? 2 : 4;` 等价
 
 
 关于注释

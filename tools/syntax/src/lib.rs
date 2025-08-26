@@ -152,6 +152,7 @@ impl From<((Location, Location), Errors)> for Error {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Errors {
     NotALiteralUInteger(Var, ParseIntError),
+    UnpairBranches(usize, usize),
     OpExprInvalidResult { found: usize, right: usize },
     MultipleOpExpr,
 }

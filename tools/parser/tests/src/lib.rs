@@ -4020,6 +4020,30 @@ fn op_expr_test() {
         a, b, c = z+3, []*2;
         "#).is_err()
     );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a, b = if a < b ? [x, y : i, j];
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            a = if a < b ? x : i;
+            b = if a < b ? y : j;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        a, b = select a < b ? [x, y : i, j];
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            a = select a < b ? x : i;
+            b = select a < b ? y : j;
+        }
+        "#).unwrap(),
+    );
 }
 
 #[test]

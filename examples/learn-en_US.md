@@ -646,12 +646,12 @@ so complex comparison can be used to associate multiple simple comparisons
 
 Complex conditions are usually organized using the following operations:
 
-| Example                   | Priority    | combination | Name    |
-| ---                       | ---         | ---         | ---     |
-| `!a < b`                  | 4           | Right       | CmpNot  |
-| `a && b`                  | 3           | Left        | CmpAnd  |
-| `a \|\| b`                | 2           | Left        | CmpOr   |
-| `({print 2;} => a < b)`   | 1           | Right       | CmpDeps |
+| Example                   | Priority    | associativity | Name    |
+| ---                       | ---         | ---           | ---     |
+| `!a < b`                  | 4           | Right         | CmpNot  |
+| `a && b`                  | 3           | Left          | CmpAnd  |
+| `a \|\| b`                | 2           | Left          | CmpOr   |
+| `({print 2;} => a < b)`   | 1           | Right         | CmpDeps |
 
 You can also use parentheses to avoid priority: `(a < 2 || b < 2) && c < 2`
 
@@ -761,9 +761,11 @@ please refer to [op-expr](./op_expr.mdtlbl) for details
 > op-expr single parameter functions sometimes do not require parentheses,
 > such as `n = abs i * 2;`
 >
->
 > op-expr supports combination expanding,
 > `x, y = [cos(i), sin(i)]*r;` and `x, y = cos(i)*r, sin(i)*r;` are equivalent
+>
+> op-expr supports branches expanding,
+> `x, y = if z ? [1, 3 : 2, 4];` and `x, y = if z ? 1 : 3, if z ? 2 : 4;` are equivalent
 
 
 About Comments
