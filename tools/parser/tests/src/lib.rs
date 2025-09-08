@@ -1322,6 +1322,31 @@ fn dexp_result_handle_use_const_test() {
 }
 
 #[test]
+fn dexp_result_handle_use_result_handle_test() {
+    let parser = TopLevelParser::new();
+
+    let ast = parse!(parser, r#"
+    {
+        print (R: $ = 2;);
+        const R = $;
+        print (R: $ = 2;);
+    }
+    print (R: $ = 2;);
+    "#).unwrap();
+    let meta = CompileMeta::new();
+    let tag_codes = meta.compile(ast);
+    let logic_lines = tag_codes.compile().unwrap();
+    assert_eq!(logic_lines, vec![
+               "set R 2",
+               "print R",
+               "set __0 2",
+               "print __0",
+               "set R 2",
+               "print R",
+    ]);
+}
+
+#[test]
 fn in_const_const_label_rename_test() {
     let parser = TopLevelParser::new();
 

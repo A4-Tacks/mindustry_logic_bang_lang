@@ -1021,7 +1021,11 @@ impl TakeHandle for DExp {
                 = meta.get_const_value(&result)
             {
                 // 对返回句柄使用常量值的处理
-                if !value.is_var() {
+                if value.is_result_handle() {
+                    result = meta.get_tmp_var();
+                } else if value.is_var() {
+                    result = value.as_var().unwrap().clone();
+                } else {
                     err!(
                         concat!(
                             "{}\n\
@@ -1036,8 +1040,6 @@ impl TakeHandle for DExp {
                     );
                     exit(5);
                 }
-                assert!(value.is_var());
-                result = value.as_var().unwrap().clone()
             }
         }
         assert!(! result.is_empty());
