@@ -20,7 +20,7 @@ We also added op-expr, which can quickly expand familiar expressions in common l
 ```
 i = 0; do {
     x, y = cos(i)*r, sin(i)*r;
-} while (*++i) < 360;
+} while ++i < 360;
 ```
 **Compile to**:
 ```
