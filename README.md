@@ -133,6 +133,11 @@ Bang 提供了一个灵活的大型常量系统,
   } while ++looping < 200;
   do {} while !(sensor $ switch1 @enabled;); # wait for enable
   ```
+  具有三种不同实现的互斥锁:
+
+  - 刻同步锁, 使用简单, 适用于低 `@ipt` 情况 (小于 100)
+  - Peterson 锁, 无需同步刻的互斥锁, 仅支持两个处理器间使用
+  - Bakery Algorithm 锁, 类似 Peterson 锁, 但支持多个处理器
 
 
 # 安装

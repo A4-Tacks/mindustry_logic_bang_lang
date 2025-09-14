@@ -134,6 +134,11 @@ Copy and paste the tool code into your code to use it
   } while ++looping < 200;
   do {} while !(sensor $ switch1 @enabled;); # wait for enable
   ```
+  Three types of mutex locks have been implemented:
+
+  - Tick Synchronous Mutex easy to use, suitable for low `@ipt` (less than 100)
+  - Peterson Mutex, no need for synchronous ticks, only supports use between two processors
+  - Bakery Algorithm Mutex, similar to Peterson Mutex, but supports multiple processors
 
 
 # How To Install
