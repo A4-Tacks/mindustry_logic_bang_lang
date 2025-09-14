@@ -1,0 +1,92 @@
+#**
+* 这是关于同步相关 (多逻辑协同) 的一些工具
+* 目前提供帧互斥锁、皮特森互斥锁
+*#
+
+Builtin.BindSep! '.';
+Builtin.MissesMatch! 1;
+
+const MakeTickLocker = (match @ => $Locker Mem Addr {
+    #**
+    * 帧互斥锁, 又称刻互斥锁,
+    * 利用每帧头部更新 @tick 环境变量的特性对多逻辑进行全局同步,
+    * 同步成功后抢锁可以避免坏读写, 实现稳定抢锁
+    *
+    * 要求不同加锁者必须各自提供不同的 id
+    * 要求未加锁时内存地址处的值被初始化为 -1, 可以通过调用 Free 实现
+    *
+    * 优点是可以任意核加锁、对 id 只有不重复的要求, 并且实现简单
+    * 缺点是单核性能被锁死, 每次尝试加锁通常要消耗一个完整的 @ipt,
+    *   当使用超核时 ipt 已经达到了 25, 而使用世处 ipt 将可以达到 1000
+    *   所以该锁在最快的世处进行加锁时, 通常需要执行一千条语句, 这很影响速度
+    *#
+    const $.Mem = Mem;
+    const $.Addr = Addr;
+    const $.Init = (match @ => { write -1 ...Mem ...Addr });
+    const $.TickSync = (match @ => {
+        ...tick = @tick;
+        do { } while @tick == ...tick;
+    });
+    const $.Lock = (match @ => Id {
+        do {
+            do { ...TickSync! } while (read $ ...Mem ...Addr) != -1;
+            write Id ...Mem ...Addr;
+        } while (read $ ...Mem ...Addr) != Id;
+    });
+    const $.Free = (match @ => @ { write -1 ...Mem ...Addr });
+});
+const MakePetersonLocker = (match @ => $Locker Mem Addr {
+    #**
+    * 皮特森互斥锁, 用于在两个逻辑间使用互斥锁, 不能超过两个逻辑
+    * 是经典的条件关系互斥,
+    * 由于逻辑的内存模型很简单, 没有流水线、缓存一致、部分写入等问题, 所以可以很好的应用
+    *
+    * 要求 id 的值必须为 0 或者 1, 并且需要三个内存槽位 (Addr, Addr+1, Addr+2)
+    *
+    * 优点是条件关系互斥并不依赖同步, 即利用 @tick 更新时机全局刻同步
+    *   所以在 ipt 很高的时候 (例如世处调速至 1000 ),
+    *   该锁的速度也会随之提升, 而不是像刻同步锁那样消耗一帧来同步
+    * 缺点是 id 要求很严格 (0或1), 且最多只能在两个逻辑间使用
+    *#
+    const $.Mem = Mem;
+    const $.Addr = Addr;
+    take* $.Flag = Addr + 1;
+    const $.Init = (match @ => {
+        take {Addr Flag} = ..;
+        write false ...Mem Addr;
+        write false ...Mem Flag;
+        write false ...Mem (*Flag+1);
+    });
+    const $.Lock = (match @ => Id {
+        take {Addr Flag free_addr} = ..;
+        take*OtherId = !Id;
+        take*Self, Other = (free_addr:=Flag+Id), Flag+OtherId;
+        write true ...Mem Self;
+        write OtherId ...Mem Addr;
+        do { } while (read $ ...Mem Other) && OtherId == (read $ ...Mem Addr);
+    });
+    const $.Free = (match @ => Id {
+        write false ...Mem ...free_addr;
+    });
+});
+
+MakeTickLocker! locker cell1 1;
+#MakePetersonLocker! locker cell1 1;
+locker.Init!;
+
+id = @thisx % 2;
+break (sensor $ switch1 @enabled;);
+wait (*rand(1));
+do { } while (*rand 1) < 0.7;
+
+looping = 0; do {
+    locker.Lock! id;
+    do { } while (*rand 1) < 0.7;
+
+    read n cell1 0;
+    write (*++n) cell1 0;
+
+    locker.Free! id;
+} while ++looping < 200;
+
+do {} while !(sensor $ switch1 @enabled;);

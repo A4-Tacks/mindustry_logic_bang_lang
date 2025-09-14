@@ -75,6 +75,7 @@ English README, please click on [**README-en_US.md**](./README-en_US.md)
 * [`stack.mdtlbl`](./std/stack.mdtlbl) 包装一个栈, 简化常用栈操作
 * [`count_loop.mdtlbl`](./std/count_loop.mdtlbl) 对动态次数循环生成循环展开
 * [`timeit.mdtlbl`](./std/timeit.mdtlbl) 测试执行行数, 衡量性能
+* [`sync.mdtlbl`](./std/sync.mdtlbl) 互斥锁, 用于保护多个逻辑间共同读写的数据
 
 ## 简单尝试
 如果觉得 Bang 语言过于硬核、并不怎么需要等, 可以尝试此编译器的一些附属功能

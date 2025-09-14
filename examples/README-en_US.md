@@ -81,6 +81,7 @@ or pasted into your code for quick and convenient use
 * [`stack.mdtlbl`](./std/stack.mdtlbl) Packaging a stack to simplify common stack operations
 * [`count_loop.mdtlbl`](./std/count_loop.mdtlbl) Generate loop expansion for dynamic count
 * [`timeit.mdtlbl`](./std/timeit.mdtlbl) Test execution lines to measure performance
+* [`sync.mdtlbl`](./std/sync.mdtlbl) Mutex lock, for shared mutable data of multiple processor block
 
 ## Simple Attempt
 If you feel that Bang language is too complex or does not require the capabilities it provides,

@@ -121,6 +121,22 @@ Copy and paste the tool code into your code to use it
   you can make parameters global variables for direct use,
   or constants that can be automatically replaced within the function body
 
+- [Mutex Lock](./examples/std/sync.mdtlbl)
+  ```
+  MakeTickLocker! locker cell1 1;
+  locker.Init!;
+  break (sensor $ switch1 @enabled;); # wait for disable
+  looping = 0; do {
+      locker.Lock! id;
+
+      read n cell1 0;
+      write (*++n) cell1 0;
+
+      locker.Free! id;
+  } while ++looping < 200;
+  do {} while !(sensor $ switch1 @enabled;); # wait for enable
+  ```
+
 
 # How To Install
 Releases provide pre built products,

@@ -120,6 +120,22 @@ Bang 提供了一个灵活的大型常量系统,
   ```
   如果你有能力修改工具代码, 你可以使参数成为全局变量, 或函数体内自动替换的常量
 
+- [互斥锁](./examples/std/sync.mdtlbl)
+  ```
+  MakeTickLocker! locker cell1 1;
+  locker.Init!;
+  break (sensor $ switch1 @enabled;); # wait for disable
+  looping = 0; do {
+      locker.Lock! id;
+
+      read n cell1 0;
+      write (*++n) cell1 0;
+
+      locker.Free! id;
+  } while ++looping < 200;
+  do {} while !(sensor $ switch1 @enabled;); # wait for enable
+  ```
+
 
 # 安装
 Releases 提供了预构建产物, 考虑先从其中下载自己所在平台的二进制文件,
