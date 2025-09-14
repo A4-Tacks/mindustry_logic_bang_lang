@@ -16,7 +16,7 @@ function CATCH_ERROR {
 }
 trap CATCH_ERROR ERR
 
-hash mktemp mindustry_logic_bang_lang gawk find xargs diff cat sort
+hash mktemp mindustry_logic_bang_lang gawk find xargs diff cat sort cut
 
 OPTIND=1
 while getopts h opt; do case "$opt" in
@@ -44,7 +44,8 @@ fi
 cd -- "$(command dirname -- "$0")" || exit
 
 printf '\e[1;32m%s\e[m\n' 'Start for all sources'
-for f in *.mdtlbl; do
+find . -name '*.mdtlbl' -print0 | cut -zc3- | while read -rd ''; do
+    f=$REPLY
     printf 'compile %q\n' "$f"
     mindustry_logic_bang_lang c < "$f" >&- && continue
 
