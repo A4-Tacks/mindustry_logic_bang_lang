@@ -90,6 +90,7 @@ const MakeBakeryAlgorithmLocker = (match @ => $Locker Mem Addr N {
     * 烘培店互斥锁, 类似皮特森互斥锁, 但是支持多个逻辑间使用
     *
     * 要求 id 的值必须为 0 1 ... N-1 (N为逻辑块数量)
+    * 需要使用N*2个内存槽位, (Addr, Addr+1, Addr+2 ... Addr+N, Addr+N+1, ... Addr+N*2-1)
     *
     * 优点是在皮特森互斥锁的基础上, 可支持更多逻辑间使用互斥锁
     * 缺点是这个算法很复杂, 需要执行非常多的语句, 并且逻辑块越多需要执行的也越多
