@@ -1,6 +1,12 @@
 #**
 * 这是关于同步相关 (多逻辑协同) 的一些工具
 * 目前提供帧互斥锁、皮特森互斥锁
+*
+* 主要可用方法:
+*   Init: 初始化内存中锁状态
+*   Lock: 加锁, 传入 id
+*   Free: 解锁, 传入 id
+*   With: 加锁、执行指定代码、解锁, 传入 id 和需要运行的代码
 *#
 
 Builtin.BindSep! '.';
@@ -13,7 +19,7 @@ const MakeTickLocker = (match @ => $Locker Mem Addr {
     * 同步成功后抢锁可以避免坏读写, 实现稳定抢锁
     *
     * 要求不同加锁者必须各自提供不同的 id
-    * 要求未加锁时内存地址处的值被初始化为 -1, 可以通过调用 Free 实现
+    * 要求未加锁时内存地址处的值被初始化为 -1, 可以通过调用 Init 实现
     *
     * 优点是可以任意核加锁、对 id 只有不重复的要求, 并且实现简单
     * 缺点是单核性能被锁死, 每次尝试加锁通常要消耗一个完整的 @ipt,
@@ -34,6 +40,11 @@ const MakeTickLocker = (match @ => $Locker Mem Addr {
         } while (read $ ...Mem ...Addr) != Id;
     });
     const $.Free = (match @ => @ { write -1 ...Mem ...Addr });
+    const $.With = (const match @ => *_Id_ _F_ {
+        ...Lock! _Id_;
+        setres _F_[];
+        ...Free! _Id_;
+    });
 });
 const MakePetersonLocker = (match @ => $Locker Mem Addr {
     #**
@@ -68,25 +79,80 @@ const MakePetersonLocker = (match @ => $Locker Mem Addr {
     const $.Free = (match @ => Id {
         write false ...Mem ...free_addr;
     });
+    const $.With = (const match @ => *_Id_ _F_ {
+        ...Lock! _Id_;
+        setres _F_[];
+        ...Free! _Id_;
+    });
+});
+const MakeBakeryAlgorithmLocker = (match @ => $Locker Mem Addr N {
+    #**
+    * 烘培店互斥锁, 类似皮特森互斥锁, 但是支持多个逻辑间使用
+    *
+    * 要求 id 的值必须为 0 1 ... N-1 (N为逻辑块数量)
+    *
+    * 优点是在皮特森互斥锁的基础上, 可支持更多逻辑间使用互斥锁
+    * 缺点是这个算法很复杂, 需要执行非常多的语句, 并且逻辑块越多需要执行的也越多
+    *   并且需要的内存槽位也随着逻辑块数量增加而增加
+    *#
+    const $.Mem = Mem;
+    const $.Addr = Addr;
+    const $.N = N;
+    take* $.Number = Addr;
+    take* $.Choosing = Addr + N;
+    const $.Init = (match @ => {
+        take {Addr N} = ..;
+        take*End = Addr + N*2;
+        +I = Addr; do {
+            write 0 ...Mem I;
+        } while ++I < End;
+    });
+    const $.Lock = (match @ => Id {
+        take {Number Choosing N NumberId:free_addr} = ..;
+        take+ChoosingId+I;
+        write true ...Mem (?ChoosingId:Choosing+Id);
+        take*NumberEnd = Number+N;
+        +Max = 0;
+        I = Number; do { Max max= (read $ ...Mem I) } while ++I < NumberEnd;
+        write (*Max+1) ...Mem (?NumberId:Number+Id);
+        write false ...Mem ChoosingId;
+        I = Number; do {
+            take+INum+IdNum;
+            +ChoosingI = I + N;
+            do { } while (read $ ...Mem ChoosingI);
+            do { } while (INum:read $ ...Mem I) && (
+                INum < (IdNum:read $ ...Mem NumberId)
+                || IdNum == INum && I < NumberId
+            );
+        } while ++I < NumberEnd;
+    });
+    const $.Free = (match @ => Id {
+        write false ...Mem ...free_addr;
+    });
+    const $.With = (const match @ => *_Id_ _F_ {
+        ...Lock! _Id_;
+        setres _F_[];
+        ...Free! _Id_;
+    });
 });
 
-MakeTickLocker! locker cell1 1;
+#MakeTickLocker! locker cell1 1;
 #MakePetersonLocker! locker cell1 1;
+MakeBakeryAlgorithmLocker! locker cell1 1 4;
 locker.Init!;
 
-id = @thisx % 2;
+id = @thisx // 3 % 4;
 break (sensor $ switch1 @enabled;);
-wait (*rand(1));
+wait (*rand(1)+0.5);
 do { } while (*rand 1) < 0.7;
 
 looping = 0; do {
-    locker.Lock! id;
-    do { } while (*rand 1) < 0.7;
-
-    read n cell1 0;
-    write (*++n) cell1 0;
-
-    locker.Free! id;
+    locker.With! id (
+        do { } while (*rand 1) < 0.7;
+        read n cell1 0;
+        write (*++n) cell1 0;
+    );
+    do { } while (*rand 1) < 0.4;
 } while ++looping < 200;
 
 do {} while !(sensor $ switch1 @enabled;);

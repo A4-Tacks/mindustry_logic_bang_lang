@@ -127,12 +127,10 @@ Copy and paste the tool code into your code to use it
   locker.Init!;
   break (sensor $ switch1 @enabled;); # wait for disable
   looping = 0; do {
-      locker.Lock! id;
-
-      read n cell1 0;
-      write (*++n) cell1 0;
-
-      locker.Free! id;
+      locker.With id (
+          read n cell1 0;
+          write (*++n) cell1 0;
+      )
   } while ++looping < 200;
   do {} while !(sensor $ switch1 @enabled;); # wait for enable
   ```
