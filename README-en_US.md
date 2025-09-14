@@ -125,6 +125,7 @@ Copy and paste the tool code into your code to use it
   ```
   MakeTickLocker! locker cell1 1;
   locker.Init!;
+  id = @thisx // 3 % 4;
   break (sensor $ switch1 @enabled;); # wait for disable
   looping = 0; do {
       locker.With id (

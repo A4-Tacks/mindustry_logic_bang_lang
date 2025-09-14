@@ -124,6 +124,7 @@ Bang 提供了一个灵活的大型常量系统,
   ```
   MakeTickLocker! locker cell1 1;
   locker.Init!;
+  id = @thisx // 3 % 4;
   break (sensor $ switch1 @enabled;); # wait for disable
   looping = 0; do {
       locker.With id (
