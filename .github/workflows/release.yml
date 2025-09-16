@@ -66,6 +66,7 @@ jobs:
   copy-vscode-syntax:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: ConorMacBride/install-package@v1
         with:
           apt: jq
