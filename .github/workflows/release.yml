@@ -62,3 +62,13 @@ jobs:
           target: ${{ matrix.build.target }}
           checksum: sha256
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  copy-vscode-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ConorMacBride/install-package@v1
+        with:
+          apt: jq
+      - run: |
+        rel=$(jq -r .version ./syntax/vscode/support/package.json)
+        gh release upload ${{ github.ref }} ./syntax/vscode/support/release/mdtlbl-$rel.vsix --clobber
