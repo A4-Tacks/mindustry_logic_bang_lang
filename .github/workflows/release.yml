@@ -73,3 +73,6 @@ jobs:
       - run: |
           rel=$(jq -r .version ./syntax/vscode/support/package.json)
           gh release upload ${{ github.ref }} ./syntax/vscode/support/release/mdtlbl-$rel.vsix --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
