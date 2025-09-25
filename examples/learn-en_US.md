@@ -386,6 +386,49 @@ end;
       Usually, the `c` option is used to build and compile at once,
       or the `A` option is used to observe the details of the build phase
 
+---
+
+### Extension of do-while and while
+
+**goto-do-while**: Do not run some statements in the first round loop:
+
+```
+i=0; goto do {
+    print ",";
+case:
+    print i;
+} while ++i < 4;
+```
+Similar to:
+```
+i=0; goto :x; do {
+    print ",";
+    :x
+    print i;
+} while ++i < 4;
+```
+
+**while-do**: Only run some statements in the first round loop:
+
+```
+while do a < b {
+    i = 1;
+case && i < 5:
+    a *= i;
+    b *= log10 a;
+}
+```
+Similar to:
+```
+skip a >= b {
+    i = 1;
+    do {
+        a *= i;
+        b *= log10 a;
+    } while a < b && i < 5;
+}
+```
+
 
 Control Flow within the Loop (break continue)
 -------------------------------------------------------------------------------

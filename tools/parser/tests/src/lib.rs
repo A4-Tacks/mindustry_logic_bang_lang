@@ -10305,3 +10305,130 @@ fn lines_end_no_semicolon_test() {
         "#).unwrap(),
     );
 }
+
+#[test]
+fn loop_do_sugar_test() {
+    let parser = TopLevelParser::new();
+
+    assert_eq!(
+        parse!(parser, r#"
+        while do a < b {
+            print 1;
+        case:
+            print 2;
+        }
+        "#).unwrap(),
+        parse!(parser, r#"
+        skip a >= b {
+            inline { print 1 }
+            do {
+                print 2
+            } while a < b;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        while do a < b {
+            break; continue;
+            print 1;
+        case:
+            break; continue;
+            print 2;
+        }
+        "#).unwrap(),
+        parse!(parser, r#"
+        skip a >= b {
+            inline {
+                break; continue;
+                print 1;
+            }
+            do {
+                break; continue;
+                print 2
+            } while a < b;
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        goto do {
+            print 1;
+        case:
+            print 2;
+        } while a < b;
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            goto :___0;
+            {
+                :___1
+                {
+                    print 1;
+                    :___0
+                    print 2;
+                }
+                goto :___1 a < b;
+            }
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        goto do {
+            print 1;
+        case cond:
+            print 2;
+        } while a < b;
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            goto :___0 cond;
+            {
+                :___1
+                {
+                    print 1;
+                    :___0
+                    print 2;
+                }
+                goto :___1 a < b;
+            }
+        }
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        goto do {
+            break; continue;
+            print 1;
+        case cond:
+            break; continue;
+            print 2;
+        } while a < b;
+        "#).unwrap(),
+        parse!(parser, r#"
+        {
+            goto :___2 cond;
+            {
+                :___3
+                {
+                    goto :___0;
+                    goto :___1;
+                    print 1;
+                    :___2
+                    goto :___0;
+                    goto :___1;
+                    print 2;
+                }
+                :___1
+                goto :___3 a < b;
+                :___0
+            }
+        }
+        "#).unwrap(),
+    );
+}

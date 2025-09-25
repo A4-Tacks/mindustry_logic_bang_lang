@@ -346,6 +346,50 @@ end;
       通常使用`c`选项来一次性构建与编译, 或者使用`A`选项来观察构建阶段的细节
 
 
+---
+
+### 关于 do-while 和 while 的扩展
+
+**goto-do-while** 在首次循环不执行一些语句:
+
+```
+i=0; goto do {
+    print ",";
+case:
+    print i;
+} while ++i < 4;
+```
+类似于:
+```
+i=0; goto :x; do {
+    print ",";
+    :x
+    print i;
+} while ++i < 4;
+```
+
+**while-do** 仅在首次循环执行一些语句
+
+```
+while do a < b {
+    i = 1;
+case && i < 5:
+    a *= i;
+    b *= log10 a;
+}
+```
+类似于:
+```
+skip a >= b {
+    i = 1;
+    do {
+        a *= i;
+        b *= log10 a;
+    } while a < b && i < 5;
+}
+```
+
+
 循环内控制流 (break continue)
 -------------------------------------------------------------------------------
 在循环内(while gwhile do-while select switch gswitch)中,

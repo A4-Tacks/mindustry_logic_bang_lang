@@ -6,7 +6,7 @@
 #![allow(clippy::needless_lifetimes)]
 #![allow(clippy::deprecated_cfg_attr)]
 
-use std::iter::zip;
+use std::iter::{zip, once};
 
 use ::syntax::{
     Errors,
@@ -38,7 +38,6 @@ use ::syntax::{
     Expand,
     InlineBlock,
     SwitchCatch,
-    Select,
     GSwitch,
     GSwitchCase,
     Const,
@@ -1414,7 +1413,7 @@ TakeAtomD: (LogicLine, Vec<LogicLine>) = {
 TakeAtomList: Vec<LogicLine> = {
     <hdes:(<TakeDestructSin> ","?)*> <lines:TakeAtomD*> => {
         hdes.into_iter()
-            .chain(lines.into_iter().flat_map(|(line, tdes)| std::iter::once(line).chain(tdes)))
+            .chain(lines.into_iter().flat_map(|(line, tdes)| once(line).chain(tdes)))
             .collect()
     }
 }
@@ -1545,51 +1544,15 @@ GSwitchCase: GSwitchCase = {
 }
 ControlEndLine<Line>: LogicLine = {
     "skip" <cmp:JumpCmpOnce> <body:Line> => {
-        let lab = meta.get_tag();
-        Expand(vec![
-            Goto(lab.clone(), cmp).into(),
-            body,
-            LogicLine::new_label(lab, meta),
-        ]).into()
+        crate::make_skip(meta, cmp, body)
     },
 
     "while" <cmp:JumpCmpOnce> CtrlStart <body:Line> <ctrl:CtrlStop> => {
-        let (break_lab, continue_lab) = ctrl;
-        let [end, head] = [meta.get_tag(), meta.get_tag()];
-        let rev_cmp = cmp.clone().reverse();
-        let mut res = Vec::with_capacity(7);
-
-        res.extend([
-            Goto(end.clone(), rev_cmp).into(),
-            LogicLine::new_label(head.clone(), meta),
-            body,
-        ]);
-        meta.push_some_label_to(&mut res, continue_lab);
-        res.extend([
-            Goto(head, cmp).into(),
-            LogicLine::new_label(end, meta),
-        ]);
-        meta.push_some_label_to(&mut res, break_lab);
-
-        Expand(res).into()
+        crate::make_while(meta, cmp, body, ctrl)
     },
 
     "gwhile" <cmp:JumpCmpOnce> CtrlStart <body:Line> <ctrl:CtrlStop> => {
-        let (break_lab, continue_lab) = ctrl;
-        let [to, head] = [meta.get_tag(), meta.get_tag()];
-        let mut res = Vec::with_capacity(7);
-
-        res.extend([
-            Goto(to.clone(), JumpCmp::Always.into()).into(),
-            LogicLine::new_label(head.clone(), meta),
-            body,
-            LogicLine::new_label(to, meta),
-        ]);
-        meta.push_some_label_to(&mut res, continue_lab);
-        res.push(Goto(head, cmp).into());
-        meta.push_some_label_to(&mut res, break_lab);
-
-        Expand(res).into()
+        crate::make_gwhile(meta, cmp, body, ctrl)
     },
 }
 ControlSingle: LogicLine = {
@@ -1610,24 +1573,60 @@ ControlSingle: LogicLine = {
     },
 
     "do" CtrlStart <body:ControlBody> <ctrl:CtrlStop> "while" <cmp:AlwaysJumpCmpOnce> => {
-        let (break_lab, continue_lab) = ctrl;
-        let head = meta.get_tag();
-        let mut res = Vec::with_capacity(5);
+        crate::make_do_while(meta, body, ctrl, cmp)
+    },
 
-        res.extend([
-            LogicLine::new_label(head.clone(), meta),
-            body,
-        ]);
-        meta.push_some_label_to(&mut res, continue_lab);
-        res.push(Goto(head, cmp).into());
-        meta.push_some_label_to(&mut res, break_lab);
+    "goto" "do"
+    CtrlStart <body:MBlock<(
+        <Lines> "case" <AlwaysJumpCmp> ":"
+        <Lines>
+    )>> <ctrl:CtrlStop> "while" <cmp:AlwaysJumpCmpOnce> => {
+        let (mut skipfirst_body, skipfirst_cmp, loop_body) = body;
+        let case = meta.get_tag();
+        skipfirst_body.extend(
+            once(LogicLine::new_label(case.clone(), meta))
+                .chain(loop_body)
+        );
 
-        Expand(res).into()
+        let do_while_body = crate::make_do_while(
+            meta,
+            Expand(skipfirst_body).into(),
+            ctrl,
+            cmp,
+        );
+        Expand(vec![
+            Goto(case, skipfirst_cmp).into(),
+            do_while_body,
+        ]).into()
     },
 
     ControlEndLine<LogicLineSingle>,
 }
 ControlWithoutOptionalEnd: LogicLine = {
+    "while" "do" <cmp:JumpCmpOnce> <body:MBlock<(
+        <Lines> "case" <(Or<"||", "&&"> JumpCmp)?> ":" CtrlStart
+        <Lines>
+    )>> <ctrl:CtrlStop> => {
+        let (preset_body, extra_cond, loop_body) = body;
+        let skip_cmp = cmp.clone().reverse();
+        let merged_cmp = match extra_cond {
+            Some(("&&", extra)) => CmpTree::And(Box::new(cmp.into()), extra.into()),
+            Some(("||", extra)) => CmpTree::Or(Box::new(cmp.into()), extra.into()),
+            _ => cmp,
+        };
+
+        let do_while_body = crate::make_do_while(
+            meta,
+            Expand(loop_body).into(),
+            ctrl,
+            merged_cmp,
+        );
+        crate::make_skip(meta, skip_cmp, Expand(vec![
+            InlineBlock(preset_body).into(),
+            do_while_body,
+        ]).into())
+    },
+
     ControlBlock,
 
     "inline" <Label> LEnd? => LogicLine::Label(<>),
@@ -1690,167 +1689,12 @@ ControlWithoutOptionalEnd: LogicLine = {
     )>>
     <ctrl:CtrlStop>
     => {
-        let (mut append, catchs, cases) = cases;
-        let catchs_is_empty = catchs.is_empty();
-
-        let mut next_case_num = 0;
-        let case_num_max = cases
-            .iter()
-            .map(
-                |(_, nums, _)| {
-                    let num = nums
-                        .iter()
-                        .max()
-                        .copied()
-                        .unwrap_or(next_case_num);
-                    next_case_num = num + 1;
-                    num
-                }
-            )
-            .max()
-            .unwrap();
-
-        // 用于填充填充case的行, 如果有追加在末尾的行则将其封装并替换填充
-        let (mut fill_line, append) = match &append[..] {
-            [] => (LogicLine::Ignore, None),
-            [_] => (
-                Expand(vec![append.last().unwrap().clone()]).into(),
-                append.pop().unwrap().into(),
-            ),
-            [..] => (
-                Expand(append.clone()).into(),
-                Some(Expand(append).into()),
-            ),
-        };
-
-        // 用于添加到头部的捕获块
-        let mut catch_lines = Vec::new();
-        let value_handle: Var = if catchs_is_empty {
-            Var::new()
-        } else { meta.get_tmp_var() };
-
-        // 这里开始遍历捕获
-        // 如果遇到了未命中捕获, 则改变fill_line为总是跳转到未命中捕获
-        for (flags, name, lines) in catchs {
-            let mut out_block = Vec::new();
-            let skip_cmp = CmpTree::new_ands(
-                flags
-                    .into_iter()
-                    .filter(|flag| {
-                        if flag.is_misses() {
-                            // 是一个未命中捕获
-                            let tag = meta.get_tag();
-                            out_block.push(LogicLine::new_label(tag.clone(), meta));
-                            fill_line = Goto(tag, JumpCmp::Always.into()).into();
-                            false // 已处理, 过滤掉
-                        } else {
-                            true
-                        }
-                    })
-                    .map(|flag|
-                        flag.build(value_handle.as_str().into(), case_num_max)
-                    )
-            ).unwrap_or(JumpCmp::Always.into());
-            let skip_tag = meta.get_tag();
-            out_block.insert(0, Goto(skip_tag.clone(), skip_cmp).into());
-            if let Some(name) = name {
-                // 如果有捕获变量则使用一个const进行映射
-                // 这需要插入在头部, 也就是条件前
-                // 防止`case (a) a:`时, a还没被const就进行了判断
-                out_block.insert(
-                    0,
-                    Const::new(
-                        name.into(),
-                        value_handle.as_str().into()
-                    ).into()
-                )
-            }
-            out_block.push(lines.into());
-            out_block.push(LogicLine::new_label(skip_tag, meta));
-
-            catch_lines.push(Expand(out_block).into())
-        }
-
-        let mut cases_res = Vec::with_capacity(case_num_max + 1);
-        let mut cases_res_isline = vec![false; case_num_max + 1];
-
-        let mut next_ignored_num = 0;
-        for (ignore_append, mut nums, mut expand) in cases {
-            if let Some(append) = &append {
-                if !ignore_append {
-                    expand.push(append.clone())
-                }
-            }
-            if nums.is_empty() { nums.push(next_ignored_num) }
-            for num in nums {
-                for _ in cases_res.len()..=num {
-                    cases_res.push(LogicLine::Ignore);
-                }
-                cases_res[num] = expand.clone().into();
-                cases_res_isline[num] = true;
-                next_ignored_num = num + 1;
-            }
-        }
-        // 将填充行填入填充case
-        let mut iter = cases_res_isline.into_iter().enumerate().peekable();
-        while let Some((idx, is_line)) = iter.next() {
-            if is_line { continue }
-            match iter.peek() {
-                Some((_, true)) => cases_res[idx] = fill_line.clone(),
-                _ => (),
-            }
-        }
-        debug_assert_eq!(cases_res.len(), case_num_max + 1);
-        debug_assert_eq!(cases_res.len(), cases_res.capacity());
-
-        let (break_lab, continue_lab) = ctrl;
-        if catchs_is_empty {
-            // 没有捕获块
-            let mut res = Vec::with_capacity(3);
-
-            meta.push_some_label_to(&mut res, continue_lab);
-            res.push(Select(value, Expand(cases_res)).into());
-            meta.push_some_label_to(&mut res, break_lab);
-
-            if res.len() == 1 {
-                res.pop().unwrap()
-            } else {
-                Expand(res).into()
-            }
-        } else {
-            // 有捕获块
-            // 保证我们拿到了一个临时返回句柄, 而不是一个空值
-            assert_ne!(&value_handle, "");
-            let mut res = Vec::with_capacity(5);
-
-            meta.push_some_label_to(&mut res, continue_lab);
-            res.extend([
-                // 求值
-                Take(value_handle.as_str().into(), value).into(),
-                // 捕获
-                Expand(catch_lines).into(),
-                // 主体
-                Select(value_handle.into(), Expand(cases_res)).into()
-            ]);
-            meta.push_some_label_to(&mut res, break_lab);
-
-            Expand(res).into()
-        }
+        let (append, catchs, cases) = cases;
+        crate::make_switch(meta, value, append, catchs, cases, ctrl)
     },
 
     "select" <value:Value> CtrlStart <lines:BlockExpand> <ctrl:CtrlStop> => {
-        let (break_lab, continue_lab) = ctrl;
-        let mut res = Vec::with_capacity(3);
-
-        meta.push_some_label_to(&mut res, continue_lab);
-        res.push(Select(value, lines).into());
-        meta.push_some_label_to(&mut res, break_lab);
-
-        if res.len() == 1 {
-            res.pop().unwrap()
-        } else {
-            Expand(res).into()
-        }
+        crate::make_select(meta, value, lines, ctrl)
     },
 }
 
@@ -1861,7 +1705,7 @@ ControlWithOptionalEnd: LogicLine = {
     {
         make_if(
             meta,
-            std::iter::once((cmp, body)).chain(elifs),
+            once((cmp, body)).chain(elifs),
             else_body,
         )
     },
