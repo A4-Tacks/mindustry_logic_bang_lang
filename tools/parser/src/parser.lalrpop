@@ -904,11 +904,11 @@ OpExprBodySetR: Expand = OpExprBodyOne => {
     );
     vec![line].into()
 };
-ForceSettedValueBody: Vec<LogicLine> = <oper:OpExprAssignOper> <expr:OpExprBodyOne> ","? => {
+ForceSettedValueBody: Vec<LogicLine> = <(OpExprAssignOper OpExprBodyOne)+> ","? => {
     vec![
-        Expand(vec![
+        Expand(<>.into_iter().map(|(oper, expr)| {
             op_expr_build_results(meta, vec![ResultHandle], vec![expr], oper)
-        ]).into(),
+        }).collect()).into(),
     ]
 };
 OpExprBodyToValue: Value = OpExprToValue<OpExprBody>;
