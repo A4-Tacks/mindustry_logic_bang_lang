@@ -3889,6 +3889,24 @@ fn op_expr_test() {
 
     assert_eq!(
         parse!(parser, r#"
+        print (x:+=2);
+        "#).unwrap(),
+        parse!(parser, r#"
+        print (x:{$+=2});
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
+        print (`x`:+=2);
+        "#).unwrap(),
+        parse!(parser, r#"
+        print (`x`:{$+=2});
+        "#).unwrap(),
+    );
+
+    assert_eq!(
+        parse!(parser, r#"
         a, b, c = x*2, -y*2, (z+3)*2;
         "#).unwrap(),
         parse!(parser, r#"

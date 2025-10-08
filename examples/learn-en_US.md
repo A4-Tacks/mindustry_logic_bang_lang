@@ -1885,6 +1885,11 @@ print (x:{$=2;});
 print (x:=2);
 ```
 
+```
+print (x:{$+=2;});
+print (x:+=2);
+```
+
 Used for some variable situations that require a variable instead of a literal,
 it can simply avoid evaluation constant
 

@@ -904,27 +904,17 @@ OpExprBodySetR: Expand = OpExprBodyOne => {
     );
     vec![line].into()
 };
+ForceSettedValueBody: Vec<LogicLine> = <oper:OpExprAssignOper> <expr:OpExprBodyOne> ","? => {
+    vec![
+        Expand(vec![
+            op_expr_build_results(meta, vec![ResultHandle], vec![expr], oper)
+        ]).into(),
+    ]
+};
 OpExprBodyToValue: Value = OpExprToValue<OpExprBody>;
 OpExprDExp: DExp = METuple<(<MakeDExpBody<OpExprBodySetR>> ","?)>;
 OpExprValueLike: Value = MTuple<("*" <OpExprBodyToValue> ","?)>;
-ForceSettedValue: Value = {
-    MTuple<(<(<Var> ":")?> "=" <OpExprBodyOne> ","?)> => {
-        let (result, expr) = <>;
-        DExp::new(result.unwrap_or_default(), vec![
-            Expand(vec![
-                expr.into_logic_line(meta, ResultHandle)
-            ]).into(),
-        ].into()).into()
-    },
-    MTuple<(<(<ReprVar> ":")> "=" <OpExprBodyOne> ","?)> => {
-        let (result, expr) = <>;
-        DExp::new_notake(result, vec![
-            Expand(vec![
-                expr.into_logic_line(meta, ResultHandle)
-            ]).into(),
-        ].into()).into()
-    },
-}
+ForceSettedValue: Value = MTuple<IntoV<MakeDExpBody<ForceSettedValueBody>>>;
 
 OpExprAssignOper: OpExprAOperFun = {
     "+="            => { make_assign_oper!(Op::Add      ) },
