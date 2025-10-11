@@ -1,3 +1,5 @@
+Mindustry logic extension meta-programming language compiler, for zero additional overhead!
+
 # Introduction
 This is the compiler for language `MindustryLogicBangLang`, compilation target language is the `LogicLang` in game [`Mindustry`], Referred to as Bang in the following text
 

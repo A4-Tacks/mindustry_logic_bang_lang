@@ -1,3 +1,5 @@
+Mindustry logic extension meta-programming language compiler, for zero additional overhead!
+
 English README, please click on [**README-en_US.md**](./README-en_US.md)
 
 # 简介
