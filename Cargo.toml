@@ -25,6 +25,7 @@ members = [
     "./tools/logic_lint",
     "./tools/mdt-ops-generator",
     "./tools/mini-paren",
+    "./tools/decompiler",
 ]
 
 [workspace.dependencies]

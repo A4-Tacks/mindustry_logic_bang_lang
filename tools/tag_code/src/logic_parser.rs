@@ -1,5 +1,5 @@
 use std::{
-    borrow::Cow, collections::HashSet, fmt::Display, iter::{self, once}, mem, ops::{Deref, DerefMut}, slice, vec
+    borrow::Cow, collections::{HashMap, HashSet}, fmt::Display, iter::{self, once}, mem, ops::{Deref, DerefMut}, slice, vec
 };
 use either::Either::{self, Left, Right};
 
@@ -85,7 +85,7 @@ macro_rules! i {
 }
 
 /// `Vec<Cow<str>>` wrapper, but not empty
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Args<'a>(Cow<'a, [Var]>);
 impl<'a> Args<'a> {
     pub fn first(&self) -> &str {
@@ -124,6 +124,11 @@ impl<'a> Deref for Args<'a> {
 impl<'a> From<Args<'a>> for Vec<Var> {
     fn from(value: Args<'a>) -> Self {
         value.0.into_owned()
+    }
+}
+impl<'a> From<&'a Args<'a>> for Args<'a> {
+    fn from(value: &'a Args<'a>) -> Self {
+        Self(Cow::Borrowed(value))
     }
 }
 impl<'a> TryFrom<Vec<Var>> for Args<'a> {
@@ -189,6 +194,11 @@ impl<'a> Display for Args<'a> {
             f.write_str(arg)?;
         }
         Ok(())
+    }
+}
+impl<'a> std::fmt::Debug for Args<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.0)
     }
 }
 
@@ -263,6 +273,14 @@ impl<'a> ParseLine<'a> {
     }
 
     pub fn as_jump_target(&self) -> Option<&str> {
+        if let Self::Jump(target, _) = self {
+            Some(target)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_jump_target_mut(&mut self) -> Option<&mut Cow<'a, str>> {
         if let Self::Jump(target, _) = self {
             Some(target)
         } else {
@@ -562,6 +580,65 @@ impl<'a> ParseLines<'a> {
         );
     }
 
+    pub fn unique_label_pairs(&mut self) {
+        let lines = mem::take(self.lines_mut());
+        let mut label_usages: HashMap<String, usize> = HashMap::new();
+        for line in &lines {
+            if let ParseLine::Jump(label, _) = &**line {
+                *label_usages.entry(label.to_string()).or_default() += 1;
+            }
+        }
+        let mut renames_map = label_usages.into_iter()
+            .map(|(name, count)| {
+                let new_names = (1..count)
+                    .map(|n| rename(&name, n))
+                    .collect();
+                (name, new_names)
+            })
+            .collect::<HashMap<_, Vec<_>>>();
+        self.lines = lines.into_iter()
+            .flat_map(|line| {
+                let extra = if let Some(new_labels) = line.as_label()
+                    .and_then(|l| renames_map.get(l))
+                {
+                    new_labels.iter().map(|new_label| {
+                        line.new_value(ParseLine::Label(new_label.to_owned().into()))
+                    }).collect()
+                } else {
+                    vec![]
+                };
+                once(line).chain(extra)
+            })
+            .collect();
+        self.lines.iter_mut()
+            .filter_map(|line| line.value.as_jump_target_mut())
+            .for_each(|target| {
+                if let Some(new_name) = renames_map.get_mut(target.as_ref())
+                    .and_then(|new_names| new_names.pop())
+                {
+                    *target = new_name.into()
+                }
+            });
+    }
+
+    pub fn dedup_label_pairs(&mut self) {
+        let mut label_map = HashMap::new();
+        self.lines.dedup_by(|b, a|
+        {
+            if let Some((a, b)) = a.as_label().zip(b.as_label()) {
+                label_map.insert(b.to_owned(), a.to_owned());
+                true
+            } else {
+                false
+            }
+        });
+        self.lines.iter_mut()
+            .filter_map(|it| it.as_jump_target_mut())
+            .for_each(|target| if let Some(new_target) = label_map.get(target.as_ref()) {
+                *target = new_target.to_owned().into()
+            });
+    }
+
     pub fn for_each_inner_label_mut<'b, F>(&'b mut self, f: F)
     where F: FnMut(IdxBox<&'b mut Cow<'a, str>>),
     {
@@ -593,6 +670,21 @@ impl<'a> DerefMut for ParseLines<'a> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.lines
     }
+}
+
+fn rename(name: &str, n: usize) -> String {
+    let new_name = if name.chars().next_back().is_some_and(|c| c.is_ascii_digit())
+        && n < 26
+    {
+        let alpha = char::from_u32(b'a' as u32 + n as u32).unwrap();
+        format!("{name}{alpha}")
+    } else if name.len() == 1 && !name.chars().next().unwrap().is_ascii_digit() {
+        format!("{name}{n}")
+    } else {
+        format!("{name}_{n}")
+    };
+
+    new_name
 }
 
 #[cfg(test)]
@@ -947,6 +1039,64 @@ mod tests {
             ParseLine::Jump("2".into(), args!("always", "0", "0")),
             ParseLine::Args(args!("end")),
             ParseLine::Jump("1".into(), args!("always", "0", "0")),
+        ]);
+    }
+
+    #[test]
+    fn jump_unique_label_pairs() {
+        let s = r#"
+            jump multi always 0 0
+        unique:
+            jump unique always 0 0
+        multi:
+            jump multi always 0 0
+            jump multi always 0 0
+        "#;
+
+        let mut lines = parser::lines(&s).unwrap();
+        lines.unique_label_pairs();
+
+        let inner_lines = lines.iter()
+            .map(|line| line.value.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(inner_lines, vec![
+            ParseLine::Jump("multi_2".into(), args!("always", "0", "0")),
+            ParseLine::Label("unique".into()),
+            ParseLine::Jump("unique".into(), args!("always", "0", "0")),
+            ParseLine::Label("multi".into()),
+            ParseLine::Label("multi_1".into()),
+            ParseLine::Label("multi_2".into()),
+            ParseLine::Jump("multi_1".into(), args!("always", "0", "0")),
+            ParseLine::Jump("multi".into(), args!("always", "0", "0")),
+        ]);
+    }
+
+    #[test]
+    fn jump_dedup_label_pairs() {
+        let s = r#"
+            jump multi_2 always 0 0
+        unique:
+            jump unique always 0 0
+        multi:
+        multi_1:
+        multi_2:
+            jump multi_1 always 0 0
+            jump multi always 0 0
+        "#;
+
+        let mut lines = parser::lines(&s).unwrap();
+        lines.dedup_label_pairs();
+
+        let inner_lines = lines.iter()
+            .map(|line| line.value.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(inner_lines, vec![
+            ParseLine::Jump("multi".into(), args!("always", "0", "0")),
+            ParseLine::Label("unique".into()),
+            ParseLine::Jump("unique".into(), args!("always", "0", "0")),
+            ParseLine::Label("multi".into()),
+            ParseLine::Jump("multi".into(), args!("always", "0", "0")),
+            ParseLine::Jump("multi".into(), args!("always", "0", "0")),
         ]);
     }
 }
