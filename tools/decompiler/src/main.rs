@@ -1,4 +1,4 @@
-use std::{env::args, fs, io::{self, stdin}, process::exit, time::SystemTime};
+use std::{env::args, fs, io::{self, stdin}, process::exit, time::SystemTime, rc::Rc};
 
 use mlog_decompiler::{Finder, Reduce, clean, make, quality::Loss, walk};
 use getopts_macro::getopts_options;
@@ -9,6 +9,8 @@ fn main() {
         -i, --iterate=N     "maximum number of iterations";
         -l, --limit=N       "maximum case limit for each iteration";
         -L, --out-limit=N   "maximum output limit for finished case";
+        -r, --raw-out       "use raw-format (logic-style) outputs";
+        -s, --sparse        "sparse cases output";
         -h, --help*         "show help messages";
         -v, --version       "show version";
     };
@@ -35,6 +37,8 @@ fn main() {
         println!("{}", env!("CARGO_PKG_VERSION"));
         return;
     }
+    let raw_out = matched.opt_present("raw-out");
+    let sparse = matched.opt_present("sparse");
     let iterate: usize = matched.opt_get("iterate")
         .expect("invalid iterate arg")
         .unwrap_or(30);
@@ -114,7 +118,23 @@ fn main() {
     let mut sorted = finder.current.iter().collect::<Vec<_>>();
     sorted.sort_by(|a, b| a.loss().total_cmp(&b.loss()));
 
-    for (i, &reduces) in sorted.iter().enumerate().take(out_limit) {
+    if sparse {
+        let step = sorted.len() / out_limit.max(1);
+        output(raw_out, sorted.iter()
+            .copied()
+            .enumerate()
+            .step_by(step)
+            .take(out_limit))
+    } else {
+        output(raw_out, sorted.iter()
+            .copied()
+            .enumerate()
+            .take(out_limit))
+    }
+}
+
+fn output<'a>(raw_out: bool, iter: impl IntoIterator<Item = (usize, &'a Rc<[Reduce<'a>]>)>) {
+    for (i, reduces) in iter {
         let loss = reduces.loss();
         let reduce = reduces.iter().cloned().collect::<Reduce<'_>>();
         let cleaned = clean::clean_dedup_labels(reduce);
@@ -124,6 +144,11 @@ fn main() {
         let used = walk::label_usages(&cleaned);
 
         println!("#\x1b[1;92m---------- reduce[{def}/{used}] case {i} <{loss}> ----------\x1b[0m");
-        println!("{cleaned}");
+
+        if raw_out {
+            println!("{cleaned}");
+        } else {
+            println!("{cleaned:x}");
+        }
     }
 }

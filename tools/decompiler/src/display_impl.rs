@@ -17,7 +17,7 @@ fn indent(n: usize) -> Cow<'static, str> {
     }
 }
 
-impl<'a> fmt::Display for Reduce<'a> {
+impl fmt::Display for Reduce<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let plus_i = 1 + f.precision().unwrap_or(0);
         let plus = indent(plus_i);
@@ -26,7 +26,7 @@ impl<'a> fmt::Display for Reduce<'a> {
 
         match self {
             Reduce::Label(Label(label)) => write!(f, "_{label}:"),
-            Reduce::Jump(Jump(Label(label), cond)) => write!(f, "jump _{label} {cond}"),
+            Reduce::Jump(Jump(Label(label), cond)) => write!(f, "jump _{label} {cond};"),
             Reduce::Break(cond) => write!(f, "break {cond};"),
             Reduce::Skip(cond, reduces) => {
                 write!(f, "skip {cond} {{")?;
@@ -76,6 +76,75 @@ impl<'a> fmt::Display for Reduce<'a> {
                 is_rest.in_true(|| write!(f, "\n{indent}")).transpose()?;
                 it.fmt(f)?;
                 write!(f, ";")
+            }),
+        }
+    }
+}
+
+impl fmt::LowerHex for Reduce<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let plus_i = 1 + f.precision().unwrap_or(0);
+        let plus = indent(plus_i);
+        let indent = indent(f.precision().unwrap_or(0));
+        let mut is_rest = false;
+
+        match self {
+            Reduce::Label(Label(label)) => write!(f, ":_{label}"),
+            Reduce::Jump(Jump(Label(label), cond)) => write!(f, "goto :_{label} {cond:x};"),
+            Reduce::Break(cond) => write!(f, "break {cond:x};"),
+            Reduce::Skip(cond, reduces) => {
+                write!(f, "skip {cond:x} {{")?;
+                for reduce in reduces.as_ref() {
+                    write!(f, "\n{plus}{reduce:.plus_i$x}")?;
+                }
+                write!(f, "\n{indent}}}")
+            },
+            Reduce::DoWhile(cond, reduces) => {
+                write!(f, "do {{")?;
+                for reduce in reduces.as_ref() {
+                    write!(f, "\n{plus}{reduce:.plus_i$x}")?;
+                }
+                write!(f, "\n{indent}}} while {cond:x};")
+            },
+            Reduce::While(cond, deps, reduces) => {
+                write!(f, "while")?;
+                if !deps.is_empty() {
+                    write!(f, "({{")?;
+                }
+                for dep in deps.as_ref() {
+                    write!(f, "\n{plus}{dep:.plus_i$x}")?;
+                }
+                if !deps.is_empty() {
+                    write!(f, "\n{indent}}} =>")?;
+                }
+                write!(f, " {cond:x}")?;
+                if !deps.is_empty() {
+                    write!(f, ")")?;
+                }
+                write!(f, " {{")?;
+                for reduce in reduces.as_ref() {
+                    write!(f, "\n{plus}{reduce:.plus_i$x}")?;
+                }
+                write!(f, "\n{indent}}}")
+            },
+            Reduce::IfElse(cond, then_br, else_br) => {
+                write!(f, "if {cond:x} {{")?;
+                for reduce in then_br.as_ref() {
+                    write!(f, "\n{plus}{reduce:.plus_i$x}")?;
+                }
+                write!(f, "\n{indent}}} else {{")?;
+                for reduce in else_br.as_ref() {
+                    write!(f, "\n{plus}{reduce:.plus_i$x}")?;
+                }
+                write!(f, "\n{indent}}}")
+            },
+            Reduce::Product(reduces) => reduces.iter().try_for_each(|it| {
+                is_rest.in_true(|| write!(f, "\n{indent}")).transpose()?;
+                it.fmt(f)
+            }),
+            Reduce::Pure(items) => items.iter().try_for_each(|it| {
+                is_rest.in_true(|| write!(f, "\n{indent}")).transpose()?;
+                write!(f, "{it};")
             }),
         }
     }

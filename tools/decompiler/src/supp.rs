@@ -77,6 +77,16 @@ impl CondOp {
             CondOp::RevUnknown => "!?",
         }
     }
+
+    fn has_args(&self) -> bool {
+        match self {
+            CondOp::Always => false,
+            CondOp::Never => false,
+            CondOp::Unknown => false,
+            CondOp::RevUnknown => false,
+            _ => true,
+        }
+    }
 }
 
 pub(crate) fn sfind<T, F>(slice: &[T], predicate: F) -> Option<(&[T], &T, &[T])>
@@ -92,6 +102,18 @@ pub struct Cond<'a>(pub CondOp, pub Args<'a>);
 impl<'a> fmt::Display for Cond<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({}) {}", self.0.punct(), self.1)
+    }
+}
+
+impl<'a> fmt::LowerHex for Cond<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(rest) = Args::try_from(&self.1[1..]).ok().filter(|_| self.0.has_args()) {
+            write!(f, "{} {} {rest}", self.1[0], self.0.punct())
+        } else if self.0.has_args() {
+            write!(f, "{} {}", self.0.punct(), self.1)
+        } else {
+            write!(f, "{}", self.0.punct())
+        }
     }
 }
 
