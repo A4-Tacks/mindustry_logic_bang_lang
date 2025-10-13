@@ -1,3 +1,5 @@
+use std::slice;
+
 use crate::{Jump, Label, Reduce};
 
 impl Reduce<'_> {
@@ -26,6 +28,11 @@ impl Reduce<'_> {
                     sub_reduce.walk_reduces(f);
                 }
             },
+            Reduce::GSwitch(_, cases) => {
+                for (_, case) in cases.as_ref() {
+                    case.walk_reduces(f);
+                }
+            },
         }
     }
 
@@ -40,6 +47,10 @@ impl Reduce<'_> {
             Reduce::IfElse(_, deps, reduces) => {
                 f(&deps);
                 f(&reduces)
+            },
+            Reduce::GSwitch(_, reduces) => {
+                reduces.iter()
+                    .for_each(|(_, case)| f(slice::from_ref(case)));
             },
         });
     }

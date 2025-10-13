@@ -77,6 +77,15 @@ impl fmt::Display for Reduce<'_> {
                 it.fmt(f)?;
                 write!(f, ";")
             }),
+            Reduce::GSwitch(var, cases) => {
+                write!(f, "gswitch {var} {{")?;
+                for &(i, ref case) in cases.iter() {
+                    write!(f, "\n{indent}case {i}:")?;
+                    if matches!(case, Self::Product(it) if it.is_empty()) { continue }
+                    write!(f, "\n{plus}{case:.plus_i$}")?;
+                }
+                write!(f, "\n{indent}}}")
+            },
         }
     }
 }
@@ -97,7 +106,10 @@ impl fmt::LowerHex for Reduce<'_> {
                 for reduce in reduces.as_ref() {
                     write!(f, "\n{plus}{reduce:.plus_i$x}")?;
                 }
-                write!(f, "\n{indent}}}")
+                if !reduces.is_empty() {
+                    write!(f, "\n{indent}")?;
+                }
+                write!(f, "}}")
             },
             Reduce::DoWhile(cond, reduces) => {
                 write!(f, "do {{")?;
@@ -146,6 +158,15 @@ impl fmt::LowerHex for Reduce<'_> {
                 is_rest.in_true(|| write!(f, "\n{indent}")).transpose()?;
                 write!(f, "{it};")
             }),
+            Reduce::GSwitch(var, cases) => {
+                write!(f, "gswitch {var} {{")?;
+                for &(i, ref case) in cases.iter() {
+                    write!(f, "\n{indent}case {i}:")?;
+                    if matches!(case, Self::Product(it) if it.is_empty()) { continue }
+                    write!(f, "\n{plus}{case:.plus_i$x}")?;
+                }
+                write!(f, "\n{indent}}}")
+            },
         }
     }
 }

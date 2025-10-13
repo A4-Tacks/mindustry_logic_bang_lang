@@ -53,8 +53,8 @@ where
     }
 }
 
-fn get_id<'a>(label_map: &mut HashMap<&'a str, u32>, cow: &'a str) -> Label {
-    let cur_idx = label_map.len() as u32;
+fn get_id<'a>(label_map: &mut HashMap<&'a str, u16>, cow: &'a str) -> Label {
+    let cur_idx = label_map.len() as u16;
     let id = *label_map.entry(cow).or_insert(cur_idx);
     Label(id)
 }
@@ -108,6 +108,13 @@ where
                 .filter_map(|reduce| remake_reduce(reduce, f))
                 .collect();
             Reduce::IfElse(cond, then_br, else_br)
+        },
+        Reduce::GSwitch(var, cases) => {
+            let cases = cases.iter()
+                .cloned()
+                .filter_map(|(i, case)| (i, remake_reduce(case, f)?).into())
+                .collect();
+            Reduce::GSwitch(var, cases)
         },
     };
     f(new)

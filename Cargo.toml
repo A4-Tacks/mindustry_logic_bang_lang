@@ -27,6 +27,8 @@ members = [
     "./tools/mini-paren",
     "./tools/decompiler",
 ]
+exclude = [
+]
 
 [workspace.dependencies]
 either = "1.14.0"

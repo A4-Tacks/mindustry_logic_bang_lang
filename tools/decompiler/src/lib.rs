@@ -1,6 +1,6 @@
 use std::{collections::{HashSet}, iter::once, rc::Rc};
 
-use tag_code::logic_parser::Args;
+use tag_code::logic_parser::{Args, Var};
 
 use crate::{quality::Loss, supp::Cond};
 
@@ -16,7 +16,7 @@ pub mod patterns;
 pub struct Jump<'a>(pub Label, pub Cond<'a>);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Label(pub u32);
+pub struct Label(pub u16);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Reduce<'a> {
@@ -24,17 +24,25 @@ pub enum Reduce<'a> {
     Product(Vec<Reduce<'a>>),
     Label(Label),
     Jump(Jump<'a>),
-    // TODO 在clean处理break
     Break(Cond<'a>),
     Skip(Cond<'a>, Rc<[Reduce<'a>]>),
     DoWhile(Cond<'a>, Rc<[Reduce<'a>]>),
     While(Cond<'a>, Rc<[Reduce<'a>]>, Rc<[Reduce<'a>]>),
     IfElse(Cond<'a>, Rc<[Reduce<'a>]>, Rc<[Reduce<'a>]>),
+    GSwitch(Var, Rc<[(usize, Reduce<'a>)]>)
 }
 
 impl<'a> Reduce<'a> {
     pub fn as_label(&self) -> Option<&Label> {
         if let Self::Label(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_jump(&self) -> Option<&Jump<'a>> {
+        if let Self::Jump(v) = self {
             Some(v)
         } else {
             None
@@ -59,11 +67,12 @@ impl<'a> Finder<'a> {
             })
             .flat_map(|subcase| Self::patterns().iter()
                 .map(move |&pattern| (subcase, pattern)))
-            .for_each(|((prefix, subcase), pattern)|
+            .for_each(|((unprocess, subcase), pattern)|
         {
-            if let Some((reduced, suffix)) = pattern(self, subcase) {
-                let new_case = prefix.iter()
+            if let Some((prefix, reduced, suffix)) = pattern(self, subcase) {
+                let new_case = unprocess.iter()
                     .cloned()
+                    .chain(prefix)
                     .chain(once(reduced))
                     .chain(suffix.iter().cloned())
                     .collect();
@@ -110,223 +119,118 @@ mod tests {
     #[test]
     fn it_works() {
         let logic = r#"
-sensor enabled switch1 @enabled
-wait 0.1
-jump 0 equal enabled true
-jump 98 always 0 0
-set fname "merge(x,y,z)"
-set f2_k 0
-jump 97 greaterThanEq x y
-jump 97 greaterThanEq y z
-jump 19 always 0 0
-op sub c f2_j f2_i
-op shr c c 1
-op add f2_mid c f2_i
-read f2_num bank1 f2_mid
-jump 16 greaterThan f2_num f2_tgt
-op add f2_i f2_mid 1
-jump 17 always 0 0
-set f2_j f2_mid
-jump 9 lessThan f2_i f2_j
-op add @counter f2_step 1
-read f2_tgt bank1 y
-set f2_i x
-set f2_j y
-set f2_step @counter
-jump 17 always 0 0
-set x f2_i
-op sub f2_c y 1
-read f2_tgt bank1 f2_c
-set f2_i y
-set f2_j z
-set f2_step @counter
-jump 17 always 0 0
-set z f2_i
-jump 97 greaterThanEq x y
-jump 97 greaterThanEq y z
-op sub f2_llen y x
-op sub f2_rlen z y
-jump 67 lessThan f2_llen f2_rlen
-set f2_i y
-read num bank1 f2_i
-write num bank2 f2_k
-op add f2_i f2_i 1
-op add f2_k f2_k 1
-jump 38 lessThan f2_i z
-op sub f2_i f2_k 1
-op sub f2_j y 1
-set f2_k z
-read num_1 bank2 f2_i
-read num_2 bank1 f2_j
-jump 57 always 0 0
-jump 54 greaterThanEq num_1 num_2
-write num_2 bank1 f2_k
-op sub f2_j f2_j 1
-read num_2 bank1 f2_j
-jump 57 always 0 0
-write num_1 bank1 f2_k
-op sub f2_i f2_i 1
-read num_1 bank2 f2_i
-op sub f2_k f2_k 1
-jump 60 lessThan f2_j x
-jump 49 greaterThanEq f2_i 0
-jump 65 always 0 0
-read num_1 bank2 f2_i
-write num_1 bank1 f2_k
-op sub f2_i f2_i 1
-op sub f2_k f2_k 1
-jump 61 greaterThanEq f2_i 0
-jump 97 always 0 0
-set f2_i x
-read num bank1 f2_i
-write num bank2 f2_k
-op add f2_i f2_i 1
-op add f2_k f2_k 1
-jump 68 lessThan f2_i y
-set f2_iend f2_k
-set f2_i 0
-set f2_j y
-set f2_k x
-read num_1 bank2 f2_i
-read num_2 bank1 f2_j
-jump 89 always 0 0
-jump 85 lessThanEq num_1 num_2
-write num_2 bank1 f2_k
-op add f2_j f2_j 1
-read num_2 bank1 f2_j
-jump 88 always 0 0
-write num_1 bank1 f2_k
-op add f2_i f2_i 1
-read num_1 bank2 f2_i
-op add f2_k f2_k 1
-jump 91 greaterThanEq f2_j z
-jump 80 lessThan f2_i f2_iend
-jump 96 always 0 0
-read num_1 bank2 f2_i
-write num_1 bank1 f2_k
-op add f2_i f2_i 1
-op add f2_k f2_k 1
-jump 92 lessThan f2_i f2_iend
-op add @counter step 1
-read length cell1 0
-op sub p_length length 1
-op shr c length 1
-op add c c 2
-set stack_floor c
-op add stack_add_2 stack_floor 2
-set stack_t bank2
-set stack stack_floor
-set min_run length
-set r 0
-jump 112 always 0 0
-op and c min_run 1
-op or r r c
-op shr min_run min_run 1
-jump 109 greaterThanEq min_run 16
-op add min_run min_run r
-set i 0
-set start 0
-jump 215 lessThan length 2
-op add j i 1
-op add run_stop i min_run
-op min run_stop run_stop length
-read old_num bank1 i
-read next_num bank1 j
-set start i
-jump 135 greaterThan old_num next_num
-jump 129 always 0 0
-jump 130 greaterThan old_num next_num
-op add j j 1
-set old_num next_num
-read next_num bank1 j
-jump 125 lessThan j length
-jump 146 always 0 0
-jump 136 lessThanEq old_num next_num
-op add j j 1
-set old_num next_num
-read next_num bank1 j
-jump 131 lessThan j length
-set l start
-op sub r j 1
-jump 145 always 0 0
-read lnum bank1 l
-read rnum bank1 r
-write rnum bank1 l
-write lnum bank1 r
-op add l l 1
-op sub r r 1
-jump 139 lessThan l r
-op add run_stop start min_run
-op min run_stop run_stop length
-set i j
-set note "insert_sort"
-jump 153 lessThan j run_stop
-set run_stop j
-jump 168 always 0 0
-set f0_i j
-set i run_stop
-jump 167 always 0 0
-read num bank1 f0_i
-set f0_j f0_i
-jump 162 always 0 0
-read num_1 bank1 f0_j
-jump 165 lessThanEq num_1 num
-write num_1 bank1 c
-set c f0_j
-op sub f0_j f0_j 1
-jump 159 greaterThanEq f0_j start
-write num bank1 c
-op add f0_i f0_i 1
-jump 156 lessThan f0_i run_stop
-jump 200 always 0 0
-op sub c stack 1
-op sub c1 stack 2
-read X_s stack_t c
-read Y_s stack_t c1
-jump 179 equal stack stack_add_2
-op sub c2 stack 3
-read Z_s stack_t c2
-op sub Z_len Y_s Z_s
-op sub XY_add start Y_s
-jump 183 lessThanEq Z_len XY_add
-op sub X_len start X_s
-op sub Y_len X_s Y_s
-jump 193 lessThanEq Y_len X_len
-jump 201 always 0 0
-jump 193 greaterThan Z_len X_len
-set note "merge to Z"
-set x Z_s
-set y Y_s
-set z X_s
-set step @counter
-jump 5 always 0 0
-write X_s stack_t c1
-op sub stack stack 1
-jump 201 always 0 0
-set note "merge to X"
-set x Y_s
-set y X_s
-set z start
-set step @counter
-jump 5 always 0 0
-op sub stack stack 1
-jump 169 greaterThanEq stack stack_add_2
-write start stack_t stack
-op add stack stack 1
-jump 117 lessThan i length
-jump 214 always 0 0
-op sub stack stack 1
-op sub c stack 1
-read X_s stack_t stack
-read Y_s stack_t c
-set x Y_s
-set y X_s
-set z length
-set step @counter
-jump 5 always 0 0
-jump 205 greaterThanEq stack stack_add_2
-control enabled switch1 true 0 0 0
-
+set links @links
+jump 5 greaterThanEq links 2
+wait 0.2
+set links @links
+jump 2 lessThan links 2
+set unit_type @flare
+set approach_range 3
+getlink sorter 0
+sensor my_item sorter @config
+sensor sorter_ty sorter @type
+op notEqual is_invert sorter_ty @sorter
+jump 0 strictEqual my_item null
+jump 22 always 0 0
+ubind unit_type
+jump 17 strictEqual @unit null
+sensor __3 @unit @controlled
+jump 21 equal __3 false
+ubind unit_type
+jump 17 strictEqual @unit null
+sensor __4 @unit @controlled
+jump 17 notEqual __4 false
+set my_unit @unit
+sensor __5 my_unit @dead
+jump 13 notEqual __5 false
+sensor ctrler my_unit @controller
+jump 27 equal ctrler @this
+jump 13 notEqual ctrler @unit
+sensor __6 my_unit @controlled
+jump 13 equal __6 @ctrlPlayer
+ubind my_unit
+sensor unit_item @unit @firstItem
+sensor unit_item_cap @unit @itemCapacity
+jump 34 equal unit_item null
+jump 83 notEqual unit_item my_item
+jump 51 strictEqual unit_item null
+sensor __7 @unit my_item
+jump 51 equal __7 false
+jump 40 equal is_invert false
+ulocate building core false 0 __9 __10 0 __8
+jump 48 always 0 0
+jump 45 equal links 2
+op rand __12 links 0
+op max __11 1 __12
+getlink __8 __11
+jump 46 always 0 0
+getlink __8 1
+sensor __9 __8 @x
+sensor __10 __8 @y
+ucontrol approach __9 __10 approach_range 0 0
+ucontrol itemDrop __8 unit_item_cap 0 0 0
+jump 0 always 0 0
+jump 54 notEqual is_invert false
+ulocate building core false 0 __15 __16 0 __14
+jump 68 always 0 0
+set i 1
+jump 64 greaterThanEq i links
+getlink __14 i
+sensor __17 __14 my_item
+jump 64 notEqual __17 0
+op add i i 1
+jump 64 greaterThanEq i links
+getlink __14 i
+sensor __18 __14 my_item
+jump 59 equal __18 0
+jump 66 notEqual i links
+getlink __14 1
+sensor __15 __14 @x
+sensor __16 __14 @y
+ucontrol approach __15 __16 approach_range 0 0
+ucontrol itemTake __14 my_item unit_item_cap 0 0
+jump 0 notEqual @links links
+sensor __20 sorter @config
+jump 0 notEqual __20 my_item
+getlink __22 0
+sensor __21 __22 @type
+jump 0 notEqual __21 sorter_ty
+sensor __23 @unit @controller
+jump 0 notEqual __23 @this
+sensor __24 @unit my_item
+jump 51 lessThan __24 unit_item_cap
+sensor __25 @unit my_item
+jump 37 notEqual __25 false
+jump 0 always 0 0
+jump 86 notEqual is_invert false
+ulocate building core false 0 __27 __28 0 __26
+jump 100 always 0 0
+set i 1
+jump 96 greaterThanEq i links
+getlink __26 i
+sensor __29 __26 my_item
+jump 96 notEqual __29 0
+op add i i 1
+jump 96 greaterThanEq i links
+getlink __26 i
+sensor __30 __26 my_item
+jump 91 equal __30 0
+jump 98 notEqual i links
+getlink __26 1
+sensor __27 __26 @x
+sensor __28 __26 @y
+ucontrol approach __27 __28 approach_range 0 0
+ucontrol itemDrop @air unit_item_cap 0 0 0
+jump 0 notEqual @links links
+sensor __32 sorter @config
+jump 0 notEqual __32 my_item
+getlink __34 0
+sensor __33 __34 @type
+jump 0 notEqual __33 sorter_ty
+sensor __35 @unit @controller
+jump 0 notEqual __35 @this
+sensor __36 @unit @firstItem
+jump 101 notEqual __36 null
         "#;
         let mut lines = logic_parser::parser::lines(logic).unwrap();
         lines.index_label_popup();

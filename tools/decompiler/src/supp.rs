@@ -96,8 +96,21 @@ where F: FnMut(&T) -> bool,
     Some((&slice[..pos], &slice[pos], &slice[pos+1..]))
 }
 
+pub(crate) fn split_at<T, F>(slice: &[T], predicate: F) -> Option<(&[T], &[T])>
+where F: FnMut(&T) -> bool,
+{
+    let index = slice.iter().position(predicate)?;
+    Some((&slice[..index], &slice[index..]))
+}
+
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Cond<'a>(pub CondOp, pub Args<'a>);
+
+impl<'a> Cond<'a> {
+    pub fn is_always(&self) -> bool {
+        self.0 == CondOp::Always
+    }
+}
 
 impl<'a> fmt::Display for Cond<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
