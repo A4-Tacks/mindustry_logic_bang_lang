@@ -99,12 +99,15 @@ impl<'a> Finder<'a> {
         };
         self.current.retain(|elem| {
             let loss = elem.loss();
-            count += 1;
-            match loss.total_cmp(&bound) {
+            let retain = match loss.total_cmp(&bound) {
                 std::cmp::Ordering::Less => true,
                 std::cmp::Ordering::Equal => count < self.limit,
                 std::cmp::Ordering::Greater => false,
+            };
+            if retain {
+                count += 1;
             }
+            retain
         });
 
         (losses[0], bound)

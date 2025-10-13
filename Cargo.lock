@@ -330,7 +330,7 @@ dependencies = [
 
 [[package]]
 name = "mlog-decompiler"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "either",
  "getopts-macro",
