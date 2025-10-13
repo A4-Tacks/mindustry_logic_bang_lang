@@ -48,6 +48,8 @@ jobs:
           - name: mindustry_logic_bang_lang
           - name: mdt-ops-generator
             package: mdt-ops-generator
+          - name: mlog-decompiler
+            package: mlog-decompiler
 
     runs-on: ${{ matrix.build.os }}
     steps:
