@@ -143,6 +143,11 @@ Bang 提供了一个灵活的大型常量系统,
   - Bakery Algorithm 锁, 类似 Peterson 锁, 但支持多个处理器
 
 
+## 附属工具
+- **mdt-ops-generator**: 生成自解释的 op 语句
+- **mlog-decompiler**: 反编译器，用于重建逻辑语言的控制流
+
+
 # 安装
 Releases 提供了预构建产物, 考虑先从其中下载自己所在平台的二进制文件,
 如果为安卓通常可以运行 aarch64-unknown-linux-musl
