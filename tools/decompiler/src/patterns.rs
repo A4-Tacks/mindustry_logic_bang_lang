@@ -177,6 +177,9 @@ fn try_basic_gswitch<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduce<'a>]) -> Ha
         offseted_cases.push((l, case));
         Some(rest)
     }).last().unwrap();
+    if offseted_cases.len() != jump_labels.len() {
+        return None;
+    }
     offseted_cases.iter_mut().reduce(|a, b| {
         a.1 = std::mem::take(&mut b.1);
         b
