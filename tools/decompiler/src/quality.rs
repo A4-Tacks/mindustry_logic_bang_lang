@@ -25,7 +25,7 @@ impl Loss for Reduce<'_> {
                     .map(|x| x.1.loss())
                     .max_by(|a, b| a.total_cmp(b))
                     .unwrap_or_default()
-                    + 3.0
+                    * 0.6
             },
         }
     }
@@ -43,5 +43,5 @@ where I: IntoIterator<Item = &'a Reduce<'a>>,
 {
     let iter = reduces.into_iter();
     let len = iter.len();
-    iter.map(Loss::loss).sum::<f32>() * (len as f32).ln().max(1.0)
+    iter.map(Loss::loss).sum::<f32>() * (len as f32).log2().max(1.0)
 }

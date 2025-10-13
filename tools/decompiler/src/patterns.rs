@@ -24,6 +24,7 @@ impl<'a> Finder<'a> {
             try_double_trivia_cond_while_1 as _,
             try_basic_if_else as _,
             try_basic_gswitch as _,
+            try_basic_switch as _,
         ]
     }
 }
@@ -215,6 +216,48 @@ fn try_basic_gswitch<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduce<'a>]) -> Ha
     let prefix = pack_pures(prefix);
 
     Some((prefix, gswitch, rest))
+}
+
+fn try_basic_switch<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduce<'a>]) -> HandleRet<'a, 's> {
+    let [
+        Reduce::Pure(pur),
+        reduce_rest @ ..
+    ] = reduce else { return None };
+    let index = pur.iter().rposition(|p| {
+        let [op, add, dst, lhs, _rhs] = &p[..] else { return false };
+        op == "op" && add == "add" && dst == "@counter" && lhs == dst
+    })?;
+    let (prefix, rest) = pur.split_at(index);
+    let (steper, prefix) = prefix.split_last()?;
+    let [op, mul, step, addr, size] = arr(steper)?;
+    if op != "op" || mul != "mul" { return None }
+    let size = size.parse::<usize>().ok().filter(|n| *n > 1)?;
+
+    let (head, spec) = rest.split_first()?;
+    let [_op, _add, _dst, _lhs, offset] = arr(head)?;
+    if offset != step || spec.len()+1 != size {
+        return None;
+    }
+    let (jmp, mut rest) = reduce_rest.split_first()?;
+    let cases = successors(Some((spec, jmp.as_jump()?)), |(spec, _)| {
+        let (Reduce::Pure(pur), new_rest) = rest.split_first()? else { return None };
+        let (Reduce::Jump(jmp), new_rest) = new_rest.split_first()? else { return None };
+        if pur.len()+1 != size { return None }
+        if pur.iter().zip(spec.iter()).any(|(a, b)| a.first() != b.first()) {
+            return None;
+        }
+        rest = new_rest;
+        Some((pur, jmp))
+    }).enumerate().map(|(i, (body, jmp))| {
+        let reduce = pack_pures(body)
+            .into_iter()
+            .chain(once(jmp.clone().into()))
+            .collect();
+        (i, reduce)
+    }).collect();
+    let switch = Reduce::GSwitch(addr.clone(), cases);
+
+    Some((pack_pures(prefix), switch, rest))
 }
 
 pub(crate) fn trim_split_at<'a, 's, F>(slice: &'s [Reduce<'a>], predicate: F) -> Option<(
