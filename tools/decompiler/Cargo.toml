@@ -1,6 +1,6 @@
 [package]
 name = "mlog-decompiler"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 
 authors = ["A4-Tacks <wdsjxhno1001@163.com>"]
@@ -10,5 +10,6 @@ description = "Reconstructing control flow from mlog based on heuristic brute fo
 [dependencies]
 either = "1.15.0"
 getopts-macro = "0.1.8"
+sysinfo = "0.37.2"
 tag_code = { version = "0.2.11", path = "../tag_code" }
 to-true = "0.1.2"

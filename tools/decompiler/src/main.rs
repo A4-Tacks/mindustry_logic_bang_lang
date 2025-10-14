@@ -28,7 +28,7 @@ fn main() {
         println!("Usage: {} [Options] [FILE]..", env!("CARGO_BIN_NAME"));
         println!("{}", options.usage(desc).trim_end());
         println!();
-        println!("Set a larger number of iterations and upper limit to improve quality");
+        println!("{EXTRA}");
         println!();
         println!("repo: {repo}");
         return;
@@ -97,13 +97,23 @@ fn main() {
     for itering in 1..=iterate {
         eprint!("{itering:>3}/{iterate:<3} ");
         finder.iterate();
+        let mem_usage = mem_usage();
 
         let raw_len = finder.current.len();
         eprint!("limite {:>8}", raw_len);
 
         let (happy, limite) = finder.limite();
         eprint!(" -> {:<8} <{happy:.5} $ {limite:.5}>", finder.current.len());
-        eprintln!(" {:.2}s", time.elapsed().unwrap().as_secs_f64());
+        eprint!(" {:.2}s", time.elapsed().unwrap().as_secs_f64());
+
+        if let Some(usage) = mem_usage {
+            let mb = usage >> 20;
+            if mb > 2048 {
+                eprint!(" (Used {mb} MiB of memory)")
+            }
+        }
+
+        eprintln!();
 
         if Some((happy, limite, raw_len)) == prev_limite {
             eprintln!("-- Early Reconstruction Completed");
@@ -152,3 +162,20 @@ fn output<'a>(raw_out: bool, iter: impl IntoIterator<Item = (usize, &'a Rc<[Redu
         }
     }
 }
+
+fn mem_usage() -> Option<u64> {
+    use sysinfo::System;
+
+    let mut sys = System::new_all();
+    sys.refresh_all();
+
+    let pid = sysinfo::get_current_pid().ok()?;
+
+    sys.process(pid)?.memory().into()
+}
+
+const EXTRA: &str = "\
+Set a larger number of iterations and upper limit to improve quality
+
+Higher limits use more memory and are slower,
+If the input is long, you can set more iterations and fewer limits";
