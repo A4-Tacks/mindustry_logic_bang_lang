@@ -10,6 +10,23 @@ pub(crate) type HandleRet<'a, 's> = Option<(
     &'s [Reduce<'a>],
 )>;
 
+macro_rules! hit {
+    ($pat:pat = $e:expr) => {
+        let $pat = $e else { return Default::default() };
+    };
+    ($($pat:pat),+ = $e:expr) => {
+        let ($($pat),+) = $e else { return Default::default() };
+    };
+}
+
+macro_rules! check {
+    ($e:expr) => {
+        if !$e {
+            return Default::default()
+        }
+    };
+}
+
 impl<'a> Finder<'a> {
     pub fn patterns<'free>() -> &'free [for<'s> fn(
         &mut Finder<'a>,
@@ -30,9 +47,7 @@ impl<'a> Finder<'a> {
 }
 
 fn try_skip<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduce<'a>]) -> HandleRet<'a, 's> {
-    let (Reduce::Jump(Jump(label, cond)), rest) = reduce.split_first()? else {
-        return None;
-    };
+    hit!(Reduce::Jump(Jump(label, cond)), rest = reduce.split_first()?);
     let (body, _, rest) = supp::sfind(rest, |x| {
         matches!(x, Reduce::Label(l) if l == label)
     })?;
@@ -41,108 +56,80 @@ fn try_skip<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduce<'a>]) -> HandleRet<'
 }
 
 fn try_do_while<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduce<'a>]) -> HandleRet<'a, 's> {
-    let (Reduce::Label(label), rest) = reduce.split_first()? else {
-        return None;
-    };
-    let (body, Reduce::Jump(Jump(_, cond)), rest) = supp::sfind(rest, |x| {
+    hit!(Reduce::Label(label), rest = reduce.split_first()?);
+    hit!(body, Reduce::Jump(Jump(_, cond)), rest = supp::sfind(rest, |x| {
         matches!(x, Reduce::Jump(Jump(l, _)) if l == label)
-    })? else { return None };
+    })?);
     let skip = Reduce::DoWhile(cond.clone(), body.into());
     Some((None, skip, rest))
 }
 
 fn try_strict_not_equal<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduce<'a>]) -> HandleRet<'a, 's> {
-    let [
+    hit!([
         Reduce::Pure(pur),
         Reduce::Jump(Jump(label, Cond(CondOp::Equal, jarg))),
         rest @ ..
-    ] = reduce else { return None };
+    ] = reduce);
     let [ja, jb] = arr(jarg)?;
     let (args, prefix) = pur.split_last()?;
     let [op, oper, res, a, b] = arr(args)?;
 
-    if op == "op" && oper == "strictEqual"
-        && (ja == res && is_zero(jb) || jb == res && is_zero(ja))
-    {
-        let cond = Cond(
-            CondOp::StrictNotEqual,
-            vec![a.clone(), b.clone()].try_into().unwrap(),
-        );
-        let jump = Reduce::Jump(Jump(label.clone(), cond));
-        Some((pack_pures(prefix), jump, rest))
-    } else {
-        None
-    }
+    check!(op == "op" && oper == "strictEqual");
+    check!(ja == res && is_zero(jb) || jb == res && is_zero(ja));
+
+    let cond = Cond(
+        CondOp::StrictNotEqual,
+        vec![a.clone(), b.clone()].try_into().unwrap(),
+    );
+    let jump = Reduce::Jump(Jump(label.clone(), cond));
+    Some((pack_pures(prefix), jump, rest))
 }
 
 fn try_single_cond_while_1<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduce<'a>]) -> HandleRet<'a, 's> {
-    let (Reduce::Jump(Jump(forw_label, Cond(CondOp::Always, _))), rest) = reduce.split_first()? else {
-        return None;
-    };
-    let (Reduce::Label(back_label), rest) = rest.split_first()? else {
-        return None;
-    };
+    hit!(Reduce::Jump(Jump(forw_label, Cond(CondOp::Always, _))), rest = reduce.split_first()?);
+    hit!(Reduce::Label(back_label), rest = rest.split_first()?);
     let (body, _, rest) = supp::sfind(rest, |x| {
         matches!(x, Reduce::Label(l) if l == forw_label)
     })?;
-    let (deps, Reduce::Jump(Jump(_, cond)), rest) = supp::sfind(rest, |x| {
+    hit!(deps, Reduce::Jump(Jump(_, cond)), rest = supp::sfind(rest, |x| {
         matches!(x, Reduce::Jump(Jump(l, _)) if l == back_label)
-    })? else { return None };
+    })?);
     let r#while = Reduce::While(cond.clone(), deps.into(), body.into());
     Some((None, r#while, rest))
 }
 
 fn try_single_cond_while_2<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduce<'a>]) -> HandleRet<'a, 's> {
-    let (Reduce::Label(back_label), rest) = reduce.split_first()? else {
-        return None;
-    };
-    let (deps, Reduce::Jump(Jump(brk_label, cond)), rest) = supp::sfind(rest, |x| {
+    hit!(Reduce::Label(back_label), rest = reduce.split_first()?);
+    hit!(deps, Reduce::Jump(Jump(brk_label, cond)), rest = supp::sfind(rest, |x| {
         matches!(x, Reduce::Jump(_))
-    })? else { return None };
+    })?);
     let (body, _, rest) = supp::sfind(rest, |x| {
         matches!(x, Reduce::Jump(Jump(l, Cond(CondOp::Always, _))) if l == back_label)
     })?;
-    let (Reduce::Label(l), rest) = rest.split_first()? else {
-        return None;
-    };
-    if l != brk_label {
-        return None;
-    }
+    hit!(Reduce::Label(l), rest = rest.split_first()?);
+    check!(l == brk_label);
     let r#while = Reduce::While(cond.clone(), deps.into(), body.into());
     Some((None, r#while, rest))
 }
 
 fn try_double_trivia_cond_while_1<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduce<'a>]) -> HandleRet<'a, 's> {
-    let (Reduce::Jump(Jump(brk_label, Cond(skip_cond, skip_args))), rest) = reduce.split_first()? else {
-        return None;
-    };
-    let (Reduce::DoWhile(Cond(back_cond, back_args), body), rest) = rest.split_first()? else {
-        return None;
-    };
-    if skip_cond.clone().apply_not() != *back_cond || skip_args != back_args {
-        return None;
-    }
-    let (Reduce::Label(l), rest) = rest.split_first()? else {
-        return None;
-    };
-    if l != brk_label {
-        return None;
-    }
+    hit!(Reduce::Jump(Jump(brk_label, Cond(skip_cond, skip_args))), rest = reduce.split_first()?);
+    hit!(Reduce::DoWhile(Cond(back_cond, back_args), body), rest = rest.split_first()?);
+    check!(skip_cond.clone().apply_not() == *back_cond);
+    check!(skip_args == back_args);
+    hit!(Reduce::Label(l), rest = rest.split_first()?);
+    check!(l == brk_label);
     let cond = Cond(back_cond.clone(), back_args.clone());
     let r#while = Reduce::While(cond, vec![].into(), body.clone());
     Some((None, r#while, rest))
 }
 
 fn try_basic_if_else<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduce<'a>]) -> HandleRet<'a, 's> {
-    let (Reduce::Jump(Jump(then_label, cond)), rest) = reduce.split_first()? else {
-        return None;
-    };
+    hit!(Reduce::Jump(Jump(then_label, cond)), rest = reduce.split_first()?);
     let (body, _, rest) = supp::sfind(rest, |x| {
         matches!(x, Reduce::Label(l) if l == then_label)
     })?;
-    let (Reduce::Jump(Jump(else_skip_l, Cond(CondOp::Always, _))), body) = body.split_last()? else {
-        return None;
-    };
+    hit!(Reduce::Jump(Jump(else_skip_l, Cond(CondOp::Always, _))), body = body.split_last()?);
     let (else_body, _, rest) = supp::sfind(rest, |x| {
         matches!(x, Reduce::Label(l) if l == else_skip_l)
     })?;
@@ -151,36 +138,27 @@ fn try_basic_if_else<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduce<'a>]) -> Ha
 }
 
 fn try_basic_gswitch<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduce<'a>]) -> HandleRet<'a, 's> {
-    let [
-        Reduce::Pure(pur),
-        rest @ ..
-    ] = reduce else { return None };
+    hit!([Reduce::Pure(pur), rest @ ..] = reduce);
     let (args, prefix) = pur.split_last()?;
     let [op, add, dst, a, rhs] = arr(args)?;
-    if op != "op" || add != "add" || dst != "@counter" || a != "@counter" {
-        return None;
-    }
+    check!(op == "op" && add == "add" && dst == "@counter" && a == dst);
     let (jumps, rest) = supp::split_at(rest, |x| {
         !matches!(x, Reduce::Jump(_))
     })?;
-    if jumps.len() < 3 {
-        return None;
-    }
+    check!(jumps.len() >= 3);
     let jump_labels = jumps.iter().map(|it| match it {
         Reduce::Jump(Jump(l, Cond(CondOp::Always, _))) => l.clone().into(),
         _ => None,
     }).collect::<Option<Vec<_>>>()?;
     let mut offseted_cases = Vec::new();
     let mut rest = successors(Some(rest), |rest| {
-        let (case, Reduce::Label(l), rest) = supp::sfind(rest, |x| {
+        hit!(case, Reduce::Label(l), rest = supp::sfind(rest, |x| {
             matches!(x, Reduce::Label(l) if jump_labels.contains(l))
-        })? else { return None };
+        })?);
         offseted_cases.push((l, case));
         Some(rest)
     }).last().unwrap();
-    if offseted_cases.len() != jump_labels.len() {
-        return None;
-    }
+    check!(offseted_cases.len() == jump_labels.len());
     offseted_cases.iter_mut().reduce(|a, b| {
         a.1 = std::mem::take(&mut b.1);
         b
@@ -219,33 +197,26 @@ fn try_basic_gswitch<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduce<'a>]) -> Ha
 }
 
 fn try_basic_switch<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduce<'a>]) -> HandleRet<'a, 's> {
-    let [
-        Reduce::Pure(pur),
-        reduce_rest @ ..
-    ] = reduce else { return None };
+    hit!([Reduce::Pure(pur), reduce_rest @ ..] = reduce);
     let index = pur.iter().rposition(|p| {
-        let [op, add, dst, lhs, _rhs] = &p[..] else { return false };
+        hit!([op, add, dst, lhs, _rhs] = &p[..]);
         op == "op" && add == "add" && dst == "@counter" && lhs == dst
     })?;
     let (prefix, rest) = pur.split_at(index);
     let (steper, prefix) = prefix.split_last()?;
     let [op, mul, step, addr, size] = arr(steper)?;
-    if op != "op" || mul != "mul" { return None }
+    check!(op == "op" && mul == "mul");
     let size = size.parse::<usize>().ok().filter(|n| *n > 1)?;
 
     let (head, spec) = rest.split_first()?;
     let [_op, _add, _dst, _lhs, offset] = arr(head)?;
-    if offset != step || spec.len()+1 != size {
-        return None;
-    }
+    check!(offset == step && spec.len()+1 == size);
     let (jmp, mut rest) = reduce_rest.split_first()?;
     let cases = successors(Some((spec, jmp.as_jump()?)), |(spec, _)| {
-        let (Reduce::Pure(pur), new_rest) = rest.split_first()? else { return None };
-        let (Reduce::Jump(jmp), new_rest) = new_rest.split_first()? else { return None };
-        if pur.len()+1 != size { return None }
-        if pur.iter().zip(spec.iter()).any(|(a, b)| a.first() != b.first()) {
-            return None;
-        }
+        hit!(Reduce::Pure(pur), new_rest = rest.split_first()?);
+        hit!(Reduce::Jump(jmp), new_rest = new_rest.split_first()?);
+        check!(pur.len()+1 == size);
+        check!(pur.iter().zip(spec.iter()).all(|(a, b)| a.first() == b.first()));
         rest = new_rest;
         Some((pur, jmp))
     }).enumerate().map(|(i, (body, jmp))| {
@@ -268,10 +239,8 @@ where F: FnMut(&Reduce<'a>) -> bool,
 {
     let basic_slice = supp::split_at(slice, predicate)?.0;
     let basic_slice = successors(basic_slice.into(), |x| {
-        match x {
-            [back @ .., Reduce::Label(_)] => Some(back),
-            _ => None,
-        }
+        hit!([back @ .., Reduce::Label(_)] = x);
+        Some(back)
     }).last()?;
     let i = basic_slice.len();
     Some((&slice[..i], &slice[i..]))
