@@ -8584,6 +8584,42 @@ fn builtin_func_test() {
 
     assert_eq!(
         CompileMeta::new().compile(parse!(parser, r#"
+        print Builtin.Ord['\n'];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 10"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print Builtin.Ord['\t'];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 9"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print Builtin.Ord['\r'];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 13"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print Builtin.Ord['\e'];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 27"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
         print Builtin.Ord[""];
         "#).unwrap()).compile().unwrap(),
         vec![

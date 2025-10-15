@@ -528,7 +528,15 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
 
         fn ord:Ord(meta) [n:code] {
             check_type!("var" Value::Var(char) = code.value() => {
-                if Value::is_string(char) {
+                if char == r"\n" {
+                    Ok(format!("{}", b'\n').into())
+                } else if char == r"\r" {
+                    Ok(format!("{}", b'\r').into())
+                } else if char == r"\t" {
+                    Ok(format!("{}", b'\t').into())
+                } else if char == r"\e" {
+                    Ok(format!("{}", b'\x1b').into())
+                } else if Value::is_string(char) {
                     if char.chars().nth(2).is_none() || char.chars().nth(3).is_some() {
                         return Err((2, format!("Ord[] cannot support multi chars {char}")))
                     }
