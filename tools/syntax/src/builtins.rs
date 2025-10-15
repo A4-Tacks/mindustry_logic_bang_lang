@@ -44,6 +44,20 @@ impl BuiltinFunc {
     }
 }
 
+fn num(s: &str) -> Option<usize> {
+    let &n = s.as_var_type().as_number()?;
+    let int = n.trunc();
+
+    if int != n {
+        return None;
+    }
+    if n.abs() > 3.0 && (n + 2.0).abs().log2() > f64::MANTISSA_DIGITS as f64 {
+        return None
+    }
+
+    Some(int as usize)
+}
+
 macro_rules! mutil {
     (@ignore($($i:tt)*) $($t:tt)*) => {
         $($t)*
@@ -254,16 +268,16 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
 
         fn exit:Exit(meta) [n:code] {
             check_type!("var" Value::Var(code) = code.value() => {
-                let num_code = match code.parse() {
-                    Ok(code) => code,
-                    Err(e) => {
+                let num_code = match num(code) {
+                    Some(code) => code,
+                    None => {
                         meta.log_err(format!(
-                            "Invalid exit code: {code},\nerr: {e}",
+                            "Invalid exit code: {code}",
                         ));
                         128
                     },
                 };
-                process::exit(num_code)
+                process::exit(num_code.try_into().unwrap_or(124))
             })
         }
 
@@ -313,10 +327,10 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
         fn slice_args:SliceArgs(meta) [s:start e:end] {
             check_type!("var" Value::Var(start) = start.value() => {
                 check_type!("var" Value::Var(end) = end.value() => {
-                    let Ok(start) = start.parse::<usize>() else {
+                    let Some(start) = num(start) else {
                         return Err((2, format!("Invalid start value: {start}")))
                     };
-                    let Ok(end) = end.parse::<usize>() else {
+                    let Some(end) = num(end) else {
                         return Err((2, format!("Invalid end value: {end}")))
                     };
                     meta.slice_env_second_args((start, end));
@@ -336,7 +350,7 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
 
         fn args_handle:ArgsHandle(meta) [i:idx] {
             check_type!("var" Value::Var(idx) = idx.value() => {
-                let Ok(idx) = idx.parse::<usize>() else {
+                let Some(idx) = num(idx) else {
                     return Err((2, format!("Invalid index value: {idx}")))
                 };
                 Ok(meta.get_env_second_args()
@@ -358,10 +372,10 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
 
         fn set_max_expand_depth:SetMaxExpandDepth(meta) [d:depth] {
             check_type!("var" Value::Var(depth) = depth.value() => {
-                let depth: usize = match depth.parse() {
-                    Ok(n) => n,
-                    Err(e) => {
-                        return Err((2, e.to_string()))
+                let depth: usize = match num(depth) {
+                    Some(n) => n,
+                    None => {
+                        return Err((2, format!("Invalid max expand depth: `{depth}`")))
                     },
                 };
                 meta.set_const_expand_max_depth(depth);
@@ -383,10 +397,10 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
 
         fn set_repeat_limit:SetRepeatLimit(meta) [d:limit] {
             check_type!("var" Value::Var(limit) = limit.value() => {
-                let limit: usize = match limit.parse() {
-                    Ok(n) => n,
-                    Err(e) => {
-                        return Err((2, e.to_string()))
+                let limit: usize = match num(limit) {
+                    Some(n) => n,
+                    None => {
+                        return Err((2, format!("Invalid number `{limit}`")))
                     },
                 };
                 meta.set_args_repeat_limit(limit);
@@ -415,8 +429,8 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
 
         fn ref_arg:RefArg(meta) [i:index] {
             check_type!("var" Value::Var(index) = index.value() => {
-                let Ok(index) = index.parse::<usize>() else {
-                    return Err((2, format!("Invalid start value: {index}")))
+                let Some(index) = num(index) else {
+                    return Err((2, format!("Invalid start value: `{index}`")))
                 };
                 let args = meta.get_env_second_args();
                 args.get(index)
@@ -475,6 +489,7 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
                 Ok("__".into())
             })
         }
+
         fn bind_sep:BindSep(meta) [v:sep] {
             check_type!("var" Value::Var(sep) = sep.value() => {
                 match sep.as_var_type().as_string() {
@@ -490,6 +505,40 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
                     },
                 }
                 Ok("__".into())
+            })
+        }
+
+        fn chr:Chr(meta) [n:code] {
+            check_type!("var" Value::Var(code) = code.value() => {
+                let Some(code) = num(code) else {
+                    return Err((2, format!("Invalid chr number: {code}")))
+                };
+                let Ok(code) = code.try_into() else {
+                    return Err((2, format!("Invalid number range: {code}")))
+                };
+                let Some(char) = char::from_u32(code) else {
+                    return Err((2, format!("Invalid char point: {code}")))
+                };
+                if char == '"' || char == '\n' {
+                    return Err((2, format!("Invalid string char: `{char}`")))
+                }
+                Ok(format!("\"{char}\"").into())
+            })
+        }
+
+        fn ord:Ord(meta) [n:code] {
+            check_type!("var" Value::Var(char) = code.value() => {
+                if Value::is_string(char) {
+                    if char.chars().nth(2).is_none() || char.chars().nth(3).is_some() {
+                        return Err((2, format!("Ord[] cannot support multi chars {char}")))
+                    }
+                    Ok((char.chars().nth(1).unwrap() as u32).to_string().into())
+                } else {
+                    if char.chars().nth(1).is_some() {
+                        return Err((2, format!("Ord[] cannot support multi chars '{char}'")))
+                    }
+                    Ok((char.chars().next().unwrap() as u32).to_string().into())
+                }
             })
         }
     }

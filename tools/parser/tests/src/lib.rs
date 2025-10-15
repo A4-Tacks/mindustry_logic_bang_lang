@@ -8554,6 +8554,96 @@ fn builtin_func_test() {
             r#"end"#,
         ],
     );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print Builtin.Ord[a];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 97"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print Builtin.Ord["a"];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print 97"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print Builtin.Ord[ab];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print __"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print Builtin.Ord[""];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print __"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print Builtin.Ord["ab"];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print __"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print Builtin.Chr[32];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print " ""#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print Builtin.Chr[97];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print "a""#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print Builtin.Chr[10];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print __"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print Builtin.Chr[34];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print __"#,
+        ],
+    );
+
+    assert_eq!(
+        CompileMeta::new().compile(parse!(parser, r#"
+        print Builtin.Chr[0x61];
+        "#).unwrap()).compile().unwrap(),
+        vec![
+            r#"print "a""#,
+        ],
+    );
 }
 
 #[test]
