@@ -1,0 +1,47 @@
+#**
+* 信息板聊天框, 记录追加信息的时间, 淘汰过老消息
+*#
+
+prevBufferSize = bufferSize;
+sensor bufferSize message1 @bufferSize;
+point = bufferSize;
+
+if !bufferSize {
+    print ">";
+    printflush message1;
+    prevBufferSize = 1;
+    break;
+}
+
+break prevBufferSize == bufferSize;
+
+while point > 1 && (
+    (read $ message1 (*point- 1)) != 62 # >
+    || (read $ message1 (*point- 2)) != 10 # \n
+)
+{
+    point--;
+}
+hist = point - 2;
+start = bufferSize - point;
+
+if (*hist + start) > 180 {
+    while start > 2 && start < bufferSize && (read $ message1 (*start- 1)) != 10 {
+        start++;
+    }
+} else {
+    start = 0;
+}
+
+while start < hist {
+    printchar (read $ message1 start++);
+}
+s = @time//1000;
+print "\n"(*s//60)":"(*s%60)"> ";
+while point < bufferSize {
+    printchar (ch:read $ message1 point++);
+    if ch == 10 { print "+ " }
+}
+print "\n>";
+printflush message1;
+sensor bufferSize message1 @bufferSize;
