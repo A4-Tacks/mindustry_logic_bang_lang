@@ -290,5 +290,8 @@ A simple example for comparison
    [code](./examples/pascals_triangle.mnd)
    *Currently not compiled*
 
+**For a detailed comparison of compilers, please refer to the logic tutorial**:
+[25-compiler](https://github.com/A4-Tacks/learn-mindustry-logic/blob/main/pages/25-compilers.md)
+
 # Contributing
 See [CONTRIBUTING.md](./CONTRIBUTING.md).

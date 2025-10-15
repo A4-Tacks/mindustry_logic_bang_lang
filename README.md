@@ -276,5 +276,8 @@ mindustry_logic_bang_lang
    [code](./examples/pascals_triangle.mnd)
    *目前暂未编译*
 
+**关于详尽的编译器比较请参考逻辑教程**:
+[25-编译器](https://github.com/A4-Tacks/learn-mindustry-logic/blob/main/pages/25-compilers.md)
+
 # 贡献
 详见 [CONTRIBUTING.md](./CONTRIBUTING.md).
