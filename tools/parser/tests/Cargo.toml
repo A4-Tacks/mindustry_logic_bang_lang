@@ -14,4 +14,4 @@ tag_code = { path = "../../tag_code", version = "*" }
 syntax = { path = "../../syntax", version = "*" }
 
 [dependencies]
-either = { workspace = true }
+either = "1.14.0"

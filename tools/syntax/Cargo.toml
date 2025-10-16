@@ -9,6 +9,6 @@ edition = "2024"
 tag_code = { path = "../tag_code", version = "*" }
 var_utils = { path = "../var_utils", version = "*"}
 utils = { path = "../utils", version = "*" }
-either = { workspace = true }
+either = "1.14.0"
 itermaps = "0.3.1"
 linked-hash-map = "0.5.6"

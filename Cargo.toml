@@ -30,9 +30,6 @@ members = [
 exclude = [
 ]
 
-[workspace.dependencies]
-either = "1.14.0"
-
 [features]
 default = ["parser/lalrpop"]
 
