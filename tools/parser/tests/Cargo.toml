@@ -12,6 +12,7 @@ default = ["parser/lalrpop"]
 parser = { path = "..", version = "*", default-features = false }
 tag_code = { path = "../../tag_code", version = "*" }
 syntax = { path = "../../syntax", version = "*" }
+dissimilar = "1.0.10"
 
 [dependencies]
 either = "1.14.0"

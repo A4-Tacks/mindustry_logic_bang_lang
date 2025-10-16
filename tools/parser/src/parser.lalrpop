@@ -182,11 +182,11 @@ ConstKey: ConstKey = {
 }
 
 RCombValue<Left>: Left = {
-    <value:IntoV<Left>> <args:MList<ParamArgs>> => {
+    <l:Loc<()>> <value:IntoV<Left>> <args:MList<ParamArgs>> => {
         // QuickDExpTake
         DExp::new(meta.unnamed_var(), vec![
             LogicLine::SetArgs(args),
-            LogicLine::SetResultHandle(value),
+            LogicLine::SetResultHandle(value, Some(l)),
         ].into()).into()
     },
     <value:IntoBoxV<Left>> "->" <name:NoStringVar> => {
@@ -202,11 +202,11 @@ RCombValue<Left>: Left = {
     <IntoBoxV<Left>> "->" "op" => {
         ValueBindRef::new(<>, ValueBindRefTarget::Op).into()
     },
-    <value:IntoV<Left>> "->" <args:MList<ParamArgs>> => {
+    <l:Loc<()>> <value:IntoV<Left>> "->" <args:MList<ParamArgs>> => {
         // Refed QuickDExpTake
         let dexp = DExp::new(meta.unnamed_var(), vec![
             LogicLine::SetArgs(args),
-            LogicLine::SetResultHandle(value),
+            LogicLine::SetResultHandle(value, Some(l)),
         ].into()).into();
 
         ValueBindRef::new(Box::new(dexp), ValueBindRefTarget::ResultHandle).into()
@@ -244,15 +244,15 @@ NonConstRangeValue: Value = {
     RCombValueKeyLike<NonConstRangeValue>,
 }
 
-pub Value: Value = {
+Value: Value = {
     NonConstRangeValue,
     // consted-dexp
-    "const" ConstStart <value:Or<ValueDExp, ("!" <Value>)>> <labels:ConstStop> => {
+    <l:Loc<()>> "const" ConstStart <value:Or<ValueDExp, ("!" <Value>)>> <labels:ConstStop> => {
         let tmp_name = meta.get_tmp_var();
         let dexp_const = Const(tmp_name.clone().into(), value.into(), labels);
         DExp::new(meta.unnamed_var(), vec![
             dexp_const.into(),
-            LogicLine::SetResultHandle(tmp_name.into()),
+            LogicLine::SetResultHandle(tmp_name.into(), Some(l)),
         ].into()).into()
     },
 }
@@ -282,13 +282,13 @@ CmpVAT: Value = {
     CmpValueExtAtom => <>.into(),
     "++" <Value> => {
         DExp::new(meta.unnamed_var(), vec![
-            LogicLine::SetResultHandle(<>),
+            LogicLine::SetResultHandle(<>, None),
             Op::Add(ResultHandle, ResultHandle, ReprVar("1".into())).into(),
         ].into()).into()
     },
     "--" <Value> => {
         DExp::new(meta.unnamed_var(), vec![
-            LogicLine::SetResultHandle(<>),
+            LogicLine::SetResultHandle(<>, None),
             Op::Sub(ResultHandle, ResultHandle, ReprVar("1".into())).into(),
         ].into()).into()
     },
@@ -315,7 +315,7 @@ JumpCmpBody: JumpCmp = {
 }
 
 // 入口
-pub JumpCmp: CmpTree = CmpTree2;
+JumpCmp: CmpTree     = CmpTree2;
 JumpCmpOnce: CmpTree = CmpTree1;
 
 // 可空的, 空时为总是的条件
@@ -429,7 +429,7 @@ InlineBlock: InlineBlock = LinesBlock => <>.into();
 
 #[inline]
 Expand: Expand = Lines => Expand(<>);
-pub LogicLine: LogicLine = {
+LogicLine: LogicLine = {
     LogicLineNormal,
     <LogicLineSingle> LEnd,
 }
@@ -541,7 +541,8 @@ ConstMatchPatAtom: ConstMatchPatAtom = {
                         vec![MatchPatAtom::new_unamed(pat, false)].into(),
                         vec![
                             LogicLine::SetResultHandle(
-                                Value::ReprVar("1".into())
+                                Value::ReprVar("1".into()),
+                                None,
                             ),
                         ].into(),
                     ),
@@ -549,7 +550,8 @@ ConstMatchPatAtom: ConstMatchPatAtom = {
                         vec![MatchPatAtom::default()].into(),
                         vec![
                             LogicLine::SetResultHandle(
-                                Value::ReprVar("0".into())
+                                Value::ReprVar("0".into()),
+                                None,
                             ),
                         ].into(),
                     ),
@@ -1242,13 +1244,13 @@ OpExprSelfOpsSuf<O>: () = O => {
 OpExprValueSelfOps<O>: OpExprInfo = {
     "++" <O> => {
         OpExprType::Value(DExp::new(meta.unnamed_var(), vec![
-            LogicLine::SetResultHandle(<>),
+            LogicLine::SetResultHandle(<>, None),
             Op::Add(ResultHandle, ResultHandle, ReprVar("1".into())).into(),
         ].into()).into()).into()
     },
     "--" <O> => {
         OpExprType::Value(DExp::new(meta.unnamed_var(), vec![
-            LogicLine::SetResultHandle(<>),
+            LogicLine::SetResultHandle(<>, None),
             Op::Sub(ResultHandle, ResultHandle, ReprVar("1".into())).into(),
         ].into()).into()).into()
     },
@@ -1363,7 +1365,7 @@ BuiltinCommand: LogicLine = {
         })
     },
 
-    "setres" <Value> => LogicLine::SetResultHandle(<>),
+    "setres" <Value> => LogicLine::SetResultHandle(<>, None),
 }
 TakeDestructAtom: (bool, Var, Var) = {
     <Opt<"&">> <Var> ":" <Var>,

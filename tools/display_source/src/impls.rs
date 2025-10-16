@@ -542,7 +542,7 @@ impl DisplaySource for LogicLine {
                 meta.push(&Value::replace_ident(var));
                 meta.push(";");
             },
-            Self::SetResultHandle(val) => {
+            Self::SetResultHandle(val, _) => {
                 meta.push("setres");
                 meta.add_space();
                 val.display_source(meta);

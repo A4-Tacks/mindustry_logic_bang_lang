@@ -292,6 +292,14 @@ impl Value {
             .map(|ext| ext.display_value(self))
             .unwrap_or_else(|| format!("{self:#?}").into())
     }
+
+    /// Returns `true` if the value is [`ValueBind`].
+    ///
+    /// [`ValueBind`]: Value::ValueBind
+    #[must_use]
+    pub fn is_value_bind(&self) -> bool {
+        matches!(self, Self::ValueBind(..))
+    }
 }
 impl TakeHandle for Value {
     fn take_handle(self, meta: &mut CompileMeta) -> Var {
@@ -2837,18 +2845,8 @@ impl Take {
     }
 
     fn check_unused(&self, meta: &mut CompileMeta) {
-        if !meta.enable_unused_no_effect_info { return };
         let ConstKey::Unused(ref loc) = self.0 else { return };
-        let Value::Var(var) = &self.1 else { return };
-        let Some(Some(var)) = meta.get_const_value(var)
-            .map(|data| data.value().as_var())
-            .or(Some(Some(var))) else { return };
-
-        let (line, column) = loc.location(&meta.source);
-        meta.log_info(format_args!(
-                "{line}:{column} Unused take non-effect var: {}",
-                var.clone(),
-        ));
+        meta.check_must_effect(loc.new_value(&self.1));
     }
 }
 impl Compile for Take {
@@ -3170,7 +3168,10 @@ impl MatchPat {
                 meta.add_const_value(Const(name.into(), value.clone().into(), vec![]));
             }
             if set_res {
-                LogicLine::SetResultHandle(Value::ReprVar(value.clone())).compile(meta);
+                LogicLine::SetResultHandle(
+                    Value::ReprVar(value.clone()),
+                    None,
+                ).compile(meta);
             }
         }
         match self {
@@ -3377,7 +3378,7 @@ impl ConstMatchPat {
                     &name
                 });
             if set_res {
-                LogicLine::SetResultHandle(target.into()).compile(meta);
+                LogicLine::SetResultHandle(target.into(), None).compile(meta);
             }
         }
 
@@ -3792,8 +3793,8 @@ pub enum LogicLine {
     Take(Take),
     /// 将指定const在块末尾进行泄漏
     ConstLeak(Var),
-    /// 将返回句柄设置为一个指定值
-    SetResultHandle(Value),
+    /// 将返回句柄设置为一个指定值, 且是否预期effect
+    SetResultHandle(Value, Option<IdxBox<()>>),
     SetArgs(Args),
     ArgsRepeat(ArgsRepeat),
     Match(Match),
@@ -3818,7 +3819,10 @@ impl Compile for LogicLine {
                     .unwrap();
                 meta.push(args);
             },
-            Self::SetResultHandle(value) => {
+            Self::SetResultHandle(value, must_effect) => {
+                if let Some(loc) = must_effect {
+                    meta.check_must_effect(loc.new_value(&value));
+                }
                 let new_dexp_handle = value.take_handle(meta);
                 meta.set_dexp_handle(new_dexp_handle);
             },
@@ -4067,6 +4071,12 @@ impl ConstData {
     }
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub enum QueryErr {
+    TooComplex(Value),
+    NotFound(Value),
+}
+
 fn num_radix<N>(mut n: N, radix: N) -> String
 where N: ops::DivAssign + ops::Rem<Output = N>
          + Eq + Debug + Default + Into<usize>
@@ -4182,6 +4192,7 @@ pub struct CompileMeta {
     noop_line: String,
     /// 保证不会是字符串
     bind_custom_sep: Option<Var>,
+    log_count: usize,
     source: Rc<String>,
 }
 impl Debug for CompileMeta {
@@ -4252,6 +4263,7 @@ impl CompileMeta {
             args_repeat_limit: 10000,
             args_repeat_flags: Vec::new(),
             bind_custom_sep: None,
+            log_count: 0,
             source,
         };
         let builtin = Var::from(Self::BUILTIN_FUNCS_BINDER);
@@ -4823,13 +4835,19 @@ impl CompileMeta {
     }
 
     pub fn log_info(&mut self, s: impl std::fmt::Display) {
+        self.log_count += 1;
         eprintln!("{}", csi!(1; 22; "[I] {}",
                 s.to_string().trim_end().replace('\n', "\n    ")))
     }
 
     pub fn log_err(&mut self, s: impl std::fmt::Display) {
+        self.log_count += 1;
         eprintln!("{}", csi!(1, 91; 22, 39; "[E] {}",
                 s.to_string().trim_end().replace('\n', "\n    ")))
+    }
+
+    pub fn log_count(&self) -> usize {
+        self.log_count
     }
 
     pub fn debug_expand_stack(&self) -> impl Iterator<
@@ -4906,6 +4924,90 @@ impl CompileMeta {
 
     pub fn extender(&self) -> Option<&dyn CompileMetaExtends> {
         self.extender.as_deref()
+    }
+
+    fn view_bind(&self, value: &Value) -> Result<Value, QueryErr> {
+        fn handle(
+            meta: &CompileMeta,
+            value: &Value,
+            level: usize,
+        ) -> Result<Value, QueryErr> {
+            if level >= 6 {
+                return Err(QueryErr::TooComplex(value.clone()));
+            }
+            match value {
+                Value::ReprVar(var) => Ok(var.into()),
+                Value::ResultHandle => meta.try_get_dexp_handle().ok_or_else(|| {
+                    QueryErr::NotFound(Value::ResultHandle)
+                }).map(|v| v.into()),
+                Value::Binder => meta.get_dexp_expand_binder().ok_or_else(|| {
+                    QueryErr::NotFound(Value::Binder)
+                }).map(|v| v.into()),
+                Value::Var(var) => {
+                    let Some(data) = meta.get_const_value(var) else {
+                        return Ok(var.into())
+                    };
+                    data
+                        .value.is_value_bind()
+                        .then(|| handle(meta, &data.value, level+1))
+                        .unwrap_or_else(|| Ok(data.value.clone()))
+                },
+                Value::ValueBind(ValueBind(value_bind, name)) |
+                Value::ValueBindRef(ValueBindRef {
+                    value: value_bind,
+                    bind_target: ValueBindRefTarget::NameBind(name),
+                }) => {
+                    let value_bind = &**value_bind;
+                    let bind_value = handle(meta, value_bind, level+1)?;
+                    let bind_value_handle = bind_value
+                        .as_var()
+                        .map(Ok)
+                        .unwrap_or_else(|| {
+                            handle(meta, value_bind, level+1)
+                                .and_then(|value| Err(QueryErr::TooComplex(value)))
+                        })?;
+                    let bind_handle = meta.value_bind_pairs
+                        .get(bind_value_handle)
+                        .and_then(|pairs| pairs.get(name))
+                        .or_else(|| meta.value_bind_pairs.get(GLOBAL_VAR)?.get(name))
+                        .ok_or_else(|| QueryErr::NotFound(value_bind.clone()))?;
+                    meta.get_const_value(bind_handle)
+                        .map(|data| Ok(data.value.clone()))
+                        .unwrap_or_else(|| Ok(bind_handle.into()))
+                },
+                _ => return Err(QueryErr::TooComplex(value.clone())),
+            }
+        }
+        handle(self, value, 0)
+    }
+
+    fn has_no_effect(&self, value: &Value) -> Option<Value> {
+        match self.view_bind(value) {
+            Ok(value) => match &value {
+                Value::Var(..) | Value::ReprVar(..) | Value::ResultHandle |
+                Value::Binder => Some(value),
+                _ => None,
+            },
+            Err(QueryErr::NotFound(value)) => Some(value),
+            Err(QueryErr::TooComplex(_)) => None,
+        }
+    }
+
+    fn check_must_effect(&mut self, value: IdxBox<&Value>) {
+        if !self.enable_unused_no_effect_info {
+            return;
+        };
+        if let Some(no_effect) = self.has_no_effect(&value.value) {
+            let (line, column) = value.location(&self.source);
+            let no_effect = if let Some(ext) = self.extender() {
+                ext.display_value(&no_effect).into_owned()
+            } else {
+                format!("{no_effect:#?}")
+            };
+            self.log_info(format_args!(
+                    "{line}:{column} Take no effect: {no_effect}",
+            ));
+        }
     }
 }
 

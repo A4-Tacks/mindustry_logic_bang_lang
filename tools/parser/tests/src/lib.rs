@@ -12,6 +12,83 @@ macro_rules! parse {
     };
 }
 
+macro_rules! check_sugar {
+    ( $parser:expr, $a:expr, $b:expr $(,)? ) => {
+        let (a, b) = (parse!($parser, $a), parse!($parser, $b));
+        if a != b {
+            panic!("check sugar fail:\nraw:\n{a:#?}\ndesugar:\n{b:#?}");
+        }
+    };
+}
+
+macro_rules! check_compile {
+    ( $parser:expr, $a:expr, $b:expr $(,)? ) => {{
+        let meta = CompileMeta::new();
+        let meta = check_compile!(@compile(meta) $parser, $a, $b);
+        meta.hit_log(0);
+        meta
+    }};
+    (@with_source $parser:expr, $a:expr, $b:expr $(,)? ) => {{
+        let src = $a;
+        let meta = CompileMeta::with_source(src.to_owned().into());
+        check_compile!(@compile(meta) $parser, src, $b)
+    }};
+    (@compile($meta:ident) $parser:expr, $a:expr, $b:expr $(,)? ) => {{
+        let mut meta = $meta.compile_res_self(parse!($parser, $a).unwrap());
+        let lines = std::mem::take(meta.parse_lines_mut());
+        let linked = lines.compile().unwrap();
+        check_compile_result(linked, $b);
+        meta
+    }};
+}
+
+macro_rules! check_compile_eq {
+    ( $parser:expr, $a:expr, $b:expr $(,)? ) => {{
+        check_compile!($parser,
+            $a,
+            &CompileMeta::new().compile(
+                parse!($parser, $b).unwrap()
+            ).compile().unwrap().join("\n"),
+        );
+    }};
+}
+
+#[track_caller]
+fn check_compile_result(current: Vec<String>, expected: &str) {
+    let lines = expected.lines()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty());
+    if lines.clone().eq(&current) {
+        return;
+    }
+    println!("-- current --");
+    for cur in &current {
+        println!("{cur}")
+    }
+    println!();
+    println!("-- expected --");
+    for line in lines.clone() {
+        println!("{line}")
+    }
+
+    println!();
+    println!("-- diff --");
+
+    for diff_chunk in dissimilar::diff(
+        &current.join("\n"),
+        &lines.collect::<Vec<_>>().join("\n"),
+    ) {
+        match diff_chunk {
+            dissimilar::Chunk::Equal(s) => eprint!("{s}"),
+            dissimilar::Chunk::Delete(s) => eprint!("\x1b[41m{s}\x1b[m\x1b[K"),
+            dissimilar::Chunk::Insert(s) => eprint!("\x1b[42m{s}\x1b[m\x1b[K"),
+        }
+    }
+
+    println!();
+    panic!("compile result mismatch")
+}
+
 trait PCompile {
     type E;
     fn compile(self) -> Result<Vec<String>, Self::E>;
@@ -21,6 +98,16 @@ impl<'a> PCompile for tag_code::logic_parser::ParseLines<'a> {
     fn compile(self) -> Result<Vec<String>, Self::E> {
         let mut tagcodes = TagCodes::try_from(self).map_err(Left)?;
         tagcodes.compile().map_err(Right)
+    }
+}
+
+trait HitLog {
+    fn hit_log(&self, expected: usize);
+}
+impl HitLog for CompileMeta {
+    #[track_caller]
+    fn hit_log(&self, expected: usize) {
+        assert_eq!(self.log_count(), expected, "log count mismatch");
     }
 }
 
@@ -134,18 +221,20 @@ fn goto_test() {
 
 #[test]
 fn control_test() {
-    let parser = LogicLineParser::new();
+    let parser = TopLevelParser::new();
     assert_eq!(
         parse!(parser, r#"skip 1 < 2 print "hello";"#).unwrap(),
         Expand(vec![
-            Goto("___0".into(), JumpCmp::LessThan("1".into(), "2".into()).into()).into(),
-            LogicLine::Other(vec![Value::ReprVar("print".into()), r#""hello""#.into()].into()),
-            LogicLine::Label("___0".into()),
+            Expand(vec![
+                Goto("___0".into(), JumpCmp::LessThan("1".into(), "2".into()).into()).into(),
+                LogicLine::Other(vec![Value::ReprVar("print".into()), r#""hello""#.into()].into()),
+                LogicLine::Label("___0".into()),
+            ]).into()
         ]).into()
     );
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         if 2 < 3 {
             print 1;
         } elif 3 < 4 {
@@ -153,8 +242,8 @@ fn control_test() {
         } elif 4 < 5 {
             print 3;
         } else print 4;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             goto :___1 2 < 3;
             goto :___2 3 < 4;
@@ -174,11 +263,11 @@ fn control_test() {
             }
             :___0
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         if 2 < 3 {
             print 1;
         } elif 3 < 4 {
@@ -186,8 +275,8 @@ fn control_test() {
         } elif 4 < 5 {
             print 3;
         }
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             goto :___1 2 < 3;
             goto :___2 3 < 4;
@@ -205,28 +294,28 @@ fn control_test() {
             }
             :___0
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         if 2 < 3 { # 对于没有elif与else的if, 会将条件反转并构建为skip
             print 1;
         }
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         skip ! 2 < 3 {
             print 1;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         while a < b
             print 3;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             goto :___0 a >= b;
             :___1
@@ -234,32 +323,32 @@ fn control_test() {
             goto :___1 a < b;
             :___0
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         do {
             print 1;
         } while a < b;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             :___0 {
                 print 1;
             }
             goto :___0 a < b;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         gwhile a < b {
             print 1;
         }
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             goto :___0 _;
             :___1 {
@@ -268,29 +357,29 @@ fn control_test() {
             :___0
             goto :___1 a < b;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         skip _ {
             print 1;
         }
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         skip {
             print 1;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         do do {
             print 1;
         } while a < b; while c < d;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             :___1 {
                 :___0 {
@@ -300,8 +389,8 @@ fn control_test() {
             }
             goto :___1 c < d;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
     let _ = parse!(parser, r#"
     while a < b if c < d {
@@ -330,7 +419,7 @@ fn control_test() {
 
 #[test]
 fn reverse_test() {
-    let parser = LogicLineParser::new();
+    let parser = TopLevelParser::new();
 
     let datas = vec![
         [r#"goto :a x === y;"#, r#"goto :a x !== y;"#],
@@ -345,8 +434,8 @@ fn reverse_test() {
     ];
     for [src, dst] in datas {
         assert_eq!(
-            parse!(parser, src).unwrap().as_goto().unwrap().1.clone().reverse(),
-            parse!(parser, dst).unwrap().as_goto().unwrap().1,
+            parse!(parser, src).unwrap()[0].as_goto().unwrap().1.clone().reverse(),
+            parse!(parser, dst).unwrap()[0].as_goto().unwrap().1,
         );
     }
 
@@ -372,10 +461,10 @@ fn reverse_test() {
         [r#"goto :a !!! _;"#, r#"goto :a !_;"#],
     ];
     for [src, dst] in datas {
-        assert_eq!(
-            parse!(parser, src).unwrap().as_goto().unwrap().1,
-            parse!(parser, dst).unwrap().as_goto().unwrap().1,
-        );
+        check_sugar! {parser,
+            src,
+            dst,
+        };
     }
 }
 
@@ -383,137 +472,168 @@ fn reverse_test() {
 fn goto_compile_test() {
     let parser = TopLevelParser::new();
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    goto :x _;
-    :x
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "jump 1 always 0 0",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        goto :x _;
+        :x
+        end;
+        "#,
+        r#"
+        jump 1 always 0 0
+        end
+        "#,
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    const 0 = 1;
-    goto :x _;
-    :x
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "jump 1 always 0 0",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        const 0 = 1;
+        goto :x _;
+        :x
+        end;
+        "#,
+        r#"
+               jump 1 always 0 0
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    const 0 = 1;
-    goto :x !_;
-    :x
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        const 0 = 1;
+        goto :x !_;
+        :x
+        end;
+        "#,
+        r#"
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    const 0 = 1;
-    const false = true;
-    goto :x a === b;
-    :x
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "jump 1 strictEqual a b",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        const 0 = 1;
+        const false = true;
+        goto :x a === b;
+        :x
+        end;
+        "#,
+        r#"
+               jump 1 strictEqual a b
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    const 0 = 1;
-    const false = true;
-    goto :x !!a === b;
-    :x
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "jump 1 strictEqual a b",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        const 0 = 1;
+        const false = true;
+        goto :x !!a === b;
+        :x
+        end;
+        "#,
+        r#"
+               jump 1 strictEqual a b
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    const 0 = 1;
-    const false = true;
-    goto :x !a === b;
-    :x
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "op strictEqual __0 a b",
-               "jump 2 equal __0 false",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        const 0 = 1;
+        const false = true;
+        goto :x !a === b;
+        :x
+        end;
+        "#,
+        r#"
+               op strictEqual __0 a b
+               jump 2 equal __0 false
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    const 0 = 1;
-    const false = true;
-    goto :x a !== b;
-    :x
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "op strictEqual __0 a b",
-               "jump 2 equal __0 false",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        const 0 = 1;
+        const false = true;
+        goto :x a !== b;
+        :x
+        end;
+        "#,
+        r#"
+               op strictEqual __0 a b
+               jump 2 equal __0 false
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    skip !_ && !_ {
-        print true;
-    }
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "jump 1 always 0 0",
-               "print true",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        skip !_ && !_ {
+            print true;
+        }
+        end;
+        "#,
+        r#"
+               jump 1 always 0 0
+               print true
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    skip _ && !_ {
-        print true;
-    }
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print true",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        skip _ && !_ {
+            print true;
+        }
+        end;
+        "#,
+        r#"
+               print true
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    skip !_ {
-        print true;
-    }
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print true",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        skip !_ {
+            print true;
+        }
+        end;
+        "#,
+        r#"
+               print true
+               end
+        "#
+    );
 }
 
 #[test]
 fn line_test() {
-    let parser = LogicLineParser::new();
-    assert_eq!(parse!(parser, "noop;").unwrap(), LogicLine::NoOp);
+    let parser = TopLevelParser::new();
+    assert_eq!(
+        parse!(parser, "noop;").unwrap(),
+        Expand(vec![
+            LogicLine::NoOp,
+        ]).into()
+    );
     assert_eq!(
         parse!(parser, "foo;").unwrap(),
-        LogicLine::Other(vec!["foo".into()].into()),
+        Expand(vec![
+            LogicLine::Other(vec!["foo".into()].into()),
+        ]).into()
     );
     assert_eq!(
         parse!(parser, "foo bar;").unwrap(),
-        LogicLine::Other(vec!["foo".into(), "bar".into()].into()),
+        Expand(vec![
+            LogicLine::Other(vec!["foo".into(), "bar".into()].into()),
+        ]).into()
     );
     assert_eq!(
         parse!(parser, "foo, bar;").unwrap(),
-        LogicLine::Other(vec!["foo".into(), "bar".into()].into()),
+        Expand(vec![
+            LogicLine::Other(vec!["foo".into(), "bar".into()].into()),
+        ]).into()
     );
 }
 
@@ -529,7 +649,7 @@ fn literal_uint_test() {
 
 #[test]
 fn switch_test() {
-    let parser = LogicLineParser::new();
+    let parser = TopLevelParser::new();
 
     let ast = parse!(parser, r#"
         switch 2 {
@@ -546,7 +666,7 @@ fn switch_test() {
     "#).unwrap();
     assert_eq!(
         ast,
-        Select(
+        Expand(vec![Select(
             "2".into(),
             Expand(vec![
                 LogicLine::Ignore,
@@ -566,10 +686,10 @@ fn switch_test() {
                     LogicLine::Other(vec![Value::ReprVar("print".into()), "5".into()].into()),
                 ]).into(),
             ])
-        ).into()
+        ).into()])
     );
     let tag_codes = CompileMeta::new()
-        .compile(Expand(vec![ast]).into());
+        .compile(ast);
     let lines = tag_codes
         .compile()
         .unwrap();
@@ -598,7 +718,7 @@ fn switch_test() {
     "#).unwrap();
     assert_eq!(
         ast,
-        Select(
+        Expand(vec![Select(
             "1".into(),
             Expand(vec![
                 Expand(vec![
@@ -610,7 +730,7 @@ fn switch_test() {
                         LogicLine::Other(vec![Value::ReprVar("print".into()), "end".into()].into()),
                 ]).into(),
             ])
-        ).into()
+        ).into()])
     );
 
     // 测试追加对于填充的效用
@@ -622,7 +742,7 @@ fn switch_test() {
     "#).unwrap();
     assert_eq!(
         ast,
-        Select(
+        Expand(vec![Select(
             "1".into(),
             Expand(vec![
                 Expand(vec![
@@ -633,7 +753,7 @@ fn switch_test() {
                         LogicLine::Other(vec![Value::ReprVar("print".into()), "end".into()].into()),
                 ]).into(),
             ])
-        ).into()
+        ).into()])
     );
 
     assert_eq!(
@@ -644,7 +764,7 @@ fn switch_test() {
             case 0: print 0;
             }
         "#).unwrap(),
-        Select(
+        Expand(vec![Select(
             "1".into(),
             Expand(vec![
                 Expand(vec![
@@ -655,16 +775,16 @@ fn switch_test() {
                         ]).into(),
                 ]).into(),
             ])
-        ).into()
+        ).into()])
     );
 
 }
 
 #[test]
 fn comments_test() {
-    let parser = LogicLineParser::new();
-    assert_eq!(
-        parse!(parser, r#"
+    let parser = TopLevelParser::new();
+    check_sugar! {parser,
+        r#"
         # inline comment
         #comment1
         #* this is a long comments
@@ -678,10 +798,11 @@ fn comments_test() {
         #*一行内的长注释*#
         #*语句前面的长注释*#noop;#语句后注释
         #注释
-        "#
-        ).unwrap(),
-        LogicLine::NoOp
-    );
+        "#,
+        r#"
+        noop;
+        "#,
+    };
 }
 
 #[test]
@@ -699,39 +820,38 @@ fn op_generate_test() {
 #[test]
 fn compile_test() {
     let parser = TopLevelParser::new();
-    let src = r#"
-    op x 1 + 2;
-    op y (op $ x + 3;) * (op $ x * 2;);
-    if (op tmp y & 1; op $ tmp + 1;) == 1 {
-        print "a ";
-    } else {
-        print "b ";
-    }
-    print (op $ y + 3;);
-    "#;
-    let ast = parse!(parser, src).unwrap();
-    let meta = CompileMeta::new();
-    let tag_codes = meta.compile(ast);
-    let logic_lines = tag_codes.compile().unwrap();
-    assert_eq!(logic_lines, [
-        r#"op add x 1 2"#,
-        r#"op add __0 x 3"#,
-        r#"op mul __1 x 2"#,
-        r#"op mul y __0 __1"#,
-        r#"op and tmp y 1"#,
-        r#"op add __2 tmp 1"#,
-        r#"jump 9 equal __2 1"#,
-        r#"print "b ""#,
-        r#"jump 10 always 0 0"#,
-        r#"print "a ""#,
-        r#"op add __3 y 3"#,
-        r#"print __3"#,
-    ])
+
+    check_compile!(parser,
+        r#"
+        op x 1 + 2;
+        op y (op $ x + 3;) * (op $ x * 2;);
+        if (op tmp y & 1; op $ tmp + 1;) == 1 {
+            print "a ";
+        } else {
+            print "b ";
+        }
+        print (op $ y + 3;);
+        "#,
+        r#"
+        op add x 1 2
+        op add __0 x 3
+        op mul __1 x 2
+        op mul y __0 __1
+        op and tmp y 1
+        op add __2 tmp 1
+        jump 9 equal __2 1
+        print "b "
+        jump 10 always 0 0
+        print "a "
+        op add __3 y 3
+        print __3
+        "#
+    );
 }
 
 #[test]
 fn compile_take_test() {
-    let parser = LogicLineParser::new();
+    let parser = TopLevelParser::new();
     let ast = parse!(parser, "op x ({}op $ 1 + 2;) + 3;").unwrap();
     let mut meta = CompileMeta::new();
     meta.push(ParseLine::Args(args!("noop")));
@@ -750,285 +870,263 @@ fn compile_take_test() {
 fn const_value_test() {
     let parser = TopLevelParser::new();
 
-    let src = r#"
-    x = C;
-    const C = (read $ cell1 0;);
-    y = C;
-    "#;
-    let ast = parse!(parser, src).unwrap();
-    let meta = CompileMeta::new();
-    let tag_codes = meta.compile(ast);
-    let logic_lines = tag_codes.compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "set x C",
-               "read __0 cell1 0",
-               "set y __0",
-    ]);
+    check_compile!(parser,
+        r#"
+        x = C;
+        const C = (read $ cell1 0;);
+        y = C;
+        "#,
+        r#"
+        set x C
+        read __0 cell1 0
+        set y __0
+        "#
+    );
 
-    let src = r#"
-    x = C;
-    const C = (k: read k cell1 0;);
-    y = C;
-    "#;
-    let ast = parse!(parser, src).unwrap();
-    let meta = CompileMeta::new();
-    let tag_codes = meta.compile(ast);
-    let logic_lines = tag_codes.compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "set x C",
-               "read k cell1 0",
-               "set y k",
-    ]);
+    check_compile!(parser,
+        r#"
+        x = C;
+        const C = (k: read k cell1 0;);
+        y = C;
+        "#,
+        r#"
+        set x C
+        read k cell1 0
+        set y k
+        "#
+    );
 
-    let src = r#"
-    x = C;
-    const C = (read $ cell1 0;);
-    foo a b C d C;
-    "#;
-    let ast = parse!(parser, src).unwrap();
-    let meta = CompileMeta::new();
-    let tag_codes = meta.compile(ast);
-    let logic_lines = tag_codes.compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "set x C",
-               "read __0 cell1 0",
-               "read __1 cell1 0",
-               "foo a b __0 d __1",
-    ]);
+    check_compile!(parser,
+        r#"
+        x = C;
+        const C = (read $ cell1 0;);
+        foo a b C d C;
+        "#,
+        r#"
+        set x C
+        read __0 cell1 0
+        read __1 cell1 0
+        foo a b __0 d __1
+        "#
+    );
 
-    let src = r#"
-    const C = (m: read $ cell1 0;);
-    x = C;
-    "#;
-    let ast = parse!(parser, src).unwrap();
-    let meta = CompileMeta::new();
-    let tag_codes = meta.compile(ast);
-    let logic_lines = tag_codes.compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "read m cell1 0",
-               "set x m",
-    ]);
+    check_compile!(parser,
+        r#"
+        const C = (m: read $ cell1 0;);
+        x = C;
+        "#,
+        r#"
+        read m cell1 0
+        set x m
+        "#
+    );
 
-    let src = r#"
-    const C = (read $ cell1 (i: read $ cell2 0;););
-    print C;
-    "#;
-    let ast = parse!(parser, src).unwrap();
-    let meta = CompileMeta::new();
-    let tag_codes = meta.compile(ast);
-    let logic_lines = tag_codes.compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "read i cell2 0",
-               "read __0 cell1 i",
-               "print __0",
-    ]);
+    check_compile!(parser,
+        r#"
+        const C = (read $ cell1 (i: read $ cell2 0;););
+        print C;
+        "#,
+        r#"
+        read i cell2 0
+        read __0 cell1 i
+        print __0
+        "#
+    );
 }
 
 #[test]
 fn const_value_block_range_test() {
     let parser = TopLevelParser::new();
 
-    let src = r#"
-    {
-        x = C;
-        const C = (read $ cell1 0;);
-        const C = (read $ cell2 0;); # 常量覆盖
+    check_compile!(parser,
+        r#"
         {
-            const C = (read $ cell3 0;); # 子块常量
-            m = C;
+            x = C;
+            const C = (read $ cell1 0;);
+            const C = (read $ cell2 0;); # 常量覆盖
+            {
+                const C = (read $ cell3 0;); # 子块常量
+                m = C;
+            }
+            y = C;
+            foo C C;
         }
-        y = C;
-        foo C C;
-    }
-    z = C;
-    "#;
-    let ast = parse!(parser, src).unwrap();
-    let meta = CompileMeta::new();
-    let tag_codes = meta.compile(ast);
-    let logic_lines = tag_codes.compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "set x C",
-               "read __0 cell3 0",
-               "set m __0",
-               "read __1 cell2 0",
-               "set y __1",
-               "read __2 cell2 0",
-               "read __3 cell2 0",
-               "foo __2 __3",
-               "set z C",
-    ]);
+        z = C;
+        "#,
+        r#"
+        set x C
+        read __0 cell3 0
+        set m __0
+        read __1 cell2 0
+        set y __1
+        read __2 cell2 0
+        read __3 cell2 0
+        foo __2 __3
+        set z C
+        "#
+    );
 }
 
 #[test]
 fn take_test() {
     let parser = TopLevelParser::new();
 
-    let src = r#"
-    print start;
-    const F = (read $ cell1 0;);
-    take V = F; # 求值并映射
-    print V;
-    print V; # 再来一次
-    foo V V;
-    take V1 = F; # 再求值并映射
-    print V1;
-    "#;
-    let ast = parse!(parser, src).unwrap();
-    let meta = CompileMeta::new();
-    let tag_codes = meta.compile(ast);
-    let logic_lines = tag_codes.compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print start",
-               "read __0 cell1 0",
-               "print __0",
-               "print __0",
-               "foo __0 __0",
-               "read __1 cell1 0",
-               "print __1",
-    ]);
+    check_compile!(parser,
+        r#"
+        print start;
+        const F = (read $ cell1 0;);
+        take V = F; # 求值并映射
+        print V;
+        print V; # 再来一次
+        foo V V;
+        take V1 = F; # 再求值并映射
+        print V1;
+        "#,
+        r#"
+        print start
+        read __0 cell1 0
+        print __0
+        print __0
+        foo __0 __0
+        read __1 cell1 0
+        print __1
+        "#
+    );
 
-    let src = r#"
-    const F = (m: read $ cell1 0;);
-    take V = F; # 求值并映射
-    print V;
-    "#;
-    let ast = parse!(parser, src).unwrap();
-    let meta = CompileMeta::new();
-    let tag_codes = meta.compile(ast);
-    let logic_lines = tag_codes.compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "read m cell1 0",
-               "print m",
-    ]);
+    check_compile!(parser,
+        r#"
+        const F = (m: read $ cell1 0;);
+        take V = F; # 求值并映射
+        print V;
+        "#,
+        r#"
+        read m cell1 0
+        print m
+        "#
+    );
 
-    let src = r#"
-    take X = 2;
-    take Y = `X`;
-    const Z = `X`;
-    print Y Z;
-    "#;
-    let ast = parse!(parser, src).unwrap();
-    let meta = CompileMeta::new();
-    let tag_codes = meta.compile(ast);
-    let logic_lines = tag_codes.compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print X",
-               "print X",
-    ]);
+    check_compile!(parser,
+        r#"
+        take X = 2;
+        take Y = `X`;
+        const Z = `X`;
+        print Y Z;
+        "#,
+        r#"
+        print X
+        print X
+        "#
+    );
 
-    let src = r#"
-    take X = 2;
-    take Y = X;
-    const Z = X;
-    print Y Z;
-    "#;
-    let ast = parse!(parser, src).unwrap();
-    let meta = CompileMeta::new();
-    let tag_codes = meta.compile(ast);
-    let logic_lines = tag_codes.compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print 2",
-               "print 2",
-    ]);
+    check_compile!(parser,
+        r#"
+        take X = 2;
+        take Y = X;
+        const Z = X;
+        print Y Z;
+        "#,
+        r#"
+        print 2
+        print 2
+        "#
+    );
 
-    let src = r#"
-    const 2 = 3;
-    take X = `2`;
-    take Y = X;
-    const Z = X;
-    print Y Z;
-    "#;
-    let ast = parse!(parser, src).unwrap();
-    let meta = CompileMeta::new();
-    let tag_codes = meta.compile(ast);
-    let logic_lines = tag_codes.compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print 2",
-               "print 2",
-    ]);
+    check_compile!(parser,
+        r#"
+        const 2 = 3;
+        take X = `2`;
+        take Y = X;
+        const Z = X;
+        print Y Z;
+        "#,
+        r#"
+        print 2
+        print 2
+        "#
+    );
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take+A+B+C+D;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take A = ();
             take B = ();
             take C = ();
             take D = ();
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take+A, +B, +C+D,;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take A = ();
             take B = ();
             take C = ();
             take D = ();
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take +A, B, C,;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         take +A  B  C;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take +A, B, C;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         take +A  B  C;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         const A=2, B=3,;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         const A=2 B=3;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         const A=2, B=3;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         const A=2 B=3;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take X{A, B:C} = (c;);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take X = (c;);
             take A = X.A;
             take B = X.C;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take M=() X{A, B:C} = (c;);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take M=();
             inline {
@@ -1037,79 +1135,79 @@ fn take_test() {
                 take B = X.C;
             }
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take X{A, B:C} = (c;);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take X = (c;);
             take A = X.A;
             take B = X.C;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take X{A B:C} = (c;);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take X = (c;);
             take A = X.A;
             take B = X.C;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take X{A &B:C} = (c;);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take X = (c;);
             take A = X.A;
             const B = X->C;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take _{A &B:C} = (c;);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = (c;);
             take A = ___0.A;
             const B = ___0->C;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take {A &B:C} = (c;);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = (c;);
             take A = ___0.A;
             const B = ___0->C;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take {A &B:C} = (c;) X=M;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             inline {
                 take ___0 = (c;);
@@ -1118,14 +1216,14 @@ fn take_test() {
             }
             take X=M;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take {A &B:C} = (c;) {X}=M;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             inline {
                 take ___0 = (c;);
@@ -1137,14 +1235,14 @@ fn take_test() {
                 take X = ___1.X;
             }
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take {A &B:C} = (c;) {X}=M {Y}=N;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             inline {
                 take ___0 = (c;);
@@ -1160,38 +1258,36 @@ fn take_test() {
                 take Y = ___2.Y;
             }
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {}
-        "#).unwrap(),
-    );
+        "#,
+    };
 }
 
 #[test]
 fn print_test() {
     let parser = TopLevelParser::new();
 
-    let src = r#"
-    print "abc" "def" "ghi" j 123 @counter;
-    "#;
-    let ast = parse!(parser, src).unwrap();
-    let meta = CompileMeta::new();
-    let tag_codes = meta.compile(ast);
-    let logic_lines = tag_codes.compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               r#"print "abc""#,
-               r#"print "def""#,
-               r#"print "ghi""#,
-               r#"print j"#,
-               r#"print 123"#,
-               r#"print @counter"#,
-    ]);
+    check_compile!(parser,
+        r#"
+        print "abc" "def" "ghi" j 123 @counter;
+        "#,
+        r#"
+        print "abc"
+        print "def"
+        print "ghi"
+        print j
+        print 123
+        print @counter
+        "#
+    );
 
 }
 
@@ -1228,8 +1324,8 @@ fn in_const_label_test() {
 fn const_expand_label_rename_test() {
     let parser = TopLevelParser::new();
 
-    let mut meta = Meta::new();
-    let ast = parser.parse(&mut meta, r#"
+    check_compile!(parser,
+        r#"
         :start
         const X = (
             if num < 2 {
@@ -1240,28 +1336,23 @@ fn const_expand_label_rename_test() {
         );
         take __ = X;
         take __ = X;
-    "#).unwrap();
-    let compile_meta = CompileMeta::new();
-    let tag_codes = compile_meta.compile(ast);
-    let logic_lines = tag_codes.compile().unwrap();
-    assert_eq!(
-        logic_lines,
-        vec![
-            r#"jump 3 lessThan num 2"#,
-            r#"print "num >= 2""#,
-            r#"jump 0 always 0 0"#,
-            r#"print "num < 2""#,
-            r#"jump 0 always 0 0"#,
-            r#"jump 8 lessThan num 2"#,
-            r#"print "num >= 2""#,
-            r#"jump 0 always 0 0"#,
-            r#"print "num < 2""#,
-            r#"jump 0 always 0 0"#,
-        ]
+        "#,
+        r#"
+            jump 3 lessThan num 2
+            print "num >= 2"
+            jump 0 always 0 0
+            print "num < 2"
+            jump 0 always 0 0
+            jump 8 lessThan num 2
+            print "num >= 2"
+            jump 0 always 0 0
+            print "num < 2"
+            jump 0 always 0 0
+        "#
     );
 
-    let mut meta = Meta::new();
-    let ast = parser.parse(&mut meta, r#"
+    check_compile!(parser,
+        r#"
         # 这里是__0以此类推, 所以接下来的使用C的句柄为__2, 测试数据解释
         const A = (
             const B = (
@@ -1278,21 +1369,16 @@ fn const_expand_label_rename_test() {
             } while i < 5;
         );
         take __ = A;
-    "#).unwrap();
-    let compile_meta = CompileMeta::new();
-    let tag_codes = compile_meta.compile(ast);
-    let logic_lines = tag_codes.compile().unwrap();
-    assert_eq!(
-        logic_lines,
-        vec![
-            r#"op add __2 1 1"#,
-            r#"set i __2"#,
-            r#"jump 4 always 0 0"#,
-            r#"print "skiped""#,
-            r#"print "in a""#,
-            r#"op add i i 1"#,
-            r#"jump 4 lessThan i 5"#,
-        ]
+        "#,
+        r#"
+            op add __2 1 1
+            set i __2
+            jump 4 always 0 0
+            print "skiped"
+            print "in a"
+            op add i i 1
+            jump 4 lessThan i 5
+        "#
     );
 }
 
@@ -1300,50 +1386,48 @@ fn const_expand_label_rename_test() {
 fn dexp_result_handle_use_const_test() {
     let parser = TopLevelParser::new();
 
-    let ast = parse!(parser, r#"
-    {
+    check_compile!(parser,
+        r#"
+        {
+            print (R: $ = 2;);
+            const R = x;
+            print (R: $ = 2;);
+        }
         print (R: $ = 2;);
-        const R = x;
-        print (R: $ = 2;);
-    }
-    print (R: $ = 2;);
-    "#).unwrap();
-    let meta = CompileMeta::new();
-    let tag_codes = meta.compile(ast);
-    let logic_lines = tag_codes.compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "set R 2",
-               "print R",
-               "set x 2",
-               "print x",
-               "set R 2",
-               "print R",
-    ]);
+        "#,
+        r#"
+        set R 2
+        print R
+        set x 2
+        print x
+        set R 2
+        print R
+        "#
+    );
 }
 
 #[test]
 fn dexp_result_handle_use_result_handle_test() {
     let parser = TopLevelParser::new();
 
-    let ast = parse!(parser, r#"
-    {
+    check_compile!(parser,
+        r#"
+        {
+            print (R: $ = 2;);
+            const R = $;
+            print (R: $ = 2;);
+        }
         print (R: $ = 2;);
-        const R = $;
-        print (R: $ = 2;);
-    }
-    print (R: $ = 2;);
-    "#).unwrap();
-    let meta = CompileMeta::new();
-    let tag_codes = meta.compile(ast);
-    let logic_lines = tag_codes.compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "set R 2",
-               "print R",
-               "set __0 2",
-               "print __0",
-               "set R 2",
-               "print R",
-    ]);
+        "#,
+        r#"
+        set R 2
+        print R
+        set __0 2
+        print __0
+        set R 2
+        print R
+        "#
+    );
 }
 
 #[test]
@@ -1407,10 +1491,12 @@ fn in_const_const_label_rename_test() {
 
 #[test]
 fn take_default_result_test() {
-    let parser = LogicLineParser::new();
+    let parser = TopLevelParser::new();
 
     let ast = parse!(parser, "take 2;").unwrap();
-    assert_eq!(ast, Take(ConstKey::Unused(IdxBox::new(5, "__".into())), "2".into()).into());
+    assert_eq!(ast, Expand(vec![
+        Take(ConstKey::Unused(IdxBox::new(5, "__".into())), "2".into()).into()
+    ]));
 }
 
 #[test]
@@ -1453,222 +1539,249 @@ fn const_value_leak_test() {
 
 #[test]
 fn take2_test() {
-    let parser = LogicLineParser::new();
+    let parser = TopLevelParser::new();
 
     let ast = parse!(parser, "take X;").unwrap();
-    assert_eq!(ast, Take(ConstKey::Unused(IdxBox::new(5, "__".into())), "X".into()).into());
+    assert_eq!(ast, Expand(vec![
+        Take(ConstKey::Unused(IdxBox::new(5, "__".into())), "X".into()).into()
+    ]));
 
     let ast = parse!(parser, "take R = X;").unwrap();
-    assert_eq!(ast, Take("R".into(), "X".into()).into());
+    assert_eq!(ast, Expand(vec![
+        Take("R".into(), "X".into()).into()
+    ]));
 
     let ast = parse!(parser, "take[] X;").unwrap();
-    assert_eq!(ast, Take(ConstKey::Unused(IdxBox::new(7, "__".into())), "X".into()).into());
+    assert_eq!(ast, Expand(vec![
+        Take(ConstKey::Unused(IdxBox::new(7, "__".into())), "X".into()).into()
+    ]));
 
     let ast = parse!(parser, "take[] R = X;").unwrap();
-    assert_eq!(ast, Take("R".into(), "X".into()).into());
+    assert_eq!(ast, Expand(vec![
+        Take("R".into(), "X".into()).into()
+    ]));
 
     let ast = parse!(parser, "take[1 2] R = X;").unwrap();
     assert_eq!(ast, Expand(vec![
-            LogicLine::SetArgs(vec!["1".into(), "2".into()].into()),
-            Take("R".into(), "X".into()).into(),
-            LogicLine::ConstLeak("R".into()),
-    ]).into());
+        Expand(vec![
+                LogicLine::SetArgs(vec!["1".into(), "2".into()].into()),
+                Take("R".into(), "X".into()).into(),
+                LogicLine::ConstLeak("R".into()),
+        ]).into()
+    ]));
 
     let ast = parse!(parser, "take[1 2] X;").unwrap();
     assert_eq!(ast, Expand(vec![
-            LogicLine::SetArgs(vec!["1".into(), "2".into()].into()),
-            Take(ConstKey::Unused(IdxBox::new(10, "__".into())), "X".into()).into(),
-    ]).into());
+        Expand(vec![
+                LogicLine::SetArgs(vec!["1".into(), "2".into()].into()),
+                Take(ConstKey::Unused(IdxBox::new(10, "__".into())), "X".into()).into(),
+        ]).into()
+    ]));
 }
 
 #[test]
 fn take_args_test() {
     let parser = TopLevelParser::new();
 
-    let ast = parse!(parser, r#"
-    const M = (
-        print _0 _1 _2;
-        set $ 3;
+    check_compile!(parser,
+        r#"
+        const M = (
+            print _0 _1 _2;
+            set $ 3;
+        );
+        take[1 2 3] M;
+        take[4 5 6] R = M;
+        print R;
+        "#,
+        r#"
+        print 1
+        print 2
+        print 3
+        set __3 3
+        print 4
+        print 5
+        print 6
+        set __7 3
+        print __7
+        "#
     );
-    take[1 2 3] M;
-    take[4 5 6] R = M;
-    print R;
-    "#).unwrap();
-    let meta = CompileMeta::new();
-    let tag_codes = meta.compile(ast);
-    let logic_lines = tag_codes.compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print 1",
-               "print 2",
-               "print 3",
-               "set __3 3",
-               "print 4",
-               "print 5",
-               "print 6",
-               "set __7 3",
-               "print __7",
-    ]);
 
-    let ast = parse!(parser, r#"
-    const DO = (
-        print _0 "start";
-        take _1;
-        print _0 "start*2";
-        take _1;
-        printflush message1;
+    check_compile!(parser,
+        r#"
+        const DO = (
+            print _0 "start";
+            take _1;
+            print _0 "start*2";
+            take _1;
+            printflush message1;
+        );
+        # 这里赋给一个常量再使用, 因为直接使用不会记录label, 无法重复被使用
+        # 而DO中, 会使用两次传入的参数1
+        const F = (
+            i = 0;
+            while i < 10 {
+                print i;
+                op i i + 1;
+            }
+        );
+        take["loop" F] DO;
+        "#,
+        r#"
+        print "loop"
+        print "start"
+        set i 0
+        jump 7 greaterThanEq i 10
+        print i
+        op add i i 1
+        jump 4 lessThan i 10
+        print "loop"
+        print "start*2"
+        set i 0
+        jump 14 greaterThanEq i 10
+        print i
+        op add i i 1
+        jump 11 lessThan i 10
+        printflush message1
+        "#
     );
-    # 这里赋给一个常量再使用, 因为直接使用不会记录label, 无法重复被使用
-    # 而DO中, 会使用两次传入的参数1
-    const F = (
-        i = 0;
-        while i < 10 {
-            print i;
-            op i i + 1;
-        }
-    );
-    take["loop" F] DO;
-    "#).unwrap();
-    let meta = CompileMeta::new();
-    let tag_codes = meta.compile(ast);
-    let logic_lines = tag_codes.compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               r#"print "loop""#,
-               r#"print "start""#,
-               r#"set i 0"#,
-               r#"jump 7 greaterThanEq i 10"#,
-               r#"print i"#,
-               r#"op add i i 1"#,
-               r#"jump 4 lessThan i 10"#,
-               r#"print "loop""#,
-               r#"print "start*2""#,
-               r#"set i 0"#,
-               r#"jump 14 greaterThanEq i 10"#,
-               r#"print i"#,
-               r#"op add i i 1"#,
-               r#"jump 11 lessThan i 10"#,
-               r#"printflush message1"#,
-    ]);
 
-    let ast = parse!(parser, r#"
-    const F = (y:print _0 $;);
-    take (x:
-        F! *$;
+    check_compile!(parser,
+        r#"
+        const F = (y:print _0 $;);
+        take (x:
+            F! *$;
+        );
+        "#,
+        r#"
+        print x
+        print y
+        "#
     );
-    "#).unwrap();
-    let meta = CompileMeta::new();
-    let tag_codes = meta.compile(ast);
-    let logic_lines = tag_codes.compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               r#"print x"#,
-               r#"print y"#,
-    ]);
 }
 
 #[test]
 fn const_value_clone_test() {
     let parser = TopLevelParser::new();
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    const A = 1;
-    const B = A;
-    const A = 2;
-    print A B;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print 2",
-               "print 1",
-    ]);
+    check_compile!(parser,
+        r#"
+        const A = 1;
+        const B = A;
+        const A = 2;
+        print A B;
+        "#,
+        r#"
+               print 2
+               print 1
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    const A = 1;
-    const B = A;
-    const A = 2;
-    const C = B;
-    const B = 3;
-    const B = B;
-    print A B C;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print 2",
-               "print 3",
-               "print 1",
-    ]);
+    check_compile!(parser,
+        r#"
+        const A = 1;
+        const B = A;
+        const A = 2;
+        const C = B;
+        const B = 3;
+        const B = B;
+        print A B C;
+        "#,
+        r#"
+               print 2
+               print 3
+               print 1
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    const A = B;
-    const B = 2;
-    print A;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print B",
-    ]);
-
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    const A = B;
-    const B = 2;
-    const A = A;
-    print A;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print B",
-    ]);
-
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    const A = B;
-    const B = 2;
-    {
-        const A = A;
+    check_compile!(parser,
+        r#"
+        const A = B;
+        const B = 2;
         print A;
-    }
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print B",
-    ]);
+        "#,
+        r#"
+               print B
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    const A = B;
-    {
+    check_compile!(parser,
+        r#"
+        const A = B;
         const B = 2;
         const A = A;
         print A;
-    }
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print B",
-    ]);
+        "#,
+        r#"
+               print B
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    const A = B;
-    {
+    check_compile!(parser,
+        r#"
+        const A = B;
         const B = 2;
-        print A;
-    }
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print B",
-    ]);
+        {
+            const A = A;
+            print A;
+        }
+        "#,
+        r#"
+               print B
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    const A = B;
-    const B = C;
-    const C = A;
-    print C;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print B",
-    ]);
+    check_compile!(parser,
+        r#"
+        const A = B;
+        {
+            const B = 2;
+            const A = A;
+            print A;
+        }
+        "#,
+        r#"
+               print B
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    const A = C;
-    const C = 2;
-    const B = A;
-    const A = 3;
-    const C = B;
-    print C;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print C",
-    ]);
+    check_compile!(parser,
+        r#"
+        const A = B;
+        {
+            const B = 2;
+            print A;
+        }
+        "#,
+        r#"
+               print B
+        "#
+    );
+
+    check_compile!(parser,
+        r#"
+        const A = B;
+        const B = C;
+        const C = A;
+        print C;
+        "#,
+        r#"
+               print B
+        "#
+    );
+
+    check_compile!(parser,
+        r#"
+        const A = C;
+        const C = 2;
+        const B = A;
+        const A = 3;
+        const C = B;
+        print C;
+        "#,
+        r#"
+               print C
+        "#
+    );
 }
 
 #[test]
@@ -1749,282 +1862,314 @@ fn cmptree_test() {
         ).into()
     );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    goto :end a && b;
-    foo;
-    :end
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "jump 2 equal a false",
-               "jump 3 notEqual b false",
-               "foo",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        goto :end a && b;
+        foo;
+        :end
+        end;
+        "#,
+        r#"
+               jump 2 equal a false
+               jump 3 notEqual b false
+               foo
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    goto :end (a || b) && c;
-    foo;
-    :end
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "jump 2 notEqual a false",
-               "jump 3 equal b false",
-               "jump 4 notEqual c false",
-               "foo",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        goto :end (a || b) && c;
+        foo;
+        :end
+        end;
+        "#,
+        r#"
+               jump 2 notEqual a false
+               jump 3 equal b false
+               jump 4 notEqual c false
+               foo
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    goto :end (a || b) && (c || d);
-    foo;
-    :end
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "jump 2 notEqual a false",
-               "jump 4 equal b false",
-               "jump 5 notEqual c false",
-               "jump 5 notEqual d false",
-               "foo",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        goto :end (a || b) && (c || d);
+        foo;
+        :end
+        end;
+        "#,
+        r#"
+               jump 2 notEqual a false
+               jump 4 equal b false
+               jump 5 notEqual c false
+               jump 5 notEqual d false
+               foo
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    goto :end a || b || c || d || e;
-    foo;
-    :end
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "jump 6 notEqual a false",
-               "jump 6 notEqual b false",
-               "jump 6 notEqual c false",
-               "jump 6 notEqual d false",
-               "jump 6 notEqual e false",
-               "foo",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        goto :end a || b || c || d || e;
+        foo;
+        :end
+        end;
+        "#,
+        r#"
+               jump 6 notEqual a false
+               jump 6 notEqual b false
+               jump 6 notEqual c false
+               jump 6 notEqual d false
+               jump 6 notEqual e false
+               foo
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    goto :end a && b && c && d && e;
-    foo;
-    :end
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "jump 5 equal a false",
-               "jump 5 equal b false",
-               "jump 5 equal c false",
-               "jump 5 equal d false",
-               "jump 6 notEqual e false",
-               "foo",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        goto :end a && b && c && d && e;
+        foo;
+        :end
+        end;
+        "#,
+        r#"
+               jump 5 equal a false
+               jump 5 equal b false
+               jump 5 equal c false
+               jump 5 equal d false
+               jump 6 notEqual e false
+               foo
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    goto :end (a && b && c) && d && e;
-    foo;
-    :end
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "jump 5 equal a false",
-               "jump 5 equal b false",
-               "jump 5 equal c false",
-               "jump 5 equal d false",
-               "jump 6 notEqual e false",
-               "foo",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        goto :end (a && b && c) && d && e;
+        foo;
+        :end
+        end;
+        "#,
+        r#"
+               jump 5 equal a false
+               jump 5 equal b false
+               jump 5 equal c false
+               jump 5 equal d false
+               jump 6 notEqual e false
+               foo
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    goto :end a && b && (c && d && e);
-    foo;
-    :end
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "jump 5 equal a false",
-               "jump 5 equal b false",
-               "jump 5 equal c false",
-               "jump 5 equal d false",
-               "jump 6 notEqual e false",
-               "foo",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        goto :end a && b && (c && d && e);
+        foo;
+        :end
+        end;
+        "#,
+        r#"
+               jump 5 equal a false
+               jump 5 equal b false
+               jump 5 equal c false
+               jump 5 equal d false
+               jump 6 notEqual e false
+               foo
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    goto :end a && (op $ b && c;);
-    foo;
-    :end
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "jump 3 equal a false",
-               "op land __0 b c",
-               "jump 4 notEqual __0 false",
-               "foo",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        goto :end a && (op $ b && c;);
+        foo;
+        :end
+        end;
+        "#,
+        r#"
+               jump 3 equal a false
+               op land __0 b c
+               jump 4 notEqual __0 false
+               foo
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    goto :end a && b || c && d;
-    foo;
-    :end
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "jump 2 equal a false",
-               "jump 5 notEqual b false",
-               "jump 4 equal c false",
-               "jump 5 notEqual d false",
-               "foo",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        goto :end a && b || c && d;
+        foo;
+        :end
+        end;
+        "#,
+        r#"
+               jump 2 equal a false
+               jump 5 notEqual b false
+               jump 4 equal c false
+               jump 5 notEqual d false
+               foo
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    goto :end !a && b || c && d;
-    foo;
-    :end
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "jump 2 notEqual a false",
-               "jump 5 notEqual b false",
-               "jump 4 equal c false",
-               "jump 5 notEqual d false",
-               "foo",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        goto :end !a && b || c && d;
+        foo;
+        :end
+        end;
+        "#,
+        r#"
+               jump 2 notEqual a false
+               jump 5 notEqual b false
+               jump 4 equal c false
+               jump 5 notEqual d false
+               foo
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    goto :end (a && b) || !(c && d);
-    foo;
-    :end
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "jump 2 equal a false",
-               "jump 5 notEqual b false",
-               "jump 5 equal c false",
-               "jump 5 equal d false",
-               "foo",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        goto :end (a && b) || !(c && d);
+        foo;
+        :end
+        end;
+        "#,
+        r#"
+               jump 2 equal a false
+               jump 5 notEqual b false
+               jump 5 equal c false
+               jump 5 equal d false
+               foo
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    goto :end (a && b && c) || (d && e);
-    foo;
-    :end
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "jump 3 equal a false",
-               "jump 3 equal b false",
-               "jump 6 notEqual c false",
-               "jump 5 equal d false",
-               "jump 6 notEqual e false",
-               "foo",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        goto :end (a && b && c) || (d && e);
+        foo;
+        :end
+        end;
+        "#,
+        r#"
+               jump 3 equal a false
+               jump 3 equal b false
+               jump 6 notEqual c false
+               jump 5 equal d false
+               jump 6 notEqual e false
+               foo
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    goto :end (a && b || c) || (d && e);
-    foo;
-    :end
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "jump 2 equal a false",
-               "jump 6 notEqual b false",
-               "jump 6 notEqual c false",
-               "jump 5 equal d false",
-               "jump 6 notEqual e false",
-               "foo",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        goto :end (a && b || c) || (d && e);
+        foo;
+        :end
+        end;
+        "#,
+        r#"
+               jump 2 equal a false
+               jump 6 notEqual b false
+               jump 6 notEqual c false
+               jump 5 equal d false
+               jump 6 notEqual e false
+               foo
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    goto :end ((a && b) || c) || (d && e);
-    foo;
-    :end
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "jump 2 equal a false",
-               "jump 6 notEqual b false",
-               "jump 6 notEqual c false",
-               "jump 5 equal d false",
-               "jump 6 notEqual e false",
-               "foo",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        goto :end ((a && b) || c) || (d && e);
+        foo;
+        :end
+        end;
+        "#,
+        r#"
+               jump 2 equal a false
+               jump 6 notEqual b false
+               jump 6 notEqual c false
+               jump 5 equal d false
+               jump 6 notEqual e false
+               foo
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    goto :end (a && (b || c)) || (d && e);
-    foo;
-    :end
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "jump 3 equal a false",
-               "jump 6 notEqual b false",
-               "jump 6 notEqual c false",
-               "jump 5 equal d false",
-               "jump 6 notEqual e false",
-               "foo",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        goto :end (a && (b || c)) || (d && e);
+        foo;
+        :end
+        end;
+        "#,
+        r#"
+               jump 3 equal a false
+               jump 6 notEqual b false
+               jump 6 notEqual c false
+               jump 5 equal d false
+               jump 6 notEqual e false
+               foo
+               end
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    goto :end (op $ a + 2;) && (op $ b + 2;);
-    foo;
-    :end
-    end;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "op add __0 a 2",
-               "jump 4 equal __0 false",
-               "op add __1 b 2",
-               "jump 5 notEqual __1 false",
-               "foo",
-               "end",
-    ]);
+    check_compile!(parser,
+        r#"
+        goto :end (op $ a + 2;) && (op $ b + 2;);
+        foo;
+        :end
+        end;
+        "#,
+        r#"
+               op add __0 a 2
+               jump 4 equal __0 false
+               op add __1 b 2
+               jump 5 notEqual __1 false
+               foo
+               end
+        "#
+    );
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         :x
         goto :x a < b and c > d or not e != f;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         :x
         goto :x a < b && c > d || ! e != f;
-        "#).unwrap()
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         :x
         goto :x ++a < b and c > d or not e != f;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         :x
         goto :x (__:setres a;$=$+`1`) < b && c > d || ! e != f;
-        "#).unwrap()
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         :x
         goto :x --a < b and c > d or not e != f;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         :x
         goto :x (__:setres a;$=$-`1`) < b && c > d || ! e != f;
-        "#).unwrap()
-    );
+        "#,
+    };
 
 }
 
@@ -2032,493 +2177,532 @@ fn cmptree_test() {
 fn set_res_test() {
     let parser = TopLevelParser::new();
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    print (setres (x: op $ 1 + 2;););
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "op add x 1 2",
-               "print x",
-    ]);
+    check_compile!(parser,
+        r#"
+        print (setres (x: op $ 1 + 2;););
+        "#,
+        r#"
+               op add x 1 2
+               print x
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    print (setres m;);
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print m",
-    ]);
+    check_compile!(parser,
+        r#"
+        print (setres m;);
+        "#,
+        r#"
+               print m
+        "#
+    );
 }
 
 #[test]
 fn repr_var_test() {
     let parser = TopLevelParser::new();
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    print a;
-    print `a`;
-    const a = b;
-    print a;
-    print `a`;
-    print `print`;
-    print `op`;
-    print `_`;
-    print len;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print a",
-               "print a",
-               "print b",
-               "print a",
-               "print print",
-               "print op",
-               "print _",
-               "print len",
-    ]);
+    check_compile!(parser,
+        r#"
+        print a;
+        print `a`;
+        const a = b;
+        print a;
+        print `a`;
+        print `print`;
+        print `op`;
+        print `_`;
+        print len;
+        "#,
+        r#"
+               print a
+               print a
+               print b
+               print a
+               print print
+               print op
+               print _
+               print len
+        "#
+    );
 }
 
 #[test]
 fn select_test() {
     let parser = TopLevelParser::new();
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    select 1 {
-        print 0;
-        print;
-    }
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-        "op add @counter @counter 1",
-        "print 0",
-    ]);
+    check_compile!(parser,
+        r#"
+        select 1 {
+            print 0;
+            print;
+        }
+        "#,
+        r#"
+        op add @counter @counter 1
+        print 0
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    select 1 {
-        print 0;
-        print;
-        print;
-    }
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-        "op add @counter @counter 1",
-        "print 0",
-        "jump 0 always 0 0",
-    ]);
+    check_compile!(parser,
+        r#"
+        select 1 {
+            print 0;
+            print;
+            print;
+        }
+        "#,
+        r#"
+        op add @counter @counter 1
+        print 0
+        jump 0 always 0 0
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    select 1 {
-        print 0;
-        print;
-        print 2;
-    }
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-        "op add @counter @counter 1",
-        "print 0",
-        "jump 3 always 0 0",
-        "print 2",
-    ]);
+    check_compile!(parser,
+        r#"
+        select 1 {
+            print 0;
+            print;
+            print 2;
+        }
+        "#,
+        r#"
+        op add @counter @counter 1
+        print 0
+        jump 3 always 0 0
+        print 2
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    select 1 {
-        print 0;
-        print 1 " is one!";
-        print 2;
-    }
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-        "op mul __0 1 2",
-        "op add @counter @counter __0",
-        "print 0",
-        "jump 4 always 0 0",
-        "print 1",
-        "print \" is one!\"",
-        "print 2",
-    ]);
+    check_compile!(parser,
+        r#"
+        select 1 {
+            print 0;
+            print 1 " is one!";
+            print 2;
+        }
+        "#,
+        r#"
+        op mul __0 1 2
+        op add @counter @counter __0
+        print 0
+        jump 4 always 0 0
+        print 1
+        print " is one!"
+        print 2
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    select x {
-        print 0;
-        print 1;
-        print 2;
-    }
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-        "op add @counter @counter x",
-        "print 0",
-        "print 1",
-        "print 2",
-    ]);
+    check_compile!(parser,
+        r#"
+        select x {
+            print 0;
+            print 1;
+            print 2;
+        }
+        "#,
+        r#"
+        op add @counter @counter x
+        print 0
+        print 1
+        print 2
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    select (y: op $ x + 2;) {}
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-        "op add y x 2",
-    ]);
+    check_compile!(parser,
+        r#"
+        select (y: op $ x + 2;) {}
+        "#,
+        r#"
+        op add y x 2
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    select x {}
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, Vec::<&str>::new());
+    check_compile!(parser,
+        r#"
+        select x {}
+        "#,
+        r#"
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    select m {
-        print 0;
-        print 1 " is one!" ", one!!" "\n";
-        print 2;
-    }
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![ // 跳转表式, 因为这样更省行数
-        "op add @counter @counter m",
-        "jump 4 always 0 0",
-        "jump 5 always 0 0",
-        "jump 9 always 0 0",
-        "print 0",
-        "print 1",
-        "print \" is one!\"",
-        "print \", one!!\"",
-        "print \"\\n\"",
-        "print 2",
-    ]);
+    check_compile!(parser,
+        r#"
+        select m {
+            print 0;
+            print 1 " is one!" ", one!!" "\n";
+            print 2;
+        }
+        "#,
+        r#"
+        op add @counter @counter m
+        jump 4 always 0 0
+        jump 5 always 0 0
+        jump 9 always 0 0
+        print 0
+        print 1
+        print " is one!"
+        print ", one!!"
+        print "\n"
+        print 2
+        "#
+    );
 }
 
 #[test]
 fn switch_catch_test() {
     let parser = TopLevelParser::new();
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    switch (op $ x + 2;) {
-        end;
-    case <:
-        print "Underflow";
-        stop;
-    case ! e:
-        print "Misses: " e;
-        stop;
-    case > n:
-        print "Overflow: " n;
-        stop;
-    case 1:
-        print 1;
-    case 3:
-        print 3 "!";
-    }
-    "#).unwrap()).compile().unwrap();
-    // 这里由于是比较生成后的代码而不是语法树, 所以可以不用那么严谨
-    assert_eq!(logic_lines, CompileMeta::new().compile(parse!(parser, r#"
-    take tmp = (op $ x + 2;);
-    skip tmp >= 0 {
-        print "Underflow";
-        stop;
-    }
-    skip _ {
-        :mis
-        const e = tmp;
-        print "Misses: " e;
-        stop;
-    }
-    skip tmp <= 3 {
-        const n = tmp;
-        print "Overflow: " n;
-        stop;
-    }
-    select tmp {
-        goto :mis _;
-        {
+    check_compile_eq!(parser,
+        r#"
+        switch (op $ x + 2;) {
+            end;
+        case <:
+            print "Underflow";
+            stop;
+        case ! e:
+            print "Misses: " e;
+            stop;
+        case > n:
+            print "Overflow: " n;
+            stop;
+        case 1:
             print 1;
-            end;
-        }
-        goto :mis _;
-        {
+        case 3:
             print 3 "!";
-            end;
         }
-    }
-    "#).unwrap()).compile().unwrap());
-
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    switch (op $ x + 2;) {
-        end;
-    case <!>:
-        stop;
-    case 1:
-        print 1;
-    case 3:
-        print 3 "!";
-    }
-    "#).unwrap()).compile().unwrap();
-    // 这里由于是比较生成后的代码而不是语法树, 所以可以不用那么严谨
-    assert_eq!(logic_lines, CompileMeta::new().compile(parse!(parser, r#"
-    take tmp = (op $ x + 2;);
-    skip tmp >= 0 && tmp <= 3 {
-        :mis
-        stop;
-    }
-    select tmp {
-        goto :mis _;
-        {
-            print 1;
-            end;
+        "#,
+        r#"
+        take tmp = (op $ x + 2;);
+        skip tmp >= 0 {
+            print "Underflow";
+            stop;
         }
-        goto :mis _;
-        {
-            print 3 "!";
-            end;
+        skip _ {
+            :mis
+            const e = tmp;
+            print "Misses: " e;
+            stop;
         }
-    }
-    "#).unwrap()).compile().unwrap());
-
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    switch (op $ x + 2;) {
-        end;
-    case <!>:
-        stop;
-    case (a < b):
-        foo;
-    case 1:
-        print 1;
-    case 3:
-        print 3 "!";
-    }
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, CompileMeta::new().compile(parse!(parser, r#"
-    take tmp = (op $ x + 2;);
-    skip tmp >= 0 && tmp <= 3 {
-        :mis
-        stop;
-    }
-    skip !a < b {
-        foo;
-    }
-    select tmp {
-        goto :mis _;
-        {
-            print 1;
-            end;
+        skip tmp <= 3 {
+            const n = tmp;
+            print "Overflow: " n;
+            stop;
         }
-        goto :mis _;
-        {
-            print 3 "!";
-            end;
-        }
-    }
-    "#).unwrap()).compile().unwrap());
-
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    switch (op $ x + 2;) {
-        end;
-    case !!!: # 捕获多个未命中也可以哦, 当然只有最后一个生效
-        stop;
-    case 1:
-        print 1;
-    case 3:
-        print 3 "!";
-    }
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, CompileMeta::new().compile(parse!(parser, r#"
-    take tmp = (op $ x + 2;);
-    skip _ {
-        :mis
-        stop;
-    }
-    select tmp {
-        goto :mis _;
-        {
-            print 1;
-            end;
-        }
-        goto :mis _;
-        {
-            print 3 "!";
-            end;
-        }
-    }
-    "#).unwrap()).compile().unwrap());
-
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    switch (op $ x + 2;) {
-        end;
-    case !!!: # 捕获多个未命中也可以哦, 当然只有最后一个生效
-        stop;
-    case !:
-        foo; # 最后一个
-    case 1:
-        print 1;
-    case 3:
-        print 3 "!";
-    }
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, CompileMeta::new().compile(parse!(parser, r#"
-    take tmp = (op $ x + 2;);
-    skip _ {
-        # 可以看出, 这个是一个没用的捕获, 也不会被跳转
-        # 所以不要这么玩, 浪费跳转和行数
-        :mis
-        stop;
-    }
-    skip _ {
-        :mis1
-        foo;
-    }
-    select tmp {
-        goto :mis1 _;
-        {
-            print 1;
-            end;
-        }
-        goto :mis1 _;
-        {
-            print 3 "!";
-            end;
-        }
-    }
-    "#).unwrap()).compile().unwrap());
-
-    let ast = parse!(parser, r#"
-    switch (op $ x + 2;) {
-        end;
-    case <!> e:
-        `e` = e;
-        stop;
-    case (e < x) e:
-        foo;
-    case 1:
-        print 1;
-    case 3:
-        print 3;
-    }
-    "#).unwrap();
-    assert_eq!(ast, parse!(parser, r#"
-    {
-        take ___0 = (op $ x + 2;);
-        {
-            {
-                const e = ___0;
-                goto :___1 ___0 >= `0` && ___0 <= `3`;
-                :___0
-                {
-                    `e` = e;
-                    stop;
-                }
-                :___1
-            }
-            {
-                const e = ___0;
-                goto :___2 ! e < x;
-                {
-                    foo;
-                }
-                :___2
-            }
-        }
-        select ___0 {
-            goto :___0 _;
+        select tmp {
+            goto :mis _;
             {
                 print 1;
                 end;
             }
-            goto :___0 _;
+            goto :mis _;
             {
-                print 3;
+                print 3 "!";
                 end;
             }
         }
-    }
-    "#).unwrap());
+        "#
+    );
 
-    let ast = parse!(parser, r#"
-    switch (op $ x + 2;) {
-        end;
-    case <> e:
-        `e` = e;
-        stop;
-    case (e < x) e:
-        foo;
-    case 1:
-        print 1;
-    case 3:
-        print 3;
-    }
-    "#).unwrap();
-    assert_eq!(ast, parse!(parser, r#"
-    {
-        take ___0 = (op $ x + 2;);
-        {
-            {
-                const e = ___0;
-                goto :___0 ___0 >= `0` && ___0 <= `3`;
-                {
-                    `e` = e;
-                    stop;
-                }
-                :___0
-            }
-            {
-                const e = ___0;
-                goto :___1 ! e < x;
-                {
-                    foo;
-                }
-                :___1
-            }
+    check_compile_eq!(parser,
+        r#"
+        switch (op $ x + 2;) {
+            end;
+        case <!>:
+            stop;
+        case 1:
+            print 1;
+        case 3:
+            print 3 "!";
         }
-        select ___0 {
-            { end; }
+        "#,
+        r#"
+        take tmp = (op $ x + 2;);
+        skip tmp >= 0 && tmp <= 3 {
+            :mis
+            stop;
+        }
+        select tmp {
+            goto :mis _;
             {
                 print 1;
                 end;
             }
-            { end; }
+            goto :mis _;
             {
-                print 3;
+                print 3 "!";
                 end;
             }
         }
-    }
-    "#).unwrap());
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    switch (op $ x + 2;) {
-    case !:
-        stop;
-    case 1:
-    case 3:
+    check_compile_eq!(parser,
+        r#"
+        switch (op $ x + 2;) {
+            end;
+        case <!>:
+            stop;
+        case (a < b):
+            foo;
+        case 1:
+            print 1;
+        case 3:
+            print 3 "!";
+        }
+        "#,
+        r#"
+        take tmp = (op $ x + 2;);
+        skip tmp >= 0 && tmp <= 3 {
+            :mis
+            stop;
+        }
+        skip !a < b {
+            foo;
+        }
+        select tmp {
+            goto :mis _;
+            {
+                print 1;
+                end;
+            }
+            goto :mis _;
+            {
+                print 3 "!";
+                end;
+            }
+        }
+        "#
+    );
+
+    check_compile_eq!(parser,
+        r#"
+        switch (op $ x + 2;) {
+            end;
+        case !!!: # 捕获多个未命中也可以哦, 当然只有最后一个生效
+            stop;
+        case 1:
+            print 1;
+        case 3:
+            print 3 "!";
+        }
+        "#,
+        r#"
+        take tmp = (op $ x + 2;);
+        skip _ {
+            :mis
+            stop;
+        }
+        select tmp {
+            goto :mis _;
+            {
+                print 1;
+                end;
+            }
+            goto :mis _;
+            {
+                print 3 "!";
+                end;
+            }
+        }
+        "#
+    );
+
+    check_compile_eq!(parser,
+        r#"
+        switch (op $ x + 2;) {
+            end;
+        case !!!: # 捕获多个未命中也可以哦, 当然只有最后一个生效
+            stop;
+        case !:
+            foo; # 最后一个
+        case 1:
+            print 1;
+        case 3:
+            print 3 "!";
+        }
+        "#,
+        r#"
+        take tmp = (op $ x + 2;);
+        skip _ {
+            # 可以看出, 这个是一个没用的捕获, 也不会被跳转
+            # 所以不要这么玩, 浪费跳转和行数
+            :mis
+            stop;
+        }
+        skip _ {
+            :mis1
+            foo;
+        }
+        select tmp {
+            goto :mis1 _;
+            {
+                print 1;
+                end;
+            }
+            goto :mis1 _;
+            {
+                print 3 "!";
+                end;
+            }
+        }
+        "#
+    );
+
+    check_sugar! {parser,
+        r#"
+        switch (op $ x + 2;) {
+            end;
+        case <!> e:
+            `e` = e;
+            stop;
+        case (e < x) e:
+            foo;
+        case 1:
+            print 1;
+        case 3:
+            print 3;
+        }
+        "#,
+        r#"
+        {
+            take ___0 = (op $ x + 2;);
+            {
+                {
+                    const e = ___0;
+                    goto :___1 ___0 >= `0` && ___0 <= `3`;
+                    :___0
+                    {
+                        `e` = e;
+                        stop;
+                    }
+                    :___1
+                }
+                {
+                    const e = ___0;
+                    goto :___2 ! e < x;
+                    {
+                        foo;
+                    }
+                    :___2
+                }
+            }
+            select ___0 {
+                goto :___0 _;
+                {
+                    print 1;
+                    end;
+                }
+                goto :___0 _;
+                {
+                    print 3;
+                    end;
+                }
+            }
+        }
+        "#
     }
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, CompileMeta::new().compile(parse!(parser, r#"
-    take tmp = (op $ x + 2;);
-    skip _ {
-        :mis
-        stop;
+
+    check_sugar! {parser,
+        r#"
+        switch (op $ x + 2;) {
+            end;
+        case <> e:
+            `e` = e;
+            stop;
+        case (e < x) e:
+            foo;
+        case 1:
+            print 1;
+        case 3:
+            print 3;
+        }
+        "#,
+        r#"
+        {
+            take ___0 = (op $ x + 2;);
+            {
+                {
+                    const e = ___0;
+                    goto :___0 ___0 >= `0` && ___0 <= `3`;
+                    {
+                        `e` = e;
+                        stop;
+                    }
+                    :___0
+                }
+                {
+                    const e = ___0;
+                    goto :___1 ! e < x;
+                    {
+                        foo;
+                    }
+                    :___1
+                }
+            }
+            select ___0 {
+                { end; }
+                {
+                    print 1;
+                    end;
+                }
+                { end; }
+                {
+                    print 3;
+                    end;
+                }
+            }
+        }
+        "#
     }
-    select tmp {
-        goto :mis;
-        {}
-        goto :mis;
-        {}
-    }
-    "#).unwrap()).compile().unwrap());
+
+    check_compile_eq!(parser,
+        r#"
+        switch (op $ x + 2;) {
+        case !:
+            stop;
+        case 1:
+        case 3:
+        }
+        "#,
+        r#"
+        take tmp = (op $ x + 2;);
+        skip _ {
+            :mis
+            stop;
+        }
+        select tmp {
+            goto :mis;
+            {}
+            goto :mis;
+            {}
+        }
+        "#
+    );
 }
 
 #[test]
 fn switch_ignore_append_test() {
     let parser = TopLevelParser::new();
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    switch i {
-        end;
-    case*0: print 0;
-    case 1: print 1;
-    case*3: print 3;
-    }
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, CompileMeta::new().compile(parse!(parser, r#"
-    select i {
-        { print 0; }
-        { print 1; end; }
-        { end; }
-        { print 3; }
-    }
-    "#).unwrap()).compile().unwrap());
+    check_compile_eq!(parser,
+        r#"
+        switch i {
+            end;
+        case*0: print 0;
+        case 1: print 1;
+        case*3: print 3;
+        }
+        "#,
+        r#"
+        select i {
+            { print 0; }
+            { print 1; end; }
+            { end; }
+            { print 3; }
+        }
+        "#
+    );
 }
 
 #[test]
@@ -2533,216 +2717,220 @@ fn quick_dexp_take_test() {
             Value::ReprVar("print".into()),
             DExp::new("__".into(), vec![
                 LogicLine::SetArgs(vec!["1".into(), "2".into()].into()),
-                LogicLine::SetResultHandle("Foo".into()),
+                LogicLine::SetResultHandle("Foo".into(), Some(IdxBox::new(19, ()))),
             ].into()).into(),
         ].into())].into(),
     );
 
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    const Add = (
-        take A = _0;
-        take B = _1;
-        op $ A + B;
+    check_compile!(parser,
+        r#"
+        const Add = (
+            take A = _0;
+            take B = _1;
+            op $ A + B;
+        );
+        print Add[1 2];
+        "#,
+        r#"
+               op add __2 1 2
+               print __2
+        "#
     );
-    print Add[1 2];
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "op add __2 1 2",
-               "print __2",
-    ]);
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    const Add = (
-        take A = _0;
-        take B = _1;
-        op $ A + B;
+    check_compile!(parser,
+        r#"
+        const Add = (
+            take A = _0;
+            take B = _1;
+            op $ A + B;
+        );
+        const Do = (_unused:
+            const Fun = _0;
+
+            print enter Fun;
+        );
+        take[Add[1 2]] Do;
+        "#,
+        r#"
+               print enter
+               op add __3 1 2
+               print __3
+        "#
     );
-    const Do = (_unused:
-        const Fun = _0;
 
-        print enter Fun;
-    );
-    take[Add[1 2]] Do;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print enter",
-               "op add __3 1 2",
-               "print __3",
-    ]);
-
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         const V = F->[A B C @]->V;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         const V = F[A B C @]->$->V;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
                         Foo! a b c @ d;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         take[a b c @ d] Foo;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         # align*************************************************
         Foo! a b c d++;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = d;
             take[a b c ___0] Foo;
             ___0 = ___0 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         # align*******************************************
         Foo! d++;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = d;
             take[___0] Foo;
             ___0 = ___0 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         # align***************************************************
         Foo! a b c @ d++;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = d;
             take[a b c @ ___0] Foo;
             ___0 = ___0 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         # align***************************************************
         Foo! @ a b c d++;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = d;
             take[@ a b c ___0] Foo;
             ___0 = ___0 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         # align***************************************************
         Foo! a++ b c @ d;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = a;
             take[___0 b c @ d] Foo;
             ___0 = ___0 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         # align*******************************************
         Foo! a++;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = a;
             take[___0] Foo;
             ___0 = ___0 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         foo a++;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = a;
             foo ___0;
             ___0 = ___0 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         foo @ a++;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = a;
             foo @ ___0;
             ___0 = ___0 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         foo x @ a++;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = a;
             foo x @ ___0;
             ___0 = ___0 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         foo a++ @ x;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = a;
             foo ___0 @ x;
             ___0 = ___0 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         foo a++ @;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = a;
             foo ___0 @;
             ___0 = ___0 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         foo (bar a++;) x++;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___1 = x;
             foo (inline {
@@ -2752,83 +2940,83 @@ fn quick_dexp_take_test() {
             }) ___1;
             ___1 = ___1 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         print a++;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = a;
             print ___0;
             ___0 = ___0 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         # align................................
         print @ a++;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = a;
             print @ ___0;
             ___0 = ___0 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         # align................................
         print x @ a++;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = a;
             print x @ ___0;
             ___0 = ___0 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         # align................................
         print a++ @;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = a;
             print ___0 @;
             ___0 = ___0 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         # align................................
         print a++ @ x;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = a;
             print ___0 @ x;
             ___0 = ___0 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         print (print a++;) x++;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___1 = x;
             print (inline {
@@ -2838,15 +3026,15 @@ fn quick_dexp_take_test() {
             }) ___1;
             ___1 = ___1 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
     // 因为利用了命令做 op-expr 的返回, 所以多返回时也可以应用++
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a, b++ = 2;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = b;
             {
@@ -2856,182 +3044,188 @@ fn quick_dexp_take_test() {
             }
             ___0 = ___0 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         # align*************************
         Foo! +A 2;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take+A;
             Foo! A 2;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         read {X} cell1 i;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take X = ();
             read X cell1 i;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         read {X}++ cell1 i;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take X = ();
             read X cell1 i;
             X = X + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         +X = 2;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take X = ();
             X = 2;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         +X+Y = 2;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take X = ();
             take Y = ();
             X Y = 2;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         +X Y = 2;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take X = ();
             X Y = 2;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         +X,Y = 2;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take X = ();
             X Y = 2;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 }
 
 #[test]
 fn value_bind_test() {
     let parser = TopLevelParser::new();
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    const Jack = jack;
-    Jack, Jack.age = "jack", 18;
-    print Jack Jack.age;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "set jack \"jack\"",
-               "set __0 18",
-               "print jack",
-               "print __0",
-    ]);
+    check_compile!(parser,
+        r#"
+        const Jack = jack;
+        Jack, Jack.age = "jack", 18;
+        print Jack Jack.age;
+        "#,
+        r#"
+               set jack "jack"
+               set __0 18
+               print jack
+               print __0
+        "#
+    );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    print a.b.c;
-    print a.b;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print __1",
-               "print __0",
-    ]);
+    check_compile!(parser,
+        r#"
+        print a.b.c;
+        print a.b;
+        "#,
+        r#"
+               print __1
+               print __0
+        "#
+    );
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take Foo = (%x).y;
-        "#),
-        parse!(parser, r#"
+        "#,
+        r#"
         take Foo = x.y;
-        "#),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         print (%(print 1 2;)).x;
-        "#),
-        parse!(parser, r#"
+        "#,
+        r#"
         print (%print 1 2;%).x;
-        "#),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         print (%(x: print 1 2;)).x;
-        "#),
-        parse!(parser, r#"
+        "#,
+        r#"
         print (%x: print 1 2;%).x;
-        "#),
+        "#,
+    };
+
+    check_compile!(parser,
+        r#"
+        print (%()).x;
+        "#,
+        r#"
+               print __1
+        "#
     );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    print (%()).x;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print __1",
-    ]);
-
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         print (%(%(%(print 2;))));
-        "#),
-        parse!(parser, r#"
+        "#,
+        r#"
         print (print 2;);
-        "#),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         print (%(%(%(print 2;)))).x;
-        "#),
-        parse!(parser, r#"
+        "#,
+        r#"
         print (print 2;).x;
-        "#),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         print (%(?2)).x;
-        "#),
-        parse!(parser, r#"
+        "#,
+        r#"
         print (?2).x;
-        "#),
-    );
+        "#,
+    };
 }
 
 #[test]
@@ -3102,18 +3296,17 @@ fn logic_line_from() {
 fn op_expr_test() {
     let parser = TopLevelParser::new();
 
-    let ast = parse!(parser, r#"
-    a, b, c = 1, 2, ({}op $ 2 + 1;);
-    "#).unwrap();
-    let meta = CompileMeta::new();
-    let tag_codes = meta.compile(ast);
-    let logic_lines = tag_codes.compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "set a 1",
-               "set b 2",
-               "op add __0 2 1",
-               "set c __0",
-    ]);
+    check_compile!(parser,
+        r#"
+        a, b, c = 1, 2, ({}op $ 2 + 1;);
+        "#,
+        r#"
+            set a 1
+            set b 2
+            op add __0 2 1
+            set c __0
+        "#
+    );
 
     assert!(parse!(parser, r#"
     a, b, c = 1 2;
@@ -3139,147 +3332,147 @@ fn op_expr_test() {
      = 1, 2;
     "#).is_err());
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = max(1, 2);
         y = max(max(1, 2), max(3, max(4, 5)));
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         op x max 1 2;
         op y max (op $ max 1 2;) (op $ max 3 (op $ max 4 5;););
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = round(8);
         y = sign(6);
         z = logn(4, 2);
         t = log(4, 2);
         m = 8 >>> 3;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         op round x 8;
         op sign y 6;
         op logn z 4 2;
         op logn t 4 2;
         op ushr m 8 3;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = 1+2*3;
         y = (1+2)*3;
         z = 1+2+3;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         op x 1 + (op $ 2 * 3;);
         op y (op $ 1 + 2;) * 3;
         op z (op $ 1 + 2;) + 3;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = 1*max(2, 3);
         y = a & b | c & d & e | f;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         op x 1 * (op $ max 2 3;);
         op y (op $ (op $ a & b;) | (op $ (op $ c & d;) & e;);) | f;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = a**b**c; # pow的右结合
         y = -x;
         z = ~y;
         e = a !== b;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         op x a ** (op $ b ** c;);
         op y `0` - x;
         op z ~y;
         op e (op $ a === b;) == `false`;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a, b, c = x, -y, z+2*3;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             a = x;
             b = -y;
             c = z+2*3;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a b c = x, -y, z+2*3;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             a = x;
             b = -y;
             c = z+2*3;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a, b, c = 1;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             take ___0 = a;
             ___0 = 1;
             b = ___0;
             c = ___0;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a b c = 1;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             take ___0 = a;
             ___0 = 1;
             b = ___0;
             c = ___0;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = a < b == c > d;
         x = a < b != c > d;
         x = a < b === c > d;
         x = a < b !== c > d;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         op x (op $ a < b;) == (op $ c > d;);
         op x (op $ a < b;) != (op $ c > d;);
         op x (op $ a < b;) === (op $ c > d;);
         op x (op $ a < b;) !== (op $ c > d;);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a = if x ? y : y+z;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             take ___0 = a;
             goto :___0 x;
@@ -3289,17 +3482,17 @@ fn op_expr_test() {
                 ___0 = y;
             :___1
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a = select x ? y : y+z;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         `select` a `notEqual` x `false` y (?y+z);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
     assert!(
         parse!(parser, r#"
@@ -3319,236 +3512,236 @@ fn op_expr_test() {
         "#).is_err(),
     );
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = (a < b) < c;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         op x (op $ a < b;) < c;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x += 2;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             take ___0 = x;
             op ___0 ___0 + 2;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x += y*z;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             take ___0 = x;
             op ___0 ___0 + (op $ y * z;);
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take Foo = (?a+b);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         take Foo = ($ = a+b;);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take Foo = (?m: a+b);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         take Foo = (m: $ = a+b;);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a, b += 2;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             take ___0 = 2;
             {take ___1 = a; ___1 = ___1 + ___0;}
             {take ___2 = b; ___2 = ___2 + ___0;}
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a, b += 2, 3;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             a += 2;
             b += 3;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a, b min= 2, 3;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             a min= 2;
             b min= 3;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a, b max= 2, 3;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             a max= 2;
             b max= 3;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x min= 2;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             take ___0 = x;
             op ___0 min ___0 2;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a, b min= 2;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             take ___0 = 2;
             {take ___1 = a; op ___1 min ___1 ___0;}
             {take ___2 = b; op ___2 min ___2 ___0;}
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = ++i;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = (__:
             setres i;
             $ = $ + `1`;
         );
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = --i;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = (__:
             setres i;
             $ = $ - `1`;
         );
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = i++;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             take ___0 = i;
             x = ___0;
             ___0 = ___0 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = 2 + ++i;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = 2 + (__:
             setres i;
             $ = $ + `1`;
         );
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = 2 + --i;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = 2 + (__:
             setres i;
             $ = $ - `1`;
         );
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = 2 + i++;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = 2 + (
             take ___0 = i;
             $ = ___0;
             ___0 = ___0 + `1`;
         );
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = i++(2+_);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             take ___0 = i;
             x = 2 + ___0;
             ___0 = ___0 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = 8+i++(2+_);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = 8 + (
             take ___0 = i;
             $ = 2 + ___0;
             ___0 = ___0 + `1`;
         );
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = 8+i++(j++(_) + _);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = 8 + (
             take ___0 = i;
             $ = (
@@ -3558,79 +3751,80 @@ fn op_expr_test() {
             ) + ___0;
             ___0 = ___0 + `1`;
         );
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         print (?++i);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         print ($ = (__: setres i; $ = $ + `1`;););
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         print (*++i);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         print (__: setres i; $ = $ + `1`;);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take*A, B = x+y, i++;
         take*C = j--;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         take A = (*x+y) B = (*i++);
         take C = (*j--);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take*A, B = M;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take*A = M;
             take*B = A;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take*A.V, B.V = M;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = A;
             take*___0.V = M;
             take*B.V = ___0.V;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take*A, B = [x+y, i++];
         take*C = j--;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         take A = (*x+y) B = (*i++);
         take C = (*j--);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!( // 连续运算, 返回者是最左边的
-        parse!(parser, r#"
+    // 连续运算, 返回者是最左边的
+    check_sugar! {parser,
+        r#"
         a = b = c;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = a;
             {
@@ -3638,14 +3832,14 @@ fn op_expr_test() {
                 ___0 = c;
             }
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a = b += c;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = a;
             {
@@ -3656,14 +3850,14 @@ fn op_expr_test() {
                 }
             }
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a += b *= c;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = a;
             {
@@ -3677,14 +3871,14 @@ fn op_expr_test() {
                 }
             }
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a, b += c *= d;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take ___0 = a;
             take ___1 = b;
@@ -3713,359 +3907,359 @@ fn op_expr_test() {
                 }
             }
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         print (=x);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         print ({$=x;});
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         print (y:=x);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         print (y:{$=x;});
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         print (y: =x);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         print (y:{$=x;});
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = abs((?x,));
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = abs(?x,);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = abs((?x,),);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = abs(?x,);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = abs((?x));
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = abs(?x);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = abs((?x+1));
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = abs(?x+1);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = abs((?m:x+1));
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = abs(?m:x+1);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = abs((?m:x));
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = abs(?m:x);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = abs((?`m`:x));
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = abs(?`m`:x);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = abs((=x));
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = abs(=x);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = abs((m:=x));
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = abs(m:=x);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = abs((m:=x,));
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = abs(m:=x,);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = abs((m:=x,));
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = abs(m:=x);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = abs((`m`:=x));
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = abs(`m`:=x);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = abs((`m`:=x+1));
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = abs(`m`:=x+1);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x =? abs((`m`:=x+1));
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = abs(`m`:=x+1);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x =* abs((`m`:=x+1));
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = abs(`m`:=x+1);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x = *abs((`m`:=x+1));
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x = abs(`m`:=x+1);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         print (x:+=2);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         print (x:{$+=2});
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         print (`x`:+=2);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         print (`x`:{$+=2});
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         print (`x`:+=2*=2);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         print (`x`:{$+=2;$*=2});
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a, b, c = x*2, -y*2, (z+3)*2;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         a, b, c = [x, -y, z+3]*2;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a, b, c = x*2, -y*2, z+3;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         a, b, c = [x, -y]*2, z+3;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a, b, c = z+3, x*2, -y*2;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         a, b, c = z+3, [x, -y]*2;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a, b, c = z+3, x*2, -y*2;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         a, b, c = z+3, [x, -y,]*2;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a, b, c, d = a*c, a*d, b*c, b*d;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         a, b, c, d = [a,b]*[c,d];
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a, b = if x ? [1, 2] : 3;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         a, b = if x ? 1 : 3, if x ? 2 : 3;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a, b = select x ? [1, 2] : 3;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         a, b = select x ? 1 : 3, select x ? 2 : 3;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a = sign abs x.y;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         a = sign(abs(x.y));
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a = sign abs angle(x, y);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         a = sign(abs(angle(x, y)));
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a = sign abs x;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         a = sign(abs(x));
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a = sign x;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         a = sign(x);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a = sign x++;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         a = sign(x++);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a = sign x++(_+1);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         a = sign(x++(_+1));
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a = sign x.y++;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         a = sign(x.y++);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a = sign ++x.y;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         a = sign(++x.y);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a = abs sign (x:=2);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         a = abs sign((x:=2));
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a, b = abs sign [x, y];
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         a, b = abs sign x, abs sign y;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
     assert!(
         parse!(parser, r#"
@@ -4073,109 +4267,109 @@ fn op_expr_test() {
         "#).is_err()
     );
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a, b = if a < b ? [x, y : i, j];
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             a = if a < b ? x : i;
             b = if a < b ? y : j;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a, b = select a < b ? [x, y : i, j];
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             a = select a < b ? x : i;
             b = select a < b ? y : j;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 }
 
 #[test]
 fn op_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         op x a !== b;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         op x (op $ a === b;) == `false`;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         op x a %% b;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         op x a emod b;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         op x round a b;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         op round x a b;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         i++;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             take ___0 = i;
             op ___0 ___0 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         i--;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             take ___0 = i;
             op ___0 ___0 - `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         ++i;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             take ___0 = i;
             op ___0 ___0 + `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         --i;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             take ___0 = i;
             op ___0 ___0 - `1`;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 }
 
 #[test]
@@ -4195,19 +4389,21 @@ fn inline_block_test() {
         ]).into()
     );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    print A;
-    inline {
-        const A = 2;
+    check_compile!(parser,
+        r#"
         print A;
-    }
-    print A;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print A",
-               "print 2",
-               "print 2",
-    ]);
+        inline {
+            const A = 2;
+            print A;
+        }
+        print A;
+        "#,
+        r#"
+               print A
+               print 2
+               print 2
+        "#
+    );
 }
 
 #[test]
@@ -4232,66 +4428,70 @@ fn consted_dexp() {
                             ].into()).into(),
                             vec!["x".into()],
                         ).into(),
-                        LogicLine::SetResultHandle("___0".into()),
+                        LogicLine::SetResultHandle("___0".into(), Some(IdxBox::new(13, ()))),
                     ].into()
                 ).into()
             ].into()),
         ]).into()
     );
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    const Do2 = (
-        const F = _0;
-        take F;
-        take F;
+    check_compile!(parser,
+        r#"
+        const Do2 = (
+            const F = _0;
+            take F;
+            take F;
+        );
+        take[
+            const(
+                if a < b {
+                    print 1;
+                } else {
+                    print 2;
+                }
+            )
+        ] Do2;
+        "#,
+        r#"
+               jump 3 lessThan a b
+               print 2
+               jump 4 always 0 0
+               print 1
+               jump 7 lessThan a b
+               print 2
+               jump 0 always 0 0
+               print 1
+        "#
     );
-    take[
-        const(
-            if a < b {
-                print 1;
-            } else {
-                print 2;
-            }
-        )
-    ] Do2;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "jump 3 lessThan a b",
-               "print 2",
-               "jump 4 always 0 0",
-               "print 1",
-               "jump 7 lessThan a b",
-               "print 2",
-               "jump 0 always 0 0",
-               "print 1",
-    ]);
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    const Do2 = (
-        const F = _0;
-        take F;
-        take F;
+    check_compile!(parser,
+        r#"
+        const Do2 = (
+            const F = _0;
+            take F;
+            take F;
+        );
+        take[
+            const!(
+                if a < b {
+                    print 1;
+                } else {
+                    print 2;
+                }
+            )
+        ] Do2;
+        "#,
+        r#"
+               jump 3 lessThan a b
+               print 2
+               jump 4 always 0 0
+               print 1
+               jump 7 lessThan a b
+               print 2
+               jump 0 always 0 0
+               print 1
+        "#
     );
-    take[
-        const!(
-            if a < b {
-                print 1;
-            } else {
-                print 2;
-            }
-        )
-    ] Do2;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "jump 3 lessThan a b",
-               "print 2",
-               "jump 4 always 0 0",
-               "print 1",
-               "jump 7 lessThan a b",
-               "print 2",
-               "jump 0 always 0 0",
-               "print 1",
-    ]);
 
     assert!(CompileMeta::new().compile(parse!(parser, r#"
     const Do2 = (
@@ -4310,353 +4510,357 @@ fn consted_dexp() {
     ] Do2;
     "#).unwrap()).compile().is_err());
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         foo const(:x bar;);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         foo const!(:x bar;);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    let logic_lines = CompileMeta::new().compile(parse!(parser, r#"
-    const x.Y = 2;
-    print const!(%setres x;%).Y;
-    "#).unwrap()).compile().unwrap();
-    assert_eq!(logic_lines, vec![
-               "print 2",
-    ]);
+    check_compile!(parser,
+        r#"
+        const x.Y = 2;
+        print const!(%setres x;%).Y;
+        "#,
+        r#"
+               print 2
+        "#
+    );
 }
 
 #[test]
 fn inline_cmp_op_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         :0 goto :0 a < b;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "jump 0 lessThan a b"
-        ]
+        "#,
+        r#"
+            jump 0 lessThan a b
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         :0 goto :0 a < b;
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         :0 goto :0 a < b;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         :0 goto :0 (op $ a < b;);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         :0 goto :0 a < b;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         :0 goto :0 (op $ a === b;);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         :0 goto :0 a === b;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         :0 goto :0 (x: op x a === b;);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         :0 goto :0 (x: op x a === b;);
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         :0 goto :0 (op x a === b;);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         :0 goto :0 (op x a === b;);
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         :0 goto :0 (x: op $ a === b;);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         :0 goto :0 (x: op $ a === b;);
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         :0 goto :0 !(op $ a < b;);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         :0 goto :0 !a < b;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         :0 goto :0 !!!(op $ a < b;);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         :0 goto :0 !!!a < b;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
     // 暂未实现直接到StrictNotEqual, 目前这就算了吧, 反正最终编译产物一样
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         :0 goto :0 !(op $ a === b;);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         :0 goto :0 a !== b;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         :0 goto :0 (noop; op $ a < b;);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         :0 goto :0 (noop; op $ a < b;);
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         :0 goto :0 (op $ a < b; noop;);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         :0 goto :0 (op $ a < b; noop;);
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!( // 连续内联的作用
-        CompileMeta::new().compile(parse!(parser, r#"
+    // 连续内联的作用
+    check_compile_eq!(parser,
+        r#"
         :0 goto :0 (op $ !(op $ a < b;););
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         :0 goto :0 !a < b;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!( // 连续内联的作用
-        CompileMeta::new().compile(parse!(parser, r#"
+    // 连续内联的作用
+    check_compile_eq!(parser,
+        r#"
         :0 goto :0 (op $ !(op $ !(op $ a < b;);););
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         :0 goto :0 a < b;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
     // 强化内联
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const F = false;
         do {} while (op $ a < b;) != F;
         do {} while (op $ a < b;) == F;
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         do {} while a < b;
         do {} while !a < b;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const F = 0;
         do {} while (op $ a < b;) != F;
         do {} while (op $ a < b;) == F;
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         do {} while a < b;
         do {} while !a < b;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const F = 0;
         const Op = (op $ a < b;);
         do {} while Op != F;
         do {} while Op == F;
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         do {} while a < b;
         do {} while !a < b;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const Op = (op $ a < b;);
         do {} while Op != (0:);
         do {} while Op == (0:);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         do {} while a < b;
         do {} while !a < b;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const F = (0:);
         const Op = (op $ a < b;);
         do {} while Op != F;
         do {} while Op == F;
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         do {} while a < b;
         do {} while !a < b;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const F = (false:);
         const Op = (op $ a < b;);
         do {} while Op != F;
         do {} while Op == F;
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         do {} while a < b;
         do {} while !a < b;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const F = 0;
         const Op = (op $ (op $ a < b;) != F;);
         do {} while Op != F;
         do {} while Op == F;
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         do {} while a < b;
         do {} while !a < b;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const F = 0;
         const Op = (op $ (op $ a < b;) == F;);
         do {} while Op != F;
         do {} while Op == F;
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         do {} while !a < b;
         do {} while a < b;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const false = 2;
         const Cmp = goto(a < b);
         do {} while Cmp != (`false`:);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         const Cmp = goto(a < b);
         do {} while Cmp != (`false`:);
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const false = 2;
         const Cmp = (?a < b);
         break Cmp != (`false`:);
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "jump 0 lessThan a b"
-        ]
+        "#,
+        r#"
+            jump 0 lessThan a b
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const false = 2;
         const Cmp = (?a < b);
         break Cmp != (false:);
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "op lessThan __0 a b",
-            "jump 0 notEqual __0 2",
-        ]
+        "#,
+        r#"
+            op lessThan __0 a b
+            jump 0 notEqual __0 2
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const false = 2;
         const Cmp = (?m: a < b);
         break Cmp != (`false`:);
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "op lessThan m a b",
-            "jump 0 notEqual m false",
-        ]
+        "#,
+        r#"
+            op lessThan m a b
+            jump 0 notEqual m false
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const false = 2;
         const Cmp = (?a < b);
         break Cmp != (`false`: {});
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "op lessThan __0 a b",
-            "jump 0 notEqual __0 false",
-        ]
+        "#,
+        r#"
+            op lessThan __0 a b
+            jump 0 notEqual __0 false
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const false = 2;
         const Cmp = (?a < b);
         break Cmp == (`false`: {});
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "op lessThan __0 a b",
-            "jump 0 equal __0 false",
-        ]
+        "#,
+        r#"
+            op lessThan __0 a b
+            jump 0 equal __0 false
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         break (?a<b);
         break (?a<=b);
         break (?a>b);
         break (?a>=b);
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "jump 0 lessThan a b",
-            "jump 0 lessThanEq a b",
-            "jump 0 greaterThan a b",
-            "jump 0 greaterThanEq a b",
-        ]
+        "#,
+        r#"
+            jump 0 lessThan a b
+            jump 0 lessThanEq a b
+            jump 0 greaterThan a b
+            jump 0 greaterThanEq a b
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const false = 2;
         const Cmp = (?a < b);
         break Cmp == (`false`:);
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "jump 0 greaterThanEq a b",
-        ]
+        "#,
+        r#"
+            jump 0 greaterThanEq a b
+        "#,
     );
 }
 
@@ -4664,110 +4868,110 @@ fn inline_cmp_op_test() {
 fn top_level_break_and_continue_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         foo;
         continue;
         bar;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "foo",
-            "jump 0 always 0 0",
-            "bar",
-        ]
+        "#,
+        r#"
+            foo
+            jump 0 always 0 0
+            bar
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         foo;
         continue _;
         bar;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "foo",
-            "jump 0 always 0 0",
-            "bar",
-        ]
+        "#,
+        r#"
+            foo
+            jump 0 always 0 0
+            bar
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         foo;
         continue a < b;
         bar;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "foo",
-            "jump 0 lessThan a b",
-            "bar",
-        ]
+        "#,
+        r#"
+            foo
+            jump 0 lessThan a b
+            bar
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         foo;
         continue a < b || c < d;
         bar;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "foo",
-            "jump 0 lessThan a b",
-            "jump 0 lessThan c d",
-            "bar",
-        ]
+        "#,
+        r#"
+            foo
+            jump 0 lessThan a b
+            jump 0 lessThan c d
+            bar
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         foo;
         continue;
         bar;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "foo",
-            "jump 0 always 0 0",
-            "bar",
-        ]
+        "#,
+        r#"
+            foo
+            jump 0 always 0 0
+            bar
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         foo;
         continue _;
         bar;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "foo",
-            "jump 0 always 0 0",
-            "bar",
-        ]
+        "#,
+        r#"
+            foo
+            jump 0 always 0 0
+            bar
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         foo;
         continue a < b;
         bar;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "foo",
-            "jump 0 lessThan a b",
-            "bar",
-        ]
+        "#,
+        r#"
+            foo
+            jump 0 lessThan a b
+            bar
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         foo;
         continue a < b || c < d;
         bar;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "foo",
-            "jump 0 lessThan a b",
-            "jump 0 lessThan c d",
-            "bar",
-        ]
+        "#,
+        r#"
+            foo
+            jump 0 lessThan a b
+            jump 0 lessThan c d
+            bar
+        "#,
     );
 
 }
@@ -4776,8 +4980,8 @@ fn top_level_break_and_continue_test() {
 fn control_stmt_break_and_continue_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         foo;
         while a < b {
             foo1;
@@ -4790,25 +4994,25 @@ fn control_stmt_break_and_continue_test() {
         }
         bar;
         break;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "foo",
-            "jump 10 greaterThanEq a b",
-            "foo1",
-            "jump 7 greaterThanEq c d",
-            "foo2",
-            "jump 7 always 0 0",
-            "jump 4 lessThan c d",
-            "bar1",
-            "jump 10 always 0 0",
-            "jump 2 lessThan a b",
-            "bar",
-            "jump 0 always 0 0",
-        ]
+        "#,
+        r#"
+            foo
+            jump 10 greaterThanEq a b
+            foo1
+            jump 7 greaterThanEq c d
+            foo2
+            jump 7 always 0 0
+            jump 4 lessThan c d
+            bar1
+            jump 10 always 0 0
+            jump 2 lessThan a b
+            bar
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         foo;
         gwhile a < b {
             foo1;
@@ -4821,25 +5025,25 @@ fn control_stmt_break_and_continue_test() {
         }
         bar;
         break;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "foo",
-            "jump 9 always 0 0",
-            "foo1",
-            "jump 6 always 0 0",
-            "foo2",
-            "jump 7 always 0 0",
-            "jump 4 lessThan c d",
-            "bar1",
-            "jump 10 always 0 0",
-            "jump 2 lessThan a b",
-            "bar",
-            "jump 0 always 0 0",
-        ]
+        "#,
+        r#"
+            foo
+            jump 9 always 0 0
+            foo1
+            jump 6 always 0 0
+            foo2
+            jump 7 always 0 0
+            jump 4 lessThan c d
+            bar1
+            jump 10 always 0 0
+            jump 2 lessThan a b
+            bar
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         foo;
         xxx;
         do {
@@ -4854,25 +5058,25 @@ fn control_stmt_break_and_continue_test() {
         } while a < b;
         bar;
         break;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "foo",
-            "xxx",
-            "foo1",
-            "xxx",
-            "foo2",
-            "jump 7 always 0 0",
-            "jump 4 lessThan c d",
-            "bar1",
-            "jump 10 always 0 0",
-            "jump 2 lessThan a b",
-            "bar",
-            "jump 0 always 0 0",
-        ]
+        "#,
+        r#"
+            foo
+            xxx
+            foo1
+            xxx
+            foo2
+            jump 7 always 0 0
+            jump 4 lessThan c d
+            bar1
+            jump 10 always 0 0
+            jump 2 lessThan a b
+            bar
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         switch a {
         case 0: foo;
         case 1: break;
@@ -4880,19 +5084,19 @@ fn control_stmt_break_and_continue_test() {
         }
         end;
         break;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "op add @counter @counter a",
-            "foo",
-            "jump 4 always 0 0",
-            "bar",
-            "end",
-            "jump 0 always 0 0",
-        ]
+        "#,
+        r#"
+            op add @counter @counter a
+            foo
+            jump 4 always 0 0
+            bar
+            end
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         select a {
             foo;
             break;
@@ -4900,19 +5104,19 @@ fn control_stmt_break_and_continue_test() {
         }
         end;
         break;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "op add @counter @counter a",
-            "foo",
-            "jump 4 always 0 0",
-            "bar",
-            "end",
-            "jump 0 always 0 0",
-        ]
+        "#,
+        r#"
+            op add @counter @counter a
+            foo
+            jump 4 always 0 0
+            bar
+            end
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         foo;
         while a < b {
             foo1;
@@ -4925,25 +5129,26 @@ fn control_stmt_break_and_continue_test() {
         }
         bar;
         continue;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "foo",
-            "jump 10 greaterThanEq a b",
-            "foo1",
-            "jump 7 greaterThanEq c d",
-            "foo2",
-            "jump 6 always 0 0",
-            "jump 4 lessThan c d",
-            "bar1",
-            "jump 9 always 0 0",
-            "jump 2 lessThan a b",
-            "bar",
-            "jump 0 always 0 0",
-        ]
+        "#,
+        r#"
+            foo
+            jump 10 greaterThanEq a b
+            foo1
+            jump 7 greaterThanEq c d
+            foo2
+            jump 6 always 0 0
+            jump 4 lessThan c d
+            bar1
+            jump 9 always 0 0
+            jump 2 lessThan a b
+            bar
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    // 4 -> 6
+    check_compile!(parser,
+        r#"
         foo;
         while a < b {
             foo1;
@@ -4956,25 +5161,25 @@ fn control_stmt_break_and_continue_test() {
         }
         bar;
         continue;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "foo",
-            "jump 10 greaterThanEq a b",
-            "foo1",
-            "jump 7 greaterThanEq c d",
-            "jump 6 always 0 0",
-            "foo2",
-            "jump 6 lessThan c d", // 4 -> 6
-            "bar1",
-            "jump 9 always 0 0",
-            "jump 2 lessThan a b",
-            "bar",
-            "jump 0 always 0 0",
-        ]
+        "#,
+        r#"
+            foo
+            jump 10 greaterThanEq a b
+            foo1
+            jump 7 greaterThanEq c d
+            jump 6 always 0 0
+            foo2
+            jump 6 lessThan c d
+            bar1
+            jump 9 always 0 0
+            jump 2 lessThan a b
+            bar
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         foo;
         gwhile a < b {
             foo1;
@@ -4987,25 +5192,25 @@ fn control_stmt_break_and_continue_test() {
         }
         bar;
         continue;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "foo",
-            "jump 9 always 0 0",
-            "foo1",
-            "jump 6 always 0 0",
-            "foo2",
-            "jump 6 always 0 0",
-            "jump 4 lessThan c d",
-            "bar1",
-            "jump 9 always 0 0",
-            "jump 2 lessThan a b",
-            "bar",
-            "jump 0 always 0 0",
-        ]
+        "#,
+        r#"
+            foo
+            jump 9 always 0 0
+            foo1
+            jump 6 always 0 0
+            foo2
+            jump 6 always 0 0
+            jump 4 lessThan c d
+            bar1
+            jump 9 always 0 0
+            jump 2 lessThan a b
+            bar
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         foo;
         xxx;
         do {
@@ -5020,25 +5225,25 @@ fn control_stmt_break_and_continue_test() {
         } while a < b;
         bar;
         continue;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "foo",
-            "xxx",
-            "foo1",
-            "xxx",
-            "foo2",
-            "jump 6 always 0 0",
-            "jump 4 lessThan c d",
-            "bar1",
-            "jump 9 always 0 0",
-            "jump 2 lessThan a b",
-            "bar",
-            "jump 0 always 0 0",
-        ]
+        "#,
+        r#"
+            foo
+            xxx
+            foo1
+            xxx
+            foo2
+            jump 6 always 0 0
+            jump 4 lessThan c d
+            bar1
+            jump 9 always 0 0
+            jump 2 lessThan a b
+            bar
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         switch a {
         case 0: foo;
         case 1: continue;
@@ -5046,19 +5251,19 @@ fn control_stmt_break_and_continue_test() {
         }
         end;
         continue;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "op add @counter @counter a",
-            "foo",
-            "jump 0 always 0 0",
-            "bar",
-            "end",
-            "jump 0 always 0 0",
-        ]
+        "#,
+        r#"
+            op add @counter @counter a
+            foo
+            jump 0 always 0 0
+            bar
+            end
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         select a {
             foo;
             continue;
@@ -5066,19 +5271,19 @@ fn control_stmt_break_and_continue_test() {
         }
         end;
         continue;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "op add @counter @counter a",
-            "foo",
-            "jump 0 always 0 0",
-            "bar",
-            "end",
-            "jump 0 always 0 0",
-        ]
+        "#,
+        r#"
+            op add @counter @counter a
+            foo
+            jump 0 always 0 0
+            bar
+            end
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         end;
         switch a {
         case 0: foo;
@@ -5087,20 +5292,20 @@ fn control_stmt_break_and_continue_test() {
         }
         end;
         continue;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "end",
-            "op add @counter @counter a",
-            "foo",
-            "jump 1 always 0 0",
-            "bar",
-            "end",
-            "jump 0 always 0 0",
-        ]
+        "#,
+        r#"
+            end
+            op add @counter @counter a
+            foo
+            jump 1 always 0 0
+            bar
+            end
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         end;
         select a {
             foo;
@@ -5109,16 +5314,16 @@ fn control_stmt_break_and_continue_test() {
         }
         end;
         continue;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "end",
-            "op add @counter @counter a",
-            "foo",
-            "jump 1 always 0 0",
-            "bar",
-            "end",
-            "jump 0 always 0 0",
-        ]
+        "#,
+        r#"
+            end
+            op add @counter @counter a
+            foo
+            jump 1 always 0 0
+            bar
+            end
+            jump 0 always 0 0
+        "#,
     );
 
 }
@@ -5127,11 +5332,11 @@ fn control_stmt_break_and_continue_test() {
 fn op_expr_if_else_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a = if b < c ? b + 2 : c;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             take ___0 = a;
             goto :___0 b < c;
@@ -5141,14 +5346,14 @@ fn op_expr_if_else_test() {
             op ___0 b + 2;
             :___1
         }
-        "#).unwrap()
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a = (if b < c ? b + 2 : c);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             take ___0 = a;
             goto :___0 b < c;
@@ -5158,14 +5363,14 @@ fn op_expr_if_else_test() {
             op ___0 b + 2;
             :___1
         }
-        "#).unwrap()
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a = if b < c ? b + 2 : if d < e ? 8 : c - 2;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             take ___1 = a;
             goto :___2 b < c;
@@ -5183,14 +5388,14 @@ fn op_expr_if_else_test() {
             op ___1 b + 2;
             :___3
         }
-        "#).unwrap()
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         a = 1 + (if b ? c : d);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         op a 1 + (
             take ___0 = $;
             goto :___0 b;
@@ -5200,8 +5405,8 @@ fn op_expr_if_else_test() {
             `set` ___0 c;
             :___1
         );
-        "#).unwrap()
-    );
+        "#,
+    };
 
 }
 
@@ -5209,29 +5414,29 @@ fn op_expr_if_else_test() {
 fn optional_jumpcmp_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         :x
         goto :x;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         :x
         goto :x _;
-        "#).unwrap()
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         do {
             foo;
         } while;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         do {
             foo;
         } while _;
-        "#).unwrap()
-    );
+        "#,
+    };
 
 }
 
@@ -5239,8 +5444,8 @@ fn optional_jumpcmp_test() {
 fn control_block_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         a;
         break {
             b;
@@ -5249,19 +5454,19 @@ fn control_block_test() {
         }
         d;
         break;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "a",
-            "b",
-            "jump 4 always 0 0",
-            "c",
-            "d",
-            "jump 0 always 0 0",
-        ]
+        "#,
+        r#"
+            a
+            b
+            jump 4 always 0 0
+            c
+            d
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         a;
         break! {
             b;
@@ -5270,19 +5475,19 @@ fn control_block_test() {
         }
         d;
         break;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "a",
-            "b",
-            "jump 1 always 0 0",
-            "c",
-            "d",
-            "jump 0 always 0 0",
-        ]
+        "#,
+        r#"
+            a
+            b
+            jump 1 always 0 0
+            c
+            d
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         a;
         continue {
             b;
@@ -5291,19 +5496,19 @@ fn control_block_test() {
         }
         d;
         continue;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "a",
-            "b",
-            "jump 1 always 0 0",
-            "c",
-            "d",
-            "jump 0 always 0 0",
-        ]
+        "#,
+        r#"
+            a
+            b
+            jump 1 always 0 0
+            c
+            d
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         a;
         continue! {
             b;
@@ -5312,19 +5517,19 @@ fn control_block_test() {
         }
         d;
         continue;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "a",
-            "b",
-            "jump 4 always 0 0",
-            "c",
-            "d",
-            "jump 0 always 0 0",
-        ]
+        "#,
+        r#"
+            a
+            b
+            jump 4 always 0 0
+            c
+            d
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         a;
         continue {
             b;
@@ -5333,19 +5538,19 @@ fn control_block_test() {
         }
         d;
         continue;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "a",
-            "b",
-            "jump 0 always 0 0",
-            "c",
-            "d",
-            "jump 0 always 0 0",
-        ]
+        "#,
+        r#"
+            a
+            b
+            jump 0 always 0 0
+            c
+            d
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         a;
         break {
             b;
@@ -5354,19 +5559,19 @@ fn control_block_test() {
         }
         d;
         break;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "a",
-            "b",
-            "jump 0 always 0 0",
-            "c",
-            "d",
-            "jump 0 always 0 0",
-        ]
+        "#,
+        r#"
+            a
+            b
+            jump 0 always 0 0
+            c
+            d
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         a;
         break continue {
             b;
@@ -5375,19 +5580,19 @@ fn control_block_test() {
             c;
         }
         d;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "a",
-            "b",
-            "jump 1 always 0 0",
-            "jump 5 always 0 0",
-            "c",
-            "d",
-        ]
+        "#,
+        r#"
+            a
+            b
+            jump 1 always 0 0
+            jump 5 always 0 0
+            c
+            d
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         a;
         continue break {
             b;
@@ -5396,19 +5601,19 @@ fn control_block_test() {
             c;
         }
         d;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "a",
-            "b",
-            "jump 1 always 0 0",
-            "jump 5 always 0 0",
-            "c",
-            "d",
-        ]
+        "#,
+        r#"
+            a
+            b
+            jump 1 always 0 0
+            jump 5 always 0 0
+            c
+            d
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         a;
         continue! break! {
             b;
@@ -5417,15 +5622,15 @@ fn control_block_test() {
             c;
         }
         d;
-        "#).unwrap()).compile().unwrap(),
-        [
-            "a",
-            "b",
-            "jump 1 always 0 0",
-            "jump 5 always 0 0",
-            "c",
-            "d",
-        ]
+        "#,
+        r#"
+            a
+            b
+            jump 1 always 0 0
+            jump 5 always 0 0
+            c
+            d
+        "#,
     );
 }
 
@@ -5518,164 +5723,164 @@ fn number_test() {
 fn cmper_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const Cmp = goto(_0 < _1);
         do {} while ({const _0 = a; const _1 = b;} => Cmp);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         do {} while a < b;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const Cmp = goto(_0 < _1);
         do {} while !({const _0 = a; const _1 = b;} => Cmp);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         do {} while !a < b;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const Cmp = goto(_0 < _1);
         do {} while ({const _0 = a; const _1 = b;} => !Cmp);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         do {} while !a < b;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         const Cmp = goto(_0 < _1);
         do {} while ({const _0 = a; const _1 = b;} => !Cmp);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         const Cmp = goto(_0 < _1);
         do {} while {const _0 = a; const _1 = b;} => !Cmp;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const Cmp = goto(!_0 < _1);
         do {} while ({const _0 = a; const _1 = b;} => Cmp);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         do {} while !a < b;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const Cmp = goto(!_0 < _1);
         do {} while ({const _0 = a; const _1 = b;} => !Cmp);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         do {} while a < b;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const Cmp = goto(_0 < _1);
         do {} while !(x && ({const _0 = a; const _1 = b;} => Cmp));
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         do {} while !(x && a < b);
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         do {} while !(x && ({const _0 = a; const _1 = b;} => goto(_0 < _1)));
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         do {} while !(x && a < b);
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         do {} while !(x && ({const _0 = a; const _1 = b;} => !goto(_0 < _1)));
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         do {} while !(x && !a < b);
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const x.Cmp = goto(.. < 2);
         const Cmp = x->Cmp;
         do {} while Cmp;
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         do {} while x < 2;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const x.New = (
             setres ..;
             const $.Cmp = goto(.. < 2);
         );
         const Cmp = x->New->Cmp;
         do {} while Cmp;
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         do {} while x < 2;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const x.New = (
             setres ..;
             const $.Cmp = goto({print ..;} => .. < 2);
         );
         const Cmp = x->New->Cmp;
         do {} while Cmp;
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         do {print x;} while x < 2;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const x.Cmp = goto(.. < 2);
         const Cmp = x->Cmp;
         do {} while Cmp;
         do {} while Cmp;
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         do {} while x < 2;
         do {} while x < 2;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const x.Cmp = goto({
             do {} while;
         } => .. < 2);
         const Cmp = x->Cmp;
         do {} while Cmp;
         do {} while Cmp;
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         do {do {} while;} while x < 2;
         do {do {} while;} while x < 2;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const x.Cmp = goto({
             do {} while;
         } => .. < 2);
@@ -5683,308 +5888,309 @@ fn cmper_test() {
         do {} while Cmp;
         do {} while Cmp;
         print ..;
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         do {do {} while;} while x < 2;
         do {do {} while;} while x < 2;
         print __;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         break ({match 1 2 3 => @ {}} => _);
         print _0 @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "jump 0 always 0 0",
-            "print _0",
-        ]
+        "#,
+        r#"
+            jump 0 always 0 0
+            print _0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         break (=>[1 2 3] _);
         print _0 @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "jump 0 always 0 0",
-            "print _0",
-        ]
+        "#,
+        r#"
+            jump 0 always 0 0
+            print _0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         break (=> a);
         print _0 @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "jump 0 notEqual a false",
-            "print _0",
-        ]
+        "#,
+        r#"
+            jump 0 notEqual a false
+            print _0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         break ( [1 2 3] a);
         print _0 @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "jump 0 notEqual a false",
-            "print _0",
-        ]
+        "#,
+        r#"
+            jump 0 notEqual a false
+            print _0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         break [1 2 3] a;
         print _0 @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "jump 0 notEqual a false",
-            "print _0",
-        ]
+        "#,
+        r#"
+            jump 0 notEqual a false
+            print _0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         break [1 2 3] [4 5] _0;
         print _0 @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "jump 0 notEqual 4 false",
-            "print _0",
-        ]
+        "#,
+        r#"
+            jump 0 notEqual 4 false
+            print _0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         break ( [1 2 3] [4 5] _0);
         print _0 @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "jump 0 notEqual 4 false",
-            "print _0",
-        ]
+        "#,
+        r#"
+            jump 0 notEqual 4 false
+            print _0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         break (=>[1 2 3] a);
         print _0 @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "jump 0 notEqual a false",
-            "print _0",
-        ]
+        "#,
+        r#"
+            jump 0 notEqual a false
+            print _0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         break (=>[a] _0 && _0);
         print _0 @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "jump 2 equal a false",
-            "jump 0 notEqual _0 false",
-            "print _0",
-        ]
+        "#,
+        r#"
+            jump 2 equal a false
+            jump 0 notEqual _0 false
+            print _0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         break (=>[a] (_0 && _0));
         print _0 @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "jump 2 equal a false",
-            "jump 0 notEqual a false",
-            "print _0",
-        ]
+        "#,
+        r#"
+            jump 2 equal a false
+            jump 0 notEqual a false
+            print _0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         break (=>[1 2 3] _);
         print _0 @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "jump 0 always 0 0",
-            "print _0",
-        ]
+        "#,
+        r#"
+            jump 0 always 0 0
+            print _0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         break ( [1 2 3]_);
         print _0 @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "jump 0 always 0 0",
-            "print _0",
-        ]
+        "#,
+        r#"
+            jump 0 always 0 0
+            print _0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         break [1 2 3]_;
         print _0 @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "jump 0 always 0 0",
-            "print _0",
-        ]
+        "#,
+        r#"
+            jump 0 always 0 0
+            print _0
+        "#,
     );
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
             break (=>[1 2 3] _);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
             break (=>[1 2 3] _);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
             break [1 2 3] _;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
             break (=> [1 2 3] _);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
             goto( [a b] c);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
             goto(=>[a b] c);
-        "#).unwrap(),
-    );
+        "#,
+    };
 }
 
 #[test]
 fn mul_takes_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take A=B C=D E=F G=I;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             take A = B;
             take C = D;
             take E = F;
             take G = I;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 }
 
 #[test]
 fn mul_consts_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         const A=B C=D E=F G=I;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             const A = B;
             const C = D;
             const E = F;
             const G = I;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!( // label
-        parse!(parser, r#"
+    // label
+    check_sugar! {parser,
+        r#"
         const A=(:m goto :m;) C=(if x {});
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline {
             const A = (:m goto :m;);
             const C = (if x {});
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 }
 
 #[test]
 fn switch_ignored_id_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         switch x {
             case: foo;
             case: bar;
             case: baz;
         }
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         switch x {
             case 0: foo;
             case 1: bar;
             case 2: baz;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         switch x {
             case 1: foo;
             case: bar;
             case: baz;
         }
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         switch x {
             case 1: foo;
             case 2: bar;
             case 3: baz;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         switch x {
             case: foo;
             case 2: bar;
             case: baz;
         }
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         switch x {
             case 0: foo;
             case 2: bar;
             case 3: baz;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         switch x {
             case 0 2 4: foo;
             case: bar;
             case: baz;
         }
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         switch x {
             case 0 2 4: foo;
             case 5: bar;
             case 6: baz;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 }
 
 #[test]
@@ -5993,8 +6199,8 @@ fn switch_append_tail_once_test() {
 
     // switch填充行仅最后一个进行填充
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         switch x {
             break;
             case 6:
@@ -6002,8 +6208,8 @@ fn switch_append_tail_once_test() {
             case 3:
                 bar;
         }
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         select x {
             print; # ignore
             print;
@@ -6013,224 +6219,225 @@ fn switch_append_tail_once_test() {
             { break; }
             { foo; break; }
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 }
 
 #[test]
 fn const_expr_eval_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         print 1.00;
         print `1.00`;
         print (1.00:);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         print 1.00;
         print 1.00;
         print 1.00;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         print ($ = 1.00;);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         print 1;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         take N = (op $ (op $ (op $ 1 + 2;) + 3;) + 4;);
         print N;
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         print `10`;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         take N = ($ = 1 + 2 + 3 + 4;);
         print N;
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         print `10`;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         take N = ($ = 1 << 10;);
         print N;
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         take N = 1024;
         print N;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         take N = ($ = 1.0 == 1;);
         print N;
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         take N = 1;
         print N;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         take N = (m: $ = 1.0 == 1;);
         print N;
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         m = 1.0 == 1;
         print m;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         print ($ = (`set` $ ($ = 1 + 1;);););
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         print 2;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!( // 非匿名句柄不优化
-        CompileMeta::new().compile(parse!(parser, r#"
+    // 非匿名句柄不优化
+    check_compile_eq!(parser,
+        r#"
         print (x: $ = 1 + 1;);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         op x 1 + 1;
         print x;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         print ($ = log(0););
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         print null;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         print ($ = acos(0.5););
         print ($ = cos(60););
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         print 60.00000000000001;
         print 0.5000000000000001;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         print ($ = -3 // 2;);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         print -2;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const N=($ = -3 // 2;);
         const N1=($ = -N;);
         print N1;
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         print 2;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const N=($ = -3 // 2;);
         take N1=($ = -N;);
         print N1;
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         print 2;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         const N=($ = -3 // 2;);
         take N=($ = -N;);
         print N;
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         print 2;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         print ($ = -2 - 3;);
         print ($ = max(3, 5););
         print ($ = min(0, -2););
         print ($ = min(null, -2););
         print ($ = abs(null););
         print ($ = null;);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         print -5;
         print 5;
         print -2;
         print -2;
         print 0;
         print null;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         print ($ = 999999+0;);
         print ($ = 999999+1;);
         print ($ = -999999 - 0;);
         print ($ = -999999 - 1;);
         print ($ = 1 - 1;);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         print 999999;
         print 0xF4240;
         print -999999;
         print 0x-F4240;
         print 0;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         print (*select 2 < 4 ? 5 : 8);
         print (*select 4 < 2 ? 5 : 8);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         print 5;
         print 8;
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile_eq!(parser,
+        r#"
         print (*select 2 < 4 ? a : 8);
-        "#).unwrap()).compile().unwrap(),
-        CompileMeta::new().compile(parse!(parser, r#"
+        "#,
+        r#"
         print ('select' $ lessThan 2 4 a 8);
-        "#).unwrap()).compile().unwrap(),
+        "#,
     );
 }
 
@@ -6287,115 +6494,120 @@ fn string_escape_test() {
 fn match_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Foo = (
             inline@{
                 print @;
             }
         );
         take Foo[a b c];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print a",
-            "print b",
-            "print c",
-        ],
+        "#,
+        r#"
+            print a
+            print b
+            print c
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Foo = (
             print @;
         );
         take Foo[a b c];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print a",
-            "print b",
-            "print c",
-        ],
+        "#,
+        r#"
+            print a
+            print b
+            print c
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(@with_source parser,
+        r#"
         take Foo[a b c];
         print @;
-        "#).unwrap()).compile().unwrap(),
-        Vec::<&str>::new(),
-    );
+        "#,
+        r#""#
+    ).hit_log(1);
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         match a b c {}
         print @;
-        "#).unwrap()).compile().unwrap(),
-        Vec::<&str>::new(),
+        "#,
+        r#"
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         match a b c { @{} }
         print @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print a",
-            "print b",
-            "print c",
-        ],
+        "#,
+        r#"
+            print a
+            print b
+            print c
+        "#,
     );
 
-    assert_eq!( // 作用域测试
-        CompileMeta::new().compile(parse!(parser, r#"
+    // 作用域测试
+    check_compile!(parser,
+        r#"
         {
             match a b c { @{} }
         }
         print @;
-        "#).unwrap()).compile().unwrap(),
-        Vec::<&str>::new(),
+        "#,
+        r#"
+        "#,
     );
 
-    assert_eq!( // 作用域测试
-        CompileMeta::new().compile(parse!(parser, r#"
+    // 作用域测试
+    check_compile!(parser,
+        r#"
         match a b c { @{} }
         inline@{
             print @;
         }
         print end;
         print @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print a",
-            "print b",
-            "print c",
-            "print end",
-            "print a",
-            "print b",
-            "print c",
-        ],
+        "#,
+        r#"
+            print a
+            print b
+            print c
+            print end
+            print a
+            print b
+            print c
+        "#,
     );
 
-    assert_eq!( // 作用域测试
-        CompileMeta::new().compile(parse!(parser, r#"
+    // 作用域测试
+    check_compile!(parser,
+        r#"
         match a b c { @{} }
         inline 2@{
             foo @;
         }
         print end;
         print @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "foo a b",
-            "foo c",
-            "print end",
-            "print a",
-            "print b",
-            "print c",
-        ],
+        "#,
+        r#"
+            foo a b
+            foo c
+            print end
+            print a
+            print b
+            print c
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const C = 1;
         match a b c { @{} }
         inline*C@{
@@ -6403,20 +6615,20 @@ fn match_test() {
         }
         print end;
         print @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "foo a",
-            "foo b",
-            "foo c",
-            "print end",
-            "print a",
-            "print b",
-            "print c",
-        ],
+        "#,
+        r#"
+            foo a
+            foo b
+            foo c
+            print end
+            print a
+            print b
+            print c
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const C = 1;
         match a b c { @{} }
         inline*C@{
@@ -6425,18 +6637,18 @@ fn match_test() {
         }
         print end;
         print @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "foo a",
-            "print end",
-            "print a",
-            "print b",
-            "print c",
-        ],
+        "#,
+        r#"
+            foo a
+            print end
+            print a
+            print b
+            print c
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const C = 2;
         match a b c { @{} }
         inline*C@{
@@ -6444,70 +6656,71 @@ fn match_test() {
         }
         print end;
         print @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "foo a b",
-            "foo c",
-            "print end",
-            "print a",
-            "print b",
-            "print c",
-        ],
+        "#,
+        r#"
+            foo a b
+            foo c
+            print end
+            print a
+            print b
+            print c
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         match a b c { __ @{} }
         print @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print b",
-            "print c",
-        ],
+        "#,
+        r#"
+            print b
+            print c
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         match a b c {
             X Y {}
             @{}
         }
         print @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print a",
-            "print b",
-            "print c",
-        ],
+        "#,
+        r#"
+            print a
+            print b
+            print c
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         match a b {
             X Y {}
             @{}
         }
         print @;
-        "#).unwrap()).compile().unwrap(),
-        Vec::<&str>::new(),
+        "#,
+        r#"
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         match a b {
             X Y {}
             @{}
         }
         print X Y;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print a",
-            "print b",
-        ],
+        "#,
+        r#"
+            print a
+            print b
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Foo = (
             match @ {
                 Fst @ {
@@ -6520,17 +6733,17 @@ fn match_test() {
             }
         );
         take Foo[a b c];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print a",
-            "print b",
-            "print c",
-            "print end",
-        ],
+        "#,
+        r#"
+            print a
+            print b
+            print c
+            print end
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Foo = (
             match @ {
                 @ Lst {
@@ -6543,17 +6756,17 @@ fn match_test() {
             }
         );
         take Foo[a b c];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print c",
-            "print b",
-            "print a",
-            "print end",
-        ],
+        "#,
+        r#"
+            print c
+            print b
+            print a
+            print end
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Foo = (
             match @ {
                 Fst @ Lst {
@@ -6570,18 +6783,18 @@ fn match_test() {
             }
         );
         take Foo[a b c d e];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print a",
-            "print e",
-            "print b",
-            "print d",
-            "print c",
-        ],
+        "#,
+        r#"
+            print a
+            print e
+            print b
+            print d
+            print c
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Foo = (
             match @ {
                 Fst @ Lst {
@@ -6598,20 +6811,20 @@ fn match_test() {
             }
         );
         take Foo[a b c d e f];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print a",
-            "print f",
-            "print b",
-            "print e",
-            "print c",
-            "print d",
-            "print end",
-        ],
+        "#,
+        r#"
+            print a
+            print f
+            print b
+            print e
+            print c
+            print d
+            print end
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Foo = ( # 循环展开版本
             inline@{
                 match @ {
@@ -6631,23 +6844,23 @@ fn match_test() {
             }
         );
         take Foo[1 2 3 4 5 6];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print one",
-            "print two",
-            "print three_or_four",
-            "print 3",
-            "print three_or_four",
-            "print 4",
-            "print other",
-            "print 5",
-            "print other",
-            "print 6",
-        ],
+        "#,
+        r#"
+            print one
+            print two
+            print three_or_four
+            print 3
+            print three_or_four
+            print 4
+            print other
+            print 5
+            print other
+            print 6
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Foo = ( # 右递归版本
             match @ {
                 [1] @ {
@@ -6669,23 +6882,23 @@ fn match_test() {
             }
         );
         take Foo[1 2 3 4 5 6];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print one",
-            "print two",
-            "print three_or_four",
-            "print 3",
-            "print three_or_four",
-            "print 4",
-            "print other",
-            "print 5",
-            "print other",
-            "print 6",
-        ],
+        "#,
+        r#"
+            print one
+            print two
+            print three_or_four
+            print 3
+            print three_or_four
+            print 4
+            print other
+            print 5
+            print other
+            print 6
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Foo = ( # 左递归版本
             match @ {
                 @ [1] {
@@ -6707,23 +6920,23 @@ fn match_test() {
             }
         );
         take Foo[1 2 3 4 5 6];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print one",
-            "print two",
-            "print three_or_four",
-            "print 3",
-            "print three_or_four",
-            "print 4",
-            "print other",
-            "print 5",
-            "print other",
-            "print 6",
-        ],
+        "#,
+        r#"
+            print one
+            print two
+            print three_or_four
+            print 3
+            print three_or_four
+            print 4
+            print other
+            print 5
+            print other
+            print 6
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Eq = ( # 引用前部匹配
             match @ {
                 A B {
@@ -6740,18 +6953,18 @@ fn match_test() {
         );
         take Eq[a a];
         take Eq[a b];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print equal",
-            "print a",
-            "print not_equal",
-            "print a",
-            "print b",
-        ],
+        "#,
+        r#"
+            print equal
+            print a
+            print not_equal
+            print a
+            print b
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Foo = (
             # 验证滞后const,
             # 对于args应该在传参时就进行const而不是使用时才进行处理
@@ -6764,15 +6977,15 @@ fn match_test() {
         );
         const X = 5;
         take Foo[X];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 5",
-            "print 5",
-        ],
+        "#,
+        r#"
+            print 5
+            print 5
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         # 验证其并不会连锁追溯
         const Foo = (
             take A = _0;
@@ -6782,16 +6995,16 @@ fn match_test() {
         const Y = `X`;
         print Y;
         take Foo[Y];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print X",
-            "print X",
-            "print X",
-        ],
+        "#,
+        r#"
+            print X
+            print X
+            print X
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         # 验证其并不会连锁追溯
         const Foo = (
             take A = _0;
@@ -6803,17 +7016,17 @@ fn match_test() {
         const Y = `X`;
         print Y;
         take Foo[Y];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print X",
-            "print X",
-            "print X",
-            "print X",
-        ],
+        "#,
+        r#"
+            print X
+            print X
+            print X
+            print X
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         # 验证其并不会连锁追溯
         const X = 2;
         match `X` {
@@ -6824,14 +7037,14 @@ fn match_test() {
                 print "fail" Y;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print X",
-        ],
+        "#,
+        r#"
+            print X
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const 3 = 0;
         const X = 2;
         const Y = `3`;
@@ -6840,16 +7053,16 @@ fn match_test() {
                 print A B C;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 2",
-            "print 3",
-            "print 4",
-        ],
+        "#,
+        r#"
+            print 2
+            print 3
+            print 4
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         # 关于二次追溯
         {
             const X = 2;
@@ -6867,17 +7080,17 @@ fn match_test() {
             );
             take F[Y];
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print X",
-            "print X",
-            "print Y",
-            "print Y",
-        ],
+        "#,
+        r#"
+            print X
+            print X
+            print Y
+            print Y
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         # 关于二次追溯
         {
             const X = 2;
@@ -6901,17 +7114,17 @@ fn match_test() {
             );
             take F[Y];
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print X",
-            "print X",
-            "print Y",
-            "print Y",
-        ],
+        "#,
+        r#"
+            print X
+            print X
+            print Y
+            print Y
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         # 关于参数展开在match和repeat中对绑定者的丢失
         const a.F = (nouse:
             print ..;
@@ -6934,26 +7147,26 @@ fn match_test() {
         take F = Builtin.BindHandle2[`a` `F`];
         take Builtin.Const[`F` F];
         take Do[F];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print a",
-            "print nouse",
-            "print a",
-            "print nouse",
-            "print a",
-            "print nouse",
-        ],
+        "#,
+        r#"
+            print a
+            print nouse
+            print a
+            print nouse
+            print a
+            print nouse
+        "#,
     );
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
          inline@ # align .....
             A B *C
         {
             print A B C;
         }
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         inline 3@{
             const match @ {
                 A B *C {
@@ -6961,206 +7174,206 @@ fn match_test() {
                 }
             }
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         match x @ y => a @ b {
             body;
         }
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         match x @ y {
             a @ b {
                 body;
             }
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         const match x @ y => a @ b {
             body;
         }
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         const match x @ y {
             a @ b {
                 body;
             }
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         const match x @ y => *a @ [b] {
             body;
         }
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         const match x @ y {
             *a @ [b] {
                 body;
             }
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         match 1 2 => @ {
             print _0 _1 @;
         }
         print _0 _1 @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 1",
-            "print 2",
-            "print 1",
-            "print 2",
-            "print 1",
-            "print 2",
-            "print 1",
-            "print 2",
-        ],
+        "#,
+        r#"
+            print 1
+            print 2
+            print 1
+            print 2
+            print 1
+            print 2
+            print 1
+            print 2
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const match 1 2 => @ {
             print _0 _1 @;
         }
         print _0 _1 @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 1",
-            "print 2",
-            "print 1",
-            "print 2",
-            "print 1",
-            "print 2",
-            "print 1",
-            "print 2",
-        ],
+        "#,
+        r#"
+            print 1
+            print 2
+            print 1
+            print 2
+            print 1
+            print 2
+            print 1
+            print 2
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Foo = (match @ {
             { print 0; }
             _ { print 1; }
             _ _ { print 2; }
         });
         take Foo[] Foo[3] Foo[3 3];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 0",
-            "print 1",
-            "print 2",
-        ],
+        "#,
+        r#"
+            print 0
+            print 1
+            print 2
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Foo = (match @ {
             $_ { print 1; }
         });
         print Foo[6];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 1",
-            "print 6",
-        ],
+        "#,
+        r#"
+            print 1
+            print 6
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Foo = (match @ {
             $X { print 8 X 8; }
         });
         print Foo[6];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 8",
-            "print 6",
-            "print 8",
-            "print 6",
-        ],
+        "#,
+        r#"
+            print 8
+            print 6
+            print 8
+            print 6
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Foo = (match @ {
             $X $Y { print 8 X 8; }
         });
         print Foo[6 9];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 8",
-            "print 6",
-            "print 8",
-            "print 9",
-        ],
+        "#,
+        r#"
+            print 8
+            print 6
+            print 8
+            print 9
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Foo = (match @ {
             X $Y { print 8 X 8; }
         });
         print Foo[6 9];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 8",
-            "print 6",
-            "print 8",
-            "print 9",
-        ],
+        "#,
+        r#"
+            print 8
+            print 6
+            print 8
+            print 9
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Foo = (match @ {
             $X Y { print 8 X 8; }
         });
         print Foo[6 9];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 8",
-            "print 6",
-            "print 8",
-            "print 6",
-        ],
+        "#,
+        r#"
+            print 8
+            print 6
+            print 8
+            print 6
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Foo = (match @ {
             X Y { print 8 X 8; }
         });
         print Foo[6 9];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 8",
-            "print 6",
-            "print 8",
-            "print __2",
-        ],
+        "#,
+        r#"
+            print 8
+            print 6
+            print 8
+            print __2
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const match (arg;) => @ {}
         match (a;) @ (b;) => @ {}
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "a",
-            "arg",
-            "b",
-        ],
+        "#,
+        r#"
+            a
+            arg
+            b
+        "#,
     );
 }
 
@@ -7168,98 +7381,90 @@ fn match_test() {
 fn param_comma_sugar_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        parse!(parser, "print a, b;").unwrap(),
-        parse!(parser, "print a b;").unwrap(),
-    );
-    assert_eq!(
-        parse!(parser, "print a, b,;").unwrap(),
-        parse!(parser, "print a b;").unwrap(),
-    );
-    assert_eq!(
-        parse!(parser, "print, a, b,;").unwrap(),
-        parse!(parser, "print a b;").unwrap(),
-    );
-    assert_eq!(
-        parse!(parser, "take Foo[1, 2, 3];").unwrap(),
-        parse!(parser, "take Foo[1 2 3];").unwrap(),
-    );
-    assert_eq!(
-        parse!(parser, "take Foo[1 2, 3];").unwrap(),
-        parse!(parser, "take Foo[1 2 3];").unwrap(),
-    );
-    assert_eq!(
-        parse!(parser, r#"
-        take {A &B:C} = (c;)  M;
-        "#).unwrap(),
-        parse!(parser, r#"
-        take {A &B:C} = (c;), M,;
-        "#).unwrap(),
-    );
-    assert_eq!(
-        parse!(parser, r#"
-        take {A &B:C} = (c;),;
-        "#).unwrap(),
-        parse!(parser, r#"
-        take {A &B:C} = (c;);
-        "#).unwrap(),
-    );
-    assert_eq!(
-        parse!(parser, "take Foo[1 @ 2, 3];").unwrap(),
-        parse!(parser, "take Foo[1 @ 2 3];").unwrap(),
-    );
-    assert_eq!(
-        parse!(parser, "take Foo[1, @ 2, 3];").unwrap(),
-        parse!(parser, "take Foo[1 @ 2 3];").unwrap(),
-    );
-    assert_eq!(
-        parse!(parser, "take Foo[1, @, 2, 3];").unwrap(),
-        parse!(parser, "take Foo[1 @ 2 3];").unwrap(),
-    );
-    assert_eq!(
-        parse!(parser, "take Foo[1, @, 2, 3,];").unwrap(),
-        parse!(parser, "take Foo[1 @ 2 3];").unwrap(),
-    );
-    assert_eq!(
-        parse!(parser, "take Foo[1, @,];").unwrap(),
-        parse!(parser, "take Foo[1 @];").unwrap(),
-    );
-    assert_eq!(
-        parse!(parser, "take Foo[1,];").unwrap(),
-        parse!(parser, "take Foo[1];").unwrap(),
-    );
-    assert_eq!(
-        parse!(parser, "Foo! @,;").unwrap(),
-        parse!(parser, "Foo! @;").unwrap(),
-    );
-    assert_eq!(
-        parse!(parser, "Foo! 1,;").unwrap(),
-        parse!(parser, "Foo! 1;").unwrap(),
-    );
-    assert_eq!(
-        parse!(parser, "Foo! 1,@;").unwrap(),
-        parse!(parser, "Foo! 1 @;").unwrap(),
-    );
-    assert_eq!(
-        parse!(parser, "Foo! 1,@,;").unwrap(),
-        parse!(parser, "Foo! 1 @;").unwrap(),
-    );
-    assert_eq!(
-        parse!(parser, "Foo! *1,@,;").unwrap(),
-        parse!(parser, "Foo! *1 @;").unwrap(),
-    );
-    assert_eq!(
-        parse!(parser, "Foo! *1++,@,;").unwrap(),
-        parse!(parser, "Foo! *1++ @;").unwrap(),
-    );
-    assert_eq!(
-        parse!(parser, "Foo! 1++,@,;").unwrap(),
-        parse!(parser, "Foo! 1++ @;").unwrap(),
-    );
-    assert_eq!(
-        parse!(parser, "Foo! @,1++,;").unwrap(),
-        parse!(parser, "Foo! @,1++;").unwrap(),
-    );
+    check_sugar! {parser,
+        "print a, b;",
+        "print a b;",
+    };
+    check_sugar! {parser,
+        "print a, b,;",
+        "print a b;",
+    };
+    check_sugar! {parser,
+        "print, a, b,;",
+        "print a b;",
+    };
+    check_sugar! {parser,
+        "take Foo[1, 2, 3];",
+        "take Foo[1 2 3];",
+    };
+    check_sugar! {parser,
+        "take Foo[1 2, 3];",
+        "take Foo[1 2 3];",
+    };
+    check_sugar! {parser,
+        "take {A &B:C} = (c;)  M;",
+        "take {A &B:C} = (c;), M,;",
+    };
+    check_sugar! {parser,
+        "take {A &B:C} = (c;),;",
+        "take {A &B:C} = (c;);",
+    };
+    check_sugar! {parser,
+        "take Foo[1 @ 2, 3];",
+        "take Foo[1 @ 2 3];",
+    };
+    check_sugar! {parser,
+        "take Foo[1, @ 2, 3];",
+        "take Foo[1 @ 2 3];",
+    };
+    check_sugar! {parser,
+        "take Foo[1, @, 2, 3];",
+        "take Foo[1 @ 2 3];",
+    };
+    check_sugar! {parser,
+        "take Foo[1, @, 2, 3,];",
+        "take Foo[1 @ 2 3];",
+    };
+    check_sugar! {parser,
+        "take Foo[1, @,];",
+        "take Foo[1 @];",
+    };
+    check_sugar! {parser,
+        "take Foo[1,];",
+        "take Foo[1];",
+    };
+    check_sugar! {parser,
+        "Foo! @,;",
+        "Foo! @;",
+    };
+    check_sugar! {parser,
+        "Foo! 1,;",
+        "Foo! 1;",
+    };
+    check_sugar! {parser,
+        "Foo! 1,@;",
+        "Foo! 1 @;",
+    };
+    check_sugar! {parser,
+        "Foo! 1,@,;",
+        "Foo! 1 @;",
+    };
+    check_sugar! {parser,
+        "Foo! *1,@,;",
+        "Foo! *1 @;",
+    };
+    check_sugar! {parser,
+        "Foo! *1++,@,;",
+        "Foo! *1++ @;",
+    };
+    check_sugar! {parser,
+        "Foo! 1++,@,;",
+        "Foo! 1++ @;",
+    };
+    check_sugar! {parser,
+        "Foo! @,1++,;",
+        "Foo! @,1++;",
+    };
     assert!(parse!(parser, "Foo!;").is_ok());
     assert!(parse!(parser, "take Foo[];").is_ok());
 
@@ -7277,33 +7482,34 @@ fn param_comma_sugar_test() {
 fn const_match_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const match {
             {
                 print empty;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print empty",
-        ],
+        "#,
+        r#"
+            print empty
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         match 1 2 { @ {} }
         const match {
             @ {
                 print @;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        Vec::<&str>::new(),
+        "#,
+        r#"
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Val = (res:
             print taked;
         );
@@ -7312,16 +7518,16 @@ fn const_match_test() {
                 print 1 V;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 1",
-            "print taked",
-            "print res",
-        ],
+        "#,
+        r#"
+            print 1
+            print taked
+            print res
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Val = (res:
             print taked;
         );
@@ -7330,31 +7536,31 @@ fn const_match_test() {
                 print 1 V;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print taked",
-            "print 1",
-            "print res",
-        ],
+        "#,
+        r#"
+            print taked
+            print 1
+            print res
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Val = 2;
         const match `Val` {
             *V {
                 print 1 V;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 1",
-            "print Val",
-        ],
+        "#,
+        r#"
+            print 1
+            print Val
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Val = 2;
         const match Val {
             *V:[1] {
@@ -7364,16 +7570,16 @@ fn const_match_test() {
                 print x2 V;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print take1",
-            "print x2",
-            "print 2",
-        ],
+        "#,
+        r#"
+            print take1
+            print x2
+            print 2
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Val = 2;
         const match Val {
             V:[1] {
@@ -7383,75 +7589,75 @@ fn const_match_test() {
                 print x2 V;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print take1",
-            "print x2",
-            "print 2",
-        ],
+        "#,
+        r#"
+            print take1
+            print x2
+            print 2
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Val = 2;
         const match Val {
             [?(0: print _0;)] {
                 print unreachable;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 2",
-        ],
+        "#,
+        r#"
+            print 2
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Val = 2;
         const match Val {
             [?(__: print _0;)] {
                 print x;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 2",
-            "print x",
-        ],
+        "#,
+        r#"
+            print 2
+            print x
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Val = 2;
         const match Val {
             [?(1: print _0;)] {
                 print x;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 2",
-            "print x",
-        ],
+        "#,
+        r#"
+            print 2
+            print x
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Val = 2;
         const match Val {
             [?(false: print _0;)] {
                 print x;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 2",
-            "print x",
-        ],
+        "#,
+        r#"
+            print 2
+            print x
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const match 2 {
             [2] {
                 print only;
@@ -7460,14 +7666,14 @@ fn const_match_test() {
                 print unreachable;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print only",
-        ],
+        "#,
+        r#"
+            print only
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const match (print err;) {
             [2] {
                 print only;
@@ -7479,14 +7685,14 @@ fn const_match_test() {
                 print default;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print default",
-        ],
+        "#,
+        r#"
+            print default
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const match (%2: print x;%)->$ {
             [2] {
                 print only;
@@ -7495,15 +7701,15 @@ fn const_match_test() {
                 print unreachable;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print x",
-            "print only",
-        ],
+        "#,
+        r#"
+            print x
+            print only
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const match (2: print x;) {
             _ {
                 print only;
@@ -7512,14 +7718,14 @@ fn const_match_test() {
                 print unreachable;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print only",
-        ],
+        "#,
+        r#"
+            print only
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const match (2: print x;) {
             *_ {
                 print only;
@@ -7528,15 +7734,15 @@ fn const_match_test() {
                 print unreachable;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print x",
-            "print only",
-        ],
+        "#,
+        r#"
+            print x
+            print only
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const match (2: print x;) {
             [*] {
                 print only;
@@ -7545,15 +7751,15 @@ fn const_match_test() {
                 print unreachable;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print x",
-            "print only",
-        ],
+        "#,
+        r#"
+            print x
+            print only
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const match (2: print x;) {
             [*3] {
                 print unreachable;
@@ -7565,16 +7771,16 @@ fn const_match_test() {
                 print unreachable;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print x",
-            "print x",
-            "print only",
-        ],
+        "#,
+        r#"
+            print x
+            print x
+            print only
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const match (2: print x;) 3 {
             [*2] [2] {
                 print unreachable;
@@ -7583,16 +7789,16 @@ fn const_match_test() {
                 print only;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print x",
-            "print x",
-            "print only",
-        ],
+        "#,
+        r#"
+            print x
+            print x
+            print only
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const match (2: print x;) 3 {
             *_ [2] {
                 print unreachable;
@@ -7601,15 +7807,15 @@ fn const_match_test() {
                 print only;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print x",
-            "print only",
-        ],
+        "#,
+        r#"
+            print x
+            print only
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         match A { @ {} }
         const A = 2;
         const match @ {
@@ -7620,216 +7826,216 @@ fn const_match_test() {
                 print no @;
             }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print yes",
-        ],
+        "#,
+        r#"
+            print yes
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         foo (const match (h: print taked;) {
             $_ {
                 print body;
             }
         });
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print taked",
-            "print body",
-            "foo h",
-        ],
+        "#,
+        r#"
+            print taked
+            print body
+            foo h
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         foo (const match (h: print taked;) {
             $*M {
                 print body M;
             }
         });
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print taked",
-            "print body",
-            "print h",
-            "foo h",
-        ],
+        "#,
+        r#"
+            print taked
+            print body
+            print h
+            foo h
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         foo (const match (h: print taked;) {
             $*M {
                 setres M;
                 print body M;
             }
         });
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print taked",
-            "print body",
-            "print h",
-            "foo h",
-        ],
+        "#,
+        r#"
+            print taked
+            print body
+            print h
+            foo h
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         foo (const match (h: print taked;) {
             $*M:[h] {
                 print body M;
             }
         });
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "foo __0",
-        ],
+        "#,
+        r#"
+            foo __0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         foo (const match (h: print taked;) {
             $*M:[*h] {
                 setres M;
                 print body M;
             }
         });
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print taked",
-            "print taked",
-            "print body",
-            "print h",
-            "foo h",
-        ],
+        "#,
+        r#"
+            print taked
+            print taked
+            print body
+            print h
+            foo h
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         foo (const match (h: print taked;) {
             $M:[*h] {
                 setres M;
                 print body M;
             }
         });
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print taked",
-            "print taked",
-            "print taked",
-            "print body",
-            "print taked",
-            "print h",
-            "foo h",
-        ],
+        "#,
+        r#"
+            print taked
+            print taked
+            print taked
+            print body
+            print taked
+            print h
+            foo h
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         foo (const match (h: print taked;) {
             $M {
                 setres M;
                 print body M;
             }
         });
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print taked",
-            "print taked",
-            "print body",
-            "print taked",
-            "print h",
-            "foo h",
-        ],
+        "#,
+        r#"
+            print taked
+            print taked
+            print body
+            print taked
+            print h
+            foo h
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const match (arg;) => @ {}
         const match (a;) @ (b;) => A @ *B {}
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "b",
-        ],
+        "#,
+        r#"
+            b
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const match (arg;) => @ {}
         const match (a;) @ (b;) => *A @ *B {}
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "a",
-            "b",
-        ],
+        "#,
+        r#"
+            a
+            b
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const match (arg;) => @ {}
         const match (a;) @ (b;) => *A *@ *B {}
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "a",
-            "arg",
-            "b",
-        ],
+        "#,
+        r#"
+            a
+            arg
+            b
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const match (arg;) => @ {}
         const match (a;) @ (b;) => A *@ *B {}
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "arg",
-            "b",
-        ],
+        "#,
+        r#"
+            arg
+            b
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const match (arg;) => @ {}
         const match (a;) @ (b;) => A *@ *B { end; }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "arg",
-            "b",
-            "end",
-        ],
+        "#,
+        r#"
+            arg
+            b
+            end
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const match (8: arg;) => @ {}
         const match (a @;) @ (b @;) => *A *@ *B { end; }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "arg",
-            "a 8",
-            "arg",
-            "arg",
-            "b 8",
-            "end",
-        ],
+        "#,
+        r#"
+            arg
+            a 8
+            arg
+            arg
+            b 8
+            end
+        "#,
     );
 
     // 测试守卫作用域
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const match 1 { [?_0 == 1] { x; } _ { y; }}
         print _0 @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "x",
-            "print _0",
-        ],
+        "#,
+        r#"
+            x
+            print _0
+        "#,
     );
 
     // 无限重复块
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         take*I = 0;
         inline 0@ {
             match I { [5] { Builtin.StopRepeat!; } _ {
@@ -7837,19 +8043,19 @@ fn const_match_test() {
                 take*I = I + 1;
             } }
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 0",
-            "print 1",
-            "print 2",
-            "print 3",
-            "print 4",
-        ],
+        "#,
+        r#"
+            print 0
+            print 1
+            print 2
+            print 3
+            print 4
+        "#,
     );
 
     // 不重设参数情况
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         take*I = 0;
         inline 0@ {
             match I { [3] { Builtin.StopRepeat!; } _ {
@@ -7860,19 +8066,19 @@ fn const_match_test() {
         }
         bar @; # 都保留了参数作用域
         baz I; # 并不具有常量作用域
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "foo 0",
-            "foo 0 1",
-            "foo 0 1 2",
-            "bar",
-            "baz 3",
-        ],
+        "#,
+        r#"
+            foo 0
+            foo 0 1
+            foo 0 1 2
+            bar
+            baz 3
+        "#,
     );
 
     // 重设参数情况
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         take*I = 0;
         inline*0@ {
             match I { [3] { Builtin.StopRepeat!; } _ {
@@ -7883,14 +8089,14 @@ fn const_match_test() {
         }
         bar @; # 都保留了参数作用域
         baz I; # 并不具有常量作用域
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "foo 0",
-            "foo 1",
-            "foo 2",
-            "bar",
-            "baz 3",
-        ],
+        "#,
+        r#"
+            foo 0
+            foo 1
+            foo 2
+            bar
+            baz 3
+        "#,
     );
 }
 
@@ -7898,32 +8104,32 @@ fn const_match_test() {
 fn value_bind_of_constkey_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         take X = ();
         take X.Y = 2;
         print X.Y;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 2",
-        ],
+        "#,
+        r#"
+            print 2
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         take X = ();
         {
             take X.Y = 2; # to global
         }
         print X.Y;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 2",
-        ],
+        "#,
+        r#"
+            print 2
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         take X = ();
         {
             const X.Y = (
@@ -7933,11 +8139,11 @@ fn value_bind_of_constkey_test() {
         }
         take X.Y;
         take X.Y;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "jump 0 always 0 0",
-            "jump 1 always 0 0",
-        ],
+        "#,
+        r#"
+            jump 0 always 0 0
+            jump 1 always 0 0
+        "#,
     );
 }
 
@@ -7945,29 +8151,29 @@ fn value_bind_of_constkey_test() {
 fn const_value_expand_binder_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         print ..;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print __",
-        ],
+        "#,
+        r#"
+            print __
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const X.Y = (
             print ..;
         );
         take X.Y;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print X",
-        ],
+        "#,
+        r#"
+            print X
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const X.Y = (
             const Foo = (
                 print ..;
@@ -7975,14 +8181,14 @@ fn const_value_expand_binder_test() {
             take Foo;
         );
         take X.Y;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print X",
-        ],
+        "#,
+        r#"
+            print X
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const X.Y = (
             const Foo.Bar = (
                 print ..;
@@ -7990,14 +8196,14 @@ fn const_value_expand_binder_test() {
             take Foo.Bar;
         );
         take X.Y;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print Foo",
-        ],
+        "#,
+        r#"
+            print Foo
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const X.Y = (
             const Foo.Bar = (
                 print ..;
@@ -8006,14 +8212,14 @@ fn const_value_expand_binder_test() {
             take F;
         );
         take X.Y;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print Foo",
-        ],
+        "#,
+        r#"
+            print Foo
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Box = (
             $.val = _0;
             const $.Add = (
@@ -8024,17 +8230,17 @@ fn const_value_expand_binder_test() {
         take N1 = Box[3];
         take N.Add[N1];
         print ..;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "set __2 2",
-            "set __6 3",
-            "op add __2 __2 __6",
-            "print __",
-        ],
+        "#,
+        r#"
+            set __2 2
+            set __6 3
+            op add __2 __2 __6
+            print __
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Box = (
             $.val = _0;
             const $.Add = (
@@ -8045,16 +8251,16 @@ fn const_value_expand_binder_test() {
         take N = Box[2];
         take N1 = Box[3];
         take N.Add[N1];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "set __2 2",
-            "set __6 3",
-            "op add __2 __2 __6",
-        ],
+        "#,
+        r#"
+            set __2 2
+            set __6 3
+            op add __2 __2 __6
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Box = (
             $.val = _0;
             const $.Add = (
@@ -8065,82 +8271,82 @@ fn const_value_expand_binder_test() {
         take N = Box[2];
         take N1 = Box[3];
         take N.Add[N1];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "set __2 2",
-            "set __6 3",
-            "op add __2 __2 __6",
-        ],
+        "#,
+        r#"
+            set __2 2
+            set __6 3
+            op add __2 __2 __6
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         take a.B = 1;
         take a.B = 2;
         print a.B;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 2",
-        ],
+        "#,
+        r#"
+            print 2
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         take a.N = 1;
         take b.N = 2;
         # 故意不实现的常量求值
         take X = ($ = a.N + b.N;);
         print X;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "op add __2 1 2",
-            "print __2",
-        ],
+        "#,
+        r#"
+            op add __2 1 2
+            print __2
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         take a.N = 1;
         take b.N = 2;
         take A=a.N B=b.N;
         take X = ($ = A + B;);
         print X;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 3",
-        ],
+        "#,
+        r#"
+            print 3
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const a.X = (
             print ..;
         );
         const b.X = a.X;
         take a.X;
         take b.X;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print a",
-            "print a",
-        ],
+        "#,
+        r#"
+            print a
+            print a
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const A = a;
         const A.X = (
             print ..;
         );
         take A.X;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print a",
-        ],
+        "#,
+        r#"
+            print a
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const a.X = (
             print ..;
         );
@@ -8150,11 +8356,11 @@ fn const_value_expand_binder_test() {
         take a.X;
         const a.X = 2;
         take b.X;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print a",
-            "print a",
-        ],
+        "#,
+        r#"
+            print a
+            print a
+        "#,
     );
 }
 
@@ -8162,56 +8368,56 @@ fn const_value_expand_binder_test() {
 fn builtin_func_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         print Builtin.Type[x];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print var",
-        ],
+        "#,
+        r#"
+            print var
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         print Builtin.Stringify[2];
         print Builtin.Stringify[x];
         print Builtin.Stringify["x"];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print "2""#,
-            r#"print "x""#,
-            r#"print "x""#,
-        ],
+        "#,
+        r#"
+            print "2"
+            print "x"
+            print "x"
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(@with_source parser,
+        r#"
         print Builtin.Concat["abc" "def"];
         print Builtin.Status;
         print Builtin.Concat["abc" def];
         print Builtin.Status;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print "abcdef""#,
-            r#"print 0"#,
-            r#"print __"#,
-            r#"print 2"#,
-        ],
-    );
+        "#,
+        r#"
+            print "abcdef"
+            print 0
+            print __
+            print 2
+        "#,
+    ).hit_log(1);
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         print Builtin.Type[()];
         print Builtin.Type[`m`];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print dexp",
-            "print var",
-        ],
+        "#,
+        r#"
+            print dexp
+            print var
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const A = ();
         const B = `emmm`;
         const C = A.B;
@@ -8222,56 +8428,56 @@ fn builtin_func_test() {
         print Builtin.Type[C];
         print Builtin.Type[D];
         print Builtin.Type[E];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print dexp",
-            "print var",
-            "print valuebind",
-            "print resulthandle",
-            "print binder",
-        ],
+        "#,
+        r#"
+            print dexp
+            print var
+            print valuebind
+            print resulthandle
+            print binder
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const A.B = 2;
         print Builtin.Type[A.B];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print valuebind",
-        ],
+        "#,
+        r#"
+            print valuebind
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(@with_source parser,
+        r#"
         const A = x;
         print Builtin.Info[A];
         print Builtin.Info[y];
         print Builtin.Err[A];
         print Builtin.Err[y];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print x",
-            "print y",
-            "print x",
-            "print y",
-        ],
-    );
+        "#,
+        r#"
+            print x
+            print y
+            print x
+            print y
+        "#,
+    ).hit_log(4);
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const A = x.y;
         print Builtin.Unbind[A];
         print Builtin.Unbind[x.y];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print y",
-            "print y",
-        ],
+        "#,
+        r#"
+            print y
+            print y
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         {
             const Name = `X`;
             const Value = (h:);
@@ -8289,47 +8495,47 @@ fn builtin_func_test() {
             }
             print Y;
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print h",
-            "print i",
-            "print i",
-        ],
+        "#,
+        r#"
+            print h
+            print i
+            print i
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Value = (x:);
         const Binded = Value.x;
         print Builtin.Type[Binded];
         take Builtin.Binder[Res Binded];
         print Builtin.Type[Res];
         print Res;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print valuebind",
-            "print dexp",
-            "print x",
-        ],
+        "#,
+        r#"
+            print valuebind
+            print dexp
+            print x
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Foo = (
             take Builtin.SliceArgs[1 4];
             print @;
         );
         take Foo[0 1 2 3 4 5];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 1",
-            "print 2",
-            "print 3",
-        ],
+        "#,
+        r#"
+            print 1
+            print 2
+            print 3
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Foo = (
             print Builtin.ArgsLen[];
         );
@@ -8337,51 +8543,51 @@ fn builtin_func_test() {
         match a b { @ {} }
         take Foo[0 1 2 3 4 5];
         print Builtin.ArgsLen[];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 0",
-            "print 6",
-            "print 2",
-        ],
+        "#,
+        r#"
+            print 0
+            print 6
+            print 2
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Foo = (
             take Handle = Builtin.ArgsHandle[1];
             take Builtin.Const[Value Handle];
             print Handle Value;
         );
         take Foo[0 1 2 3 4 5];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print __1",
-            "print 1",
-        ],
+        "#,
+        r#"
+            print __1
+            print 1
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = ($ = 1+2;);
         print Builtin.EvalNum[F];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 3",
-        ],
+        "#,
+        r#"
+            print 3
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = ($ = 1+x;);
         print Builtin.EvalNum[F];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print __",
-        ],
+        "#,
+        r#"
+            print __
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const N = 2 S = "s" D = ();
         print Builtin.IsString[N];
         print Builtin.IsString[2];
@@ -8389,19 +8595,19 @@ fn builtin_func_test() {
         print Builtin.IsString[()];
         print Builtin.IsString[S];
         print Builtin.IsString["s"];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 0",
-            "print 0",
-            "print 0",
-            "print 0",
-            "print 1",
-            "print 1",
-        ],
+        "#,
+        r#"
+            print 0
+            print 0
+            print 0
+            print 0
+            print 1
+            print 1
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = (
             {
                 take Ref = Builtin.RefArg[0];
@@ -8411,24 +8617,24 @@ fn builtin_func_test() {
             }
         );
         take F[113];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 113",
-        ],
+        "#,
+        r#"
+            print 113
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         take Builtin.SetNoOp["set noop \\'noop\n\\'"];
         noop;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"set noop "noop\n""#,
-        ],
+        "#,
+        r#"
+            set noop "noop\n"
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         take Builtin.SetNoOp["set noop \\'noop\n\\'"];
         select x {
             print 1 2 3 4 5;
@@ -8437,40 +8643,40 @@ fn builtin_func_test() {
             print 1 2 3 4 5;
             print 1 2 3 4 5;
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"op mul __1 x 5"#,
-            r#"op add @counter @counter __1"#,
-            r#"print 1"#,
-            r#"print 2"#,
-            r#"print 3"#,
-            r#"print 4"#,
-            r#"print 5"#,
-            r#"print 1"#,
-            r#"print 2"#,
-            r#"print 3"#,
-            r#"jump 12 always 0 0"#,
-            r#"set noop "noop\n""#,
-            r#"print 1"#,
-            r#"print 2"#,
-            r#"print 3"#,
-            r#"print 4"#,
-            r#"print 5"#,
-            r#"print 1"#,
-            r#"print 2"#,
-            r#"print 3"#,
-            r#"print 4"#,
-            r#"print 5"#,
-            r#"print 1"#,
-            r#"print 2"#,
-            r#"print 3"#,
-            r#"print 4"#,
-            r#"print 5"#,
-        ],
+        "#,
+        r#"
+            op mul __1 x 5
+            op add @counter @counter __1
+            print 1
+            print 2
+            print 3
+            print 4
+            print 5
+            print 1
+            print 2
+            print 3
+            jump 12 always 0 0
+            set noop "noop\n"
+            print 1
+            print 2
+            print 3
+            print 4
+            print 5
+            print 1
+            print 2
+            print 3
+            print 4
+            print 5
+            print 1
+            print 2
+            print 3
+            print 4
+            print 5
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         take Builtin.SetNoOp['\"str\"'];
         select x {
             print 1 2 3 4 5;
@@ -8479,40 +8685,40 @@ fn builtin_func_test() {
             print 1 2 3 4 5;
             print 1 2 3 4 5;
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"op mul __1 x 5"#,
-            r#"op add @counter @counter __1"#,
-            r#"print 1"#,
-            r#"print 2"#,
-            r#"print 3"#,
-            r#"print 4"#,
-            r#"print 5"#,
-            r#"print 1"#,
-            r#"print 2"#,
-            r#"print 3"#,
-            r#"jump 12 always 0 0"#,
-            r#""str""#,
-            r#"print 1"#,
-            r#"print 2"#,
-            r#"print 3"#,
-            r#"print 4"#,
-            r#"print 5"#,
-            r#"print 1"#,
-            r#"print 2"#,
-            r#"print 3"#,
-            r#"print 4"#,
-            r#"print 5"#,
-            r#"print 1"#,
-            r#"print 2"#,
-            r#"print 3"#,
-            r#"print 4"#,
-            r#"print 5"#,
-        ],
+        "#,
+        r#"
+            op mul __1 x 5
+            op add @counter @counter __1
+            print 1
+            print 2
+            print 3
+            print 4
+            print 5
+            print 1
+            print 2
+            print 3
+            jump 12 always 0 0
+            "str"
+            print 1
+            print 2
+            print 3
+            print 4
+            print 5
+            print 1
+            print 2
+            print 3
+            print 4
+            print 5
+            print 1
+            print 2
+            print 3
+            print 4
+            print 5
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         take Builtin.BindSep[x];
         print a.b;
         const a.b = 2;
@@ -8525,160 +8731,160 @@ fn builtin_func_test() {
         print c.d;
         print cxd;
         print __2;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print axb"#,
-            r#"print 2"#,
-            r#"print 2"#,
-            r#"print 2"#,
-            r#"print __2"#,
-            r#"print 3"#,
-            r#"print cxd"#,
-            r#"print 3"#,
-        ],
+        "#,
+        r#"
+            print axb
+            print 2
+            print 2
+            print 2
+            print __2
+            print 3
+            print cxd
+            print 3
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const match (a;) (b;) => @ {}
         start;
         Builtin.MakeSelect! (i:c;);
         end;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"start"#,
-            r#"c"#,
-            r#"op add @counter @counter i"#,
-            r#"a"#,
-            r#"b"#,
-            r#"end"#,
-        ],
+        "#,
+        r#"
+            start
+            c
+            op add @counter @counter i
+            a
+            b
+            end
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         print Builtin.Ord[a];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 97"#,
-        ],
+        "#,
+        r#"
+            print 97
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         print Builtin.Ord["a"];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 97"#,
-        ],
+        "#,
+        r#"
+            print 97
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(@with_source parser,
+        r#"
         print Builtin.Ord[ab];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print __"#,
-        ],
-    );
+        "#,
+        r#"
+            print __
+        "#,
+    ).hit_log(1);
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         print Builtin.Ord['\n'];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 10"#,
-        ],
+        "#,
+        r#"
+            print 10
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         print Builtin.Ord['\t'];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 9"#,
-        ],
+        "#,
+        r#"
+            print 9
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         print Builtin.Ord['\r'];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 13"#,
-        ],
+        "#,
+        r#"
+            print 13
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         print Builtin.Ord['\e'];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 27"#,
-        ],
+        "#,
+        r#"
+            print 27
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(@with_source parser,
+        r#"
         print Builtin.Ord[""];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print __"#,
-        ],
-    );
+        "#,
+        r#"
+            print __
+        "#,
+    ).hit_log(1);
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(@with_source parser,
+        r#"
         print Builtin.Ord["ab"];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print __"#,
-        ],
-    );
+        "#,
+        r#"
+            print __
+        "#,
+    ).hit_log(1);
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         print Builtin.Chr[32];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print " ""#,
-        ],
+        "#,
+        r#"
+            print " "
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         print Builtin.Chr[97];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print "a""#,
-        ],
+        "#,
+        r#"
+            print "a"
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(@with_source parser,
+        r#"
         print Builtin.Chr[10];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print __"#,
-        ],
-    );
+        "#,
+        r#"
+            print __
+        "#,
+    ).hit_log(1);
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(@with_source parser,
+        r#"
         print Builtin.Chr[34];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print __"#,
-        ],
-    );
+        "#,
+        r#"
+            print __
+        "#,
+    ).hit_log(1);
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         print Builtin.Chr[0x61];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print "a""#,
-        ],
+        "#,
+        r#"
+            print "a"
+        "#,
     );
 }
 
@@ -8686,17 +8892,17 @@ fn builtin_func_test() {
 fn closure_value_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         const X = ([A &B]2);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         const X = ([A:A &B:B]2);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const A = (a: print "makeA";);
         const B = (b: print "makeB";);
         const F = ([A &B](
@@ -8704,46 +8910,46 @@ fn closure_value_test() {
         ));
         const A="eA" B="eB";
         take F;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print "makeA""#,
-            r#"print "Do""#,
-            r#"print a"#,
-            r#"print "makeB""#,
-            r#"print b"#,
-            r#"print "End""#,
-        ],
+        "#,
+        r#"
+            print "makeA"
+            print "Do"
+            print a
+            print "makeB"
+            print b
+            print "End"
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const A = 2;
         const B = `A`;
         const F = ([B](
             print B;
         ));
         take F;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print A"#,
-        ],
+        "#,
+        r#"
+            print A
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const A = 2;
         const B = `A`;
         const V = ([]`B`);
         const B = "e";
         print V;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print B"#,
-        ],
+        "#,
+        r#"
+            print B
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Do = (
             take _0 _0;
         );
@@ -8754,18 +8960,18 @@ fn closure_value_test() {
         ))];
         :x
         goto :x;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 2"#,
-            r#"jump 0 lessThan a b"#,
-            r#"print 2"#,
-            r#"jump 2 lessThan a b"#,
-            r#"jump 4 always 0 0"#,
-        ],
+        "#,
+        r#"
+            print 2
+            jump 0 lessThan a b
+            print 2
+            jump 2 lessThan a b
+            jump 4 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Do = (
             take _0 _0;
         );
@@ -8778,87 +8984,87 @@ fn closure_value_test() {
         ))];
         :x
         goto :x;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 2"#,
-            r#"jump 0 lessThan a b"#,
-            r#"print 2"#,
-            r#"jump 2 lessThan a b"#,
-            r#"jump 4 always 0 0"#,
-        ],
+        "#,
+        r#"
+            print 2
+            jump 0 lessThan a b
+            print 2
+            jump 2 lessThan a b
+            jump 4 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         print ([X:1](
             print "foo";
             setres X;
         ));
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print "foo""#,
-            r#"print 1"#,
-        ],
+        "#,
+        r#"
+            print "foo"
+            print 1
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const x.Clos = ([N:2](
             print .. __Binder;
         ));
         x.Clos!;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print __0"#,
-            r#"print x"#,
-        ],
+        "#,
+        r#"
+            print __0
+            print x
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const x.Clos = ([N:2 ..B](
             print .. B;
         ));
         x.Clos!;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print __0"#,
-            r#"print x"#,
-        ],
+        "#,
+        r#"
+            print __0
+            print x
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         # 污染
         const F = ([N:2](match @ => F {
             foo F;
         }));
         const N = 3;
         F! (m:print N;);
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 2"#,
-            r#"foo m"#,
-        ],
+        "#,
+        r#"
+            print 2
+            foo m
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         # 懒闭包
         const F = ([N:2]match @ => F {
             foo F;
         });
         const N = 3;
         F! (m:print N;);
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 3"#,
-            r#"foo m"#,
-        ],
+        "#,
+        r#"
+            print 3
+            foo m
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = ([N:2]match @ {
             {}
             F {
@@ -8867,15 +9073,15 @@ fn closure_value_test() {
         });
         const N = 3;
         F! (m:print N;);
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 3"#,
-            r#"foo m"#,
-        ],
+        "#,
+        r#"
+            print 3
+            foo m
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = ([N:2](const match @ {
             {}
             F {
@@ -8885,16 +9091,16 @@ fn closure_value_test() {
         }));
         const N = 3;
         F! (m:print N;);
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"mid"#,
-            r#"print 2"#,
-            r#"foo m"#,
-        ],
+        "#,
+        r#"
+            mid
+            print 2
+            foo m
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = ([N:2]const match @ {
             {}
             F {
@@ -8904,16 +9110,16 @@ fn closure_value_test() {
         });
         const N = 3;
         F! (m:print N;);
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"mid"#,
-            r#"print 2"#,
-            r#"foo m"#,
-        ],
+        "#,
+        r#"
+            mid
+            print 2
+            foo m
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = ([N:2]const match @ {
             {}
             *F {
@@ -8923,16 +9129,16 @@ fn closure_value_test() {
         });
         const N = 3;
         F! (m:print N;);
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 3"#,
-            r#"mid"#,
-            r#"foo m"#,
-        ],
+        "#,
+        r#"
+            print 3
+            mid
+            foo m
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = ([N:2]r:const match @ {
             {}
             *F {
@@ -8942,17 +9148,17 @@ fn closure_value_test() {
         });
         const N = 3;
         ret F[(m:print N;)];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 3"#,
-            r#"mid"#,
-            r#"foo m"#,
-            r#"ret r"#,
-        ],
+        "#,
+        r#"
+            print 3
+            mid
+            foo m
+            ret r
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = ([N:2]r:match @ {
             {}
             F {
@@ -8962,17 +9168,17 @@ fn closure_value_test() {
         });
         const N = 3;
         ret F[(m:print N;)];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 3"#,
-            r#"mid"#,
-            r#"foo m"#,
-            r#"ret r"#,
-        ],
+        "#,
+        r#"
+            print 3
+            mid
+            foo m
+            ret r
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = ([N:2]r:const match @ {
             [?(0:const match @ {})] {}
             *F {
@@ -8982,17 +9188,17 @@ fn closure_value_test() {
         });
         const N = 3;
         ret F[(m:print N;)];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 3"#,
-            r#"mid"#,
-            r#"foo m"#,
-            r#"ret r"#,
-        ],
+        "#,
+        r#"
+            print 3
+            mid
+            foo m
+            ret r
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = ([N:2]r:const match @ {
             [?(0:const match @ {})] {}
             *F {
@@ -9002,17 +9208,17 @@ fn closure_value_test() {
         });
         const N = 3;
         ret F[(m:print N;)];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 3"#,
-            r#"mid"#,
-            r#"foo m"#,
-            r#"ret r"#,
-        ],
+        "#,
+        r#"
+            print 3
+            mid
+            foo m
+            ret r
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = ([N:2]r:const match @ {
             [?(0:const match @ {})] {}
             F {
@@ -9022,13 +9228,13 @@ fn closure_value_test() {
         });
         const N = 3;
         ret F[(m:print N;)];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"mid"#,
-            r#"print 2"#,
-            r#"foo m"#,
-            r#"ret r"#,
-        ],
+        "#,
+        r#"
+            mid
+            print 2
+            foo m
+            ret r
+        "#,
     );
 }
 
@@ -9036,8 +9242,8 @@ fn closure_value_test() {
 fn value_bind_ref_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const bind.V = (
             print "take";
             setres "finish";
@@ -9049,17 +9255,17 @@ fn value_bind_ref_test() {
             print "fail";
         );
         print V;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 1"#,
-            r#"print 2"#,
-            r#"print "take""#,
-            r#"print "finish""#,
-        ],
+        "#,
+        r#"
+            print 1
+            print 2
+            print "take"
+            print "finish"
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Bind = bind;
         const Bind.V = (
             print "take";
@@ -9073,19 +9279,19 @@ fn value_bind_ref_test() {
             print "fail";
         );
         print V V1;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 1"#,
-            r#"print 2"#,
-            r#"print "take""#,
-            r#"print "finish""#,
-            r#"print "take""#,
-            r#"print "finish""#,
-        ],
+        "#,
+        r#"
+            print 1
+            print 2
+            print "take"
+            print "finish"
+            print "take"
+            print "finish"
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const bind.V = (
             print "take";
             setres "finish";
@@ -9097,16 +9303,16 @@ fn value_bind_ref_test() {
             print "fail";
         );
         print V->..;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 1"#,
-            r#"print 2"#,
-            r#"print bind"#,
-        ],
+        "#,
+        r#"
+            print 1
+            print 2
+            print bind
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const bind.V = (
             print "take";
             setres "finish";
@@ -9118,61 +9324,59 @@ fn value_bind_ref_test() {
             print "fail";
         );
         print B;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 1"#,
-            r#"print 2"#,
-            r#"print bind"#,
-        ],
+        "#,
+        r#"
+            print 1
+            print 2
+            print bind
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Res = (%
             print "maked";
             const $.M = 2;
         %)->$;
         print 1 Res.M;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print "maked""#,
-            r#"print 1"#,
-            r#"print 2"#,
-        ],
+        "#,
+        r#"
+            print "maked"
+            print 1
+            print 2
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = (print 2;);
         print 1;
         const Attr = F->X;
         print 3 Attr;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 1"#,
-            r#"print 2"#,
-            r#"print 3"#,
-            r#"print __1"#,
-        ],
+        "#,
+        r#"
+            print 1
+            print 2
+            print 3
+            print __1
+        "#,
     );
 
-    let src = r#"
+    check_compile!(@with_source parser,
+        r#"
         const bind.next.X = 2;
         const F = bind->next->X;
         print bind.next F->.. F->..->..;
-    "#.to_owned();
-    assert_eq!(
-        CompileMeta::with_source(src.clone().into())
-            .compile(parse!(parser, &src).unwrap()).compile().unwrap(),
-        vec![
-            r#"print __0"#,
-            r#"print __0"#,
-            r#"print __"#,
-        ],
-    );
+        "#,
+        r#"
+        print __0
+        print __0
+        print __
+        "#
+    ).hit_log(2);
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const bind.X = (x: print "makeX";);
         const bind.Y = (y: print "makeY";);
         print 1;
@@ -9181,64 +9385,64 @@ fn value_bind_ref_test() {
         const Y = X->..->Y;
         print 3 Y;
         print X->.. Y->..;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 1"#,
-            r#"print 2"#,
-            r#"print "makeX""#,
-            r#"print x"#,
-            r#"print 3"#,
-            r#"print "makeY""#,
-            r#"print y"#,
-            r#"print bind"#,
-            r#"print bind"#,
-        ],
+        "#,
+        r#"
+            print 1
+            print 2
+            print "makeX"
+            print x
+            print 3
+            print "makeY"
+            print y
+            print bind
+            print bind
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = ($ = 1+2;);
         print F->op;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 3",
-        ],
+        "#,
+        r#"
+            print 3
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = ($ = 1+x;);
         print F->op;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print __",
-        ],
+        "#,
+        r#"
+            print __
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const N = 1;
         const F = ($ = N+2;);
         const R = F->op;
         const N = 2;
         print R;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print 3",
-        ],
+        "#,
+        r#"
+            print 3
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const N = 1;
         const F = ($ = N+x;);
         const R = F->op;
         const N = 2;
         print R;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            "print __",
-        ],
+        "#,
+        r#"
+            print __
+        "#,
     );
 }
 
@@ -9246,110 +9450,110 @@ fn value_bind_ref_test() {
 fn gswitch_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         gswitch x {
         case: print 1;
         case: print 2;
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"op add @counter @counter x"#,
-            r#"jump 3 always 0 0"#,
-            r#"jump 4 always 0 0"#,
-            r#"print 1"#,
-            r#"print 2"#,
-        ],
+        "#,
+        r#"
+            op add @counter @counter x
+            jump 3 always 0 0
+            jump 4 always 0 0
+            print 1
+            print 2
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         gswitch x {
             break;
         case: print 1;
         case: print 2;
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"op add @counter @counter x"#,
-            r#"jump 3 always 0 0"#,
-            r#"jump 5 always 0 0"#,
-            r#"print 1"#,
-            r#"jump 0 always 0 0"#,
-            r#"print 2"#,
-            r#"jump 0 always 0 0"#,
-        ],
+        "#,
+        r#"
+            op add @counter @counter x
+            jump 3 always 0 0
+            jump 5 always 0 0
+            print 1
+            jump 0 always 0 0
+            print 2
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         gswitch x {
             break;
         case 1: print 1;
         case: print 2;
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"op add @counter @counter x"#,
-            r#"jump 0 always 0 0"#,
-            r#"jump 4 always 0 0"#,
-            r#"jump 6 always 0 0"#,
-            r#"print 1"#,
-            r#"jump 0 always 0 0"#,
-            r#"print 2"#,
-            r#"jump 0 always 0 0"#,
-        ],
+        "#,
+        r#"
+            op add @counter @counter x
+            jump 0 always 0 0
+            jump 4 always 0 0
+            jump 6 always 0 0
+            print 1
+            jump 0 always 0 0
+            print 2
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         gswitch x {
             break;
         case 1: print 1;
         case !: print mis;
         case: print 2;
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"op add @counter @counter x"#,
-            r#"jump 6 always 0 0"#,
-            r#"jump 4 always 0 0"#,
-            r#"jump 8 always 0 0"#,
-            r#"print 1"#,
-            r#"jump 0 always 0 0"#,
-            r#"print mis"#,
-            r#"jump 0 always 0 0"#,
-            r#"print 2"#,
-            r#"jump 0 always 0 0"#,
-        ],
+        "#,
+        r#"
+            op add @counter @counter x
+            jump 6 always 0 0
+            jump 4 always 0 0
+            jump 8 always 0 0
+            print 1
+            jump 0 always 0 0
+            print mis
+            jump 0 always 0 0
+            print 2
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         gswitch x {
             break;
         case 1: print 1;
         case ! MAX: print mis MAX;
         case: print 2;
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"op add @counter @counter x"#,
-            r#"jump 6 always 0 0"#,
-            r#"jump 4 always 0 0"#,
-            r#"jump 9 always 0 0"#,
-            r#"print 1"#,
-            r#"jump 0 always 0 0"#,
-            r#"print mis"#,
-            r#"print x"#,
-            r#"jump 0 always 0 0"#,
-            r#"print 2"#,
-            r#"jump 0 always 0 0"#,
-        ],
+        "#,
+        r#"
+            op add @counter @counter x
+            jump 6 always 0 0
+            jump 4 always 0 0
+            jump 9 always 0 0
+            print 1
+            jump 0 always 0 0
+            print mis
+            print x
+            jump 0 always 0 0
+            print 2
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         gswitch x {
             break;
         case 1: print 1;
@@ -9357,25 +9561,25 @@ fn gswitch_test() {
         case: print 2;
         }
         end;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"op add @counter @counter x"#,
-            r#"jump 6 always 0 0"#,
-            r#"jump 4 always 0 0"#,
-            r#"jump 9 always 0 0"#,
-            r#"print 1"#,
-            r#"jump 11 always 0 0"#,
-            r#"print mis"#,
-            r#"print x"#,
-            r#"jump 11 always 0 0"#,
-            r#"print 2"#,
-            r#"jump 11 always 0 0"#,
-            r#"end"#,
-        ],
+        "#,
+        r#"
+            op add @counter @counter x
+            jump 6 always 0 0
+            jump 4 always 0 0
+            jump 9 always 0 0
+            print 1
+            jump 11 always 0 0
+            print mis
+            print x
+            jump 11 always 0 0
+            print 2
+            jump 11 always 0 0
+            end
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         gswitch x {
             break;
         case 1: print 1;
@@ -9383,25 +9587,25 @@ fn gswitch_test() {
         case: print 2;
         }
         end;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"jump 7 lessThan x 0"#,
-            r#"op add @counter @counter x"#,
-            r#"jump 11 always 0 0"#,
-            r#"jump 5 always 0 0"#,
-            r#"jump 9 always 0 0"#,
-            r#"print 1"#,
-            r#"jump 11 always 0 0"#,
-            r#"print less"#,
-            r#"jump 11 always 0 0"#,
-            r#"print 2"#,
-            r#"jump 11 always 0 0"#,
-            r#"end"#,
-        ],
+        "#,
+        r#"
+            jump 7 lessThan x 0
+            op add @counter @counter x
+            jump 11 always 0 0
+            jump 5 always 0 0
+            jump 9 always 0 0
+            print 1
+            jump 11 always 0 0
+            print less
+            jump 11 always 0 0
+            print 2
+            jump 11 always 0 0
+            end
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         gswitch x {
             break;
         case 1: print 1;
@@ -9409,25 +9613,25 @@ fn gswitch_test() {
         case: print 2;
         }
         end;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"jump 7 greaterThan x 2"#,
-            r#"op add @counter @counter x"#,
-            r#"jump 11 always 0 0"#,
-            r#"jump 5 always 0 0"#,
-            r#"jump 9 always 0 0"#,
-            r#"print 1"#,
-            r#"jump 11 always 0 0"#,
-            r#"print greaterThan"#,
-            r#"jump 11 always 0 0"#,
-            r#"print 2"#,
-            r#"jump 11 always 0 0"#,
-            r#"end"#,
-        ],
+        "#,
+        r#"
+            jump 7 greaterThan x 2
+            op add @counter @counter x
+            jump 11 always 0 0
+            jump 5 always 0 0
+            jump 9 always 0 0
+            print 1
+            jump 11 always 0 0
+            print greaterThan
+            jump 11 always 0 0
+            print 2
+            jump 11 always 0 0
+            end
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         gswitch x {
             break;
         case 1: print 1;
@@ -9435,25 +9639,25 @@ fn gswitch_test() {
         case: print 2;
         }
         end;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"jump 7 greaterThan x 2"#,
-            r#"op add @counter @counter x"#,
-            r#"jump 7 always 0 0"#,
-            r#"jump 5 always 0 0"#,
-            r#"jump 9 always 0 0"#,
-            r#"print 1"#,
-            r#"jump 11 always 0 0"#,
-            r#"print hit"#,
-            r#"jump 11 always 0 0"#,
-            r#"print 2"#,
-            r#"jump 11 always 0 0"#,
-            r#"end"#,
-        ],
+        "#,
+        r#"
+            jump 7 greaterThan x 2
+            op add @counter @counter x
+            jump 7 always 0 0
+            jump 5 always 0 0
+            jump 9 always 0 0
+            print 1
+            jump 11 always 0 0
+            print hit
+            jump 11 always 0 0
+            print 2
+            jump 11 always 0 0
+            end
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         gswitch x {
             break;
         case 1: print 1;
@@ -9461,206 +9665,206 @@ fn gswitch_test() {
         case: print 2;
         }
         end;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"jump 8 lessThan x 0"#,
-            r#"jump 8 greaterThan x 2"#,
-            r#"op add @counter @counter x"#,
-            r#"jump 8 always 0 0"#,
-            r#"jump 6 always 0 0"#,
-            r#"jump 10 always 0 0"#,
-            r#"print 1"#,
-            r#"jump 12 always 0 0"#,
-            r#"print hit"#,
-            r#"jump 12 always 0 0"#,
-            r#"print 2"#,
-            r#"jump 12 always 0 0"#,
-            r#"end"#,
-        ],
+        "#,
+        r#"
+            jump 8 lessThan x 0
+            jump 8 greaterThan x 2
+            op add @counter @counter x
+            jump 8 always 0 0
+            jump 6 always 0 0
+            jump 10 always 0 0
+            print 1
+            jump 12 always 0 0
+            print hit
+            jump 12 always 0 0
+            print 2
+            jump 12 always 0 0
+            end
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const I = 1;
         gswitch x {
             break;
         case I: print `I`;
         }
         end;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"op add @counter @counter x"#,
-            r#"jump 5 always 0 0"#,
-            r#"jump 3 always 0 0"#,
-            r#"print I"#,
-            r#"jump 5 always 0 0"#,
-            r#"end"#,
-        ],
+        "#,
+        r#"
+            op add @counter @counter x
+            jump 5 always 0 0
+            jump 3 always 0 0
+            print I
+            jump 5 always 0 0
+            end
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const I = 1;
         gswitch x {
             break;
         case I if y: print `I`;
         }
         end;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"op add @counter @counter x"#,
-            r#"jump 8 always 0 0"#,
-            r#"jump 4 always 0 0"#,
-            r#"jump 8 always 0 0"#,
-            r#"jump 6 notEqual y false"#,
-            r#"jump 8 always 0 0"#,
-            r#"print I"#,
-            r#"jump 8 always 0 0"#,
-            r#"end"#,
-        ],
+        "#,
+        r#"
+            op add @counter @counter x
+            jump 8 always 0 0
+            jump 4 always 0 0
+            jump 8 always 0 0
+            jump 6 notEqual y false
+            jump 8 always 0 0
+            print I
+            jump 8 always 0 0
+            end
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         match 1 2 { @ {} }
         gswitch x {
             break;
         case @: print x;
         }
         end;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"op add @counter @counter x"#,
-            r#"jump 6 always 0 0"#,
-            r#"jump 4 always 0 0"#,
-            r#"jump 4 always 0 0"#,
-            r#"print x"#,
-            r#"jump 6 always 0 0"#,
-            r#"end"#,
-        ],
+        "#,
+        r#"
+            op add @counter @counter x
+            jump 6 always 0 0
+            jump 4 always 0 0
+            jump 4 always 0 0
+            print x
+            jump 6 always 0 0
+            end
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const match (1:) 2 { @ {} }
         gswitch x {
             break;
         case @: print x;
         }
         end;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"op add @counter @counter x"#,
-            r#"jump 6 always 0 0"#,
-            r#"jump 4 always 0 0"#,
-            r#"jump 4 always 0 0"#,
-            r#"print x"#,
-            r#"jump 6 always 0 0"#,
-            r#"end"#,
-        ],
+        "#,
+        r#"
+            op add @counter @counter x
+            jump 6 always 0 0
+            jump 4 always 0 0
+            jump 4 always 0 0
+            print x
+            jump 6 always 0 0
+            end
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const match (1:) (2: print start;) { @ {} }
         gswitch x {
             break;
         case @: print x;
         }
         end;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print start"#,
-            r#"op add @counter @counter x"#,
-            r#"jump 7 always 0 0"#,
-            r#"jump 5 always 0 0"#,
-            r#"jump 5 always 0 0"#,
-            r#"print x"#,
-            r#"jump 7 always 0 0"#,
-            r#"end"#,
-        ],
+        "#,
+        r#"
+            print start
+            op add @counter @counter x
+            jump 7 always 0 0
+            jump 5 always 0 0
+            jump 5 always 0 0
+            print x
+            jump 7 always 0 0
+            end
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         gswitch x {
         case: print 1;
         case: print 2 3 4;
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"op add @counter @counter x"#,
-            r#"jump 3 always 0 0"#,
-            r#"jump 4 always 0 0"#,
-            r#"print 1"#,
-            r#"print 2"#,
-            r#"print 3"#,
-            r#"print 4"#,
-        ],
+        "#,
+        r#"
+            op add @counter @counter x
+            jump 3 always 0 0
+            jump 4 always 0 0
+            print 1
+            print 2
+            print 3
+            print 4
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         gswitch x {
         case 0: print 0;
         case 1 2 3: print 1 2 3;
         }
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"op add @counter @counter x"#,
-            r#"jump 5 always 0 0"#,
-            r#"jump 6 always 0 0"#,
-            r#"jump 6 always 0 0"#,
-            r#"jump 6 always 0 0"#,
-            r#"print 0"#,
-            r#"print 1"#,
-            r#"print 2"#,
-            r#"print 3"#,
-        ],
+        "#,
+        r#"
+            op add @counter @counter x
+            jump 5 always 0 0
+            jump 6 always 0 0
+            jump 6 always 0 0
+            jump 6 always 0 0
+            print 0
+            print 1
+            print 2
+            print 3
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         gswitch x {
             break;
         case 1 2: print x;
         case*3: print end;
         }
         end;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"op add @counter @counter x"#,
-            r#"jump 8 always 0 0"#,
-            r#"jump 5 always 0 0"#,
-            r#"jump 5 always 0 0"#,
-            r#"jump 7 always 0 0"#,
-            r#"print x"#,
-            r#"jump 8 always 0 0"#,
-            r#"print end"#,
-            r#"end"#,
-        ],
+        "#,
+        r#"
+            op add @counter @counter x
+            jump 8 always 0 0
+            jump 5 always 0 0
+            jump 5 always 0 0
+            jump 7 always 0 0
+            print x
+            jump 8 always 0 0
+            print end
+            end
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         gswitch x {
             break;
         case*1 2: print x;
         case 3: print end;
         }
         end;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"op add @counter @counter x"#,
-            r#"jump 8 always 0 0"#,
-            r#"jump 5 always 0 0"#,
-            r#"jump 5 always 0 0"#,
-            r#"jump 6 always 0 0"#,
-            r#"print x"#,
-            r#"print end"#,
-            r#"jump 8 always 0 0"#,
-            r#"end"#,
-        ],
+        "#,
+        r#"
+            op add @counter @counter x
+            jump 8 always 0 0
+            jump 5 always 0 0
+            jump 5 always 0 0
+            jump 6 always 0 0
+            print x
+            print end
+            jump 8 always 0 0
+            end
+        "#,
     );
 }
 
@@ -9668,8 +9872,8 @@ fn gswitch_test() {
 fn closure_catch_label_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Run = (
             :x
             print unexpected;
@@ -9680,16 +9884,16 @@ fn closure_catch_label_test() {
         take Run[(
             goto :x;
         )];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print expected"#,
-            r#"print unexpected"#,
-            r#"jump 1 always 0 0"#,
-        ],
+        "#,
+        r#"
+            print expected
+            print unexpected
+            jump 1 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Run = (
             :x
             print unexpected;
@@ -9700,16 +9904,16 @@ fn closure_catch_label_test() {
         take Run[([| :x](
             goto :x;
         ))];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print expected"#,
-            r#"print unexpected"#,
-            r#"jump 0 always 0 0"#,
-        ],
+        "#,
+        r#"
+            print expected
+            print unexpected
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = (
             const Run = (
                 :x
@@ -9723,16 +9927,16 @@ fn closure_catch_label_test() {
             ))];
         );
         take F;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print expected"#,
-            r#"print unexpected"#,
-            r#"jump 0 always 0 0"#,
-        ],
+        "#,
+        r#"
+            print expected
+            print unexpected
+            jump 0 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = (
             const Run = (
                 :x
@@ -9746,19 +9950,19 @@ fn closure_catch_label_test() {
             ))];
         );
         take F F;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print expected"#,
-            r#"print unexpected"#,
-            r#"jump 0 always 0 0"#,
-            r#"print expected"#,
-            r#"print unexpected"#,
-            r#"jump 3 always 0 0"#,
-        ],
+        "#,
+        r#"
+            print expected
+            print unexpected
+            jump 0 always 0 0
+            print expected
+            print unexpected
+            jump 3 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = (
             const Run = (
                 :x
@@ -9772,21 +9976,21 @@ fn closure_catch_label_test() {
             ))];
         );
         take F F;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print expected"#,
-            r#"print unexpected"#,
-            r#"jump 0 always 0 0"#,
-            r#"jump 0 always 0 0"#,
-            r#"print expected"#,
-            r#"print unexpected"#,
-            r#"jump 4 always 0 0"#,
-            r#"jump 4 always 0 0"#,
-        ],
+        "#,
+        r#"
+            print expected
+            print unexpected
+            jump 0 always 0 0
+            jump 0 always 0 0
+            print expected
+            print unexpected
+            jump 4 always 0 0
+            jump 4 always 0 0
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = (
             const Run = (
                 :x
@@ -9800,21 +10004,21 @@ fn closure_catch_label_test() {
             print expected;
         );
         take F F;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print unexpected"#,
-            r#"jump 3 always 0 0"#,
-            r#"jump 3 always 0 0"#,
-            r#"print expected"#,
-            r#"print unexpected"#,
-            r#"jump 7 always 0 0"#,
-            r#"jump 7 always 0 0"#,
-            r#"print expected"#,
-        ],
+        "#,
+        r#"
+            print unexpected
+            jump 3 always 0 0
+            jump 3 always 0 0
+            print expected
+            print unexpected
+            jump 7 always 0 0
+            jump 7 always 0 0
+            print expected
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Run = (
             :x
             print unexpected;
@@ -9825,13 +10029,13 @@ fn closure_catch_label_test() {
         ))];
         :x
         print expected;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print unexpected"#,
-            r#"jump 3 always 0 0"#,
-            r#"jump 3 always 0 0"#,
-            r#"print expected"#,
-        ],
+        "#,
+        r#"
+            print unexpected
+            jump 3 always 0 0
+            jump 3 always 0 0
+            print expected
+        "#,
     );
 }
 
@@ -9839,47 +10043,47 @@ fn closure_catch_label_test() {
 fn non_take_result_handle_dexp_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const H = 2;
         print (H: print pre;);
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print pre"#,
-            r#"print 2"#,
-        ],
+        "#,
+        r#"
+            print pre
+            print 2
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const H = 2;
         print (`H`: print pre;);
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print pre"#,
-            r#"print H"#,
-        ],
+        "#,
+        r#"
+            print pre
+            print H
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const H = (2:);
         print (`H`: print pre;);
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print pre"#,
-            r#"print H"#,
-        ],
+        "#,
+        r#"
+            print pre
+            print H
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         print (?`n`: 2);
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"set n 2"#,
-            r#"print n"#,
-        ],
+        "#,
+        r#"
+            set n 2
+            print n
+        "#,
     );
 }
 
@@ -9922,39 +10126,39 @@ fn to_label_code_test() {
 fn closure_catch_args_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         match a b c => @ {}
         const Clos = ([@](
             print @;
         ));
         take Clos[];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print a"#,
-            r#"print b"#,
-            r#"print c"#,
-        ],
+        "#,
+        r#"
+            print a
+            print b
+            print c
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         match a b c => @ {}
         const Clos = ([@](
             print @;
         ));
         match d e f => @ {}
         take Clos[];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print a"#,
-            r#"print b"#,
-            r#"print c"#,
-        ],
+        "#,
+        r#"
+            print a
+            print b
+            print c
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         match a b c => @ {}
         const Clos = ([@](
             print @;
@@ -9962,50 +10166,51 @@ fn closure_catch_args_test() {
         match d e f => @ {}
         take Clos[];
         print @;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print a"#,
-            r#"print b"#,
-            r#"print c"#,
-            r#"print d"#,
-            r#"print e"#,
-            r#"print f"#,
-        ],
+        "#,
+        r#"
+            print a
+            print b
+            print c
+            print d
+            print e
+            print f
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         match a b c => @ {}
         const Clos = ([@](
             print @;
         ));
         const a = 2;
         take Clos[];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print a"#,
-            r#"print b"#,
-            r#"print c"#,
-        ],
+        "#,
+        r#"
+            print a
+            print b
+            print c
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         match a b c => @ {}
         const Clos = ([@](
             print @;
         ));
         take Clos[1 2];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print a"#,
-            r#"print b"#,
-            r#"print c"#,
-        ],
+        "#,
+        r#"
+            print a
+            print b
+            print c
+        "#,
     );
 
-    assert_eq!( // moved value owned test
-        CompileMeta::new().compile(parse!(parser, r#"
+    // moved value owned test
+    check_compile!(parser,
+        r#"
         const Builder = (
             const $.F = ([@](
                 print @;
@@ -10016,19 +10221,19 @@ fn closure_catch_args_test() {
         match 4 5 6 => @ {}
         take Clos;
         take Clos[];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print a"#,
-            r#"print b"#,
-            r#"print c"#,
-            r#"print a"#,
-            r#"print b"#,
-            r#"print c"#,
-        ],
+        "#,
+        r#"
+            print a
+            print b
+            print c
+            print a
+            print b
+            print c
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Builder = (
             const $.F = ([@](
                 print @;
@@ -10039,19 +10244,19 @@ fn closure_catch_args_test() {
         take Clos;
         const b = 2;
         take Clos[];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print a"#,
-            r#"print b"#,
-            r#"print c"#,
-            r#"print a"#,
-            r#"print b"#,
-            r#"print c"#,
-        ],
+        "#,
+        r#"
+            print a
+            print b
+            print c
+            print a
+            print b
+            print c
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Builder = (
             const $.F = ([@](
                 print @;
@@ -10062,16 +10267,16 @@ fn closure_catch_args_test() {
         )]->F;
         print split;
         take Clos[];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print split"#,
-            r#"print run"#,
-            r#"print x"#,
-        ],
+        "#,
+        r#"
+            print split
+            print run
+            print x
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Builder = (
             const $.F = ([P:(print pre;) @](
                 print @;
@@ -10082,17 +10287,17 @@ fn closure_catch_args_test() {
         )]->F;
         print split;
         take Clos[];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print pre"#,
-            r#"print split"#,
-            r#"print run"#,
-            r#"print x"#,
-        ],
+        "#,
+        r#"
+            print pre
+            print split
+            print run
+            print x
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Builder = (
             const $.F = ([@](
                 print @ _0;
@@ -10101,16 +10306,16 @@ fn closure_catch_args_test() {
         const Clos = Builder[m]->F;
         print split;
         take Clos[n];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print split"#,
-            r#"print m"#,
-            r#"print m"#,
-        ],
+        "#,
+        r#"
+            print split
+            print m
+            print m
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const Builder = (
             const $.F = ([@](
                 print @ _0;
@@ -10120,12 +10325,12 @@ fn closure_catch_args_test() {
         print split;
         const m = 4;
         take Clos[n];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print split"#,
-            r#"print m"#,
-            r#"print m"#,
-        ],
+        "#,
+        r#"
+            print split
+            print m
+            print m
+        "#,
     );
 }
 
@@ -10133,8 +10338,8 @@ fn closure_catch_args_test() {
 fn param_deref_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = (
             const N = 2;
             print @;
@@ -10142,15 +10347,15 @@ fn param_deref_test() {
         const N = 1;
         take F[(setres N;)];
         take F[*(setres N;)];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 2"#,
-            r#"print 1"#,
-        ],
+        "#,
+        r#"
+            print 2
+            print 1
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = (
             const N = 2;
             print @;
@@ -10159,17 +10364,17 @@ fn param_deref_test() {
         const N = 1;
         take F[(setres N;) @];
         take F[*(setres N;) @];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 2"#,
-            r#"print 2"#,
-            r#"print 1"#,
-            r#"print 2"#,
-        ],
+        "#,
+        r#"
+            print 2
+            print 2
+            print 1
+            print 2
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = (
             const N = 2;
             print @;
@@ -10179,13 +10384,13 @@ fn param_deref_test() {
         take F[(setres N;) @];
         match @ => @ {}
         take F[*(setres N;) @];
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 2"#,
-            r#"print 2"#,
-            r#"print 1"#,
-            r#"print 1"#,
-        ],
+        "#,
+        r#"
+            print 2
+            print 2
+            print 1
+            print 1
+        "#,
     );
 }
 
@@ -10193,89 +10398,89 @@ fn param_deref_test() {
 fn param_inf_len_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const F = (
             print @;
         );
         F! 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
             16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 0"#,
-            r#"print 1"#,
-            r#"print 2"#,
-            r#"print 3"#,
-            r#"print 4"#,
-            r#"print 5"#,
-            r#"print 6"#,
-            r#"print 7"#,
-            r#"print 8"#,
-            r#"print 9"#,
-            r#"print 10"#,
-            r#"print 11"#,
-            r#"print 12"#,
-            r#"print 13"#,
-            r#"print 14"#,
-            r#"print 15"#,
-            r#"print 16"#,
-            r#"print 17"#,
-            r#"print 18"#,
-            r#"print 19"#,
-            r#"print 20"#,
-            r#"print 21"#,
-            r#"print 22"#,
-            r#"print 23"#,
-            r#"print 24"#,
-            r#"print 25"#,
-            r#"print 26"#,
-            r#"print 27"#,
-            r#"print 28"#,
-            r#"print 29"#,
-            r#"print 30"#,
-            r#"print 31"#,
-        ],
+        "#,
+        r#"
+            print 0
+            print 1
+            print 2
+            print 3
+            print 4
+            print 5
+            print 6
+            print 7
+            print 8
+            print 9
+            print 10
+            print 11
+            print 12
+            print 13
+            print 14
+            print 15
+            print 16
+            print 17
+            print 18
+            print 19
+            print 20
+            print 21
+            print 22
+            print 23
+            print 24
+            print 25
+            print 26
+            print 27
+            print 28
+            print 29
+            print 30
+            print 31
+        "#,
     );
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         (%print @;%)! 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
             16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print 0"#,
-            r#"print 1"#,
-            r#"print 2"#,
-            r#"print 3"#,
-            r#"print 4"#,
-            r#"print 5"#,
-            r#"print 6"#,
-            r#"print 7"#,
-            r#"print 8"#,
-            r#"print 9"#,
-            r#"print 10"#,
-            r#"print 11"#,
-            r#"print 12"#,
-            r#"print 13"#,
-            r#"print 14"#,
-            r#"print 15"#,
-            r#"print 16"#,
-            r#"print 17"#,
-            r#"print 18"#,
-            r#"print 19"#,
-            r#"print 20"#,
-            r#"print 21"#,
-            r#"print 22"#,
-            r#"print 23"#,
-            r#"print 24"#,
-            r#"print 25"#,
-            r#"print 26"#,
-            r#"print 27"#,
-            r#"print 28"#,
-            r#"print 29"#,
-            r#"print 30"#,
-            r#"print 31"#,
-        ],
+        "#,
+        r#"
+            print 0
+            print 1
+            print 2
+            print 3
+            print 4
+            print 5
+            print 6
+            print 7
+            print 8
+            print 9
+            print 10
+            print 11
+            print 12
+            print 13
+            print 14
+            print 15
+            print 16
+            print 17
+            print 18
+            print 19
+            print 20
+            print 21
+            print 22
+            print 23
+            print 24
+            print 25
+            print 26
+            print 27
+            print 28
+            print 29
+            print 30
+            print 31
+        "#,
     );
 }
 
@@ -10283,82 +10488,82 @@ fn param_inf_len_test() {
 fn keywords_sugar_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         foo _ a;
         foo `_` a;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         foo '_' a;
         foo `'_'` a;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         foo op a;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         foo 'op' a;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         X! _ b;
           X! `_` b;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         X! '_' b;
         X! `'_'` b;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take F[_ c];
           take F[`_` c];
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         take F['_' c];
         take F[`'_'` c];
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take F[op c];
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         take F['op' c];
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         if max < 2 && len == 3 { noop }
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         if 'max' < 2 && 'len' == 3 { noop; }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         print `+`;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         print `add`;
-        "#).unwrap(),
-    );
+        "#,
+    };
 }
 
 #[test]
 fn global_bind_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        CompileMeta::new().compile(parse!(parser, r#"
+    check_compile!(parser,
+        r#"
         const MakeBind = (
             const _0.Foo = ([N:_1 ..B](
                 print B N;
@@ -10370,15 +10575,15 @@ fn global_bind_test() {
         MakeBind! __global 2;
         a.Foo!;
         b.Foo!;
-        "#).unwrap()).compile().unwrap(),
-        vec![
-            r#"print a"#,
-            r#"print 1"#,
-            r#"print a"#,
-            r#"print 1"#,
-            r#"print b"#,
-            r#"print 2"#,
-        ],
+        "#,
+        r#"
+            print a
+            print 1
+            print a
+            print 1
+            print b
+            print 2
+        "#,
     );
 }
 
@@ -10386,103 +10591,103 @@ fn global_bind_test() {
 fn lines_end_no_semicolon_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         {x=2}
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {x=2;}
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         x=2
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         x=2;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         take X
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         take X;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         {y=3; x=2}
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {y=3; x=2;}
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         do {noop} while
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         do {noop;} while;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         do {noop} while a<b
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         do {noop;} while a<b;
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         print (op add $ x 1);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         print (op add $ x 1;);
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         print (read $ cell1 0);
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         print (read $ cell1 0;);
-        "#).unwrap(),
-    );
+        "#,
+    };
 }
 
 #[test]
 fn loop_do_sugar_test() {
     let parser = TopLevelParser::new();
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         while do a < b {
             print 1;
         case:
             print 2;
         }
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         skip a >= b {
             inline { print 1 }
             do {
                 print 2
             } while a < b;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         while do a < b {
             break; continue;
             print 1;
@@ -10490,8 +10695,8 @@ fn loop_do_sugar_test() {
             break; continue;
             print 2;
         }
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         skip a >= b {
             inline {
                 break; continue;
@@ -10502,18 +10707,18 @@ fn loop_do_sugar_test() {
                 print 2
             } while a < b;
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         goto do {
             print 1;
         case:
             print 2;
         } while a < b;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             goto :___0;
             {
@@ -10526,18 +10731,18 @@ fn loop_do_sugar_test() {
                 goto :___1 a < b;
             }
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         goto do {
             print 1;
         case cond:
             print 2;
         } while a < b;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             goto :___0 cond;
             {
@@ -10550,11 +10755,11 @@ fn loop_do_sugar_test() {
                 goto :___1 a < b;
             }
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
 
-    assert_eq!(
-        parse!(parser, r#"
+    check_sugar! {parser,
+        r#"
         goto do {
             break; continue;
             print 1;
@@ -10562,8 +10767,8 @@ fn loop_do_sugar_test() {
             break; continue;
             print 2;
         } while a < b;
-        "#).unwrap(),
-        parse!(parser, r#"
+        "#,
+        r#"
         {
             goto :___2 cond;
             {
@@ -10582,6 +10787,158 @@ fn loop_do_sugar_test() {
                 :___0
             }
         }
-        "#).unwrap(),
-    );
+        "#,
+    };
+}
+
+#[test]
+fn no_effect_hint_test() {
+    let parser = TopLevelParser::new();
+
+    check_compile!(@with_source parser,
+        r#"
+        Foo[];
+        "#,
+        r#"
+        Foo
+        "#
+    ).hit_log(1);
+
+    check_compile!(@with_source parser,
+        r#"
+        const Foo = 2;
+        Foo[];
+        "#,
+        r#"
+        2
+        "#
+    ).hit_log(1);
+
+    check_compile!(@with_source parser,
+        r#"
+        const Foo.X = 2;
+        Foo.X[];
+        "#,
+        r#"
+        2
+        "#
+    ).hit_log(1);
+
+    check_compile!(@with_source parser,
+        r#"
+        foo.X[];
+        "#,
+        r#"
+        __0
+        "#
+    ).hit_log(1);
+
+    check_compile!(@with_source parser,
+        r#"
+        foo.bar.X[];
+        "#,
+        r#"
+        __1
+        "#
+    ).hit_log(1);
+
+    check_compile!(@with_source parser,
+        r#"
+        const foo.bar = m;
+        foo.bar.X[];
+        "#,
+        r#"
+        __1
+        "#
+    ).hit_log(1);
+
+    check_compile!(@with_source parser,
+        r#"
+        const Foo.X = 2;
+        Foo->X[];
+        "#,
+        r#"
+        2
+        "#
+    ).hit_log(1);
+
+    check_compile!(@with_source parser,
+        r#"
+        const Foo.X = 2;
+        `Foo`->X[];
+        "#,
+        r#"
+        2
+        "#
+    ).hit_log(1);
+
+    check_compile!(@with_source parser,
+        r#"
+        const foo.bar.X = 2;
+        `foo`.bar->X[];
+        "#,
+        r#"
+        2
+        "#
+    ).hit_log(1);
+
+    check_compile!(@with_source parser,
+        r#"
+        const foo.X = ();
+        foo.X[];
+        "#,
+        r#"
+        __1
+        "#
+    ).hit_log(0);
+
+    check_compile!(@with_source parser,
+        r#"
+        const foo.X = ();
+        foo->X[];
+        "#,
+        r#"
+        __1
+        "#
+    ).hit_log(0);
+
+    check_compile!(@with_source parser,
+        r#"
+        const foo.X = ();
+        `foo`->X[];
+        "#,
+        r#"
+        __1
+        "#
+    ).hit_log(0);
+
+    check_compile!(@with_source parser,
+        r#"
+        const foo.bar.X = ();
+        foo.bar.X[];
+        "#,
+        r#"
+        __2
+        "#
+    ).hit_log(0);
+
+    check_compile!(@with_source parser,
+        r#"
+        const foo.bar.X = ();
+        foo.bar->X[];
+        "#,
+        r#"
+        __2
+        "#
+    ).hit_log(0);
+
+    check_compile!(@with_source parser,
+        r#"
+        const foo.bar.X = ();
+        `foo`.bar->X[];
+        "#,
+        r#"
+        __2
+        "#
+    ).hit_log(0);
 }

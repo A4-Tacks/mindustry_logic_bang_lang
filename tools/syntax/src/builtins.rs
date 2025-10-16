@@ -520,7 +520,7 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
                     return Err((2, format!("Invalid char point: {code}")))
                 };
                 if char == '"' || char == '\n' {
-                    return Err((2, format!("Invalid string char: `{char}`")))
+                    return Err((2, format!("Invalid string char: {char:?}")))
                 }
                 Ok(format!("\"{char}\"").into())
             })
