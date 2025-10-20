@@ -885,184 +885,135 @@ fn display_source_test() {
     }
 
     let top_parser = TopLevelParser::new();
-    let line_parser = LogicLineParser::new();
-    let jumpcmp_parser = JumpCmpParser::new();
-
     let mut meta = Default::default();
-    assert_eq!(
-        parse!(
-            line_parser,
-            r#"'abc' 'abc"def' "str" "str'str" 'no_str' '2';"#
-        )
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        r#"abc 'abc"def' "str" "str'str" no_str 2;"#
+
+    macro_rules! check {
+        ( $src:expr, $expected:expr $(,)? ) => {
+            assert_eq!(
+                parse!(top_parser, $src).unwrap()
+                    .display_source_and_get(&mut meta)
+                    .trim_end(),
+                $expected
+            );
+        };
+    }
+
+    check!(
+        r#"'abc' 'abc"def' "str" "str'str" 'no_str' '2';"#,
+        r#"abc 'abc"def' "str" "str'str" no_str 2;"#,
     );
     assert_eq!(
         JumpCmp::GreaterThan("a".into(), "1".into())
-            .display_source_and_get(&mut meta),
+            .display_source_and_get(&mut meta)
+            .trim_end(),
         "a > 1"
     );
-    assert_eq!(
-        parse!(jumpcmp_parser, "a < b && c < d && e < f")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "((a < b && c < d) && e < f)"
+    check!(
+        "goto(a < b && c < d && e < f);",
+        "goto(((a < b && c < d) && e < f));",
     );
-    assert_eq!(
-        parse!(line_parser, "{foo;}")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "{\n    foo;\n}"
+    check!(
+        "{foo;}",
+        "{\n    foo;\n}",
     );
-    assert_eq!(
-        parse!(line_parser, "print ($ = x;);")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "`'print'` (`set` $ x;);"
+    check!(
+        "print ($ = x;);",
+        "`'print'` (`set` $ x;);",
     );
-    assert_eq!(
-        parse!(line_parser, "print (res: $ = x;);")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "`'print'` (res: `set` $ x;);"
+    check!(
+        "print (res: $ = x;);",
+        "`'print'` (res: `set` $ x;);",
     );
-    assert_eq!(
-        parse!(line_parser, "print (noop;$ = x;);")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "`'print'` (\n    noop;\n    `set` $ x;\n);"
+    check!(
+        "print (noop;$ = x;);",
+        "`'print'` (\n    noop;\n    `set` $ x;\n);",
     );
-    assert_eq!(
-        parse!(line_parser, "print (res: noop;$ = x;);")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "`'print'` (res:\n    noop;\n    `set` $ x;\n);"
+    check!(
+        "print (res: noop;$ = x;);",
+        "`'print'` (res:\n    noop;\n    `set` $ x;\n);",
     );
-    assert_eq!(
-        parse!(line_parser, "print a.b.c;")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "`'print'` a.b.c;"
+    check!(
+        "print a.b.c;",
+        "`'print'` a.b.c;",
     );
-    assert_eq!(
-        parse!(line_parser, "op add a b c;")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "op a b + c;"
+    check!(
+        "op add a b c;",
+        "op a b + c;",
     );
-    assert_eq!(
-        parse!(line_parser, "op x noise a b;")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "op x noise a b;"
+    check!(
+        "op x noise a b;",
+        "op x noise a b;",
     );
-    assert_eq!(
-        parse!(line_parser, "foo 1 0b1111_0000 0x8f_ee abc 你我他 _x @a-b;")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "foo 1 0b11110000 0x8fee abc 你我他 _x @a-b;"
+    check!(
+        "foo 1 0b1111_0000 0x8f_ee abc 你我他 _x @a-b;",
+        "foo 1 0b11110000 0x8fee abc 你我他 _x @a-b;",
     );
-    assert_eq!(
-        parse!(line_parser, "'take' '1._2' '0b_11_00' '-0b1111_0000' '-0x8f' 'a-bc';")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "'take' '1._2' '0b_11_00' '-0b1111_0000' '-0x8f' 'a-bc';"
+    check!(
+        "'take' '1._2' '0b_11_00' '-0b1111_0000' '-0x8f' 'a-bc';",
+        "'take' '1._2' '0b_11_00' '-0b1111_0000' '-0x8f' 'a-bc';",
     );
-    assert_eq!(
-        parse!(line_parser, "'take' 'set' 'print' 'const' 'take' 'op';")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "'take' set 'print' 'const' 'take' 'op';"
+    check!(
+        "'take' 'set' 'print' 'const' 'take' 'op';",
+        "'take' set 'print' 'const' 'take' 'op';",
     );
-    assert_eq!(
-        parse!(jumpcmp_parser, "({take X = N;} => X > 10 && X < 50)")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "({take X = N;} => (X > 10 && X < 50))"
+    check!(
+        "goto(({take X = N;} => X > 10 && X < 50));",
+        "goto(({take X = N;} => (X > 10 && X < 50)));",
     );
-    assert_eq!(
-        parse!(jumpcmp_parser, "({take X = A; take Y = B;} => X > 10 && Y > 20 && X < Y)")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "({\n    take X = A;\n    take Y = B;\n} => ((X > 10 && Y > 20) && X < Y))"
+    check!(
+        "goto(({take X = A; take Y = B;} => X > 10 && Y > 20 && X < Y));",
+        "goto(({\n    take X = A;\n    take Y = B;\n} => ((X > 10 && Y > 20) && X < Y)));",
     );
-    assert_eq!(
-        parse!(jumpcmp_parser, "(=>[A B] X == 2)")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "({\n    # setArgs A B;\n} => X == 2)"
+    check!(
+        "goto((=>[A B] X == 2));",
+        "goto(({\n    # setArgs A B;\n} => X == 2));",
     );
-    assert_eq!(
-        parse!(jumpcmp_parser, "(=>[] X == 2)")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "({\n    # setArgs;\n} => X == 2)"
+    check!(
+        "goto((=>[] X == 2));",
+        "goto(({\n    # setArgs;\n} => X == 2));",
     );
-    assert_eq!(
-        parse!(jumpcmp_parser, "(=>[@] X == 2)")
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "({\n    # setArgs @;\n} => X == 2)"
+    check!(
+        "goto((=>[@] X == 2));",
+        "goto(({\n    # setArgs @;\n} => X == 2));",
     );
-    assert_eq!(
-        parse!(line_parser, r#"set a "\n\\\[hi]\\n";"#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        r#"set a "\n\\[[hi]\\n";"#
+    check!(
+        r#"set a "\n\\\[hi]\\n";"#,
+        r#"set a "\n\\[[hi]\\n";"#,
     );
-    assert_eq!(
-        parse!(line_parser, r#"foo bar baz;"#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        r#"foo bar baz;"#
+    check!(
+        r#"foo bar baz;"#,
+        r#"foo bar baz;"#,
     );
-    assert_eq!(
-        parse!(line_parser, r#"foo @ bar baz;"#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        r#"foo @ bar baz;"#
+    check!(
+        r#"foo @ bar baz;"#,
+        r#"foo @ bar baz;"#,
     );
-    assert_eq!(
-        parse!(line_parser, r#"@ bar baz;"#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        r#"@ bar baz;"#
+    check!(
+        r#"@ bar baz;"#,
+        r#"@ bar baz;"#,
     );
-    assert_eq!(
-        parse!(line_parser, r#"foo @;"#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        r#"foo @;"#
+    check!(
+        r#"foo @;"#,
+        r#"foo @;"#,
     );
-    assert_eq!(
-        parse!(line_parser, r#"@;"#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        r#"@;"#
+    check!(
+        r#"@;"#,
+        r#"@;"#,
     );
-    assert_eq!(
-        parse!(line_parser, r#"inline @{}"#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        r#"inline 1@{}"#
+    check!(
+        r#"inline @{}"#,
+        r#"inline 1@{}"#,
     );
-    assert_eq!(
-        parse!(line_parser, r#"inline 23@{}"#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        r#"inline 23@{}"#
+    check!(
+        r#"inline 23@{}"#,
+        r#"inline 23@{}"#,
     );
-    assert_eq!(
-        parse!(line_parser, r#"print @;"#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "inline 1@{\n    `'print'` @;\n}"
+    check!(
+        r#"print @;"#,
+        "inline 1@{\n    `'print'` @;\n}",
     );
-    assert_eq!(
-        parse!(line_parser, r#"print a b @ c d;"#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
+    check!(
+        r#"print a b @ c d;"#,
         "\
         inline {\n\
      \x20   `'print'` a;\n\
@@ -1074,8 +1025,8 @@ fn display_source_test() {
      \x20   `'print'` d;\n\
         }"
     );
-    assert_eq!(
-        parse!(line_parser, r#"
+    check!(
+        r#"
         match a b c @ d e f {
             x y:[m n] [a b] {
                 foo;
@@ -1086,9 +1037,7 @@ fn display_source_test() {
             {}
             @ {}
         }
-        "#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
+        "#,
         "\
         match a b c @ d e f {\n\
      \x20   x y:[m n] [a b] {\n\
@@ -1101,120 +1050,94 @@ fn display_source_test() {
      \x20   @ {}\n\
         }"
     );
-    assert_eq!(
-        parse!(line_parser, r#"
+    check!(
+        r#"
         match a b c @ d e f {}
-        "#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
+        "#,
         "match a b c @ d e f {}"
     );
-    assert_eq!(
-        parse!(line_parser, r#"
+    check!(
+        r#"
         match {}
-        "#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
+        "#,
         "match {}"
     );
-    assert_eq!(
-        parse!(line_parser, r#"
+    check!(
+        r#"
         match { $X {} }
-        "#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
+        "#,
         "match {\n    $X {}\n}"
     );
-    assert_eq!(
-        parse!(line_parser, r#"
+    check!(
+        r#"
         match { $X:[1] {} }
-        "#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
+        "#,
         "match {\n    $X:[1] {}\n}"
     );
-    assert_eq!(
-        parse!(line_parser, r#"
+    check!(
+        r#"
         match { $[1 2] {} }
-        "#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
+        "#,
         "match {\n    $[1 2] {}\n}"
     );
-    assert_eq!(
-        parse!(line_parser, r#"
+    check!(
+        r#"
         match { _ {} }
-        "#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
+        "#,
         "match {\n    _ {}\n}"
     );
-    assert_eq!(
-        parse!(line_parser, r#"
+    check!(
+        r#"
         match { $_ {} }
-        "#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
+        "#,
         "match {\n    $_ {}\n}"
     );
-    assert_eq!(
-        parse!(line_parser, r#"
+    check!(
+        r#"
         foo 'match';
-        "#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
+        "#,
         "foo 'match';"
     );
 
-    assert_eq!(
-        parse!(line_parser, r#"
+    check!(
+        r#"
         take Foo[a b].x;
-        "#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
+        "#,
         "take __ = (%(__:\n    # setArgs a b;\n    setres Foo;\n)).x;"
     );
 
-    assert_eq!(
-        parse!(line_parser, r#"
+    check!(
+        r#"
         take a.b;
-        "#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
+        "#,
         "take __ = a.b;"
     );
 
-    assert_eq!(
-        parse!(line_parser, r#"
+    check!(
+        r#"
         take $.b;
-        "#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
+        "#,
         "take __ = $.b;"
     );
 
-    assert_eq!(
-        parse!(top_parser, r#"
+    check!(
+        r#"
         const X = 2;
         const Y = ();
         const Z = (:x);
-        "#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
-        "const X = 2;\nconst Y = ();\nconst Z = (:x);#*labels: [x]*#\n"
+        "#,
+        "const X = 2;\nconst Y = ();\nconst Z = (:x);#*labels: [x]*#"
     );
 
-    assert_eq!(
-        parse!(line_parser, r#"
+    check!(
+        r#"
         const X = ([A &B C:2 &D:(:m)](:z));
-        "#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
+        "#,
         "const X = ([A:A &B:B C:2 &D:(:m)#*labels: [m]*#](:z)#*labels: [z]*#);"
     );
 
-    assert_eq!(
-        parse!(line_parser, r#"
+    check!(
+        r#"
         const match @ {
             A *B *_ C:[1] *D:[2 3] E:[?x] [1 2] {}
             X @ Y {}
@@ -1226,9 +1149,7 @@ fn display_source_test() {
             $M:[2] {}
             $[2] {}
         }
-        "#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
+        "#,
         "\
         const match @ {\n\
      \x20   A *B *_ C:[1] *D:[2 3] E:[?x] [1 2] {}\n\
@@ -1244,66 +1165,52 @@ fn display_source_test() {
         "
     );
 
-    assert_eq!(
-        parse!(line_parser, r#"
+    check!(
+        r#"
         const X = ([| :c :d]2);
-        "#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
+        "#,
         "const X = ([| :c :d]2);"
     );
 
-    assert_eq!(
-        parse!(line_parser, r#"
+    check!(
+        r#"
         const X = ([A B | :c :d]2);
-        "#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
+        "#,
         "const X = ([A:A B:B | :c :d]2);"
     );
 
-    assert_eq!(
-        parse!(line_parser, r#"
+    check!(
+        r#"
         const X = ([@]2);
-        "#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
+        "#,
         "const X = ([@]2);"
     );
 
-    assert_eq!(
-        parse!(line_parser, r#"
+    check!(
+        r#"
         const X = ([A @]2);
-        "#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
+        "#,
         "const X = ([A:A @]2);"
     );
 
-    assert_eq!(
-        parse!(line_parser, r#"
+    check!(
+        r#"
         const X = ([A @ | :c]2);
-        "#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
+        "#,
         "const X = ([A:A @ | :c]2);"
     );
 
-    assert_eq!(
-        parse!(line_parser, r#"
+    check!(
+        r#"
         const X = ([@ | :c]2);
-        "#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
+        "#,
         "const X = ([@ | :c]2);"
     );
 
-    assert_eq!(
-        parse!(line_parser, r#"
+    check!(
+        r#"
         (a:) (`b`:);
-        "#)
-            .unwrap()
-            .display_source_and_get(&mut meta),
+        "#,
         "(a:) (`b`:);"
     );
 }
