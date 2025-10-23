@@ -41,9 +41,9 @@ const MakeTickLocker = (match @ => $Locker Mem Addr {
     * 要求未加锁时内存地址处的值被初始化为 -1, 可以通过调用 Init 实现
     *
     * 优点是可以任意核加锁、对 id 只有不重复的要求, 并且实现简单
-    * 缺点是单核性能被锁死, 每次尝试加锁通常要消耗一个完整的 @ipt,
+    * 缺点是单核性能被锁死, 每次尝试加锁通常要消耗一两个完整的 @ipt,
     *   当使用超核时 ipt 已经达到了 25, 而使用世处 ipt 将可以达到 1000
-    *   所以该锁在最快的世处进行加锁时, 通常需要执行一千条语句, 这很影响速度
+    *   所以该锁在最快的世处进行加锁时, 通常需要执行一两千条语句, 这很影响速度
     *#
     const $.Mem = Mem;
     const $.Addr = Addr;
@@ -56,6 +56,7 @@ const MakeTickLocker = (match @ => $Locker Mem Addr {
         do {
             do { ...TickSync! } while (read $ ...Mem ...Addr) != -1;
             write Id ...Mem ...Addr;
+            ...TickSync!;
         } while (read $ ...Mem ...Addr) != Id;
     });
     const $.Free = (match @ => @ { write -1 ...Mem ...Addr });
@@ -161,9 +162,11 @@ const MakeBakeryAlgorithmLocker = (match @ => $Locker Mem Addr N {
 MakeBakeryAlgorithmLocker! locker cell1 1 4;
 locker.Init!;
 
+wait 2;
+
 id = @thisx // 3 % 4;
 break (sensor $ switch1 @enabled;);
-wait (*rand(1)+0.5);
+wait (*rand(2)+0.5);
 do { } while (*rand 1) < 0.7;
 
 looping = 0; do {
