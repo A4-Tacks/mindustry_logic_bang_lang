@@ -142,6 +142,12 @@ Bang 提供了一个灵活的大型常量系统,
   - Peterson 锁, 无需同步刻的互斥锁, 仅支持两个处理器间使用
   - Bakery Algorithm 锁, 类似 Peterson 锁, 但支持多个处理器
 
+- [变量存取选择表](./examples/std/select_table.mdtlbl)
+  ```
+  SelectTable! i 5 (ubind _0.unit); # read to @unit
+  SelectTable! i 5 (_0.unit = @unit); # write
+  ```
+
 
 ## 附属工具
 - **mdt-ops-generator**: 生成自解释的 op 语句

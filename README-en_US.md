@@ -143,6 +143,13 @@ Copy and paste the tool code into your code to use it
   - Peterson Mutex, no need for synchronous ticks, only supports use between two processors
   - Bakery Algorithm Mutex, similar to Peterson Mutex, but supports multiple processors
 
+- [Variable access selection table](./examples/std/select_table.mdtlbl)
+  ```
+  SelectTable! i 5 (ubind _0.unit); # read to @unit
+  SelectTable! i 5 (_0.unit = @unit); # write
+  ```
+
+
 ## Accessory tools
 - **mdt-ops-generator**: Generate self explanatory op statements
 - **mlog-decompiler**: Decompiler, used to reconstruct control flow for logical languages

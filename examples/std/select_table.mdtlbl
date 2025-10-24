@@ -1,0 +1,74 @@
+#**
+* 关于快速生成选择表的工具
+* 传入一段代码(DExp), 展开代码时的参数包含当前所在块号
+* 例如可以快速创建变量存取表
+*#
+
+Builtin.BindSep! '.';
+Builtin.MissesMatch! 1;
+
+const SelectTable = (const match @ {
+    *Idx Count ChunkFunc {
+        take const(
+            SelectTable! Idx Count ChunkFunc (goto :breakout);
+            :breakout
+        );
+    }
+    *Idx Count ChunkFunc Breaker {
+        const match Count->op { [`__`] {
+            Builtin.Debug! Count;
+            Builtin.ExpandStack!;
+            Builtin.Err! "Cannot support non const eval select table count";
+            Builtin.Exit! 2;
+        } [?_0 >= 500] {
+            Builtin.Err! Builtin.Concat->[
+                "select table count too big: "
+                Builtin.Stringify->[Count]
+            ];
+        } _ {} }
+
+        take*Chunk = 0;
+
+        match => @ { }
+        inline 0@ {
+            const match @ ([Chunk](
+                ChunkFunc! Chunk;
+                Breaker!;
+            )) => @ {}
+
+            take*Chunk = Chunk + 1;
+
+            match (*Chunk>=Count) { [1] {
+                Builtin.MakeSelect! Idx;
+                Builtin.StopRepeat!;
+            } _ {} }
+        }
+    }
+});
+
+# 例如以下示例代码, 绑定单位的同时将前五个绑定的单位记录在表中其它变量
+
+SelectTable! i++ 5 (
+    _0.unit = @unit;
+); # 类似 switch i { case 0: 0.unit = @unit; case 1: 1.unit = @unit; ... } i++;
+i %= 5;
+
+ubind @flare;
+
+#* >>>
+op mul __60 i 2
+op add @counter @counter __60
+set 0.unit @unit
+jump 12 always 0 0
+set 1.unit @unit
+jump 12 always 0 0
+set 2.unit @unit
+jump 12 always 0 0
+set 3.unit @unit
+jump 12 always 0 0
+set 4.unit @unit
+jump 12 always 0 0
+op add i i 1
+op mod i i 5
+ubind @flare
+*#
