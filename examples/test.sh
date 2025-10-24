@@ -118,14 +118,18 @@ do
         cat -n <<< "$outs"
         exit 2
     }
-    if ! diff --color=auto "$tmp" -<<< "$outs"
+    if ! diff -<<< "$outs" "$tmp" >/dev/null
     then
         echo $'\e[1;32mlines:\e[m'
         cat -n <<< "$lines"
-        echo $'\e[1;31mcurs:\e[m'
-        cat -n "$tmp"
+
         echo $'\e[1;33mouts(expected):\e[m'
         cat -n <<< "$outs"
+
+        echo $'\e[1;31mcurs:\e[m'
+        cat -n "$tmp"
+
+        diff -u --color=auto -<<< "$outs" "$tmp"
         exit 1
     fi
 done <&"${ext[0]}"
