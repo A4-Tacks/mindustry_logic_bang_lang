@@ -72,3 +72,17 @@ op add i i 1
 op mod i i 5
 ubind @flare
 *#
+
+# 有时会生成很大的变量存取表, 随处展开并不理想,
+# 可以配合./function.mdtlbl 创建一个用于 存/取 变量的函数
+#
+#const ReadVars = Function[i (
+#    SelectTable! ..->i, 5, ([R:...result](
+#        R.unit     = _0.unit;
+#        R.building = _0.building;
+#    )) ([B:..](B.Return!));
+#)]->Call;
+#
+#take R = ReadVars[i];
+#
+#print R.unit", "R.building;
