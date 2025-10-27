@@ -160,6 +160,7 @@ mod tests {
             current: once(reduces.into()).collect(),
             losses_cache: vec![],
             limit: 900,
+            guidance: false,
         };
         for (i, reduces) in finder.current.iter().enumerate() {
             let loss = reduces.loss();
