@@ -97,7 +97,8 @@ fn main() {
     let start_time = SystemTime::now();
     let mut time = start_time.clone();
     let mut prev_limite = None;
-    for itering in 1..=iterate {
+    let [mut itering, mut iterate] = [1, iterate];
+    loop {
         eprint!("{itering:>3}/{iterate:<3} ");
         finder.iterate();
         let mem_usage = mem_usage();
@@ -125,6 +126,19 @@ fn main() {
 
         time = SystemTime::now();
         prev_limite = Some((happy, limite, raw_len));
+
+        itering += 1;
+        if itering > iterate {
+            if !atty::is(atty::Stream::Stdin) || !atty::is(atty::Stream::Stderr) {
+                break
+            }
+            eprint!("There may be better results, should we continue? [Y/n]");
+            let buf = &mut String::new();
+            let _ = stdin().read_line(buf);
+            let ("" | "y" | "Y") = buf.trim() else { break };
+            iterate += iterate.div_ceil(2);
+            eprint!("\r");
+        }
     }
     eprintln!("-- Reconstruction Completed, Elapsed: {:.4}s", start_time.elapsed().unwrap().as_secs_f64());
 
