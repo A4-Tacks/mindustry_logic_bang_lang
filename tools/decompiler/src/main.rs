@@ -6,6 +6,7 @@ use tag_code::logic_parser;
 
 fn main() {
     let options = getopts_options! {
+        -g, --guidance      "guidance mode";
         -i, --iterate=N     "maximum number of iterations";
         -l, --limit=N       "maximum case limit for each iteration";
         -L, --out-limit=N   "maximum output limit for finished case";
@@ -37,6 +38,7 @@ fn main() {
         println!("{}", env!("CARGO_PKG_VERSION"));
         return;
     }
+    let guidance = matched.opt_present("guidance");
     let raw_out = matched.opt_present("raw-out");
     let sparse = matched.opt_present("sparse");
     let iterate: usize = matched.opt_get("iterate")
@@ -87,6 +89,7 @@ fn main() {
         current: FromIterator::from_iter([reduces.into_iter().collect()]),
         losses_cache: vec![],
         limit,
+        guidance,
     };
 
     eprintln!("iterate    {iterate}\nlimit      {limit}\nout-limit  {out_limit}");

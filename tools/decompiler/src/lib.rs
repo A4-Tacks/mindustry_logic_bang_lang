@@ -60,11 +60,16 @@ pub struct Finder<'a> {
     pub current: HashSet<Rc<[Reduce<'a>]>>,
     pub losses_cache: Vec<f32>,
     pub limit: usize,
+    pub guidance: bool,
 }
 
 impl<'a> Finder<'a> {
     pub fn iterate(&mut self) {
-        let cases = self.current.iter().cloned().collect::<Vec<_>>();
+        let cases: Vec<_> = if self.guidance {
+            self.current.drain().collect()
+        } else {
+            self.current.iter().cloned().collect()
+        };
 
         cases.iter()
             .flat_map(|case| {
@@ -84,6 +89,10 @@ impl<'a> Finder<'a> {
                 self.current.insert(new_case);
             }
         });
+
+        if self.current.is_empty() {
+            self.current.extend(cases);
+        }
     }
 
     pub fn limite(&mut self) -> (f32, f32) {
