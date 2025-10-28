@@ -337,7 +337,7 @@ checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
 name = "mindustry_logic_bang_lang"
-version = "0.21.9"
+version = "0.21.10"
 dependencies = [
  "display_source",
  "logic_lint",
@@ -442,7 +442,7 @@ dependencies = [
 
 [[package]]
 name = "parser-tests"
-version = "0.1.93"
+version = "0.1.94"
 dependencies = [
  "dissimilar",
  "either",
@@ -633,7 +633,7 @@ dependencies = [
 
 [[package]]
 name = "syntax"
-version = "0.2.75"
+version = "0.2.76"
 dependencies = [
  "either",
  "itermaps",

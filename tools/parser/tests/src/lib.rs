@@ -8824,6 +8824,24 @@ fn builtin_func_test() {
         "#,
     );
 
+    check_compile!(parser,
+        r#"
+        print Builtin.Ord['"'];
+        "#,
+        r#"
+            print 34
+        "#,
+    );
+
+    check_compile!(parser,
+        r#"
+        print Builtin.Ord["'"];
+        "#,
+        r#"
+            print 39
+        "#,
+    );
+
     check_compile!(@with_source parser,
         r#"
         print Builtin.Ord[""];

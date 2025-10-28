@@ -536,6 +536,8 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
                     Ok(format!("{}", b'\t').into())
                 } else if char == r"\e" {
                     Ok(format!("{}", b'\x1b').into())
+                } else if char == r"'" {
+                    Ok(format!("{}", b'"').into())
                 } else if Value::is_string(char) {
                     if char.chars().nth(2).is_none() || char.chars().nth(3).is_some() {
                         return Err((2, format!("Ord[] cannot support multi chars {char}")))

@@ -40,7 +40,7 @@
 * * `UnusedNoEffect[enable]`: 当enable非0时, 对指向Var的take不使用句柄时将会打印日志
 * * `NewBind[enable]`: 当enable非0时, 新建绑定量时将会打印日志
 * * `Chr[num]`: 类似python的chr, 将数字转换成字符
-* * `Ord[num]`: 类似python的ord, 将字符转换成其码点(数字)
+* * `Ord[num]`: 类似python的ord, 将字符转换成其码点(数字), 支持字符串输入, 也支持一些转义如 \n
 * * `BindSep[sep]`: 当sep非空字符串时, 绑定量将以指定分隔的形式输出
 *   例如: take BindSep["%"]; a.b = 2;的a.b在take后的句柄会变成'a%b'
 *   NOTE: 注意, 如果选择的分隔符分隔后结果和现有var冲突可能会产生奇怪的问题,
