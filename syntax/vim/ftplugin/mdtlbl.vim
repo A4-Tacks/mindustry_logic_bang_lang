@@ -25,7 +25,6 @@ function s:mdtlblQuickSingleQuote() abort
     let col = col('.')
     let line = getline('.')
     let ended_line = col > 1 ? line[:col-2] : ''
-    echom [line, ended_line]
 
     if ended_line =~# '\>$'
         return "! ;\<left>"
