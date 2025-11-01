@@ -1,0 +1,14 @@
+#**
+* 简单的逻辑
+* 控制其它炮台跟随首个链接的炮台开火
+*#
+
+getlink head 0;
+sensor shooting head @shooting;
+sensor shootX head @shootX;
+sensor shootY head @shootY;
+
+i = 1; do {
+    getlink block i;
+    control shoot block shootX shootY shooting 0;
+} while ++i < @links;
