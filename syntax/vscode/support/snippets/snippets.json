@@ -353,6 +353,20 @@
             "Builtin.RefArg[$1]"
         ]
     },
+    "Builtin.Ord[$1]": {
+        "prefix": "_Ord",
+        "description": "Builtin.Ord[$1]",
+        "body": [
+            "Builtin.Ord['$1']"
+        ]
+    },
+    "Builtin.Chr[$1]": {
+        "prefix": "_Chr",
+        "description": "Builtin.Chr[$1]",
+        "body": [
+            "Builtin.Chr[$1]"
+        ]
+    },
     "Builtin.Info! $1;": {
         "prefix": "_Info",
         "description": "Builtin.Info! $1;",
