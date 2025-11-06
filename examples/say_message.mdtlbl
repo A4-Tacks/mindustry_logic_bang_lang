@@ -2,6 +2,8 @@
 * 信息板聊天框, 记录追加信息的时间, 淘汰过老消息
 *#
 
+const Ord = Builtin->Ord;
+
 prevBufferSize = bufferSize;
 sensor bufferSize message1 @bufferSize;
 point = bufferSize;
@@ -16,8 +18,8 @@ if !bufferSize {
 break prevBufferSize == bufferSize;
 
 while point > 1 && (
-    (read $ message1 (*point- 1)) != 62 # >
-    || (read $ message1 (*point- 2)) != 10 # \n
+    (read $ message1 (*point- 1)) != Ord['>']
+    || (read $ message1 (*point- 2)) != Ord['\n']
 )
 {
     point--;
@@ -26,7 +28,7 @@ hist = point - 2;
 start = bufferSize - point;
 
 if (*hist + start) > 180 {
-    while start > 2 && start < bufferSize && (read $ message1 (*start- 1)) != 10 {
+    while start > 2 && start < bufferSize && (read $ message1 (*start- 1)) != Ord['\n'] {
         start++;
     }
 } else {
@@ -40,7 +42,7 @@ s = @time//1000;
 print "\n"(*s//60)":"(*s%60)"> ";
 while point < bufferSize {
     printchar (ch:read $ message1 point++);
-    if ch == 10 { print "+ " }
+    if ch == Ord['\n'] { print "+ " }
 }
 print "\n>";
 printflush message1;
