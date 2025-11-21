@@ -95,6 +95,7 @@ jobs:
     needs: create-release
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - name: Install markdown2html-converter
         run: |
           wget -O md2html.tar.gz https://github.com/A4-Tacks/markdown2html-converter/releases/download/v2.0.0-local.2/markdown2html-converter-v2.0.0-local.2-x86_64-unknown-linux-musl.tar.gz
@@ -109,7 +110,7 @@ jobs:
           mkdir docs
           cp ./examples/learn.md docs/$name
           cd docs
-          ./markdown2html-converter --header-ids "" $name -o $html -t learn-mindustry-logic
+          ./markdown2html-converter --header-ids "" $name -o $html -t learn-bang
 
       - run: |
           ref=${{ github.ref }}
