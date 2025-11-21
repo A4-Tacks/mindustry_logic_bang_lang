@@ -328,6 +328,7 @@ impl TakeHandle for Value {
                     loc.1,
                     cmp.display_src(meta),
                 );
+                meta.log_info(format_args!("Cmper 仅被用于比较时内联, 不允许进行 take"));
                 exit(6);
             },
             Self::ClosuredValue(closurev) => closurev.take_handle(meta),
