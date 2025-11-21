@@ -65,6 +65,12 @@ jobs:
           checksum: sha256
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  accept-release:
+    needs: [test-workspace, upload-assets]
+    runs-on: ubuntu-latest
+    steps:
+      - run: ref=${{ github.ref }} && gh release edit --prerelease=false ${ref##*/}
+
   copy-vscode-syntax:
     needs: create-release
     runs-on: ubuntu-latest
