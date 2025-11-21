@@ -1,3 +1,5 @@
+name: release
+
 permissions:
   contents: write
 
@@ -70,6 +72,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: ref=${{ github.ref }} && gh release edit --prerelease=false ${ref##*/}
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   copy-vscode-syntax:
     needs: create-release
