@@ -164,8 +164,9 @@ fn output<'a>(raw_out: bool, iter: impl IntoIterator<Item = (usize, &'a Rc<[Redu
     for (i, reduces) in iter {
         let loss = reduces.loss();
         let reduce = reduces.iter().cloned().collect::<Reduce<'_>>();
-        let cleaned = clean::clean_dedup_labels(reduce);
-        let cleaned = clean::clean_jump_to_break(cleaned);
+        let cleaned = clean::dedup_labels(reduce);
+        let cleaned = clean::jump_to_break(cleaned);
+        let cleaned = clean::unused_labels(cleaned);
 
         let def = walk::label_defs(&cleaned);
         let used = walk::label_usages(&cleaned);

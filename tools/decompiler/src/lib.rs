@@ -188,8 +188,8 @@ mod tests {
             println!("{}", fmt_reduces(reduces))
         }
         println!("\x1b[94m----- clean -----\x1b[0m");
-        let cleaned = clean::clean_dedup_labels(sorted[0].iter().cloned().collect());
-        let cleaned = clean::clean_jump_to_break(cleaned);
+        let cleaned = clean::dedup_labels(sorted[0].iter().cloned().collect());
+        let cleaned = clean::jump_to_break(cleaned);
         println!("{}", fmt_reduces(&[cleaned.clone()]));
         let label_usage_count = label_usages(&cleaned);
         println!("label usage count: {}", label_usage_count);
