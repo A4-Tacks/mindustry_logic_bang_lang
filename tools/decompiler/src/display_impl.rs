@@ -99,7 +99,11 @@ impl fmt::LowerHex for Reduce<'_> {
 
         match self {
             Reduce::Label(Label(label)) => write!(f, ":_{label}"),
-            Reduce::Jump(Jump(Label(label), cond)) => write!(f, "goto :_{label} {cond:x};"),
+            Reduce::Jump(Jump(Label(label), cond)) => if cond.is_always() {
+                write!(f, "goto :_{label};")
+            } else {
+                write!(f, "goto :_{label} {cond:x};")
+            },
             Reduce::Break(cond) => write!(f, "break {cond:x};"),
             Reduce::Skip(cond, reduces) => {
                 write!(f, "skip {cond:x} {{")?;
