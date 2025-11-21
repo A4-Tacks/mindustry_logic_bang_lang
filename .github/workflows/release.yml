@@ -110,7 +110,7 @@ jobs:
           mkdir docs
           cp ./examples/learn.md docs/$name
           cd docs
-          ./markdown2html-converter --header-ids "" $name -o $html -t learn-bang
+          ../markdown2html-converter --header-ids "" $name -o $html -t learn-bang
 
       - run: |
           ref=${{ github.ref }}
