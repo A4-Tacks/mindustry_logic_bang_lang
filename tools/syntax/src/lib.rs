@@ -501,8 +501,9 @@ impl Value {
                             (args[2].try_eval_const_num(meta)?.0, true).into()
                         } else if cmd == "select"
                             && args[1].is_result_handle()
-                            && let Value::ReprVar(cond) = args[2].clone()
+                            && args[2].is_repr_var()
                         {
+                            let Value::ReprVar(cond) = args[2].clone() else { unreachable!() };
                             let cmp_a = args[3].try_eval_const_num(meta)?.0;
                             let cmp_b = args[4].try_eval_const_num(meta)?.0;
                             let a = args[5].try_eval_const_num(meta)?.0;
