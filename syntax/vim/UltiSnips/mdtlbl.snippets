@@ -241,7 +241,7 @@ endsnippet
 
 # normal processor
 snippet read "read result cell1 0;" w
-read ${1:result} ${2:cell1} ${3:0};
+read ${1:$} ${2:cell1} ${3:0};
 endsnippet
 snippet write "write result cell1 0;" w
 write ${1:result} ${2:cell1} ${3:0};
@@ -259,16 +259,16 @@ snippet printflush "printflush message1" w
 printflush ${1:message1};
 endsnippet
 snippet getlink "getlink" w
-getlink ${1:block} ${2:0};
+getlink ${1:$} ${2:0};
 endsnippet
 snippet control "enabled | shoot[p] | config | color" w
 control ${1:enabled} ${2:block1} ${3:false} 0 0 0;
 endsnippet
 snippet radar "radar" w
-radar enemy any any distance turret1 1 result;
+radar enemy any any distance turret1 1 ${1:result};
 endsnippet
 snippet sensor "sensor" w
-sensor ${1:result} ${2:block1} ${3:@${4:copper}};
+sensor ${1:$} ${2:block1} ${3:@${4:copper}};
 endsnippet
 snippet lookup "each block | unit | item | liquid | team" w
 lookup ${1:item} ${2:result} ${3:0};
@@ -300,16 +300,16 @@ endsnippet
 snippet ucontrol "unit control" w
 ucontrol ${1:move} ${2:0} ${3:0} 0 0 0;
 endsnippet
-snippet ulocate "unit locate" w
+snippet ulocate "unit locate, 注意 true 默认查找敌人" w
 ulocate building core true @copper outx outy found building;
 endsnippet
 snippet uradar "unit radar" w
-uradar enemy any any distance 0 1 result;
+uradar enemy any any distance 0 1 ${1:result};
 endsnippet
 
 # world processor
-snippet getblock "获取指定位置的地块数据(floor|ore|block|building)" b
-getblock ${1:block} ${2:result} ${3:0} ${4:0};
+snippet getblock "获取指定位置的地块数据(floor|ore|block|building)" w
+getblock ${1:block} ${2:$} ${3:0} ${4:0};
 endsnippet
 snippet setblock "设置指定位置的地块数据(floor|ore|block)" b
 setblock ${1:block} ${2:@air} ${3:0} ${4:0} ${5:@derelict} ${6:0};
@@ -317,11 +317,14 @@ endsnippet
 snippet spawn "在指定位置生成单位" b
 spawn ${1:@dagger} ${2:10} ${3:10} ${4:90} ${5:@sharded} ${6:result};
 endsnippet
-snippet status "添加或清除单位的一个状态效果" b
-status ${1:false} ${2:wet} ${3:unit} ${4:10};
+snippet status "添加单位的一个状态效果" b
+status false ${1:wet} ${2:unit} ${3:10};
 endsnippet
-snippet weathersense "检查特定种类的天气当前是否启用。" b
-weathersense ${1:result} ${2:@rain};
+snippet status.clear "清除单位的一个状态效果" b
+status true ${1:wet} ${2:unit} 0;
+endsnippet
+snippet weathersense "检查特定种类的天气当前是否启用。" w
+weathersense ${1:$} ${2:@rain};
 endsnippet
 snippet weatherset "设置当前状态为特定类型天气。" b
 weatherset ${1:@rain} ${2:true};
@@ -347,17 +350,17 @@ endsnippet
 snippet setrate "在指令/时间刻的时间下设置处理器处理速度" b
 setrate ${1:10};
 endsnippet
-snippet fetch "按索引查找单位、 核心、 玩家或建筑物(unit|player|core|build)[Count]\n索引从 0 开始，以其返回的计数结束" b
-fetch ${1:unit} ${2:result} ${3:@sharded} ${4:0} ${5:@conveyor};
+snippet fetch "按索引查找单位、核心、玩家或建筑物(unit|player|core|build)[Count]\n索引从 0 开始，以其返回的计数结束" w
+fetch ${1:unit} ${2:$} ${3:@sharded} ${4:0} ${5:@conveyor};
 endsnippet
 snippet sync "在网络中同步一个变量。\n最多每秒调用10次。" b
 sync ${1:var};
 endsnippet
-snippet getflag "检查是否设置了全局标志。" b
-getflag ${1:result} ${2:"flag"};
+snippet getflag "检查是否设置了全局标志。" w
+getflag ${1:$} "${2:flag}";
 endsnippet
 snippet setflag "设置一个可以被所有处理器读取的全局标志。" b
-setflag ${1:"flag"} ${2:true};
+setflag "${1:flag}" ${2:true};
 endsnippet
 snippet setprop "设置单位或建筑物的属性。" b
 setprop ${1:@copper} ${2:block1} ${3:0};
@@ -945,7 +948,7 @@ snippet draw.image "画出某个游戏内容的图像, 例如@router或者@dagge
 draw image ${1:0} ${2:0} ${3:@copper} ${4:32} ${5:0} 0;
 endsnippet
 snippet draw.print "类似printflush, 但是输出在显示屏 (center|top|bottom|left|right|topLeft|topRight|bottomLeft|bottomRight)" w
-draw 'print' ${1:0} ${2:0} ${3:bottomLeft} 0 0 0;
+draw print ${1:0} ${2:0} ${3:bottomLeft} 0 0 0;
 endsnippet
 snippet draw.translate "移动绘制基准点属性" w
 draw translate ${1:0} ${2:0} 0 0 0 0;
@@ -1050,7 +1053,7 @@ snippet ucontrol.getBlock "(x y type building floor)在坐标处获取建筑、�
 ucontrol getBlock ${1:0} ${2:0} ${3:0} ${4:0} ${5:0};
 endsnippet
 snippet ucontrol.within "(x y radius result) 检查单位是否接近了某个位置" w
-ucontrol within ${1:0} ${2:0} ${3:0} ${4:0} 0;
+ucontrol within ${1:0} ${2:0} ${3:0} ${4:$} 0;
 endsnippet
 snippet ucontrol.unbind "停用单位的逻辑控制\n恢复常规AI" w
 ucontrol unbind 0 0 0 0 0;
@@ -1072,7 +1075,7 @@ endsnippet
 
 # getblock expanded
 snippet getblock.floor "获取指定位置的地板" b
-getblock 'floor' ${1:result} ${2:0} ${3:0};
+getblock floor ${1:result} ${2:0} ${3:0};
 endsnippet
 snippet getblock.ore "获取指定位置的矿物" b
 getblock ore ${1:result} ${2:0} ${3:0};
@@ -1086,7 +1089,7 @@ endsnippet
 
 # setblock expanded
 snippet setblock.floor "设置指定位置的地板" b
-setblock 'floor' ${1:@air} ${2:0} ${3:0} 0 0;
+setblock floor ${1:@air} ${2:0} ${3:0} 0 0;
 endsnippet
 snippet setblock.ore "设置指定位置的矿物" b
 setblock ore ${1:@air} ${2:0} ${3:0} 0 0;

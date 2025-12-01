@@ -511,7 +511,7 @@
         "prefix": "read",
         "description": "read result cell1 0;",
         "body": [
-            "read ${1:result} ${2:cell1} ${3:0};"
+            "read ${1:$} ${2:cell1} ${3:0};"
         ]
     },
     "write result cell1 0;": {
@@ -553,7 +553,7 @@
         "prefix": "getlink",
         "description": "getlink",
         "body": [
-            "getlink ${1:block} ${2:0};"
+            "getlink ${1:$} ${2:0};"
         ]
     },
     "enabled | shoot[p] | config | color": {
@@ -567,14 +567,14 @@
         "prefix": "radar",
         "description": "radar",
         "body": [
-            "radar enemy any any distance turret1 1 result;"
+            "radar enemy any any distance turret1 1 ${1:result};"
         ]
     },
     "sensor": {
         "prefix": "sensor",
         "description": "sensor",
         "body": [
-            "sensor ${1:result} ${2:block1} ${3:@${4:copper}};"
+            "sensor ${1:$} ${2:block1} ${3:@${4:copper}};"
         ]
     },
     "each block | unit | item | liquid | team": {
@@ -647,9 +647,9 @@
             "ucontrol ${1:move} ${2:0} ${3:0} 0 0 0;"
         ]
     },
-    "unit locate": {
+    "unit locate, 注意 true 默认查找敌人": {
         "prefix": "ulocate",
-        "description": "unit locate",
+        "description": "unit locate, 注意 true 默认查找敌人",
         "body": [
             "ulocate building core true @copper outx outy found building;"
         ]
@@ -658,14 +658,14 @@
         "prefix": "uradar",
         "description": "unit radar",
         "body": [
-            "uradar enemy any any distance 0 1 result;"
+            "uradar enemy any any distance 0 1 ${1:result};"
         ]
     },
     "获取指定位置的地块数据(floor|ore|block|building)": {
         "prefix": "getblock",
         "description": "获取指定位置的地块数据(floor|ore|block|building)",
         "body": [
-            "getblock ${1:block} ${2:result} ${3:0} ${4:0};"
+            "getblock ${1:block} ${2:$} ${3:0} ${4:0};"
         ]
     },
     "设置指定位置的地块数据(floor|ore|block)": {
@@ -682,18 +682,25 @@
             "spawn ${1:@dagger} ${2:10} ${3:10} ${4:90} ${5:@sharded} ${6:result};"
         ]
     },
-    "添加或清除单位的一个状态效果": {
+    "添加单位的一个状态效果": {
         "prefix": "status",
-        "description": "添加或清除单位的一个状态效果",
+        "description": "添加单位的一个状态效果",
         "body": [
-            "status ${1:false} ${2:wet} ${3:unit} ${4:10};"
+            "status false ${1:wet} ${2:unit} ${3:10};"
+        ]
+    },
+    "清除单位的一个状态效果": {
+        "prefix": "status.clear",
+        "description": "清除单位的一个状态效果",
+        "body": [
+            "status true ${1:wet} ${2:unit} 0;"
         ]
     },
     "检查特定种类的天气当前是否启用。": {
         "prefix": "weathersense",
         "description": "检查特定种类的天气当前是否启用。",
         "body": [
-            "weathersense ${1:result} ${2:@rain};"
+            "weathersense ${1:$} ${2:@rain};"
         ]
     },
     "设置当前状态为特定类型天气。": {
@@ -752,11 +759,11 @@
             "setrate ${1:10};"
         ]
     },
-    "按索引查找单位、 核心、 玩家或建筑物(unit|player|core|build)[Count]\\n索引从 0 开始，以其返回的计数结束": {
+    "按索引查找单位、核心、玩家或建筑物(unit|player|core|build)[Count]\\n索引从 0 开始，以其返回的计数结束": {
         "prefix": "fetch",
-        "description": "按索引查找单位、 核心、 玩家或建筑物(unit|player|core|build)[Count]\\n索引从 0 开始，以其返回的计数结束",
+        "description": "按索引查找单位、核心、玩家或建筑物(unit|player|core|build)[Count]\\n索引从 0 开始，以其返回的计数结束",
         "body": [
-            "fetch ${1:unit} ${2:result} ${3:@sharded} ${4:0} ${5:@conveyor};"
+            "fetch ${1:unit} ${2:$} ${3:@sharded} ${4:0} ${5:@conveyor};"
         ]
     },
     "在网络中同步一个变量。\\n最多每秒调用10次。": {
@@ -770,14 +777,14 @@
         "prefix": "getflag",
         "description": "检查是否设置了全局标志。",
         "body": [
-            "getflag ${1:result} ${2:\"flag\"};"
+            "getflag ${1:$} \"${2:flag}\";"
         ]
     },
     "设置一个可以被所有处理器读取的全局标志。": {
         "prefix": "setflag",
         "description": "设置一个可以被所有处理器读取的全局标志。",
         "body": [
-            "setflag ${1:\"flag\"} ${2:true};"
+            "setflag \"${1:flag}\" ${2:true};"
         ]
     },
     "设置单位或建筑物的属性。": {
@@ -2114,7 +2121,7 @@
         "prefix": "draw.print",
         "description": "类似printflush, 但是输出在显示屏 (center|top|bottom|left|right|topLeft|topRight|bottomLeft|bottomRight)",
         "body": [
-            "draw 'print' ${1:0} ${2:0} ${3:bottomLeft} 0 0 0;"
+            "draw print ${1:0} ${2:0} ${3:bottomLeft} 0 0 0;"
         ]
     },
     "移动绘制基准点属性": {
@@ -2345,7 +2352,7 @@
         "prefix": "ucontrol.within",
         "description": "(x y radius result) 检查单位是否接近了某个位置",
         "body": [
-            "ucontrol within ${1:0} ${2:0} ${3:0} ${4:0} 0;"
+            "ucontrol within ${1:0} ${2:0} ${3:0} ${4:$} 0;"
         ]
     },
     "停用单位的逻辑控制\\n恢复常规AI": {
@@ -2387,7 +2394,7 @@
         "prefix": "getblock.floor",
         "description": "获取指定位置的地板",
         "body": [
-            "getblock 'floor' ${1:result} ${2:0} ${3:0};"
+            "getblock floor ${1:result} ${2:0} ${3:0};"
         ]
     },
     "获取指定位置的矿物": {
@@ -2415,7 +2422,7 @@
         "prefix": "setblock.floor",
         "description": "设置指定位置的地板",
         "body": [
-            "setblock 'floor' ${1:@air} ${2:0} ${3:0} 0 0;"
+            "setblock floor ${1:@air} ${2:0} ${3:0} 0 0;"
         ]
     },
     "设置指定位置的矿物": {
