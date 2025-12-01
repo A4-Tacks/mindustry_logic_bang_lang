@@ -2494,5 +2494,320 @@
         "body": [
             "fetch buildCount ${3:block} ${1:@sharded} 0 ${2:@conveyor};"
         ]
+    },
+    "在屏幕顶部弹出提醒消息": {
+        "prefix": "message.notify",
+        "description": "在屏幕顶部弹出提醒消息",
+        "body": [
+            "message notify 0 ${3:@wait};"
+        ]
+    },
+    "在屏幕中心显示消息": {
+        "prefix": "message.announce",
+        "description": "在屏幕中心显示消息",
+        "body": [
+            "message announce ${2:3} ${3:@wait};"
+        ]
+    },
+    "在屏幕顶部显示消息": {
+        "prefix": "message.toast",
+        "description": "在屏幕顶部显示消息",
+        "body": [
+            "message toast ${2:3} ${3:@wait};"
+        ]
+    },
+    "在波次计时器显示消息, 如果输出空信息则重置为正常": {
+        "prefix": "message.mission",
+        "description": "在波次计时器显示消息, 如果输出空信息则重置为正常",
+        "body": [
+            "message mission 0 ${3:@wait};"
+        ]
+    },
+    "设置当前 x 坐标": {
+        "prefix": "setprop.x",
+        "description": "设置当前 x 坐标",
+        "body": [
+            "setprop @x ${1:block1} ${2:0};"
+        ]
+    },
+    "设置当前 y 坐标": {
+        "prefix": "setprop.y",
+        "description": "设置当前 y 坐标",
+        "body": [
+            "setprop @y ${1:block1} ${2:0};"
+        ]
+    },
+    "设置当前 x 方向的运动速度": {
+        "prefix": "setprop.velocityX",
+        "description": "设置当前 x 方向的运动速度",
+        "body": [
+            "setprop @velocityX ${1:block1} ${2:0};"
+        ]
+    },
+    "设置当前 y 方向的运动速度": {
+        "prefix": "setprop.velocityY",
+        "description": "设置当前 y 方向的运动速度",
+        "body": [
+            "setprop @velocityY ${1:block1} ${2:0};"
+        ]
+    },
+    "设置朝向": {
+        "prefix": "setprop.rotation",
+        "description": "设置朝向",
+        "body": [
+            "setprop @rotation ${1:block1} ${2:0};"
+        ]
+    },
+    "设置移动速度属性 (上限)": {
+        "prefix": "setprop.speed",
+        "description": "设置移动速度属性 (上限)",
+        "body": [
+            "setprop @speed ${1:block1} ${2:0};"
+        ]
+    },
+    "设置护甲": {
+        "prefix": "setprop.armor",
+        "description": "设置护甲",
+        "body": [
+            "setprop @armor ${1:block1} ${2:0};"
+        ]
+    },
+    "设置血量 (生命值)": {
+        "prefix": "setprop.health",
+        "description": "设置血量 (生命值)",
+        "body": [
+            "setprop @health ${1:block1} ${2:0};"
+        ]
+    },
+    "设置护盾": {
+        "prefix": "setprop.shield",
+        "description": "设置护盾",
+        "body": [
+            "setprop @shield ${1:block1} ${2:0};"
+        ]
+    },
+    "设置队伍": {
+        "prefix": "setprop.team",
+        "description": "设置队伍",
+        "body": [
+            "setprop @team ${1:block1} ${2:0};"
+        ]
+    },
+    "设置单位标签 (类似 ucontrol flag)": {
+        "prefix": "setprop.flag",
+        "description": "设置单位标签 (类似 ucontrol flag)",
+        "body": [
+            "setprop @flag ${1:block1} ${2:0};"
+        ]
+    },
+    "设置全电量, 参考 sensor": {
+        "prefix": "setprop.totalPower",
+        "description": "设置全电量, 参考 sensor",
+        "body": [
+            "setprop @totalPower ${1:block1} ${2:0};"
+        ]
+    },
+    "设置载荷类型": {
+        "prefix": "setprop.payloadType",
+        "description": "设置载荷类型",
+        "body": [
+            "setprop @payloadType ${1:block1} ${2:0};"
+        ]
+    },
+    "设置当前波次倒计时 (tick)": {
+        "prefix": "setrule.currentWaveTime",
+        "description": "设置当前波次倒计时 (tick)",
+        "body": [
+            "setrule currentWaveTime ${1:1} 0 0 0 0;"
+        ]
+    },
+    "设置波次定时器是否启用": {
+        "prefix": "setrule.waveTimer",
+        "description": "设置波次定时器是否启用",
+        "body": [
+            "setrule waveTimer ${1:1} 0 0 0 0;"
+        ]
+    },
+    "设置总波次数": {
+        "prefix": "setrule.waves",
+        "description": "设置总波次数",
+        "body": [
+            "setrule waves ${1:1} 0 0 0 0;"
+        ]
+    },
+    "设置当前波次": {
+        "prefix": "setrule.wave",
+        "description": "设置当前波次",
+        "body": [
+            "setrule wave ${1:1} 0 0 0 0;"
+        ]
+    },
+    "设置波次间隔时间": {
+        "prefix": "setrule.waveSpacing",
+        "description": "设置波次间隔时间",
+        "body": [
+            "setrule waveSpacing ${1:1} 0 0 0 0;"
+        ]
+    },
+    "设置是否允许用波次按钮手动生成波次": {
+        "prefix": "setrule.waveSending",
+        "description": "设置是否允许用波次按钮手动生成波次",
+        "body": [
+            "setrule waveSending ${1:1} 0 0 0 0;"
+        ]
+    },
+    "设置游戏模式是否为攻击模式": {
+        "prefix": "setrule.attackMode",
+        "description": "设置游戏模式是否为攻击模式",
+        "body": [
+            "setrule attackMode ${1:1} 0 0 0 0;"
+        ]
+    },
+    "设置敌人核心禁止建造区半径": {
+        "prefix": "setrule.enemyCoreBuildRadius",
+        "description": "设置敌人核心禁止建造区半径",
+        "body": [
+            "setrule enemyCoreBuildRadius ${1:1} 0 0 0 0;"
+        ]
+    },
+    "设置敌人出生点爆破半径": {
+        "prefix": "setrule.dropZoneRadius",
+        "description": "设置敌人出生点爆破半径",
+        "body": [
+            "setrule dropZoneRadius ${1:1} 0 0 0 0;"
+        ]
+    },
+    "设置基本单位上限 (可用核心等方式增加)": {
+        "prefix": "setrule.unitCap",
+        "description": "设置基本单位上限 (可用核心等方式增加)",
+        "body": [
+            "setrule unitCap ${1:1} 0 0 0 0;"
+        ]
+    },
+    "设置地图可见范围 (范围外无法前往与交互)": {
+        "prefix": "setrule.mapArea",
+        "description": "设置地图可见范围 (范围外无法前往与交互)",
+        "body": [
+            "setrule mapArea 0 ${1:x} ${2:y} ${3:100} ${4:100};"
+        ]
+    },
+    "设置是否需求照明 (点亮地图)": {
+        "prefix": "setrule.lighting",
+        "description": "设置是否需求照明 (点亮地图)",
+        "body": [
+            "setrule lighting ${1:1} 0 0 0 0;"
+        ]
+    },
+    "设置能否游戏结束 (毁灭所有核心后)": {
+        "prefix": "setrule.canGameOver",
+        "description": "设置能否游戏结束 (毁灭所有核心后)",
+        "body": [
+            "setrule canGameOver ${1:1} 0 0 0 0;"
+        ]
+    },
+    "设置环境光颜色": {
+        "prefix": "setrule.ambientLight",
+        "description": "设置环境光颜色",
+        "body": [
+            "setrule ambientLight ${1:1} 0 0 0 0;"
+        ]
+    },
+    "设置太阳能板发电倍率": {
+        "prefix": "setrule.solarMultiplier",
+        "description": "设置太阳能板发电倍率",
+        "body": [
+            "setrule solarMultiplier ${1:1} 0 0 0 0;"
+        ]
+    },
+    "设置环境阻力倍率": {
+        "prefix": "setrule.dragMultiplier",
+        "description": "设置环境阻力倍率",
+        "body": [
+            "setrule dragMultiplier ${1:1} 0 0 0 0;"
+        ]
+    },
+    "设置不允许使用某些建筑或单位": {
+        "prefix": "setrule.ban",
+        "description": "设置不允许使用某些建筑或单位",
+        "body": [
+            "setrule ban ${2:@${1:arc}} 0 0 0 0;"
+        ]
+    },
+    "设置解除 ban": {
+        "prefix": "setrule.unban",
+        "description": "设置解除 ban",
+        "body": [
+            "setrule unban ${2:@${1:arc}} 0 0 0 0;"
+        ]
+    },
+    "设置队伍建造速度倍率": {
+        "prefix": "setrule.buildSpeed",
+        "description": "设置队伍建造速度倍率",
+        "body": [
+            "setrule buildSpeed ${1:10} ${2:@sharded} 0 0 0;"
+        ]
+    },
+    "设置队伍单位血量倍率": {
+        "prefix": "setrule.unitHealth",
+        "description": "设置队伍单位血量倍率",
+        "body": [
+            "setrule unitHealth ${1:10} ${2:@sharded} 0 0 0;"
+        ]
+    },
+    "设置队伍单位生产速度倍率": {
+        "prefix": "setrule.unitBuildSpeed",
+        "description": "设置队伍单位生产速度倍率",
+        "body": [
+            "setrule unitBuildSpeed ${1:10} ${2:@sharded} 0 0 0;"
+        ]
+    },
+    "设置队伍单位采矿速度倍率": {
+        "prefix": "setrule.unitMineSpeed",
+        "description": "设置队伍单位采矿速度倍率",
+        "body": [
+            "setrule unitMineSpeed ${1:10} ${2:@sharded} 0 0 0;"
+        ]
+    },
+    "设置队伍单位成本": {
+        "prefix": "setrule.unitCost",
+        "description": "设置队伍单位成本",
+        "body": [
+            "setrule unitCost ${1:10} ${2:@sharded} 0 0 0;"
+        ]
+    },
+    "设置队伍单位攻击伤害倍率": {
+        "prefix": "setrule.unitDamage",
+        "description": "设置队伍单位攻击伤害倍率",
+        "body": [
+            "setrule unitDamage ${1:10} ${2:@sharded} 0 0 0;"
+        ]
+    },
+    "设置队伍建筑血量倍率": {
+        "prefix": "setrule.blockHealth",
+        "description": "设置队伍建筑血量倍率",
+        "body": [
+            "setrule blockHealth ${1:10} ${2:@sharded} 0 0 0;"
+        ]
+    },
+    "设置队伍建筑伤害倍率": {
+        "prefix": "setrule.blockDamage",
+        "description": "设置队伍建筑伤害倍率",
+        "body": [
+            "setrule blockDamage ${1:10} ${2:@sharded} 0 0 0;"
+        ]
+    },
+    "设置队伍RTS 的 “谨慎” 最低值": {
+        "prefix": "setrule.rtsMinWeight",
+        "description": "设置队伍RTS 的 “谨慎” 最低值",
+        "body": [
+            "setrule rtsMinWeight ${1:10} ${2:@sharded} 0 0 0;"
+        ]
+    },
+    "设置队伍RTS 小队最小规模": {
+        "prefix": "setrule.rtsMinSquad",
+        "description": "设置队伍RTS 小队最小规模",
+        "body": [
+            "setrule rtsMinSquad ${1:10} ${2:@sharded} 0 0 0;"
+        ]
     }
 }
