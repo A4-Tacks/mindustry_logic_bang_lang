@@ -752,9 +752,9 @@
             "explosion @crux 0 0 5 50 true true false true;"
         ]
     },
-    "在指令/时间刻的时间下设置处理器处理速度": {
+    "设置处理器ipt, 也就是1/60秒执行的指令数": {
         "prefix": "setrate",
-        "description": "在指令/时间刻的时间下设置处理器处理速度",
+        "description": "设置处理器ipt, 也就是1/60秒执行的指令数",
         "body": [
             "setrate ${1:10};"
         ]
