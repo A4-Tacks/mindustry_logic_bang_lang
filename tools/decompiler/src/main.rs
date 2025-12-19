@@ -87,7 +87,7 @@ fn main() {
         },
     };
     lines.index_label_popup();
-    lines.unique_label_pairs();
+    lines.dup_label_pairs();
 
     let lines = lines.lines()
         .iter()

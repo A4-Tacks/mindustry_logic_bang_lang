@@ -38,16 +38,18 @@ where
     I: IntoIterator<Item = &'a ParseLine<'a>>,
 {
     let mut label_def_set = HashSet::new();
-    let mut label_usage_set = HashSet::new();
 
-    for line in lines {
+    let mut prev_line = None;
+    let iter = lines.into_iter()
+        .filter(|line| {
+            !line.is_label() || prev_line.replace(*line) != Some(line)
+        });
+    for line in iter {
         match line {
             ParseLine::Args(_) => (),
-            ParseLine::Label(cow) => if !label_def_set.insert(cow) {
+            ParseLine::Jump(_, _) => (),
+            ParseLine::Label(cow) => if !label_def_set.insert(cow.as_ref()) {
                 panic!("duplicate label `{cow}`")
-            },
-            ParseLine::Jump(cow, _) => if !label_usage_set.insert(cow) {
-                panic!("duplicate label usage `{cow}`")
             },
         }
     }

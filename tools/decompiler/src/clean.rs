@@ -4,6 +4,7 @@ use crate::{Jump, Label, Reduce, make};
 
 pub fn dedup_labels(reduce: Reduce<'_>) -> Reduce<'_> {
     let mut label_map = HashMap::new();
+    let reduce = quiet_unique_label_defs(reduce);
 
     reduce.walk_reduce_slices(&mut |reduces| {
         reduces.iter().reduce(|a, b| {
@@ -24,6 +25,22 @@ pub fn dedup_labels(reduce: Reduce<'_>) -> Reduce<'_> {
             Some(Reduce::Jump(Jump(label, cond)))
         },
         _ => Some(reduce)
+    }).unwrap()
+}
+
+pub fn quiet_unique_label_defs(reduce: Reduce<'_>) -> Reduce<'_> {
+    let mut dup_counter = HashMap::new();
+
+    reduce.walk_label_defs(&mut |l| {
+        let count: &mut usize = dup_counter.entry(l.clone()).or_default();
+        *count += 1;
+    });
+    make::remake_reduce(reduce, &mut |reduce| match reduce {
+        Reduce::Label(label) if dup_counter.get(&label).is_some_and(|&n| n > 1) => {
+            *dup_counter.get_mut(&label).unwrap() -= 1;
+            None
+        },
+        _ => Some(reduce),
     }).unwrap()
 }
 
@@ -130,4 +147,101 @@ pub fn jump_to_break(reduce: Reduce<'_>) -> Reduce<'_> {
         }
     }
     implement(reduce, None)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::supp::{Cmp, CondOp};
+
+    use super::*;
+
+    #[test]
+    fn test_dedup_dupnames_labels() {
+        let deduped = dedup_labels(Reduce::from_iter([
+            Reduce::Label(Label(1)),
+            Reduce::Label(Label(2)),
+            Reduce::Label(Label(2)),
+            Reduce::Label(Label(3)),
+            Reduce::Label(Label(3)),
+            Reduce::Label(Label(3)),
+            Reduce::Jump(Jump(Label(1), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+            Reduce::Jump(Jump(Label(2), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+            Reduce::Jump(Jump(Label(3), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+        ]));
+        assert_eq!(deduped, Reduce::from_iter([
+            Reduce::Label(Label(1)),
+            Reduce::Jump(Jump(Label(1), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+            Reduce::Jump(Jump(Label(1), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+            Reduce::Jump(Jump(Label(1), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+        ]));
+
+        let deduped = dedup_labels(Reduce::from_iter([
+            Reduce::Label(Label(2)),
+            Reduce::Label(Label(2)),
+            Reduce::Label(Label(3)),
+            Reduce::Label(Label(3)),
+            Reduce::Label(Label(3)),
+            Reduce::Jump(Jump(Label(2), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+            Reduce::Jump(Jump(Label(3), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+        ]));
+        assert_eq!(deduped, Reduce::from_iter([
+            Reduce::Label(Label(2)),
+            Reduce::Jump(Jump(Label(2), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+            Reduce::Jump(Jump(Label(2), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+        ]));
+
+        let deduped = dedup_labels(Reduce::from_iter([
+            Reduce::Label(Label(3)),
+            Reduce::Label(Label(3)),
+            Reduce::Label(Label(3)),
+            Reduce::Label(Label(3)),
+            Reduce::Label(Label(3)),
+            Reduce::Jump(Jump(Label(3), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+            Reduce::Jump(Jump(Label(3), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+        ]));
+        assert_eq!(deduped, Reduce::from_iter([
+            Reduce::Label(Label(3)),
+            Reduce::Jump(Jump(Label(3), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+            Reduce::Jump(Jump(Label(3), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+        ]));
+
+        let deduped = dedup_labels(Reduce::from_iter([
+            Reduce::Label(Label(3)),
+            Reduce::Label(Label(3)),
+            Reduce::Label(Label(3)),
+            Reduce::Label(Label(3)),
+            Reduce::Label(Label(4)),
+            Reduce::Jump(Jump(Label(3), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+            Reduce::Jump(Jump(Label(4), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+        ]));
+        assert_eq!(deduped, Reduce::from_iter([
+            Reduce::Label(Label(3)),
+            Reduce::Jump(Jump(Label(3), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+            Reduce::Jump(Jump(Label(3), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+        ]));
+    }
+
+    #[test]
+    fn test_dedup_unchunked_dupnames_labels() {
+        let deduped = dedup_labels(Reduce::from_iter([
+            Reduce::Label(Label(1)),
+            Reduce::Label(Label(2)),
+            Reduce::Product(vec![]),
+            Reduce::Label(Label(2)),
+            Reduce::Label(Label(3)),
+            Reduce::Label(Label(3)),
+            Reduce::Label(Label(3)),
+            Reduce::Jump(Jump(Label(1), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+            Reduce::Jump(Jump(Label(2), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+            Reduce::Jump(Jump(Label(3), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+        ]));
+        assert_eq!(deduped, Reduce::from_iter([
+            Reduce::Label(Label(1)),
+            Reduce::Product(vec![]),
+            Reduce::Label(Label(2)),
+            Reduce::Jump(Jump(Label(1), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+            Reduce::Jump(Jump(Label(2), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+            Reduce::Jump(Jump(Label(2), Cmp::Cond(CondOp::Always, vec!["0"].try_into().unwrap()))),
+        ]));
+    }
 }

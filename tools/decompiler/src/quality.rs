@@ -1,4 +1,4 @@
-use crate::Reduce;
+use crate::{Reduce, supp::Cmp};
 
 pub trait Loss {
     fn loss(&self) -> f32;
@@ -18,7 +18,7 @@ impl Loss for Reduce<'_> {
                 deps.loss() * 0.7 + reduces.loss() * 0.9
             },
             Reduce::IfElse(_, then, else_br) => {
-                then.loss() * 0.9 + else_br.loss() * 0.9
+                (then.loss() + else_br.loss()) * 0.9
             },
             Reduce::GSwitch(_, sub) => {
                 sub.iter()
@@ -44,4 +44,13 @@ where I: IntoIterator<Item = &'a Reduce<'a>>,
     let iter = reduces.into_iter();
     let len = iter.len();
     iter.map(Loss::loss).sum::<f32>() * (len as f32).log2().max(1.0)
+}
+
+fn cmp_level(cmp: &Cmp<'_>) -> i32 {
+    match cmp {
+        Cmp::Cond(..) => 1,
+        Cmp::And(a, b) | Cmp::Or(a, b) => {
+            cmp_level(a) + cmp_level(b)
+        },
+    }
 }

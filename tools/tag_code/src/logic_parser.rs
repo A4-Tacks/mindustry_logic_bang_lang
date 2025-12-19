@@ -580,14 +580,19 @@ impl<'a> ParseLines<'a> {
         );
     }
 
-    pub fn unique_label_pairs(&mut self) {
-        let lines = mem::take(self.lines_mut());
+    fn label_usages(&self) -> HashMap<String, usize> {
         let mut label_usages: HashMap<String, usize> = HashMap::new();
-        for line in &lines {
+        for line in self.lines() {
             if let ParseLine::Jump(label, _) = &**line {
                 *label_usages.entry(label.to_string()).or_default() += 1;
             }
         }
+        label_usages
+    }
+
+    pub fn unique_label_pairs(&mut self) {
+        let label_usages = self.label_usages();
+        let lines = mem::take(self.lines_mut());
         let mut renames_map = label_usages.into_iter()
             .map(|(name, count)| {
                 let new_names = (1..count)
@@ -619,6 +624,16 @@ impl<'a> ParseLines<'a> {
                     *target = new_name.into()
                 }
             });
+    }
+
+    pub fn dup_label_pairs(&mut self) {
+        let usages = self.label_usages();
+        self.lines = mem::take(&mut self.lines).into_iter().flat_map(|line| {
+            let count = line.as_label().map(|label| {
+                usages.get(label).copied().unwrap_or(1)
+            }).unwrap_or(1);
+            iter::repeat_n(line, count)
+        }).collect()
     }
 
     pub fn dedup_label_pairs(&mut self) {
@@ -1067,6 +1082,37 @@ mod tests {
             ParseLine::Label("multi_1".into()),
             ParseLine::Label("multi_2".into()),
             ParseLine::Jump("multi_1".into(), args!("always", "0", "0")),
+            ParseLine::Jump("multi".into(), args!("always", "0", "0")),
+        ]);
+    }
+
+    #[test]
+    fn jump_dup_label_pairs() {
+        let s = r#"
+        unused:
+            jump multi always 0 0
+        unique:
+            jump unique always 0 0
+        multi:
+            jump multi always 0 0
+            jump multi always 0 0
+        "#;
+
+        let mut lines = parser::lines(&s).unwrap();
+        lines.dup_label_pairs();
+
+        let inner_lines = lines.iter()
+            .map(|line| line.value.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(inner_lines, vec![
+            ParseLine::Label("unused".into()),
+            ParseLine::Jump("multi".into(), args!("always", "0", "0")),
+            ParseLine::Label("unique".into()),
+            ParseLine::Jump("unique".into(), args!("always", "0", "0")),
+            ParseLine::Label("multi".into()),
+            ParseLine::Label("multi".into()),
+            ParseLine::Label("multi".into()),
+            ParseLine::Jump("multi".into(), args!("always", "0", "0")),
             ParseLine::Jump("multi".into(), args!("always", "0", "0")),
         ]);
     }
