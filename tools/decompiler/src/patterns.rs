@@ -127,6 +127,7 @@ fn try_double_trivia_cond_while_1<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduc
 
 fn try_basic_if_else<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduce<'a>]) -> HandleRet<'a, 's> {
     hit!(Reduce::Jump(Jump(then_label, cond)), rest = reduce.split_first()?);
+    check!(!cond.is_always());
     let (body, _, rest) = supp::sfind(rest, |x| {
         matches!(x, Reduce::Label(l) if l == then_label)
     })?;
@@ -134,6 +135,7 @@ fn try_basic_if_else<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduce<'a>]) -> Ha
     let (else_body, _, rest) = supp::sfind(rest, |x| {
         matches!(x, Reduce::Label(l) if l == else_skip_l)
     })?;
+    check!(!else_body.is_empty() && !body.is_empty());
     let r#while = Reduce::IfElse(cond.clone(), body.into(), else_body.into());
     Some((None, r#while, rest))
 }
