@@ -171,7 +171,10 @@ impl fmt::LowerHex for Reduce<'_> {
                 }
                 write!(f, "\n{indent}}}")
             },
-        }
+        }?;
+        #[cfg(test)]
+        write!(f, " # loss {}", crate::quality::Loss::loss(self))?;
+        Ok(())
     }
 }
 
