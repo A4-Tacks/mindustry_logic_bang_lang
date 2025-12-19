@@ -73,48 +73,54 @@ impl<'a> FromIterator<Reduce<'a>> for Reduce<'a> {
     }
 }
 
-pub(crate) fn remake_reduce<'a, F>(reduce: Reduce<'a>, f: &mut F) -> Option<Reduce<'a>>
+pub(crate) fn remake_reduce<'a, F, I>(reduce: Reduce<'a>, f: &mut F) -> I
 where
-    F: FnMut(Reduce<'a>) -> Option<Reduce<'a>>,
+    F: FnMut(Reduce<'a>) -> I,
+    I: IntoIterator<Item = Reduce<'a>>,
 {
     let new = match reduce {
         Reduce::Pure(..) | Reduce::Label(..) | Reduce::Jump(..) |
         Reduce::Break(..) => reduce,
         Reduce::Product(reduces) => reduces.into_iter()
-            .filter_map(|reduce| remake_reduce(reduce, f))
+            .flat_map(|reduce| remake_reduce(reduce, f))
             .collect(),
         Reduce::Skip(cond, reduces) => {
             Reduce::Skip(cond, reduces.iter().cloned()
-                .filter_map(|reduce| remake_reduce(reduce, f))
+                .flat_map(|reduce| remake_reduce(reduce, f))
                 .collect())
         },
         Reduce::DoWhile(cond, reduces) => {
             Reduce::DoWhile(cond, reduces.iter().cloned()
-                .filter_map(|reduce| remake_reduce(reduce, f))
+                .flat_map(|reduce| remake_reduce(reduce, f))
                 .collect())
         },
         Reduce::While(cond, deps, reduces) => {
             let deps = deps.iter().cloned()
-                .filter_map(|reduce| remake_reduce(reduce, f))
+                .flat_map(|reduce| remake_reduce(reduce, f))
                 .collect();
             let reduces = reduces.iter().cloned()
-                .filter_map(|reduce| remake_reduce(reduce, f))
+                .flat_map(|reduce| remake_reduce(reduce, f))
                 .collect();
             Reduce::While(cond, deps, reduces)
         },
         Reduce::IfElse(cond, then_br, else_br) => {
             let then_br = then_br.iter().cloned()
-                .filter_map(|reduce| remake_reduce(reduce, f))
+                .flat_map(|reduce| remake_reduce(reduce, f))
                 .collect();
             let else_br = else_br.iter().cloned()
-                .filter_map(|reduce| remake_reduce(reduce, f))
+                .flat_map(|reduce| remake_reduce(reduce, f))
                 .collect();
             Reduce::IfElse(cond, then_br, else_br)
         },
         Reduce::GSwitch(var, cases) => {
             let cases = cases.iter()
                 .cloned()
-                .filter_map(|(i, case)| (i, remake_reduce(case, f)?).into())
+                .filter_map(|(i, case)| {
+                    let mut reduces = remake_reduce(case, f).into_iter().peekable();
+                    let first = reduces.next()?;
+                    let reduces = Some(first).into_iter().chain(reduces).collect();
+                    Some((i, reduces))
+                })
                 .collect();
             Reduce::GSwitch(var, cases)
         },
