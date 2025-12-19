@@ -104,28 +104,67 @@ where F: FnMut(&T) -> bool,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct Cond<'a>(pub CondOp, pub Args<'a>);
+pub enum Cmp<'a> {
+    Cond(CondOp, Args<'a>),
+    And(Box<Cmp<'a>>, Box<Cmp<'a>>),
+    Or(Box<Cmp<'a>>, Box<Cmp<'a>>),
+}
+pub use Cmp::Cond;
 
-impl<'a> Cond<'a> {
+impl<'a> Cmp<'a> {
     pub fn is_always(&self) -> bool {
-        self.0 == CondOp::Always
+        match self {
+            Cond(cond, _) => *cond == CondOp::Always,
+            Cmp::And(a, b) => a.is_always() && b.is_always(),
+            Cmp::Or(a, b) => a.is_always() || b.is_always(),
+        }
     }
 }
 
-impl<'a> fmt::Display for Cond<'a> {
+impl<'a> fmt::Display for Cmp<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({}) {}", self.0.punct(), self.1)
+        match self {
+            Cond(cond_op, args) => write!(f, "({}) {args}", cond_op.punct()),
+            Cmp::And(cmp, cmp1) => write!(f, "({cmp} && {cmp1})"),
+            Cmp::Or(cmp, cmp1) => write!(f, "({cmp} || {cmp1})"),
+        }
     }
 }
 
-impl<'a> fmt::LowerHex for Cond<'a> {
+impl<'a> fmt::LowerHex for Cmp<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(rest) = Args::try_from(&self.1[1..]).ok().filter(|_| self.0.has_args()) {
-            write!(f, "{} {} {rest}", self.1[0], self.0.punct())
-        } else if self.0.has_args() {
-            write!(f, "{} {}", self.0.punct(), self.1)
-        } else {
-            write!(f, "{}", self.0.punct())
+        fn out(f: &mut fmt::Formatter<'_>, this: &Cmp<'_>, needs_paren: bool) -> fmt::Result {
+            if needs_paren {
+                write!(f, "({this:x})")
+            } else {
+                write!(f, "{this:x}")
+            }
+        }
+        match self {
+            Cond(cond_op, args) => {
+                if let Some(rest) = Args::try_from(&args[1..])
+                    .ok()
+                    .filter(|_| cond_op.has_args())
+                {
+                    write!(f, "{} {} {rest}", args[0], cond_op.punct())
+                } else if cond_op.has_args() {
+                    write!(f, "{} {args}", cond_op.punct())
+                } else {
+                    write!(f, "{}", cond_op.punct())
+                }
+            }
+            Cmp::Or(a, b) => {
+                out(f, a, false)?;
+                write!(f, " || ")?;
+                out(f, b, false)?;
+                Ok(())
+            },
+            Cmp::And(a, b) => {
+                out(f, a, a.is_or())?;
+                write!(f, " && ")?;
+                out(f, b, b.is_or())?;
+                Ok(())
+            },
         }
     }
 }

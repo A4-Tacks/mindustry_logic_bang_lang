@@ -2,7 +2,7 @@ use std::{collections::{HashSet}, iter::once, rc::Rc};
 
 use tag_code::logic_parser::{Args, Var};
 
-use crate::{quality::Loss, supp::Cond};
+use crate::{quality::Loss, supp::Cmp};
 
 pub mod display_impl;
 pub mod make;
@@ -13,7 +13,7 @@ pub mod walk;
 pub mod patterns;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Jump<'a>(pub Label, pub Cond<'a>);
+pub struct Jump<'a>(pub Label, pub Cmp<'a>);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Label(pub u16);
@@ -24,11 +24,11 @@ pub enum Reduce<'a> {
     Product(Vec<Reduce<'a>>),
     Label(Label),
     Jump(Jump<'a>),
-    Break(Cond<'a>),
-    Skip(Cond<'a>, Rc<[Reduce<'a>]>),
-    DoWhile(Cond<'a>, Rc<[Reduce<'a>]>),
-    While(Cond<'a>, Rc<[Reduce<'a>]>, Rc<[Reduce<'a>]>),
-    IfElse(Cond<'a>, Rc<[Reduce<'a>]>, Rc<[Reduce<'a>]>),
+    Break(Cmp<'a>),
+    Skip(Cmp<'a>, Rc<[Reduce<'a>]>),
+    DoWhile(Cmp<'a>, Rc<[Reduce<'a>]>),
+    While(Cmp<'a>, Rc<[Reduce<'a>]>, Rc<[Reduce<'a>]>),
+    IfElse(Cmp<'a>, Rc<[Reduce<'a>]>, Rc<[Reduce<'a>]>),
     GSwitch(Var, Rc<[(usize, Reduce<'a>)]>)
 }
 impl<'a> From<Jump<'a>> for Reduce<'a> {
