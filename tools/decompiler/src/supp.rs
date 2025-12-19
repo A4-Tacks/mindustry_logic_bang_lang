@@ -119,6 +119,38 @@ impl<'a> Cmp<'a> {
             Cmp::Or(a, b) => a.is_always() || b.is_always(),
         }
     }
+
+    pub fn apply_not(&self) -> Self {
+        match self {
+            Cmp::And(a, b) => Self::Or(a.apply_not().into(), b.apply_not().into()),
+            Cmp::Or(a, b) => Self::And(a.apply_not().into(), b.apply_not().into()),
+            Cond(cond_op, args) => Self::Cond(cond_op.apply_not(), args.clone()),
+        }
+    }
+
+    /// Returns `true` if the cmp is [`Cond`].
+    ///
+    /// [`Cond`]: Cmp::Cond
+    #[must_use]
+    pub fn is_cond(&self) -> bool {
+        matches!(self, Self::Cond(..))
+    }
+
+    /// Returns `true` if the cmp is [`And`].
+    ///
+    /// [`And`]: Cmp::And
+    #[must_use]
+    pub fn is_and(&self) -> bool {
+        matches!(self, Self::And(..))
+    }
+
+    /// Returns `true` if the cmp is [`Or`].
+    ///
+    /// [`Or`]: Cmp::Or
+    #[must_use]
+    pub fn is_or(&self) -> bool {
+        matches!(self, Self::Or(..))
+    }
 }
 
 impl<'a> fmt::Display for Cmp<'a> {

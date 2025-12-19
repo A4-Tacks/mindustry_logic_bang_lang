@@ -2,7 +2,7 @@ use std::iter::{once, successors};
 
 use tag_code::logic_parser::Args;
 
-use crate::{Finder, Jump, Reduce, supp::{self, Cond, CondOp}};
+use crate::{Finder, Jump, Reduce, supp::{self, Cmp, Cond, CondOp}};
 
 pub(crate) type HandleRet<'a, 's> = Option<(
     Option<Reduce<'a>>,
@@ -42,6 +42,8 @@ impl<'a> Finder<'a> {
             try_basic_if_else as _,
             try_basic_gswitch as _,
             try_basic_switch as _,
+            try_merge_jump_or as _,
+            try_merge_jump_and as _,
         ]
     }
 }
@@ -113,13 +115,12 @@ fn try_single_cond_while_2<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduce<'a>])
 }
 
 fn try_double_trivia_cond_while_1<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduce<'a>]) -> HandleRet<'a, 's> {
-    hit!(Reduce::Jump(Jump(brk_label, Cond(skip_cond, skip_args))), rest = reduce.split_first()?);
-    hit!(Reduce::DoWhile(Cond(back_cond, back_args), body), rest = rest.split_first()?);
-    check!(skip_cond.clone().apply_not() == *back_cond);
-    check!(skip_args == back_args);
+    hit!(Reduce::Jump(Jump(brk_label, skip_cond)), rest = reduce.split_first()?);
+    hit!(Reduce::DoWhile(back_cond, body), rest = rest.split_first()?);
+    check!(skip_cond.apply_not() == *back_cond);
     hit!(Reduce::Label(l), rest = rest.split_first()?);
     check!(l == brk_label);
-    let cond = Cond(back_cond.clone(), back_args.clone());
+    let cond = back_cond.clone();
     let r#while = Reduce::While(cond, vec![].into(), body.clone());
     Some((None, r#while, rest))
 }
@@ -229,6 +230,25 @@ fn try_basic_switch<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduce<'a>]) -> Han
     let switch = Reduce::GSwitch(addr.clone(), cases);
 
     Some((pack_pures(prefix), switch, rest))
+}
+
+fn try_merge_jump_or<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduce<'a>]) -> HandleRet<'a, 's> {
+    hit!([Reduce::Jump(Jump(la, a)), Reduce::Jump(Jump(lb, b)), rest @ ..] = reduce);
+    check!(la == lb);
+    let cmp = Cmp::Or(a.clone().into(), b.clone().into());
+    Some((None, Jump(la.clone(), cmp).into(), rest))
+}
+
+fn try_merge_jump_and<'a, 's>(_: &mut Finder<'a>, reduce: &'s [Reduce<'a>]) -> HandleRet<'a, 's> {
+    hit!([
+        Reduce::Jump(Jump(lskip, a)),
+        Reduce::Jump(Jump(lb, b)),
+        Reduce::Label(end),
+        rest @ ..
+    ] = reduce);
+    check!(lskip == end);
+    let cmp = Cmp::And(a.apply_not().into(), b.clone().into());
+    Some((None, Jump(lb.clone(), cmp).into(), rest))
 }
 
 pub(crate) fn trim_split_at<'a, 's, F>(slice: &'s [Reduce<'a>], predicate: F) -> Option<(
