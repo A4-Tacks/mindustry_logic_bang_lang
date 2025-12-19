@@ -4,6 +4,11 @@ use mlog_decompiler::{Finder, Reduce, clean, make, quality::Loss, walk};
 use getopts_macro::getopts_options;
 use tag_code::logic_parser;
 
+struct Config {
+    raw_out: bool,
+    dirty_out: bool,
+}
+
 fn main() {
     let options = getopts_options! {
         -g, --guidance      "guidance mode";
@@ -11,6 +16,7 @@ fn main() {
         -l, --limit=N       "maximum case limit for each iteration";
         -L, --out-limit=N   "maximum output limit for finished case";
         -r, --raw-out       "use raw-format (logic-style) outputs";
+        -d, --dirty-out     "use non clean outputs";
         -s, --sparse        "sparse cases output";
         -h, --help*         "show help messages";
         -v, --version       "show version";
@@ -40,6 +46,7 @@ fn main() {
     }
     let guidance = matched.opt_present("guidance");
     let raw_out = matched.opt_present("raw-out");
+    let dirty_out = matched.opt_present("dirty-out");
     let sparse = matched.opt_present("sparse");
     let iterate: usize = matched.opt_get("iterate")
         .expect("invalid iterate arg")
@@ -50,6 +57,8 @@ fn main() {
     let out_limit: usize = matched.opt_get("out-limit")
         .expect("invalid out-limit arg")
         .unwrap_or(1);
+
+    let cfg = Config { raw_out, dirty_out };
 
     let input = if matched.free.is_empty() {
         io::read_to_string(stdin().lock()).unwrap()
@@ -147,36 +156,45 @@ fn main() {
 
     if sparse {
         let step = sorted.len() / out_limit.max(1);
-        output(raw_out, sorted.iter()
+        output(cfg, sorted.iter()
             .copied()
             .enumerate()
             .step_by(step)
             .take(out_limit))
     } else {
-        output(raw_out, sorted.iter()
+        output(cfg, sorted.iter()
             .copied()
             .enumerate()
             .take(out_limit))
     }
 }
 
-fn output<'a>(raw_out: bool, iter: impl IntoIterator<Item = (usize, &'a Rc<[Reduce<'a>]>)>) {
+fn output<'a>(
+    Config { raw_out, dirty_out }: Config,
+    iter: impl IntoIterator<Item = (usize, &'a Rc<[Reduce<'a>]>)>,
+) {
     for (i, reduces) in iter {
         let loss = reduces.loss();
         let reduce = reduces.iter().cloned().collect::<Reduce<'_>>();
-        let cleaned = clean::dedup_labels(reduce);
-        let cleaned = clean::jump_to_break(cleaned);
-        let cleaned = clean::unused_labels(cleaned);
 
-        let def = walk::label_defs(&cleaned);
-        let used = walk::label_usages(&cleaned);
+        let result = if !dirty_out {
+            let cleaned = clean::dedup_labels(reduce);
+            let cleaned = clean::jump_to_break(cleaned);
+            let cleaned = clean::unused_labels(cleaned);
+            cleaned
+        } else {
+            reduce
+        };
+
+        let def = walk::label_defs(&result);
+        let used = walk::label_usages(&result);
 
         println!("#\x1b[1;92m---------- reduce[{def}/{used}] case {i} <{loss}> ----------\x1b[0m");
 
         if raw_out {
-            println!("{cleaned}");
+            println!("{result}");
         } else {
-            println!("{cleaned:x}");
+            println!("{result:x}");
         }
     }
 }
