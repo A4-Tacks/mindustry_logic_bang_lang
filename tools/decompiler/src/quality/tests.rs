@@ -1,5 +1,6 @@
 use tag_code::logic_parser::Args;
 
+use crate::Cmp;
 use super::*;
 
 macro_rules! case {
