@@ -40,7 +40,6 @@ const For = (const match @ {
         setres For[I in_impl Start .. Stop .. Step F C (_0 -= _1;)];
     }
     *I [in_impl] *Start _ *Stop _ *Step F C Inc {
-        I = Start;
         {
             const I = Start;
             match Builtin.EvalNum[C] {
@@ -48,6 +47,7 @@ const For = (const match @ {
                 [1] {}
             }
         }
+        I = Start;
         do {
             setres F[I];
             Inc! I Step;
@@ -204,8 +204,8 @@ write 1 cell2 0
 write 1 cell2 1
 set i 3
 write 1 cell1 0
-set j 1
 jump 15 greaterThanEq 1 lastSize
+set j 1
 op sub __107 j 1
 read __106 cell2 __107
 read __109 cell2 j
@@ -215,8 +215,8 @@ op add j j 1
 jump 8 lessThan j lastSize
 write 1 cell1 lastSize
 op add lastSize lastSize 1
-set c 0
 jump 27 greaterThanEq 0 lastSize
+set c 0
 read cur_c cell1 c
 print cur_c
 write cur_c cell2 c

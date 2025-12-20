@@ -75,7 +75,6 @@ const For = (const match @ {
         setres For[I in_impl Start .. Stop .. Step F C (_0 -= _1;)];
     }
     *I [in_impl] *Start _ *Stop _ *Step F C Inc {
-        I = Start;
         {
             const I = Start;
             match Builtin.EvalNum[C] {
@@ -83,6 +82,7 @@ const For = (const match @ {
                 [1] {}
             }
         }
+        I = Start;
         do {
             setres F[I];
             Inc! I Step;
