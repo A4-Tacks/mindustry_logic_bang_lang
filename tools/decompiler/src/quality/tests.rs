@@ -182,6 +182,18 @@ fn ifelse_pefer_goto_skip() {
 }
 
 #[test]
+fn ifelse_pefer_skip_goto() {
+    for (cmp, reduce) in inputs() {
+        for (_, reduce1) in inputs() {
+            check_lossless(
+                case!({(if (.cmp) {(.reduce)} else {(.reduce1)})}),
+                case!({(skip (.cmp) {(.reduce1) jump}) (.reduce) :}),
+            );
+        }
+    }
+}
+
+#[test]
 fn make_skip() {
     for (cmp, reduce) in inputs() {
         for (_, body) in inputs() {
@@ -213,16 +225,24 @@ fn make_small_dowhile_pefer_big_dowhile() {
         case!({:1 (dowhile {2}) 6 jump}),
         case!({(dowhile {1 : 2 jump 6})}),
     );
-    //for (_, before) in inputs() {
-    //    for (_, after) in inputs() {
-    //        for (_, body) in inputs() {
-    //            //check_lossless(
-    //            //    case!({1 (skip {(.before)}) 8}),
-    //            //    case!({(skip {1 (.before) 8})}),
-    //            //);
-    //        }
-    //    }
-    //}
+    for (_, body) in inputs() {
+        check_lossless(
+            case!({1 (skip {(.body)}) 8}),
+            case!({(skip {1 (.body) 8})}),
+        );
+    }
+    for (_, body) in inputs() {
+        for (_, before) in inputs() {
+            check_lossless(
+                case!({1 (.before) (skip {(.body)}) 8}),
+                case!({(skip {1 (.before) (.body) 8})}),
+            );
+            check_lossless(
+                case!({1 (.before) (skip {(.body)}) 8}),
+                case!({1 (skip {(.before) (.body) 8})}),
+            );
+        }
+    }
 }
 
 #[test]

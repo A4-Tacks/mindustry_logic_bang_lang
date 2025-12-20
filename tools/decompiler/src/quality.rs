@@ -4,28 +4,33 @@ mod hard {
     pub const LABEL: f32 = 2.0;
     pub const JUMP: f32 = 4.0;
     pub const BREAK: f32 = 3.0;
-    pub const PAIR: f32 = JUMP+LABEL;
+    pub const DEPS_POW: f32 = 1.3;
+    pub const PEFER_FORCE: f32 = 0.10;
+    //pub const PAIR: f32 = JUMP+LABEL;
 }
 
 pub trait Loss {
     fn loss(&self) -> f32;
+    fn loss_pefer(&self) -> f32 {
+        self.loss()
+    }
 }
 
 impl Loss for Reduce<'_> {
     fn loss(&self) -> f32 {
-        match self {
-            Reduce::Pure(items) => (items.len() as f32 + 1.0).sqrt(),
+        0.5 + match self {
+            Reduce::Pure(items) => items.len() as f32,
             Reduce::Product(reduces) => reduces.loss(),
             Reduce::Label(_) => hard::LABEL,
             Reduce::Jump(_) => hard::JUMP,
             Reduce::Break(_) => hard::BREAK,
-            Reduce::Skip(_, sub) => (sub.loss()+hard::PAIR)*0.98,
-            Reduce::DoWhile(_, sub) => (sub.loss()+hard::PAIR)*0.95,
+            Reduce::Skip(_, sub) => sub.loss_pefer(),
+            Reduce::DoWhile(_, sub) => sub.loss_pefer(),
             Reduce::While(_, deps, reduces) => {
-                deps.loss().powf(1.3) * 0.7 + (reduces.loss()+hard::PAIR*2.0)*0.98*0.95
+                deps.loss().powf(hard::DEPS_POW) * 0.7 + reduces.loss_pefer()
             },
             Reduce::IfElse(_, then, else_br) => {
-                (then.loss() + else_br.loss()+hard::PAIR*2.0) * 0.9
+                then.loss_pefer() + else_br.loss_pefer()
             },
             Reduce::GSwitch(_, sub) => {
                 sub.iter()
@@ -40,18 +45,13 @@ impl Loss for Reduce<'_> {
 
 impl Loss for [Reduce<'_>] {
     fn loss(&self) -> f32 {
-        reduces_loss(self)
+        self.iter().map(Loss::loss).sum::<f32>()
     }
-}
 
-fn reduces_loss<'a, I>(reduces: I) -> f32
-where I: IntoIterator<Item = &'a Reduce<'a>>,
-      I::IntoIter: ExactSizeIterator,
-{
-    let iter = reduces.into_iter();
-    let len = iter.len();
-    let g = rqrt(len as f32 - 3.0) / 1.0;
-    iter.map(Loss::loss).sum::<f32>()// * (1.0+g)
+    fn loss_pefer(&self) -> f32 {
+        let g = rqrt(self.len() as f32) * hard::PEFER_FORCE;
+        self.loss() * (1.0+g)
+    }
 }
 
 fn rqrt(n: f32) -> f32 {
