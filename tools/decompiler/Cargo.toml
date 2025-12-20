@@ -1,6 +1,6 @@
 [package]
 name = "mlog-decompiler"
-version = "0.2.8"
+version = "0.3.0"
 edition = "2021"
 
 authors = ["A4-Tacks <wdsjxhno1001@163.com>"]
