@@ -2,7 +2,7 @@ use anyhow::{Result, anyhow, bail};
 use crossbeam_channel::{Receiver, Sender};
 use linked_hash_map::LinkedHashMap;
 use lsp_server::{IoThreads, Message};
-use lsp_types::{CompletionItem, CompletionOptions, InitializeParams, MessageType, Position, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, Uri, notification::{self, Notification}, request::{self, Request}};
+use lsp_types::{CompletionItem, CompletionOptions, InitializeParams, InitializeResult, MessageType, Position, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, Uri, notification::{self, Notification}, request::{self, Request}};
 use syntax::{Compile, CompileMeta, Emulate, EmulateInfo, Expand, LSP_DEBUG};
 
 fn main() {
@@ -50,8 +50,22 @@ fn main_loop() -> Result<()> {
         text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
         ..Default::default()
     };
-    let server_capabilities = serde_json::to_value(server_capabilities)?;
-    let init_params = connect.initialize(server_capabilities)?;
+    let init_params = {
+        let (id, params) = connect.initialize_start()?;
+
+        let initialize_data = InitializeResult {
+            capabilities: server_capabilities,
+            server_info: Some(lsp_types::ServerInfo {
+                name: env!("CARGO_PKG_NAME").into(),
+                version: Some(env!("CARGO_PKG_VERSION").into()),
+            }),
+        };
+
+        let initialize_data = serde_json::to_value(initialize_data)?;
+        connect.initialize_finish(id, initialize_data)?;
+
+        params
+    };
     let InitializeParams {
         workspace_folders,
         ..
@@ -146,7 +160,7 @@ impl Ctx {
         }
     }
 
-    fn try_parse(&self, (line, col): (u32, u32), file: &str) -> Result<(Expand, String)> {
+    fn try_parse(&self, (line, col): (u32, u32), file: &str) -> Option<(Expand, String)> {
         let index = line_column::index(&file, line, col);
         let placeholders = [
             format!("{LSP_DEBUG} "),
@@ -160,10 +174,10 @@ impl Ctx {
                 Err(e) => if parse_err.is_empty() {
                     parse_err = parser::format_parse_err::<5>(e, &source);
                 },
-                Ok(top) => return Ok((top, source)),
+                Ok(top) => return Some((top, source)),
             }
         }
-        Err(anyhow!("Fake parse err: {parse_err}"))
+        None
     }
 
     fn send_window_notif(&self, typ: MessageType, msg: impl std::fmt::Display) -> Result<()> {
@@ -190,7 +204,9 @@ impl RequestHandler for request::Completion {
         let (line, col) = lopos(param.text_document_position.position);
 
         let file = ctx.read_file(&uri)?;
-        let (top, src) = ctx.try_parse((line, col), &file)?;
+        let Some((top, src)) = ctx.try_parse((line, col), &file) else {
+            return Ok(None);
+        };
         let mut meta = CompileMeta::with_source(src.into());
         meta.is_emulated = true;
 

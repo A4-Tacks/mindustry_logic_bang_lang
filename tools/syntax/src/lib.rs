@@ -194,13 +194,9 @@ pub trait TakeHandle: Sized {
 }
 
 impl TakeHandle for Var {
-    fn take_handle(self, meta: &mut CompileMeta) -> Var {
-        let mut this = self;
-        if let Some(raw_this) = this.strip_suffix(LSP_DEBUG) {
-            meta.debug_expand_env_status();
-            this = raw_this.into();
-        }
-        if let Some(value) = meta.const_expand_enter(&this) {
+    fn take_handle(mut self, meta: &mut CompileMeta) -> Var {
+        meta.debug_expand_env_status(&mut self);
+        if let Some(value) = meta.const_expand_enter(&self) {
             // 是一个常量
             let res = match value.clone() {
                 Value::Var(var) => var,
@@ -220,7 +216,7 @@ impl TakeHandle for Var {
             meta.const_expand_exit();
             res
         } else {
-            this
+            self
         }
     }
 }
@@ -1073,10 +1069,7 @@ pub struct ValueBind(pub Box<Value>, pub Var);
 impl ValueBind {
     pub fn take_unfollow_handle(mut self, meta: &mut CompileMeta) -> Var {
         let handle = self.0.take_handle(meta);
-        if let Some(bind_name) = self.1.strip_suffix(LSP_DEBUG) {
-            meta.debug_binds_status(handle.clone());
-            self.1 = bind_name.into();
-        }
+        meta.debug_binds_status(&handle, &mut self.1);
         meta.get_value_binded(handle, self.1)
     }
 }
@@ -2755,6 +2748,7 @@ impl Const {
                 *value = Value::Var(var)
             },
             Value::Var(var) => {
+                meta.debug_expand_env_status(var);
                 if let Some(data) = meta.get_const_value(var) {
                     return self.extend_data(data.clone());
                 }
@@ -4448,10 +4442,12 @@ impl CompileMeta {
         }
     }
 
-    fn debug_expand_env_status(&mut self) {
+    fn debug_expand_env_status(&mut self, var: &mut Var) {
         if !self.is_emulated {
             return;
         }
+        let Some(raw_var) = var.strip_suffix(LSP_DEBUG) else { return };
+        *var = raw_var.into();
         let mut printed = HashSet::new();
         let mut vars = vec![];
         self.expand_env.iter().rev()
@@ -4464,10 +4460,12 @@ impl CompileMeta {
         self.emulate_infos.push(EmulateInfo { exist_vars: vars });
     }
 
-    fn debug_binds_status(&mut self, handle: Var) {
+    fn debug_binds_status(&mut self, handle: &Var, name: &mut Var) {
         if !self.is_emulated {
             return;
         }
+        let Some(raw_name) = name.strip_suffix(LSP_DEBUG) else { return };
+        *name = raw_name.into();
         let bind_vars = self.with_get_binds(handle.clone(), |bind| {
             let mut is_const = HashSet::new();
             let mut bind_vars = bind.bind_names.take().unwrap()
@@ -4475,7 +4473,7 @@ impl CompileMeta {
                 .map(|(var, _)| (Emulate::ConstBind(handle.clone()), var.clone()))
                 .collect::<Vec<_>>();
 
-            if let Some(pairs) = self.value_bind_pairs.get(&handle) {
+            if let Some(pairs) = self.value_bind_pairs.get(handle) {
                 let naked_binds = pairs.keys()
                     .filter(|var| !is_const.contains(var))
                     .map(|var| (Emulate::NakedBind(handle.clone()), var.clone()));
@@ -4618,18 +4616,20 @@ impl CompileMeta {
         extra_binder: Option<Var>,
     ) -> Option<ConstData> {
         match key {
-            ConstKey::Var(key)
-            | ConstKey::Unused(IdxBox { value: key, .. }) =>
+            ConstKey::Var(mut key)
+            | ConstKey::Unused(IdxBox { value: mut key, .. }) =>
             {
-
+                self.debug_expand_env_status(&mut key);
                 let mut data = ConstData::new(value, labels);
                 if let Some(extra_binder) = extra_binder {
                     data = data.set_binder(extra_binder)
                 }
                 self.add_local_const_data(key, data)
             },
-            ConstKey::ValueBind(ValueBind(binder, name)) => {
+            ConstKey::ValueBind(ValueBind(binder, mut name)) => {
                 let binder_handle = binder.take_handle(self);
+                // FIXME 这似乎不起作用
+                self.debug_binds_status(&binder_handle, &mut name);
                 let mut data = ConstData::new(value, labels);
                     if let Some(extra_binder) = extra_binder
                         .or((binder_handle != GLOBAL_VAR)
