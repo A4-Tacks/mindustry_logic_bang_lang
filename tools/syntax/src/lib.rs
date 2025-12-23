@@ -177,6 +177,7 @@ pub const ZERO_VAR: &str = "0";
 pub const UNUSED_VAR: &str = "0";
 pub const UNNAMED_VAR: &str = "__";
 pub const GLOBAL_VAR: &str = "__global";
+pub const LSP_DEBUG: &str = "__lsp_debug";
 
 trait DisplaySrc {
     fn display_src<'a>(&self, meta: &'a CompileMeta) -> Cow<'a, str>;
@@ -194,7 +195,14 @@ pub trait TakeHandle: Sized {
 
 impl TakeHandle for Var {
     fn take_handle(self, meta: &mut CompileMeta) -> Var {
-        if let Some(value) = meta.const_expand_enter(&self) {
+        let mut this = self;
+        if let Some(raw_this) = this.strip_suffix(LSP_DEBUG)
+            && meta.is_emulated
+        {
+            meta.debug_status();
+            this = raw_this.into();
+        }
+        if let Some(value) = meta.const_expand_enter(&this) {
             // 是一个常量
             let res = match value.clone() {
                 Value::Var(var) => var,
@@ -214,7 +222,7 @@ impl TakeHandle for Var {
             meta.const_expand_exit();
             res
         } else {
-            self
+            this
         }
     }
 }
@@ -4163,6 +4171,11 @@ pub trait CompileMetaExtends {
     fn display_binds(&self, value: BindsDisplayer<'_>) -> Cow<'_, str>;
 }
 
+#[derive(Debug)]
+pub struct EmultaeInfo {
+    pub exist_vars: Vec<Var>,
+}
+
 pub struct CompileMeta {
     extender: Option<Box<dyn CompileMetaExtends>>,
     parse_lines: ParseLines<'static>,
@@ -4196,6 +4209,7 @@ pub struct CompileMeta {
     log_count: usize,
     source: Rc<String>,
     pub is_emulated: bool,
+    pub emulate_infos: Vec<EmultaeInfo>,
 }
 impl Debug for CompileMeta {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -4268,6 +4282,7 @@ impl CompileMeta {
             log_count: 0,
             source,
             is_emulated: false,
+            emulate_infos: vec![],
         };
         let builtin = Var::from(Self::BUILTIN_FUNCS_BINDER);
         for builtin_func in build_builtins() {
@@ -4421,6 +4436,22 @@ impl CompileMeta {
         } else {
             std::process::exit(code)
         }
+    }
+
+    fn debug_status(&mut self) {
+        if !self.is_emulated {
+            return;
+        }
+        let mut printed = HashSet::new();
+        let mut vars = vec![];
+        for env in self.expand_env.iter().rev() {
+            for var in env.consts.keys() {
+                if printed.insert(var) {
+                    vars.push(var.clone());
+                }
+            }
+        }
+        self.emulate_infos.push(EmultaeInfo { exist_vars: vars });
     }
 
     /// 进入一个拥有子命名空间的子块
