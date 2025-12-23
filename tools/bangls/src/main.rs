@@ -3,7 +3,7 @@ use crossbeam_channel::{Receiver, Sender};
 use linked_hash_map::LinkedHashMap;
 use lsp_server::{IoThreads, Message};
 use lsp_types::{CompletionItem, CompletionOptions, InitializeParams, MessageType, Position, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, Uri, notification::{self, Notification}, request::{self, Request}};
-use syntax::{Compile, CompileMeta, EmulateInfo, Expand, LSP_DEBUG};
+use syntax::{Compile, CompileMeta, Emulate, EmulateInfo, Expand, LSP_DEBUG};
 
 fn main() {
     main_loop().unwrap();
@@ -44,7 +44,7 @@ fn main_loop() -> Result<()> {
     let _io = IoJoiner(Some(io));
     let server_capabilities = ServerCapabilities {
         completion_provider: Some(CompletionOptions {
-            trigger_characters: Some(vec![]),
+            trigger_characters: Some(vec![".".to_owned(), ">".to_owned()]),
             ..Default::default()
         }),
         text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
@@ -207,24 +207,34 @@ impl RequestHandler for request::Completion {
 }
 
 fn generate_completes(infos: &[EmulateInfo]) -> Vec<CompletionItem> {
-    let mut var_counter = LinkedHashMap::new();
+    let mut var_counter: LinkedHashMap<&syntax::Var, (u32, Vec<_>)> = LinkedHashMap::new();
     for info in infos {
-        for var in info.exist_vars.iter() {
+        for (kind, var) in info.exist_vars.iter() {
             if var.starts_with("__") {
                 continue;
             }
-            let slot: &mut u32 = var_counter.entry(var).or_default();
+            let (slot, kinds) = var_counter.entry(var).or_default();
             *slot += 1;
+            kinds.push(kind);
         }
     }
     let full_count = infos.len() as u32;
-    var_counter.iter().map(|(&var, &count)| {
+    var_counter.iter().map(|(&var, &(count, ref kinds))| {
         let is_full_deps = count == full_count;
+
+        let kind = kinds.iter().map(|kind| match kind {
+            Emulate::Const => format!("constant"),
+            Emulate::Binder => format!("binder"),
+            Emulate::ConstBind(var) => format!("const bind to `{var}`"),
+            Emulate::NakedBind(var) => format!("naked bind to `{var}`"),
+        }).collect::<Vec<_>>().join(" & ");
+
         let (label, detail) = if is_full_deps {
-            (var.to_string(), format!("full deps ({count}/{full_count})"))
+            (var.to_string(), format!("kind: {kind}\nfull deps ({count}/{full_count})"))
         } else {
-            (format!("{var}?"), format!("partial deps ({count}/{full_count})"))
+            (format!("{var}?"), format!("kind: {kind}\npartial deps ({count}/{full_count})"))
         };
+
         CompletionItem {
             label,
             detail: Some(detail),
@@ -239,7 +249,6 @@ trait NotificationHandler: Notification {
 }
 impl NotificationHandler for notification::DidOpenTextDocument {
     fn handle(ctx: &mut Ctx, param: Self::Params) -> Result<()> {
-        ctx.send_window_notif(MessageType::LOG, "open file")?;
         let file = ctx.open_files.entry(param.text_document.uri).or_default();
         *file = param.text_document.text;
         Ok(())

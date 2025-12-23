@@ -196,10 +196,8 @@ pub trait TakeHandle: Sized {
 impl TakeHandle for Var {
     fn take_handle(self, meta: &mut CompileMeta) -> Var {
         let mut this = self;
-        if let Some(raw_this) = this.strip_suffix(LSP_DEBUG)
-            && meta.is_emulated
-        {
-            meta.debug_status();
+        if let Some(raw_this) = this.strip_suffix(LSP_DEBUG) {
+            meta.debug_expand_env_status();
             this = raw_this.into();
         }
         if let Some(value) = meta.const_expand_enter(&this) {
@@ -1073,8 +1071,12 @@ impl_derefs!(impl for DExp => (self: self.lines): Expand);
 #[derive(Debug, PartialEq, Clone)]
 pub struct ValueBind(pub Box<Value>, pub Var);
 impl ValueBind {
-    pub fn take_unfollow_handle(self, meta: &mut CompileMeta) -> Var {
+    pub fn take_unfollow_handle(mut self, meta: &mut CompileMeta) -> Var {
         let handle = self.0.take_handle(meta);
+        if let Some(bind_name) = self.1.strip_suffix(LSP_DEBUG) {
+            meta.debug_binds_status(handle.clone());
+            self.1 = bind_name.into();
+        }
         meta.get_value_binded(handle, self.1)
     }
 }
@@ -4171,9 +4173,17 @@ pub trait CompileMetaExtends {
     fn display_binds(&self, value: BindsDisplayer<'_>) -> Cow<'_, str>;
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Emulate {
+    Const,
+    Binder,
+    ConstBind(Var),
+    NakedBind(Var),
+}
+
 #[derive(Debug)]
 pub struct EmulateInfo {
-    pub exist_vars: Vec<Var>,
+    pub exist_vars: Vec<(Emulate, Var)>,
 }
 
 pub struct CompileMeta {
@@ -4438,20 +4448,42 @@ impl CompileMeta {
         }
     }
 
-    fn debug_status(&mut self) {
+    fn debug_expand_env_status(&mut self) {
         if !self.is_emulated {
             return;
         }
         let mut printed = HashSet::new();
         let mut vars = vec![];
-        for env in self.expand_env.iter().rev() {
-            for var in env.consts.keys() {
-                if printed.insert(var) {
-                    vars.push(var.clone());
-                }
-            }
-        }
+        self.expand_env.iter().rev()
+            .flat_map(|env| env.consts.keys())
+            .map(|var| (Emulate::Const, var))
+            .chain(self.value_bind_pairs.keys().map(|var| (Emulate::Binder, var)))
+            .for_each(|(kind, var)| if printed.insert(var) {
+                vars.push((kind, var.clone()));
+            });
         self.emulate_infos.push(EmulateInfo { exist_vars: vars });
+    }
+
+    fn debug_binds_status(&mut self, handle: Var) {
+        if !self.is_emulated {
+            return;
+        }
+        let bind_vars = self.with_get_binds(handle.clone(), |bind| {
+            let mut is_const = HashSet::new();
+            let mut bind_vars = bind.bind_names.take().unwrap()
+                .inspect(|(var, _)| _ = is_const.insert(*var))
+                .map(|(var, _)| (Emulate::ConstBind(handle.clone()), var.clone()))
+                .collect::<Vec<_>>();
+
+            if let Some(pairs) = self.value_bind_pairs.get(&handle) {
+                let naked_binds = pairs.keys()
+                    .filter(|var| !is_const.contains(var))
+                    .map(|var| (Emulate::NakedBind(handle.clone()), var.clone()));
+                bind_vars.extend(naked_binds);
+            }
+            bind_vars
+        });
+        self.emulate_infos.push(EmulateInfo { exist_vars: bind_vars });
     }
 
     /// 进入一个拥有子命名空间的子块
