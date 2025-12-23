@@ -13,7 +13,6 @@ use std::{
     mem::{self, replace},
     num::ParseIntError,
     ops,
-    process::exit,
     rc::Rc,
 };
 
@@ -329,7 +328,7 @@ impl TakeHandle for Value {
                     cmp.display_src(meta),
                 );
                 meta.log_info(format_args!("Cmper 仅被用于比较时内联, 不允许进行 take"));
-                exit(6);
+                meta.exit(6)
             },
             Self::ClosuredValue(closurev) => closurev.take_handle(meta),
             Self::BuiltinFunc(func) => func.call(meta),
@@ -1048,7 +1047,7 @@ impl TakeHandle for DExp {
                         value.display_src(meta),
                         Value::Var(result).display_src(meta),
                     );
-                    exit(5);
+                    meta.exit(5);
                 }
             }
         }
@@ -3019,7 +3018,7 @@ impl Compile for ArgsRepeat {
                         line, col,
                         value.display_src(meta),
                     );
-                    exit(6)
+                    meta.exit(6)
                 };
                 let n = n.round();
                 if n < 0.0 || !n.is_finite() {
@@ -3029,7 +3028,7 @@ impl Compile for ArgsRepeat {
                         meta.err_info().join("\n"),
                         n, line, col,
                     );
-                    exit(6)
+                    meta.exit(6)
                 }
                 if n > 512.0 {
                     let (line, col) = loc.location(&meta.source);
@@ -3038,7 +3037,7 @@ impl Compile for ArgsRepeat {
                         meta.err_info().join("\n"),
                         n, line, col,
                     );
-                    exit(6)
+                    meta.exit(6)
                 }
                 n as usize
             },
@@ -3067,7 +3066,7 @@ impl Compile for ArgsRepeat {
                         "Maximum repeat limit exceeded ({})",
                         meta.args_repeat_limit,
                     );
-                    exit(6)
+                    meta.exit(6)
                 }
             }
         });
@@ -3605,19 +3604,19 @@ impl GSwitch {
                     n if n < 0. => {
                         meta.log_expand_stack::<true>();
                         err!("{} 小于0的gswitch id: {}", loc(meta), n);
-                        exit(4);
+                        meta.exit(4);
                     },
                     n if n >= GSwitch::MAX_CONST_ID as f64 => {
                         meta.log_expand_stack::<true>();
                         err!("{} 过大的gswitch id: {}", loc(meta), n);
-                        exit(4);
+                        meta.exit(4);
                     },
                     n => n as usize,
                 })
                 .unwrap_or_else(|| {
                     meta.log_expand_stack::<true>();
                     err!("{} gswitch id并不是一个数字", loc(meta));
-                    exit(4);
+                    meta.exit(4);
                 }))
     }
 
@@ -4196,6 +4195,7 @@ pub struct CompileMeta {
     bind_custom_sep: Option<Var>,
     log_count: usize,
     source: Rc<String>,
+    pub is_emulated: bool,
 }
 impl Debug for CompileMeta {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -4267,6 +4267,7 @@ impl CompileMeta {
             bind_custom_sep: None,
             log_count: 0,
             source,
+            is_emulated: false,
         };
         let builtin = Var::from(Self::BUILTIN_FUNCS_BINDER);
         for builtin_func in build_builtins() {
@@ -4412,6 +4413,14 @@ impl CompileMeta {
 
     pub fn parse_lines_mut(&mut self) -> &mut ParseLines<'static> {
         &mut self.parse_lines
+    }
+
+    fn exit(&self, code: i32) -> ! {
+        if self.is_emulated {
+            panic!("exit code {code}");
+        } else {
+            std::process::exit(code)
+        }
     }
 
     /// 进入一个拥有子命名空间的子块
@@ -4651,7 +4660,7 @@ impl CompileMeta {
             self.err_info().join("\n"),
             value,
         );
-        exit(6)
+        self.exit(6)
     }
 
     /// 对于一个标记(Label), 进行寻找, 如果是在展开宏中, 则进行替换
@@ -4686,7 +4695,7 @@ impl CompileMeta {
                 "Maximum recursion depth exceeded ({})",
                 self.const_expand_max_depth,
             );
-            exit(6)
+            self.exit(6)
         }
         let mut tmp_tags = Vec::with_capacity(label_count);
         tmp_tags.extend(repeat_with(|| self.get_tmp_tag())

@@ -1,5 +1,3 @@
-use std::process;
-
 use var_utils::escape_doublequote;
 
 use crate::*;
@@ -277,7 +275,7 @@ pub fn build_builtins() -> Vec<BuiltinFunc> {
                         128
                     },
                 };
-                process::exit(num_code.try_into().unwrap_or(124))
+                meta.exit(num_code.try_into().unwrap_or(124))
             })
         }
 
