@@ -4172,7 +4172,7 @@ pub trait CompileMetaExtends {
 }
 
 #[derive(Debug)]
-pub struct EmultaeInfo {
+pub struct EmulateInfo {
     pub exist_vars: Vec<Var>,
 }
 
@@ -4209,7 +4209,7 @@ pub struct CompileMeta {
     log_count: usize,
     source: Rc<String>,
     pub is_emulated: bool,
-    pub emulate_infos: Vec<EmultaeInfo>,
+    pub emulate_infos: Vec<EmulateInfo>,
 }
 impl Debug for CompileMeta {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -4451,7 +4451,7 @@ impl CompileMeta {
                 }
             }
         }
-        self.emulate_infos.push(EmultaeInfo { exist_vars: vars });
+        self.emulate_infos.push(EmulateInfo { exist_vars: vars });
     }
 
     /// 进入一个拥有子命名空间的子块

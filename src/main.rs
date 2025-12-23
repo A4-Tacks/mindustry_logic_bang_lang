@@ -6,8 +6,6 @@ use std::{
     },
     mem,
     process::exit,
-    collections::HashMap,
-    ops::Deref,
     fmt::Display,
     cell::RefCell,
     borrow::Cow,
@@ -21,7 +19,6 @@ use display_source::{
 use syntax::{
     CompileMeta,
     Error,
-    Errors,
     Expand,
     Meta,
     CompileMetaExtends,
@@ -332,155 +329,11 @@ fn read_stdin() -> String {
     buf
 }
 
-/// 给定位置与源码, 返回行列号, 行列都从1开始<br/>
-/// 如果没有找到, 则返回`[0, 0]`
-fn get_locations<const N: usize>(src: &str, indexs: [usize; N]) -> [[usize; 2]; N] {
-    const CR: char = '\n';
-
-    let mut index_maps: HashMap<usize, Vec<usize>> = HashMap::with_capacity(indexs.len());
-    for (i, loc) in indexs.into_iter().enumerate() {
-        index_maps.entry(loc).or_default().push(i)
-    }
-    let mut res = [[0, 0]; N];
-    let [mut line, mut column] = [1, 1];
-    macro_rules! set {
-        ($i:expr) => {
-            if let Some(idxs) = index_maps.get(&$i) {
-                for &idx in idxs {
-                    res[idx] = [line, column]
-                }
-            };
-        };
-    }
-    for (i, ch) in src.char_indices() {
-        set!(i);
-        if ch == CR {
-            line += 1;
-            column = 1;
-        } else {
-            column += 1;
-        }
-    }
-    set!(src.len());
-    res
-}
-
 fn unwrap_parse_err(result: ParseResult<'_>, src: &str) -> Expand {
     match result {
         Ok(ast) => ast,
         Err(e) => {
-            fn fmt_token<'a>(i: impl IntoIterator<Item = &'a str>)
-            -> impl Iterator<Item = &'a str> {
-                i.into_iter()
-                    .map(|s| get_token_name(s).unwrap_or(s))
-            }
-            match e {
-                ParseError::UnrecognizedToken {
-                    token: (start, token, end),
-                    expected
-                } => {
-                    let [start, end] = get_locations(src, [start, end]);
-                    err!(
-                        "在位置 {:?} 至 {:?} 处找到不应出现的令牌: {:?}\n\
-                        预期: [{}]",
-                        start, end,
-                        token.1,
-                        fmt_token(expected.iter().map(Deref::deref))
-                            .collect::<Vec<_>>()
-                            .join(", "),
-                    );
-                },
-                ParseError::ExtraToken { token: (start, token, end) } => {
-                    let [start, end] = get_locations(src, [start, end]);
-                    err!(
-                        "在位置 {:?} 至 {:?} 处找到多余的令牌: {:?}",
-                        start, end,
-                        fmt_token(Some(token.1)).next().unwrap(),
-                    );
-                },
-                ParseError::InvalidToken { location } => {
-                    let [loc] = get_locations(src, [location]);
-                    let view = &src[
-                        location
-                        ..
-                        src.len().min(
-                            src[location..]
-                                .char_indices()
-                                .map(|(i, _ch)| location+i)
-                                .take(MAX_INVALID_TOKEN_VIEW+1)
-                                .last()
-                                .unwrap_or(location))
-                    ];
-                    err!(
-                        "在位置 {:?} 处找到无效的令牌: {:?}",
-                        loc,
-                        view.trim_end(),
-                    );
-                },
-                ParseError::UnrecognizedEof {
-                    location,
-                    expected
-                } => {
-                    let [start] = get_locations(src, [location]);
-                    err!(
-                        "在位置 {:?} 处意外的结束\n\
-                        预期: [{}]",
-                        start,
-                        fmt_token(expected.iter().map(Deref::deref))
-                            .collect::<Vec<_>>()
-                            .join(", "),
-                    );
-                },
-                ParseError::User {
-                    error: Error {
-                        start,
-                        end,
-                        err
-                    }
-                } => {
-                    let [start, end]
-                        = get_locations(src, [start, end]);
-                    let out = |msg| err!(
-                        "在位置 {:?} 至 {:?} 处的错误:\n{}",
-                        start,
-                        end,
-                        msg
-                    );
-                    match err {
-                        Errors::NotALiteralUInteger(str, err) => {
-                            out(format_args!(
-                                "{:?} is not a valided unsigned integer: {}",
-                                str,
-                                err,
-                            ));
-                        },
-                        Errors::UnpairBranches(left, right) => {
-                            out(format_args!(
-                                "unpair branches, left: {}, right: {}",
-                                left,
-                                right,
-                            ));
-                        },
-                        Errors::OpExprInvalidResult { found, right } => {
-                            out(format_args!(
-                                "{} op-expr can't pattern {} results, expected 1 or {}",
-                                right,
-                                found,
-                                found,
-                            ));
-                        },
-                        Errors::MultipleOpExpr => {
-                            out(format_args!(
-                                "此处不应展开多个 op-expr",
-                            ));
-                        },
-                        #[allow(unreachable_patterns)]
-                        e => {
-                            out(format_args!("未被枚举的错误: {:?}", e));
-                        },
-                    }
-                },
-            }
+            err!("{}", parser::format_parse_err::<MAX_INVALID_TOKEN_VIEW>(e, src));
             exit(4)
         }
     }
@@ -500,7 +353,8 @@ impl CompileMetaExtender {
 }
 impl CompileMetaExtends for CompileMetaExtender {
     fn source_location(&self, index: usize) -> [syntax::Location; 2] {
-        get_locations(&self.source, [index])[0]
+        let (line, col) = line_column::line_column(&self.source, index);
+        [line as syntax::Location, col as syntax::Location]
     }
     fn display_value(&self, value: &syntax::Value) -> Cow<'_, str> {
         let meta = &mut *self.display_meta.borrow_mut();
@@ -523,20 +377,4 @@ fn compile_ast(ast: Expand, src: String) -> CompileMeta {
     )));
     meta.set_source(src);
     meta.compile_res_self(ast)
-}
-
-fn get_token_name(s: &str) -> Option<&'static str> {
-    match s {
-        r###"r#"[_\\p{XID_Start}]\\p{XID_Continue}*"#"###
-            => "Identify",
-        r###"r#"@[_\\p{XID_Start}][\\p{XID_Continue}\\-]*"#"###
-            => "OIdentify",
-        r###"r#"-?(?:0x-?[\\da-fA-F][_\\da-fA-F]*|0b-?[01][_01]*|\\d[_\\d]*(?:\\.\\d[\\d_]*|e[+\\-]?\\d[\\d_]*)?)"#"###
-            => "Number",
-        r###"r#"\"(?:\\\\\\r?\\n\\s*(?:\\\\ )?|\\r?\\n|\\\\[n\\\\\\[]|[^\"\\r\\n\\\\])*\""#"###
-            => "String",
-        r###"r#"'[^'\\s]+'"#"###
-            => "OtherVariable",
-        _ => return None,
-    }.into()
 }

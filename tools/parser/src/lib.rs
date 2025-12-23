@@ -2,6 +2,7 @@ mod parser;
 pub use crate::parser::*;
 pub use ::lalrpop_util;
 
+use lalrpop_util::ParseError;
 use ::syntax::{
     Expand,
     Select,
@@ -308,4 +309,145 @@ fn make_select(
     } else {
         Expand(res).into()
     }
+}
+
+fn get_locations<const N: usize>(src: &str, indexs: [usize; N]) -> [[u32; 2]; N] {
+    line_column::line_columns(src, indexs)
+        .map(|(line, col)| [line, col])
+}
+
+pub fn format_parse_err<const MAX_INVALID_TOKEN_VIEW: usize>(
+    e: ParseError<usize, Token<'_>, syntax::Error>,
+    src: &str,
+) -> String {
+    use syntax::{Errors, Error};
+    use std::ops::Deref;
+    fn fmt_token<'a>(i: impl IntoIterator<Item = &'a str>)
+    -> impl Iterator<Item = &'a str> {
+        i.into_iter()
+            .map(|s| get_token_name(s).unwrap_or(s))
+    }
+    match e {
+        ParseError::UnrecognizedToken {
+            token: (start, token, end),
+            expected
+        } => {
+            let [start, end] = get_locations(src, [start, end]);
+            format!(
+                "在位置 {:?} 至 {:?} 处找到不应出现的令牌: {:?}\n\
+                预期: [{}]",
+                start, end,
+                token.1,
+                fmt_token(expected.iter().map(Deref::deref))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            )
+        },
+        ParseError::ExtraToken { token: (start, token, end) } => {
+            let [start, end] = get_locations(src, [start, end]);
+            format!(
+                "在位置 {:?} 至 {:?} 处找到多余的令牌: {:?}",
+                start, end,
+                fmt_token(Some(token.1)).next().unwrap(),
+            )
+        },
+        ParseError::InvalidToken { location } => {
+            let [loc] = get_locations(src, [location]);
+            let view = &src[
+                location
+                ..
+                src.len().min(
+                    src[location..]
+                        .char_indices()
+                        .map(|(i, _ch)| location+i)
+                        .take(MAX_INVALID_TOKEN_VIEW+1)
+                        .last()
+                        .unwrap_or(location))
+            ];
+            format!(
+                "在位置 {:?} 处找到无效的令牌: {:?}",
+                loc,
+                view.trim_end(),
+            )
+        },
+        ParseError::UnrecognizedEof {
+            location,
+            expected
+        } => {
+            let [start] = get_locations(src, [location]);
+            format!(
+                "在位置 {:?} 处意外的结束\n\
+                预期: [{}]",
+                start,
+                fmt_token(expected.iter().map(Deref::deref))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            )
+        },
+        ParseError::User {
+            error: Error {
+                start,
+                end,
+                err
+            }
+        } => {
+            let [start, end]
+                = get_locations(src, [start, end]);
+            let out = |msg| format!(
+                "在位置 {:?} 至 {:?} 处的错误:\n{}",
+                start,
+                end,
+                msg
+            );
+            match err {
+                Errors::NotALiteralUInteger(str, err) => {
+                    out(format_args!(
+                        "{:?} is not a valided unsigned integer: {}",
+                        str,
+                        err,
+                    ))
+                },
+                Errors::UnpairBranches(left, right) => {
+                    out(format_args!(
+                        "unpair branches, left: {}, right: {}",
+                        left,
+                        right,
+                    ))
+                },
+                Errors::OpExprInvalidResult { found, right } => {
+                    out(format_args!(
+                        "{} op-expr can't pattern {} results, expected 1 or {}",
+                        right,
+                        found,
+                        found,
+                    ))
+                },
+                Errors::MultipleOpExpr => {
+                    out(format_args!(
+                        "此处不应展开多个 op-expr",
+                    ))
+                },
+                #[allow(unreachable_patterns)]
+                e => {
+                    out(format_args!("未被枚举的错误: {:?}", e))
+                },
+            }
+        },
+    }
+}
+
+fn get_token_name(s: &str) -> Option<&'static str> {
+    match s {
+        r###"r#"[_\\p{XID_Start}]\\p{XID_Continue}*"#"###
+            => "Identify",
+        r###"r#"@[_\\p{XID_Start}][\\p{XID_Continue}\\-]*"#"###
+            => "OIdentify",
+        r###"r#"-?(?:0x-?[\\da-fA-F][_\\da-fA-F]*|0b-?[01][_01]*|\\d[_\\d]*(?:\\.\\d[\\d_]*|e[+\\-]?\\d[\\d_]*)?)"#"###
+            => "Number",
+        r###"r#"\"(?:\\\\\\r?\\n\\s*(?:\\\\ )?|\\r?\\n|\\\\[n\\\\\\[]|[^\"\\r\\n\\\\])*\""#"###
+            => "String",
+        r###"r#"'[^'\\s]+'"#"###
+            => "OtherVariable",
+        _ => return None,
+    }.into()
 }

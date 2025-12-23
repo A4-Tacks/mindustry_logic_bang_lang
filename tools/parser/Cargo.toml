@@ -15,6 +15,7 @@ lalrpop = { version = "=0.22.1", optional = true }
 syntax = { path = "../syntax", version = "*" }
 var_utils = { path = "../var_utils", version = "*" }
 tag_code = { path = "../tag_code", version = "*" }
+line-column = "0.2.0"
 
 [dependencies.lalrpop-util]
 version = "=0.22.1"
