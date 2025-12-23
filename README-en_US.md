@@ -223,7 +223,11 @@ Provided basic support for some editors:
 
   Not recommended to use, only contains some basic statements
 
-`LSP` is currently not implemented and there is no need to implement it. The logic language is so messy, and this function cannot be used much
+## Language Server Support
+The Language Server Protocol can provide functions such as completion, goto define, and hover document in editors such as VSCode and Vim.
+Currently, a simple language server has been implemented for bang language, as detailed in [here](./tools/bangls/)
+
+Download the language server file from [Releases], with the file name prefix 'bangls'
 
 [**Vim**]: https://github.com/vim/vim
 [**MT-Manager**]: https://mt2.cn/
