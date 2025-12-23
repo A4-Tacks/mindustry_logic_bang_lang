@@ -3,7 +3,7 @@ use crossbeam_channel::{Receiver, Sender};
 use line_column::line_column;
 use linked_hash_map::LinkedHashMap;
 use lsp_server::{IoThreads, Message};
-use lsp_types::{CompletionItem, CompletionOptions, Diagnostic, InitializeParams, InitializeResult, MessageType, Position, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, Uri, notification::{self, Notification}, request::{self, Request}};
+use lsp_types::{CompletionItem, CompletionOptions, Diagnostic, DiagnosticSeverity, InitializeParams, InitializeResult, MessageType, Position, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, Uri, notification::{self, Notification}, request::{self, Request}};
 use syntax::{Compile, CompileMeta, Emulate, EmulateInfo, Expand, LSP_DEBUG};
 
 fn main() {
@@ -351,16 +351,18 @@ impl NotificationHandler for notification::DidCloseTextDocument {
 
 fn tigger_diagnostics(ctx: &mut Ctx, uri: &Uri) -> Vec<Diagnostic> {
     let Some(file) = ctx.open_files.get(uri) else { return vec![] };
+    let mut diags = vec![];
 
-    ctx.parse_for_parse_error(file).map_or(vec![], |((sindex, eindex), error)| {
+    if let Some(((sindex, eindex), error)) = ctx.parse_for_parse_error(file) {
         let start = rgpos(line_column(file, sindex));
         let end = rgpos(line_column(file, eindex));
-        vec![
-            Diagnostic {
-                message: error,
-                range: lsp_types::Range { start, end },
-                ..Default::default()
-            }
-        ]
-    })
+        diags.push(Diagnostic {
+            message: error,
+            range: lsp_types::Range { start, end },
+            severity: Some(DiagnosticSeverity::ERROR),
+            ..Default::default()
+        });
+    }
+
+    diags
 }
