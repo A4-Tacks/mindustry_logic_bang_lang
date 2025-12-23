@@ -74,7 +74,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: ref=${{ github.ref }} && gh release edit --prerelease=false ${ref##*/}
+      - run: ref=${{ github.ref }} && gh release edit --prerelease=false --latest ${ref##*/}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
