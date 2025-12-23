@@ -52,6 +52,8 @@ jobs:
             package: mdt-ops-generator
           - name: mlog-decompiler
             package: mlog-decompiler
+          - name: bangls
+            package: bangls
 
     runs-on: ${{ matrix.build.os }}
     steps:

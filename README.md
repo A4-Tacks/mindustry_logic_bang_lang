@@ -215,7 +215,9 @@ cargo install --path . # 执行这个你可以在你的shell中直接使用它(�
 
   不建议使用, 只含有一些基本的语句
 
-`LSP` 目前暂无实现, 也没啥必要实现, 逻辑语言这乱的, 这功能也没法用啥
+## 语言服务器支持
+语言服务器协议 (LSP) 可以在 VSCode, Vim 等编辑器中提供补全、跳转、查看文档等功能,
+目前给 bang 语言实现了一个简单的语言服务器, 详见 [此处](./tools/bangls/)
 
 [**Vim**]: https://github.com/vim/vim
 [**MT-Manager**]: https://mt2.cn/
