@@ -159,8 +159,17 @@ pub enum Errors {
 /// 带有错误前缀, 并且文本为红色的eprintln
 macro_rules! err {
     ( $fmtter:expr $(, $args:expr)* $(,)? ) => {
-        eprintln!(concat!("\x1b[1;31m", "CompileError:\n", $fmtter, "\x1b[22;39m"), $($args),*);
+        err!(None => $fmtter $(, $args)*);
     };
+    ( $loc:expr => $fmtter:expr $(, $args:expr)* $(,)? ) => {
+        let err = format!(concat!("CompileError:\n", $fmtter), $($args),*);
+        eprintln!("\x1b[1;31m{err}\x1b[22;39m");
+        $crate::LAST_ERR.replace(($loc.into(), err));
+    };
+}
+thread_local! {
+    static LAST_ERR: Cell<(Option<(u32, u32)>, String)>
+        = Cell::new((None, String::new()));
 }
 
 pub type Location = usize;
@@ -322,7 +331,7 @@ impl TakeHandle for Value {
             },
             ref cmp @ Self::Cmper(Cmper(ref loc)) => {
                 let loc = loc.location(&meta.source);
-                err!(
+                err!(loc =>
                     "{}\n最终未被展开的 Cmper, 位于: {}:{}\n{}",
                     meta.err_info().join("\n"),
                     loc.0,
@@ -3015,31 +3024,31 @@ impl Compile for ArgsRepeat {
             Either::Left(count) => count,
             Either::Right(value) => {
                 let Some((n, _)) = value.try_eval_const_num(meta) else {
-                    let (line, col) = loc.location(&meta.source);
-                    err!(
+                    let loc = loc.location(&meta.source);
+                    err!(loc =>
                         "{}\n重复块次数不是数字, 位于: {}:{}\n{}",
                         meta.err_info().join("\n"),
-                        line, col,
+                        loc.0, loc.1,
                         value.display_src(meta),
                     );
                     meta.exit(6)
                 };
                 let n = n.round();
                 if n < 0.0 || !n.is_finite() {
-                    let (line, col) = loc.location(&meta.source);
-                    err!(
+                    let loc = loc.location(&meta.source);
+                    err!(loc =>
                         "{}\n重复块次数必须不小于0 ({}), 位于: {}:{}",
                         meta.err_info().join("\n"),
-                        n, line, col,
+                        n, loc.0, loc.1
                     );
                     meta.exit(6)
                 }
                 if n > 512.0 {
-                    let (line, col) = loc.location(&meta.source);
-                    err!(
+                    let loc = loc.location(&meta.source);
+                    err!(loc =>
                         "{}\n重复块次数过大 ({}), 位于: {}:{}",
                         meta.err_info().join("\n"),
-                        n, line, col,
+                        n, loc.0, loc.1
                     );
                     meta.exit(6)
                 }
@@ -3066,7 +3075,7 @@ impl Compile for ArgsRepeat {
 
                 if !meta.args_repeat_flags.last().unwrap() { break }
                 if i >= meta.args_repeat_limit {
-                    err!(
+                    err!(loc.location(&meta.source) =>
                         "Maximum repeat limit exceeded ({})",
                         meta.args_repeat_limit,
                     );
@@ -4175,9 +4184,12 @@ pub enum Emulate {
     NakedBind(Var),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct EmulateInfo {
     pub exist_vars: Vec<(Emulate, Var)>,
+    pub location: Option<(u32, u32)>,
+    pub diagnostic: Option<String>,
+    pub is_error: bool,
 }
 
 pub struct CompileMeta {
@@ -4213,7 +4225,7 @@ pub struct CompileMeta {
     log_count: usize,
     source: Rc<String>,
     pub is_emulated: bool,
-    pub emulate_infos: Vec<EmulateInfo>,
+    pub emulate_infos: Cell<Vec<EmulateInfo>>,
 }
 impl Debug for CompileMeta {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -4286,7 +4298,7 @@ impl CompileMeta {
             log_count: 0,
             source,
             is_emulated: false,
-            emulate_infos: vec![],
+            emulate_infos: vec![].into(),
         };
         let builtin = Var::from(Self::BUILTIN_FUNCS_BINDER);
         for builtin_func in build_builtins() {
@@ -4434,8 +4446,25 @@ impl CompileMeta {
         &mut self.parse_lines
     }
 
+    fn emulate(&self, emulate_info: EmulateInfo) {
+        if self.is_emulated {
+            let mut infos = self.emulate_infos.take();
+            infos.push(emulate_info);
+            self.emulate_infos.set(infos);
+        }
+    }
+
     fn exit(&self, code: i32) -> ! {
         if self.is_emulated {
+            let (location, error) = LAST_ERR.take();
+            if !error.is_empty() {
+                self.emulate(EmulateInfo {
+                    location,
+                    diagnostic: Some(error),
+                    is_error: true,
+                    ..Default::default()
+                });
+            }
             panic!("exit code {code}");
         } else {
             std::process::exit(code)
@@ -4457,7 +4486,7 @@ impl CompileMeta {
             .for_each(|(kind, var)| if printed.insert(var) {
                 vars.push((kind, var.clone()));
             });
-        self.emulate_infos.push(EmulateInfo { exist_vars: vars });
+        self.emulate(EmulateInfo { exist_vars: vars, ..Default::default() });
     }
 
     fn debug_binds_status(&mut self, handle: &Var, name: &mut Var) {
@@ -4481,7 +4510,7 @@ impl CompileMeta {
             }
             bind_vars
         });
-        self.emulate_infos.push(EmulateInfo { exist_vars: bind_vars });
+        self.emulate(EmulateInfo { exist_vars: bind_vars, ..Default::default() });
     }
 
     /// 进入一个拥有子命名空间的子块
@@ -4805,11 +4834,13 @@ impl CompileMeta {
     pub fn err_info(&self) -> Vec<String> {
         let mut res = Vec::new();
 
-        let mut tag_lines = self.debug_tag_codes();
-        line_first_add(&mut tag_lines, "\t");
+        if !self.is_emulated {
+            let mut tag_lines = self.debug_tag_codes();
+            line_first_add(&mut tag_lines, "\t");
 
-        res.push("已生成代码:".into());
-        res.extend(tag_lines);
+            res.push("已生成代码:".into());
+            res.extend(tag_lines);
+        }
         res
     }
 
@@ -4906,6 +4937,17 @@ impl CompileMeta {
         self.env_args.push(None);
         f(self);
         self.env_args.pop().unwrap()
+    }
+
+    pub fn log_info_at(&mut self, line: u32, column: u32, s: impl std::fmt::Display) {
+        if self.is_emulated {
+            self.emulate(EmulateInfo {
+                location: Some((line, column)),
+                diagnostic: Some(s.to_string()),
+                ..Default::default()
+            });
+        }
+        self.log_info(format_args!("{line}:{column} {s}"));
     }
 
     pub fn log_info(&mut self, s: impl std::fmt::Display) {
@@ -5078,9 +5120,7 @@ impl CompileMeta {
             } else {
                 format!("{no_effect:#?}")
             };
-            self.log_info(format_args!(
-                    "{line}:{column} Take no effect: {no_effect}",
-            ));
+            self.log_info_at(line, column, format_args!("Take no effect: {no_effect}"));
         }
     }
 }

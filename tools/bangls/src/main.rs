@@ -192,10 +192,10 @@ impl Ctx {
         None
     }
 
-    fn parse_for_parse_error(&self, file: &str) -> Option<((usize, usize), String)> {
+    fn parse_for_parse_error(&self, file: &str) -> Result<Expand, ((usize, usize), String)> {
         let parser = parser::TopLevelParser::new();
         match parser.parse(&mut syntax::Meta::new(), file) {
-            Ok(_) => None,
+            Ok(top) => Ok(top),
             Err(e) => {
                 let loc = match e {
                     parser::lalrpop_util::ParseError::InvalidToken { location } |
@@ -209,7 +209,7 @@ impl Ctx {
                     },
                 };
                 let fmtted_err = parser::format_parse_err::<5>(e, file);
-                Some((loc, fmtted_err))
+                Err((loc, fmtted_err))
             },
         }
     }
@@ -245,14 +245,7 @@ impl RequestHandler for request::Completion {
         let Some((top, src)) = ctx.try_parse_for_complete((line, col), &file) else {
             return Ok(None);
         };
-        let mut meta = CompileMeta::with_source(src.into());
-        meta.is_emulated = true;
-
-        let assert_meta = std::panic::AssertUnwindSafe(&mut meta);
-        let _ = std::panic::catch_unwind(|| {
-            top.compile(&mut {assert_meta}.0);
-        });
-        let infos = meta.emulate_infos;
+        let infos = emulate(top, src);
 
         let completes = generate_completes(&infos);
         let completes = lsp_types::CompletionResponse::Array(completes);
@@ -353,16 +346,49 @@ fn tigger_diagnostics(ctx: &mut Ctx, uri: &Uri) -> Vec<Diagnostic> {
     let Some(file) = ctx.open_files.get(uri) else { return vec![] };
     let mut diags = vec![];
 
-    if let Some(((sindex, eindex), error)) = ctx.parse_for_parse_error(file) {
-        let start = rgpos(line_column(file, sindex));
-        let end = rgpos(line_column(file, eindex));
-        diags.push(Diagnostic {
-            message: error,
-            range: lsp_types::Range { start, end },
-            severity: Some(DiagnosticSeverity::ERROR),
-            ..Default::default()
-        });
+    match ctx.parse_for_parse_error(file) {
+        Err(((sindex, eindex), error)) => {
+            let start = rgpos(line_column(file, sindex));
+            let end = rgpos(line_column(file, eindex));
+            diags.push(Diagnostic {
+                message: error,
+                range: lsp_types::Range { start, end },
+                severity: Some(DiagnosticSeverity::ERROR),
+                ..Default::default()
+            });
+        }
+        Ok(top) => {
+            let infos = emulate(top, file.clone());
+            for info in infos {
+                let Some(diagnostic) = info.diagnostic else { continue };
+                let Some(loc) = info.location.or_else(|| info.is_error.then(|| {
+                    (1, 1)
+                })) else { continue };
+                let start = rgpos(loc);
+                diags.push(Diagnostic {
+                    range: lsp_types::Range { start, end: start },
+                    severity: Some(if info.is_error {
+                        DiagnosticSeverity::ERROR
+                    } else {
+                        DiagnosticSeverity::HINT
+                    }),
+                    message: diagnostic,
+                    ..Default::default()
+                });
+            }
+        },
     }
 
     diags
+}
+
+fn emulate(top: Expand, src: String) -> Vec<EmulateInfo> {
+    let mut meta = CompileMeta::with_source(src.into());
+    meta.is_emulated = true;
+
+    let assert_meta = std::panic::AssertUnwindSafe(&mut meta);
+    let _ = std::panic::catch_unwind(|| {
+        top.compile(&mut {assert_meta}.0);
+    });
+    meta.emulate_infos.take()
 }
