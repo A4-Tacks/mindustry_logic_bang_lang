@@ -1,8 +1,9 @@
 use anyhow::{Result, anyhow, bail};
 use crossbeam_channel::{Receiver, Sender};
+use line_column::line_column;
 use linked_hash_map::LinkedHashMap;
 use lsp_server::{IoThreads, Message};
-use lsp_types::{CompletionItem, CompletionOptions, InitializeParams, InitializeResult, MessageType, Position, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, Uri, notification::{self, Notification}, request::{self, Request}};
+use lsp_types::{CompletionItem, CompletionOptions, Diagnostic, InitializeParams, InitializeResult, MessageType, Position, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, Uri, notification::{self, Notification}, request::{self, Request}};
 use syntax::{Compile, CompileMeta, Emulate, EmulateInfo, Expand, LSP_DEBUG};
 
 fn main() {
@@ -11,6 +12,12 @@ fn main() {
 
 fn lopos(pos: Position) -> (u32, u32) {
     (pos.line + 1, pos.character + 1)
+}
+
+fn rgpos((line, column): (u32, u32)) -> Position {
+    debug_assert_ne!(line, 0);
+    debug_assert_ne!(column, 0);
+    Position { line: line - 1, character: column - 1 }
 }
 
 struct IoJoiner(pub Option<IoThreads>);
@@ -47,6 +54,9 @@ fn main_loop() -> Result<()> {
             trigger_characters: Some(vec![".".to_owned(), ">".to_owned()]),
             ..Default::default()
         }),
+        diagnostic_provider: Some(lsp_types::DiagnosticServerCapabilities::Options(
+            lsp_types::DiagnosticOptions::default(),
+        )),
         text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
         ..Default::default()
     };
@@ -71,11 +81,7 @@ fn main_loop() -> Result<()> {
         ..
     } = serde_json::from_value::<InitializeParams>(init_params)?;
     let _workspace_folders = workspace_folders.ok_or(anyhow!("Cannot find workspace folder"))?;
-    let mut ctx = Ctx {
-        open_files: Default::default(),
-        sender: connect.sender,
-        recver: connect.receiver,
-    };
+    let mut ctx = Ctx::new(connect.sender, connect.receiver);
     ctx.run()
 }
 
@@ -85,6 +91,14 @@ struct Ctx {
     recver: Receiver<Message>,
 }
 impl Ctx {
+    fn new(sender: Sender<Message>, recver: Receiver<Message>) -> Self {
+        Self {
+            open_files: Default::default(),
+            sender,
+            recver,
+        }
+    }
+
     fn run(&mut self) -> Result<(), anyhow::Error> {
         while let Ok(msg) = self.recver.recv() {
             match msg {
@@ -107,7 +121,8 @@ impl Ctx {
     fn handle_requests(&mut self, request: lsp_server::Request) -> Result<()> {
         let request = &mut Some(request);
 
-        self.try_handle_req::<request::Completion>(request).transpose()?;
+        self.try_handle_req::<request::Completion>(request)?;
+        self.try_handle_req::<request::DocumentDiagnosticRequest>(request)?;
 
         if let Some(request) = request {
             bail!("unknown request {request:#?}")
@@ -125,19 +140,19 @@ impl Ctx {
         T::handle(self, params)
     }
 
-    fn try_handle_req<T: RequestHandler>(&mut self, request: &mut Option<lsp_server::Request>) -> Option<Result<()>> {
-        let lsp_server::Request { id, params, .. }
-            = request.take_if(|req| req.method == T::METHOD)?;
+    fn try_handle_req<T: RequestHandler>(&mut self, request: &mut Option<lsp_server::Request>) -> Result<()> {
+        let Some(lsp_server::Request { id, params, .. })
+            = request.take_if(|req| req.method == T::METHOD) else { return Ok(()) };
         let params = match serde_json::from_value(params) {
             Ok(it) => it,
-            Err(err) => return Some(Err(err.into())),
+            Err(err) => return Err(err.into()),
         };
         let result = T::handle(self, params);
         let response = match result {
             Ok(value) => {
                 match serde_json::to_value(value) {
                     Ok(to_value) => lsp_server::Response { id, result: Some(to_value), error: None },
-                    Err(e) => return Some(Err(anyhow!(e))),
+                    Err(e) => return Err(anyhow!(e)),
                 }
             },
             Err(err) => lsp_server::Response {
@@ -150,7 +165,7 @@ impl Ctx {
                 }),
             },
         };
-        Some(self.sender.send(Message::Response(response)).map_err(Into::into))
+        self.sender.send(Message::Response(response)).map_err(Into::into)
     }
 
     fn read_file(&self, uri: &Uri) -> Result<&str> {
@@ -160,24 +175,43 @@ impl Ctx {
         }
     }
 
-    fn try_parse(&self, (line, col): (u32, u32), file: &str) -> Option<(Expand, String)> {
+    fn try_parse_for_complete(&self, (line, col): (u32, u32), file: &str) -> Option<(Expand, String)> {
         let index = line_column::index(&file, line, col);
         let placeholders = [
             format!("{LSP_DEBUG} "),
             format!("{LSP_DEBUG} __lsp_arg;"),
         ];
         let parser = parser::TopLevelParser::new();
-        let mut parse_err = "".to_owned();
         for placeholder in &placeholders {
             let source = String::from_iter([&file[..index], placeholder, &file[index..]]);
             match parser.parse(&mut syntax::Meta::new(), &source) {
-                Err(e) => if parse_err.is_empty() {
-                    parse_err = parser::format_parse_err::<5>(e, &source);
-                },
+                Err(_) => (),
                 Ok(top) => return Some((top, source)),
             }
         }
         None
+    }
+
+    fn parse_for_parse_error(&self, file: &str) -> Option<((usize, usize), String)> {
+        let parser = parser::TopLevelParser::new();
+        match parser.parse(&mut syntax::Meta::new(), file) {
+            Ok(_) => None,
+            Err(e) => {
+                let loc = match e {
+                    parser::lalrpop_util::ParseError::InvalidToken { location } |
+                    parser::lalrpop_util::ParseError::UnrecognizedEof { location, .. } => {
+                        (location, location)
+                    },
+                    parser::lalrpop_util::ParseError::UnrecognizedToken { token: (start, _, end), .. } |
+                    parser::lalrpop_util::ParseError::ExtraToken { token: (start, _, end) } |
+                    parser::lalrpop_util::ParseError::User { error: syntax::Error { start, end, .. } } => {
+                        (start, end)
+                    },
+                };
+                let fmtted_err = parser::format_parse_err::<5>(e, file);
+                Some((loc, fmtted_err))
+            },
+        }
     }
 
     fn send_window_notif(&self, typ: MessageType, msg: impl std::fmt::Display) -> Result<()> {
@@ -185,26 +219,30 @@ impl Ctx {
             typ,
             message: msg.to_string(),
         };
+        self.send_notif::<notification::ShowMessage>(params)
+    }
+
+    fn send_notif<T: Notification>(&self, params: T::Params) -> Result<()> {
         let params = serde_json::to_value(params)?;
         let msg = Message::Notification(lsp_server::Notification {
-                method: notification::ShowMessage::METHOD.to_owned(),
-                params,
-            });
+            method: T::METHOD.to_owned(),
+            params,
+        });
         self.sender.send(msg)?;
         Ok(())
     }
 }
 
 trait RequestHandler: Request {
-    fn handle(ctx: &Ctx, param: Self::Params) -> Result<Self::Result>;
+    fn handle(ctx: &mut Ctx, param: Self::Params) -> Result<Self::Result>;
 }
 impl RequestHandler for request::Completion {
-    fn handle(ctx: &Ctx, param: Self::Params) -> Result<Self::Result> {
+    fn handle(ctx: &mut Ctx, param: Self::Params) -> Result<Self::Result> {
         let uri = param.text_document_position.text_document.uri;
         let (line, col) = lopos(param.text_document_position.position);
 
         let file = ctx.read_file(&uri)?;
-        let Some((top, src)) = ctx.try_parse((line, col), &file) else {
+        let Some((top, src)) = ctx.try_parse_for_complete((line, col), &file) else {
             return Ok(None);
         };
         let mut meta = CompileMeta::with_source(src.into());
@@ -219,6 +257,21 @@ impl RequestHandler for request::Completion {
         let completes = generate_completes(&infos);
         let completes = lsp_types::CompletionResponse::Array(completes);
         Ok(Some(completes))
+    }
+}
+impl RequestHandler for request::DocumentDiagnosticRequest {
+    fn handle(ctx: &mut Ctx, param: Self::Params) -> Result<Self::Result> {
+        Ok(lsp_types::DocumentDiagnosticReportResult::Report(
+            lsp_types::DocumentDiagnosticReport::Full(
+                lsp_types::RelatedFullDocumentDiagnosticReport {
+                    related_documents: None,
+                    full_document_diagnostic_report: lsp_types::FullDocumentDiagnosticReport {
+                        result_id: None,
+                        items: tigger_diagnostics(ctx, &param.text_document.uri)
+                    },
+                },
+            ),
+        ))
     }
 }
 
@@ -272,7 +325,10 @@ impl NotificationHandler for notification::DidOpenTextDocument {
 }
 impl NotificationHandler for notification::DidChangeTextDocument {
     fn handle(ctx: &mut Ctx, param: Self::Params) -> Result<()> {
-        let file = ctx.open_files.entry(param.text_document.uri).or_default();
+        if !ctx.open_files.contains_key(&param.text_document.uri) {
+            ctx.open_files.insert(param.text_document.uri.clone(), String::new());
+        }
+        let file = ctx.open_files.get_mut(&param.text_document.uri).unwrap();
 
         for change in param.content_changes {
             if change.range.is_some() {
@@ -291,4 +347,20 @@ impl NotificationHandler for notification::DidCloseTextDocument {
         }
         Ok(())
     }
+}
+
+fn tigger_diagnostics(ctx: &mut Ctx, uri: &Uri) -> Vec<Diagnostic> {
+    let Some(file) = ctx.open_files.get(uri) else { return vec![] };
+
+    ctx.parse_for_parse_error(file).map_or(vec![], |((sindex, eindex), error)| {
+        let start = rgpos(line_column(file, sindex));
+        let end = rgpos(line_column(file, eindex));
+        vec![
+            Diagnostic {
+                message: error,
+                range: lsp_types::Range { start, end },
+                ..Default::default()
+            }
+        ]
+    })
 }
