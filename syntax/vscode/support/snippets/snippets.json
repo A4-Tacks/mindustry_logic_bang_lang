@@ -100,14 +100,14 @@
         "prefix": "const",
         "description": "const value",
         "body": [
-            "const ${1:\\$.$2} = ${3};"
+            "const $1 = ${2:()};"
         ]
     },
     "take": {
         "prefix": "take",
         "description": "take",
         "body": [
-            "take ${1:${2:\\$.$3} = ${4}};"
+            "take ${1};"
         ]
     },
     "destructure value binds": {
