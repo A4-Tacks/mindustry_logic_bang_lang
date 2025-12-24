@@ -3873,9 +3873,11 @@ impl Compile for LogicLine {
             },
             Self::Other(args) => {
                 if meta.is_emulated && let Some(normal) = args.as_normal()
-                    && let Some(first) = normal.first()
-                    && let Some(var) = first.as_var()
-                    && var.ends_with(LSP_DEBUG)
+                    && let Some(Value::Var(tail)
+                               |Value::ValueBind(ValueBind(_, tail))
+                               |Value::ValueBindRef(ValueBindRef { bind_target: ValueBindRefTarget::NameBind(tail), .. })
+                               ) = normal.first()
+                    && tail.ends_with(LSP_DEBUG)
                 {
                     meta.emulate(EmulateInfo {
                         in_other_line_first: true,
@@ -4612,24 +4614,19 @@ impl CompileMeta {
         }
         let Some(raw_name) = name.strip_suffix(LSP_DEBUG) else { return };
         *name = raw_name.into();
-        let bind_vars = self.with_get_binds(handle.clone(), |bind| {
-            let mut is_const = HashSet::new();
-            let mut bind_vars = bind.bind_names.take().unwrap()
-                .inspect(|(var, _)| _ = is_const.insert(*var))
-                .map(|(var, _)| {
-                    let value = Value::from(var);
-                    (Emulate::ConstBind(handle.clone()), var.clone(), value.like_used_args_system(self))
-                })
-                .collect::<Vec<_>>();
-
-            if let Some(pairs) = self.value_bind_pairs.get(handle) {
-                let naked_binds = pairs.keys()
-                    .filter(|var| !is_const.contains(var))
-                    .map(|var| (Emulate::NakedBind(handle.clone()), var.clone(), false));
-                bind_vars.extend(naked_binds);
-            }
-            bind_vars
-        });
+        let bind_vars = self.value_bind_pairs.get(handle)
+            .into_iter()
+            .flat_map(|pairs| pairs.iter())
+            .map(|(bindname, binded)| {
+                let value = Value::from(binded);
+                let emulate = if self.get_const_value(binded).is_some() {
+                    Emulate::ConstBind(handle.clone())
+                } else {
+                    Emulate::NakedBind(handle.clone())
+                };
+                (emulate, bindname.clone(), value.like_used_args_system(self))
+            })
+            .collect();
         self.emulate(EmulateInfo { exist_vars: Some(bind_vars), ..Default::default() });
     }
 

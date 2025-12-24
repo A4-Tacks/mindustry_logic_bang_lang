@@ -364,7 +364,7 @@ fn generate_completes(infos: &[EmulateInfo]) -> Vec<CompletionItem> {
         });
 
         let insert_snippet = match (use_args, on_line_first) {
-            (true, true) => format!("{var}!$0;"),
+            (true, true) => format!("{var}! $0;"),
             (true, false) => format!("{var}[$0]"),
             _ => var.to_string(),
         };
