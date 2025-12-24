@@ -4193,7 +4193,7 @@ pub enum Emulate {
 
 #[derive(Debug, Default)]
 pub struct EmulateInfo {
-    pub exist_vars: Vec<(Emulate, Var)>,
+    pub exist_vars: Option<Vec<(Emulate, Var)>>,
     pub location: Option<(u32, u32)>,
     pub diagnostic: Option<String>,
     pub is_error: bool,
@@ -4536,7 +4536,7 @@ impl CompileMeta {
             .for_each(|(kind, var)| if printed.insert(var) {
                 vars.push((kind, var.clone()));
             });
-        self.emulate(EmulateInfo { exist_vars: vars, ..Default::default() });
+        self.emulate(EmulateInfo { exist_vars: Some(vars), ..Default::default() });
     }
 
     fn debug_hover_var_status(&mut self, var: &mut Var) -> HoverGuard<'_> {
@@ -4573,7 +4573,7 @@ impl CompileMeta {
             }
             bind_vars
         });
-        self.emulate(EmulateInfo { exist_vars: bind_vars, ..Default::default() });
+        self.emulate(EmulateInfo { exist_vars: Some(bind_vars), ..Default::default() });
     }
 
     /// 进入一个拥有子命名空间的子块

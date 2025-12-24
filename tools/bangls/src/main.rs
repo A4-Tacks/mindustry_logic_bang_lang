@@ -318,9 +318,12 @@ impl RequestHandler for request::DocumentDiagnosticRequest {
 }
 
 fn generate_completes(infos: &[EmulateInfo]) -> Vec<CompletionItem> {
+    let infos = infos.iter()
+        .filter_map(|it| it.exist_vars.as_ref());
+    let full_count = infos.clone().count() as u32;
     let mut var_counter: LinkedHashMap<&syntax::Var, (u32, Vec<_>)> = LinkedHashMap::new();
     for info in infos {
-        for (kind, var) in info.exist_vars.iter() {
+        for (kind, var) in info {
             if var.starts_with("__") {
                 continue;
             }
@@ -329,7 +332,6 @@ fn generate_completes(infos: &[EmulateInfo]) -> Vec<CompletionItem> {
             kinds.push(kind);
         }
     }
-    let full_count = infos.len() as u32;
     var_counter.iter().map(|(&var, &(count, ref kinds))| {
         let is_full_deps = count == full_count;
 
