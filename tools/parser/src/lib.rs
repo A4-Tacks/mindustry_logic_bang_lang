@@ -1,5 +1,5 @@
 mod parser;
-pub use crate::parser::*;
+pub use parser::*;
 pub use ::lalrpop_util;
 
 use lalrpop_util::ParseError;
@@ -317,7 +317,7 @@ fn get_locations<const N: usize>(src: &str, indexs: [usize; N]) -> [[u32; 2]; N]
 }
 
 pub fn format_parse_err<const MAX_INVALID_TOKEN_VIEW: usize>(
-    e: ParseError<usize, Token<'_>, syntax::Error>,
+    e: ParseError<usize, parser::Token<'_>, syntax::Error>,
     src: &str,
 ) -> String {
     use syntax::{Errors, Error};
