@@ -8,7 +8,7 @@ use display_source::DisplaySourceMeta;
 use line_column::line_column;
 use linked_hash_map::LinkedHashMap;
 use lsp_server::{IoThreads, Message};
-use lsp_types::{CompletionItem, CompletionOptions, Diagnostic, DiagnosticSeverity, InitializeParams, InitializeResult, MessageType, Position, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, Uri, notification::{self, Notification}, request::{self, Request}};
+use lsp_types::{CompletionItem, CompletionItemKind, CompletionOptions, Diagnostic, DiagnosticSeverity, InitializeParams, InitializeResult, MessageType, Position, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, Uri, notification::{self, Notification}, request::{self, Request}};
 use syntax::{Compile, CompileMeta, CompileMetaExtends, Emulate, EmulateInfo, Expand, LSP_DEBUG, LSP_HOVER};
 
 fn main() {
@@ -332,15 +332,18 @@ fn generate_completes(infos: &[EmulateInfo]) -> Vec<CompletionItem> {
             kinds.push(kind);
         }
     }
-    var_counter.iter().map(|(&var, &(count, ref kinds))| {
+    let mut items: Vec<CompletionItem> = var_counter.iter().map(|(&var, &(count, ref kinds))| {
         let is_full_deps = count == full_count;
 
-        let kind = kinds.iter().map(|kind| match kind {
-            Emulate::Const => format!("constant"),
-            Emulate::Binder => format!("binder"),
-            Emulate::ConstBind(var) => format!("const bind to `{var}`"),
-            Emulate::NakedBind(var) => format!("naked bind to `{var}`"),
-        }).unique().join(" & ");
+        let mut first_kind = None;
+        let kind = kinds.iter()
+            .inspect(|k| _ = first_kind.get_or_insert(**k))
+            .map(|kind| match kind {
+                Emulate::Const => format!("constant"),
+                Emulate::Binder => format!("binder"),
+                Emulate::ConstBind(var) => format!("const bind to `{var}`"),
+                Emulate::NakedBind(var) => format!("naked bind to `{var}`"),
+            }).unique().join(" & ");
 
         let (label, detail) = if is_full_deps {
             (var.to_string(), format!("kind: {kind}\nfull deps ({count}/{full_count})"))
@@ -348,13 +351,27 @@ fn generate_completes(infos: &[EmulateInfo]) -> Vec<CompletionItem> {
             (format!("{var}?"), format!("kind: {kind}\npartial deps ({count}/{full_count})"))
         };
 
+        let first_kind = first_kind.map(|it| match it {
+            Emulate::Const => CompletionItemKind::CONSTANT,
+            Emulate::Binder => CompletionItemKind::VALUE,
+            Emulate::ConstBind(_) => CompletionItemKind::METHOD,
+            Emulate::NakedBind(_) => CompletionItemKind::FIELD,
+        });
+
         CompletionItem {
             label,
             detail: Some(detail),
+            kind: first_kind,
             insert_text: Some(var.to_string()),
             ..Default::default()
         }
-    }).collect()
+    }).collect();
+    items.sort_by(|a, b| {
+        let a = a.sort_text.as_ref().unwrap_or(&a.label);
+        let b = b.sort_text.as_ref().unwrap_or(&b.label);
+        (a.starts_with('_'), a).cmp(&(b.starts_with('_'), b))
+    });
+    items
 }
 
 trait NotificationHandler: Notification {
