@@ -312,6 +312,47 @@ impl Value {
     pub fn is_value_bind(&self) -> bool {
         matches!(self, Self::ValueBind(..))
     }
+
+    fn like_used_args_system(&self, meta: &CompileMeta) -> bool {
+        let value = match self {
+            Value::Var(var) => meta.get_const_value(var).map(|d| &d.value),
+            _ => Some(self),
+        };
+        let Some(slot) = value else { return false };
+        let mut slot = slot.clone();
+        for _ in 0..8 {
+            match slot {
+                Value::Var(_) | Value::ReprVar(_) | Value::ResultHandle |
+                Value::Cmper(_) | Value::Binder => return false,
+                Value::BuiltinFunc(_) => return true,
+                Value::ClosuredValue(ClosuredValue::Uninit { value, .. }) => slot = *value,
+                Value::ClosuredValue(ClosuredValue::Inited { bind_handle, .. }) => {
+                    match meta.view_bind(&ClosuredValue::make_valkey(bind_handle.clone()).into()) {
+                        Ok(value) => slot = value,
+                        Err(_) => return false,
+                    }
+                },
+                Value::ClosuredValue(_) => return false,
+                value @ (Value::ValueBind(_) | Value::ValueBindRef(_)) => {
+                    match meta.view_bind(&value) {
+                        Ok(value) => slot = value,
+                        Err(_) => return false,
+                    }
+                },
+                Value::DExp(dexp) => return dexp.lines.iter().find_map(|line| {
+                    match line {
+                        LogicLine::ArgsRepeat(_) => Some(true),
+                        LogicLine::Match(m) => Some(m.args.is_expanded()),
+                        LogicLine::ConstMatch(m) => Some(m.args.is_expanded()),
+                        LogicLine::Other(args) => Some(args.is_expanded()),
+                        LogicLine::SetArgs(args) => Some(args.is_expanded()),
+                        _ => None,
+                    }
+                }).unwrap_or(false),
+            }
+        }
+        false
+    }
 }
 impl TakeHandle for Value {
     fn take_handle(self, meta: &mut CompileMeta) -> Var {
@@ -3831,6 +3872,16 @@ impl Compile for LogicLine {
                 meta.push(lab.to_string().into())
             },
             Self::Other(args) => {
+                if meta.is_emulated && let Some(normal) = args.as_normal()
+                    && let Some(first) = normal.first()
+                    && let Some(var) = first.as_var()
+                    && var.ends_with(LSP_DEBUG)
+                {
+                    meta.emulate(EmulateInfo {
+                        in_other_line_first: true,
+                        ..Default::default()
+                    });
+                }
                 let handles: Vec<Var> = args.into_taked_args_handle(meta);
                 let args = handles.into_iter()
                     .map_to_string()
@@ -4193,11 +4244,13 @@ pub enum Emulate {
 
 #[derive(Debug, Default)]
 pub struct EmulateInfo {
-    pub exist_vars: Option<Vec<(Emulate, Var)>>,
+    /// ...needs arg system
+    pub exist_vars: Option<Vec<(Emulate, Var, bool)>>,
     pub location: Option<(u32, u32)>,
     pub diagnostic: Option<String>,
     pub is_error: bool,
     pub hover_doc: Option<String>,
+    pub in_other_line_first: bool,
 }
 
 struct HoverGuard<'a> { meta: &'a mut CompileMeta, handle: Option<Var> }
@@ -4534,7 +4587,8 @@ impl CompileMeta {
             .map(|var| (Emulate::Const, var))
             .chain(self.value_bind_pairs.keys().map(|var| (Emulate::Binder, var)))
             .for_each(|(kind, var)| if printed.insert(var) {
-                vars.push((kind, var.clone()));
+                let value = Value::from(var.clone());
+                vars.push((kind, var.clone(), value.like_used_args_system(self)));
             });
         self.emulate(EmulateInfo { exist_vars: Some(vars), ..Default::default() });
     }
@@ -4562,13 +4616,16 @@ impl CompileMeta {
             let mut is_const = HashSet::new();
             let mut bind_vars = bind.bind_names.take().unwrap()
                 .inspect(|(var, _)| _ = is_const.insert(*var))
-                .map(|(var, _)| (Emulate::ConstBind(handle.clone()), var.clone()))
+                .map(|(var, _)| {
+                    let value = Value::from(var);
+                    (Emulate::ConstBind(handle.clone()), var.clone(), value.like_used_args_system(self))
+                })
                 .collect::<Vec<_>>();
 
             if let Some(pairs) = self.value_bind_pairs.get(handle) {
                 let naked_binds = pairs.keys()
                     .filter(|var| !is_const.contains(var))
-                    .map(|var| (Emulate::NakedBind(handle.clone()), var.clone()));
+                    .map(|var| (Emulate::NakedBind(handle.clone()), var.clone(), false));
                 bind_vars.extend(naked_binds);
             }
             bind_vars

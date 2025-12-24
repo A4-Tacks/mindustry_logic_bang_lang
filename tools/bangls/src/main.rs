@@ -8,7 +8,7 @@ use display_source::DisplaySourceMeta;
 use line_column::line_column;
 use linked_hash_map::LinkedHashMap;
 use lsp_server::{IoThreads, Message};
-use lsp_types::{CompletionItem, CompletionItemKind, CompletionOptions, Diagnostic, DiagnosticSeverity, InitializeParams, InitializeResult, MessageType, Position, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, Uri, notification::{self, Notification}, request::{self, Request}};
+use lsp_types::{CompletionItem, CompletionItemKind, CompletionOptions, Diagnostic, DiagnosticSeverity, InitializeParams, InitializeResult, InsertTextFormat, MessageType, Position, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, Uri, notification::{self, Notification}, request::{self, Request}};
 use syntax::{Compile, CompileMeta, CompileMetaExtends, Emulate, EmulateInfo, Expand, LSP_DEBUG, LSP_HOVER};
 
 fn main() {
@@ -318,21 +318,26 @@ impl RequestHandler for request::DocumentDiagnosticRequest {
 }
 
 fn generate_completes(infos: &[EmulateInfo]) -> Vec<CompletionItem> {
+    let on_line_first = infos.iter().any(|it| it.in_other_line_first);
     let infos = infos.iter()
         .filter_map(|it| it.exist_vars.as_ref());
     let full_count = infos.clone().count() as u32;
-    let mut var_counter: LinkedHashMap<&syntax::Var, (u32, Vec<_>)> = LinkedHashMap::new();
+    let mut var_counter: LinkedHashMap<&syntax::Var, (u32, Vec<_>, bool)> = LinkedHashMap::new();
     for info in infos {
-        for (kind, var) in info {
+        for (kind, var, use_args) in info {
             if var.starts_with("__") {
                 continue;
             }
-            let (slot, kinds) = var_counter.entry(var).or_default();
+            let (slot, kinds, use_args_slot)
+                = var_counter.entry(var).or_default();
             *slot += 1;
+            *use_args_slot |= *use_args;
             kinds.push(kind);
         }
     }
-    let mut items: Vec<CompletionItem> = var_counter.iter().map(|(&var, &(count, ref kinds))| {
+    let mut items: Vec<CompletionItem> = var_counter.iter().map(
+        |(&var, &(count, ref kinds, use_args))|
+    {
         let is_full_deps = count == full_count;
 
         let mut first_kind = None;
@@ -358,11 +363,20 @@ fn generate_completes(infos: &[EmulateInfo]) -> Vec<CompletionItem> {
             Emulate::NakedBind(_) => CompletionItemKind::FIELD,
         });
 
+        let insert_snippet = match (use_args, on_line_first) {
+            (true, true) => format!("{var}!$0;"),
+            (true, false) => format!("{var}[$0]"),
+            _ => var.to_string(),
+        };
+        let insert_text_format = (*insert_snippet != **var)
+            .then_some(InsertTextFormat::SNIPPET);
+
         CompletionItem {
             label,
             detail: Some(detail),
             kind: first_kind,
-            insert_text: Some(var.to_string()),
+            insert_text: Some(insert_snippet),
+            insert_text_format,
             ..Default::default()
         }
     }).collect();
