@@ -1,10 +1,15 @@
+use display_source::DisplaySource;
+use itertools::Itertools;
+use std::{borrow::Cow, cell::RefCell, collections::HashSet, rc::Rc};
+
 use anyhow::{Result, anyhow, bail};
 use crossbeam_channel::{Receiver, Sender};
+use display_source::DisplaySourceMeta;
 use line_column::line_column;
 use linked_hash_map::LinkedHashMap;
 use lsp_server::{IoThreads, Message};
 use lsp_types::{CompletionItem, CompletionOptions, Diagnostic, DiagnosticSeverity, InitializeParams, InitializeResult, MessageType, Position, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, Uri, notification::{self, Notification}, request::{self, Request}};
-use syntax::{Compile, CompileMeta, Emulate, EmulateInfo, Expand, LSP_DEBUG};
+use syntax::{Compile, CompileMeta, CompileMetaExtends, Emulate, EmulateInfo, Expand, LSP_DEBUG, LSP_HOVER};
 
 fn main() {
     main_loop().unwrap();
@@ -58,6 +63,7 @@ fn main_loop() -> Result<()> {
             lsp_types::DiagnosticOptions::default(),
         )),
         text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
+        hover_provider: Some(lsp_types::HoverProviderCapability::Simple(true)),
         ..Default::default()
     };
     let init_params = {
@@ -122,6 +128,7 @@ impl Ctx {
         let request = &mut Some(request);
 
         self.try_handle_req::<request::Completion>(request)?;
+        self.try_handle_req::<request::HoverRequest>(request)?;
         self.try_handle_req::<request::DocumentDiagnosticRequest>(request)?;
 
         if let Some(request) = request {
@@ -192,6 +199,16 @@ impl Ctx {
         None
     }
 
+    fn try_parse_for_hover(&self, (line, col): (u32, u32), file: &str) -> Option<(Expand, String)> {
+        let index = line_column::index(&file, line, col);
+        let parser = parser::TopLevelParser::new();
+        let source = String::from_iter([&file[..index], LSP_HOVER, &file[index..]]);
+        match parser.parse(&mut syntax::Meta::new(), &source) {
+            Err(_) => None,
+            Ok(top) => Some((top, source)),
+        }
+}
+
     fn parse_for_parse_error(&self, file: &str) -> Result<Expand, ((usize, usize), String)> {
         let parser = parser::TopLevelParser::new();
         match parser.parse(&mut syntax::Meta::new(), file) {
@@ -252,6 +269,38 @@ impl RequestHandler for request::Completion {
         Ok(Some(completes))
     }
 }
+impl RequestHandler for request::HoverRequest {
+    fn handle(ctx: &mut Ctx, param: Self::Params) -> Result<Self::Result> {
+        let uri = param.text_document_position_params.text_document.uri;
+        let (line, col) = lopos(param.text_document_position_params.position);
+
+        let file = ctx.read_file(&uri)?;
+        let Some((top, src)) = ctx.try_parse_for_hover((line, col), &file) else {
+            return Ok(None);
+        };
+        let infos = emulate(top, src);
+        let mut strings = vec![];
+        let mut dedup_set = HashSet::new();
+
+        for info in infos {
+            let Some(hover_doc) = info.hover_doc else {
+                continue;
+            };
+            if dedup_set.contains(&hover_doc) {
+                continue;
+            }
+            dedup_set.insert(hover_doc.clone());
+            strings.push(lsp_types::MarkedString::LanguageString(
+                lsp_types::LanguageString {
+                    language: "mdtlbl".to_owned(),
+                    value: hover_doc,
+                },
+            ));
+        }
+
+        Ok(Some(lsp_types::Hover { contents: lsp_types::HoverContents::Array(strings), range: None }))
+    }
+}
 impl RequestHandler for request::DocumentDiagnosticRequest {
     fn handle(ctx: &mut Ctx, param: Self::Params) -> Result<Self::Result> {
         Ok(lsp_types::DocumentDiagnosticReportResult::Report(
@@ -289,7 +338,7 @@ fn generate_completes(infos: &[EmulateInfo]) -> Vec<CompletionItem> {
             Emulate::Binder => format!("binder"),
             Emulate::ConstBind(var) => format!("const bind to `{var}`"),
             Emulate::NakedBind(var) => format!("naked bind to `{var}`"),
-        }).collect::<Vec<_>>().join(" & ");
+        }).unique().join(" & ");
 
         let (label, detail) = if is_full_deps {
             (var.to_string(), format!("kind: {kind}\nfull deps ({count}/{full_count})"))
@@ -383,12 +432,43 @@ fn tigger_diagnostics(ctx: &mut Ctx, uri: &Uri) -> Vec<Diagnostic> {
 }
 
 fn emulate(top: Expand, src: String) -> Vec<EmulateInfo> {
-    let mut meta = CompileMeta::with_source(src.into());
+    let source: Rc<String> = src.into();
+    let mut meta = CompileMeta::with_source(source.clone());
     meta.is_emulated = true;
+    meta.set_extender(Box::new(Extender::new(source, DisplaySourceMeta::new().into())));
 
     let assert_meta = std::panic::AssertUnwindSafe(&mut meta);
     let _ = std::panic::catch_unwind(|| {
         top.compile(&mut {assert_meta}.0);
     });
     meta.emulate_infos.take()
+}
+
+struct Extender {
+    source: Rc<String>,
+    display_meta: RefCell<DisplaySourceMeta>,
+}
+impl Extender {
+    fn new(source: Rc<String>, display_meta: RefCell<DisplaySourceMeta>) -> Self {
+        Self {
+            source,
+            display_meta,
+        }
+    }
+}
+impl CompileMetaExtends for Extender {
+    fn source_location(&self, index: usize) -> [syntax::Location; 2] {
+        let (line, col) = line_column::line_column(&self.source, index);
+        [line as syntax::Location, col as syntax::Location]
+    }
+    fn display_value(&self, value: &syntax::Value) -> Cow<'_, str> {
+        let meta = &mut *self.display_meta.borrow_mut();
+        meta.to_default();
+        value.display_source_and_get(meta).to_owned().into()
+    }
+    fn display_binds(&self, value: syntax::BindsDisplayer<'_>) -> Cow<'_, str> {
+        let meta = &mut *self.display_meta.borrow_mut();
+        meta.to_default();
+        value.display_source_and_get(meta).to_owned().into()
+    }
 }

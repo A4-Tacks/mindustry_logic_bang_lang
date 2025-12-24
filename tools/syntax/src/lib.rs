@@ -187,6 +187,7 @@ pub const UNUSED_VAR: &str = "0";
 pub const UNNAMED_VAR: &str = "__";
 pub const GLOBAL_VAR: &str = "__global";
 pub const LSP_DEBUG: &str = "__lsp_debug";
+pub const LSP_HOVER: &str = "__lsp_hover__";
 
 trait DisplaySrc {
     fn display_src<'a>(&self, meta: &'a CompileMeta) -> Cow<'a, str>;
@@ -205,6 +206,7 @@ pub trait TakeHandle: Sized {
 impl TakeHandle for Var {
     fn take_handle(mut self, meta: &mut CompileMeta) -> Var {
         meta.debug_expand_env_status(&mut self);
+        meta.debug_hover_var_status(&mut self);
         if let Some(value) = meta.const_expand_enter(&self) {
             // 是一个常量
             let res = match value.clone() {
@@ -1037,6 +1039,8 @@ impl TakeHandle for DExp {
         if dexp_res_is_alloced {
             result = meta.get_tmp_var(); /* init tmp_var */
         } else if take_result {
+            meta.debug_expand_env_status(&mut result);
+            meta.debug_hover_var_status(&mut result);
             if let Some(ConstData { value, .. })
                 = meta.get_const_value(&result)
             {
@@ -1079,7 +1083,9 @@ impl ValueBind {
     pub fn take_unfollow_handle(mut self, meta: &mut CompileMeta) -> Var {
         let handle = self.0.take_handle(meta);
         meta.debug_binds_status(&handle, &mut self.1);
-        meta.get_value_binded(handle, self.1)
+        let mut meta = meta.debug_hover_var_status(&mut self.1);
+        let binded = meta.get_value_binded(handle, self.1);
+        meta.update_hover(binded)
     }
 }
 impl TakeHandle for ValueBind {
@@ -2758,6 +2764,7 @@ impl Const {
             },
             Value::Var(var) => {
                 meta.debug_expand_env_status(var);
+                meta.debug_hover_var_status(var);
                 if let Some(data) = meta.get_const_value(var) {
                     return self.extend_data(data.clone());
                 }
@@ -4190,6 +4197,48 @@ pub struct EmulateInfo {
     pub location: Option<(u32, u32)>,
     pub diagnostic: Option<String>,
     pub is_error: bool,
+    pub hover_doc: Option<String>,
+}
+
+struct HoverGuard<'a> { meta: &'a mut CompileMeta, handle: Option<Var> }
+impl<'a> HoverGuard<'a> {
+    fn update_hover(&mut self, binded: Var) -> Var {
+        if let Some(slot) = self.handle.as_mut() {
+            *slot = binded.clone();
+        }
+        binded
+    }
+}
+impl<'a> ops::DerefMut for HoverGuard<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.meta
+    }
+}
+impl<'a> ops::Deref for HoverGuard<'a> {
+    type Target = CompileMeta;
+
+    fn deref(&self) -> &Self::Target {
+        &self.meta
+    }
+}
+impl<'a> Drop for HoverGuard<'a> {
+    fn drop(&mut self) {
+        let Some(ref var) = self.handle else { return };
+        let meta = &mut self.meta;
+
+        if let Some(data) = meta.get_const_value(var) {
+            let display = data.value.display_src(meta).into_owned();
+            meta.emulate(EmulateInfo {
+                hover_doc: Some(format!("Value = {display}")),
+                ..Default::default()
+            });
+        } else {
+            meta.emulate(EmulateInfo {
+                hover_doc: Some(var.clone().into()),
+                ..Default::default()
+            });
+        }
+    }
 }
 
 pub struct CompileMeta {
@@ -4475,6 +4524,7 @@ impl CompileMeta {
         if !self.is_emulated {
             return;
         }
+
         let Some(raw_var) = var.strip_suffix(LSP_DEBUG) else { return };
         *var = raw_var.into();
         let mut printed = HashSet::new();
@@ -4487,6 +4537,19 @@ impl CompileMeta {
                 vars.push((kind, var.clone()));
             });
         self.emulate(EmulateInfo { exist_vars: vars, ..Default::default() });
+    }
+
+    fn debug_hover_var_status(&mut self, var: &mut Var) -> HoverGuard<'_> {
+        if !self.is_emulated {
+            return HoverGuard { meta: self, handle: None };
+        }
+        let raw_var = var.replacen(LSP_HOVER, "", 1);
+        if *raw_var == **var {
+            return HoverGuard { meta: self, handle: None };
+        }
+        *var = raw_var.into();
+
+        HoverGuard { meta: self, handle: var.clone().into() }
     }
 
     fn debug_binds_status(&mut self, handle: &Var, name: &mut Var) {
@@ -4653,22 +4716,24 @@ impl CompileMeta {
                 if let Some(extra_binder) = extra_binder {
                     data = data.set_binder(extra_binder)
                 }
-                self.add_local_const_data(key, data)
+                self.debug_hover_var_status(&mut key)
+                    .add_local_const_data(key, data)
             },
             ConstKey::ValueBind(ValueBind(binder, mut name)) => {
                 let binder_handle = binder.take_handle(self);
                 // FIXME 这似乎不起作用
                 self.debug_binds_status(&binder_handle, &mut name);
                 let mut data = ConstData::new(value, labels);
-                    if let Some(extra_binder) = extra_binder
-                        .or((binder_handle != GLOBAL_VAR)
-                            .then_some(binder_handle.clone()))
-                    {
-                        data = data.set_binder(extra_binder);
-                    }
-                let binded = self.getadd_value_binded(
-                    binder_handle, name);
-                self.add_global_const_data(binded, data)
+                if let Some(extra_binder) = extra_binder
+                    .or((binder_handle != GLOBAL_VAR)
+                        .then_some(binder_handle.clone()))
+                {
+                    data = data.set_binder(extra_binder);
+                }
+                let mut meta = self.debug_hover_var_status(&mut name);
+                let binded = meta.getadd_value_binded(binder_handle, name);
+                let binded = meta.update_hover(binded);
+                meta.add_global_const_data(binded, data)
             },
         }
     }

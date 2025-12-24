@@ -1,6 +1,6 @@
 [package]
 name = "bangls"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2024"
 
 [features]
@@ -10,10 +10,12 @@ lalrpop = ["parser/lalrpop"]
 [dependencies]
 anyhow = "1.0.100"
 crossbeam-channel = "0.5.15"
+display_source = { version = "*", path = "../display_source" }
+itertools = "0.14.0"
 line-column = "0.2.0"
 linked-hash-map = "0.5.6"
 lsp-server = "0.7.9"
 lsp-types = "0.97.0"
-parser = { version = "0.3.72", path = "../parser", default-features = false }
+parser = { version = "*", path = "../parser", default-features = false }
 serde_json = "1.0.146"
-syntax = { version = "0.2.77", path = "../syntax" }
+syntax = { version = "*", path = "../syntax" }
