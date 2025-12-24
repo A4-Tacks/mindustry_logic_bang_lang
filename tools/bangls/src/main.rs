@@ -1,6 +1,6 @@
 use display_source::DisplaySource;
 use itertools::Itertools;
-use std::{borrow::Cow, cell::RefCell, collections::HashSet, rc::Rc};
+use std::{borrow::Cow, cell::RefCell, collections::HashSet, ops::ControlFlow, rc::Rc};
 
 use anyhow::{Result, anyhow, bail};
 use crossbeam_channel::{Receiver, Sender};
@@ -9,7 +9,7 @@ use line_column::line_column;
 use linked_hash_map::LinkedHashMap;
 use lsp_server::{IoThreads, Message};
 use lsp_types::{CompletionItem, CompletionItemKind, CompletionOptions, Diagnostic, DiagnosticSeverity, InitializeParams, InitializeResult, InsertTextFormat, MessageType, Position, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, Uri, notification::{self, Notification}, request::{self, Request}};
-use syntax::{Compile, CompileMeta, CompileMetaExtends, Emulate, EmulateInfo, Expand, LSP_DEBUG, LSP_HOVER, walk};
+use syntax::{Compile, CompileMeta, CompileMetaExtends, Emulate, EmulateInfo, Expand, LSP_DEBUG, LSP_HOVER};
 
 fn main() {
     main_loop().unwrap();
@@ -262,10 +262,10 @@ impl RequestHandler for request::Completion {
         let Some((top, src)) = ctx.try_parse_for_complete((line, col), &file) else {
             return Ok(None);
         };
-        let on_line_first = on_line_first(&top);
+        let cur_location = cur_location(&top);
         let infos = emulate(top, src);
 
-        let completes = generate_completes(&infos, on_line_first);
+        let completes = generate_completes(&infos, cur_location);
         let completes = lsp_types::CompletionResponse::Array(completes);
         Ok(Some(completes))
     }
@@ -318,11 +318,14 @@ impl RequestHandler for request::DocumentDiagnosticRequest {
     }
 }
 
-fn solid_snippets(on_line_first: bool) -> impl Iterator<Item = CompletionItem> {
+fn solid_snippets(cur_location: CurLocation) -> impl Iterator<Item = CompletionItem> {
     [
         ("const", "const($0)", "const $1 = ${2:($0)};"),
-    ].into_iter().map(move |(label, value, stmt)| {
-        let snip = if on_line_first { stmt } else { value };
+    ].into_iter()
+        .filter(move |_| !matches!(cur_location, CurLocation::BindName { .. }))
+        .map(move |(label, value, stmt)|
+    {
+        let snip = if cur_location == CurLocation::LineFirst { stmt } else { value };
 
         CompletionItem {
             label: label.into(),
@@ -336,7 +339,7 @@ fn solid_snippets(on_line_first: bool) -> impl Iterator<Item = CompletionItem> {
     })
 }
 
-fn generate_completes(infos: &[EmulateInfo], on_line_first: bool) -> Vec<CompletionItem> {
+fn generate_completes(infos: &[EmulateInfo], cur_location: CurLocation) -> Vec<CompletionItem> {
     let infos = infos.iter()
         .filter_map(|it| it.exist_vars.as_ref());
     let full_count = infos.clone().count() as u32;
@@ -381,9 +384,11 @@ fn generate_completes(infos: &[EmulateInfo], on_line_first: bool) -> Vec<Complet
             Emulate::NakedBind(_) => CompletionItemKind::FIELD,
         });
 
-        let insert_snippet = match (use_args, on_line_first) {
-            (true, true) => format!("{var}! $0;"),
-            (true, false) => format!("{var}[$0]"),
+        let insert_snippet = match (use_args, cur_location) {
+            (true, CurLocation::LineFirst | CurLocation::BindName { first: true }) => {
+                format!("{var}! ;")
+            },
+            (true, loc) if loc != CurLocation::LineFirst => format!("{var}[$0]"),
             _ => var.to_string(),
         };
         let insert_text_format = (*insert_snippet != **var)
@@ -397,7 +402,7 @@ fn generate_completes(infos: &[EmulateInfo], on_line_first: bool) -> Vec<Complet
             insert_text_format,
             ..Default::default()
         }
-    }).chain(solid_snippets(on_line_first)).collect();
+    }).chain(solid_snippets(cur_location)).collect();
     items.sort_by(|a, b| {
         let a = a.sort_text.as_ref().unwrap_or(&a.label);
         let b = b.sort_text.as_ref().unwrap_or(&b.label);
@@ -406,25 +411,50 @@ fn generate_completes(infos: &[EmulateInfo], on_line_first: bool) -> Vec<Complet
     items
 }
 
-fn on_line_first(top: &Expand) -> bool {
-    let mut on_line_first = false;
-    let _ = walk::lines(top.iter(), |line| {
-        if let syntax::LogicLine::Other(args) = line
-            && let Some(normal) = args.as_normal()
-            && let Some(syntax::Value::Var(tail)
-                       |syntax::Value::ValueBind(syntax::ValueBind(_, tail))
-                       |syntax::Value::ValueBindRef(syntax::ValueBindRef {
-                           bind_target: syntax::ValueBindRefTarget::NameBind(tail),
-                           ..
-                       })) = normal.first()
-            && tail.ends_with(LSP_DEBUG)
-        {
-            on_line_first = true;
-            return std::ops::ControlFlow::Break(());
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum CurLocation {
+    LineFirst,
+    Binder,
+    BindName { first: bool },
+    Other,
+}
+
+fn cur_location(top: &Expand) -> CurLocation {
+    use syntax::*;
+    use walk::Node;
+
+    let mut location = CurLocation::Other;
+    let pred = |s: &syntax::Var| s.ends_with(LSP_DEBUG);
+    let _ = walk::nodes(top.iter(), |node| {
+        match node {
+            Node::Value(Value::Var(var)) |
+            Node::Key(ConstKey::Var(var))
+                if pred(var) => return ControlFlow::Break(()),
+            Node::Value(Value::ValueBindRef(syntax::ValueBindRef { bind_target: syntax::ValueBindRefTarget::NameBind(name), .. })) |
+            Node::Value(Value::ValueBind(syntax::ValueBind(_, name))) |
+            Node::Key(ConstKey::ValueBind(syntax::ValueBind(_, name)))
+                if pred(name) => return ControlFlow::Break(location = CurLocation::BindName { first: false }),
+            Node::Line(LogicLine::Other(args)) if args.is_normal() => if let Some(norm) = args.as_normal()
+                && let Some(first) = norm.first()
+            {
+                match first {
+                    Value::Var(var) if pred(var) => return ControlFlow::Break(location = CurLocation::LineFirst),
+                    Value::ValueBindRef(ValueBindRef { bind_target: ValueBindRefTarget::NameBind(name), .. }) |
+                    Value::ValueBind(ValueBind(_, name))
+                        if pred(name) => return ControlFlow::Break(location = CurLocation::BindName { first: true }),
+                    _ => ()
+                }
+            }
+            Node::Value(Value::ValueBindRef(syntax::ValueBindRef { value, .. })) |
+            Node::Value(Value::ValueBind(syntax::ValueBind(value, _))) |
+            Node::Key(ConstKey::ValueBind(syntax::ValueBind(value, _)))
+                if value.as_var().is_some_and(pred) => return ControlFlow::Break(location = CurLocation::Binder),
+            _ => (),
         }
-        std::ops::ControlFlow::Continue(())
+
+        ControlFlow::Continue(())
     });
-    on_line_first
+    location
 }
 
 trait NotificationHandler: Notification {

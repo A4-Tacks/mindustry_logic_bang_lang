@@ -10,7 +10,7 @@ use crate::{
 pub fn line(line: &LogicLine, mut f: impl FnMut(&LogicLine) -> ControlFlow<()>) -> ControlFlow<()> {
     walk_internal(line, &mut |elem| {
         match elem {
-            Internal::Line(logic_line) => f(logic_line),
+            Node::Line(logic_line) => f(logic_line),
             _ => ControlFlow::Continue(()),
         }
     })
@@ -23,8 +23,15 @@ pub fn lines<'a>(lines: impl IntoIterator<Item = &'a LogicLine>, mut f: impl FnM
     ControlFlow::Continue(())
 }
 
+pub fn nodes<'a>(nodes: impl IntoIterator<Item = impl Into<Node<'a>> + 'a>, mut f: impl FnMut(Node<'_>) -> ControlFlow<()>) -> ControlFlow<()> {
+    for node in nodes {
+        walk_internal(node.into(), &mut f)?;
+    }
+    ControlFlow::Continue(())
+}
+
 #[derive(Debug, Clone, Copy)]
-enum Internal<'a> {
+pub enum Node<'a> {
     Value(&'a Value),
     Line(&'a LogicLine),
     Cmp(&'a CmpTree),
@@ -32,58 +39,58 @@ enum Internal<'a> {
     MatchPatAtom(&'a MatchPatAtom),
     ConstMatchPatAtom(&'a ConstMatchPatAtom),
 }
-impl<'a> From<&'a ConstMatchPatAtom> for Internal<'a> {
+impl<'a> From<&'a ConstMatchPatAtom> for Node<'a> {
     fn from(v: &'a ConstMatchPatAtom) -> Self {
         Self::ConstMatchPatAtom(v)
     }
 }
-impl<'a> From<&'a MatchPatAtom> for Internal<'a> {
+impl<'a> From<&'a MatchPatAtom> for Node<'a> {
     fn from(v: &'a MatchPatAtom) -> Self {
         Self::MatchPatAtom(v)
     }
 }
-impl<'a> From<&'a Box<ConstKey>> for Internal<'a> {
+impl<'a> From<&'a Box<ConstKey>> for Node<'a> {
     fn from(v: &'a Box<ConstKey>) -> Self {
         Self::Key(v)
     }
 }
-impl<'a> From<&'a ConstKey> for Internal<'a> {
+impl<'a> From<&'a ConstKey> for Node<'a> {
     fn from(v: &'a ConstKey) -> Self {
         Self::Key(v)
     }
 }
-impl<'a> From<&'a Box<CmpTree>> for Internal<'a> {
+impl<'a> From<&'a Box<CmpTree>> for Node<'a> {
     fn from(v: &'a Box<CmpTree>) -> Self {
         Self::Cmp(v)
     }
 }
-impl<'a> From<&'a CmpTree> for Internal<'a> {
+impl<'a> From<&'a CmpTree> for Node<'a> {
     fn from(v: &'a CmpTree) -> Self {
         Self::Cmp(v)
     }
 }
-impl<'a> From<&'a Box<Value>> for Internal<'a> {
+impl<'a> From<&'a Box<Value>> for Node<'a> {
     fn from(v: &'a Box<Value>) -> Self {
         Self::Value(v)
     }
 }
-impl<'a> From<&'a Value> for Internal<'a> {
+impl<'a> From<&'a Value> for Node<'a> {
     fn from(v: &'a Value) -> Self {
         Self::Value(v)
     }
 }
 
-impl<'a> From<&'a LogicLine> for Internal<'a> {
+impl<'a> From<&'a LogicLine> for Node<'a> {
     fn from(v: &'a LogicLine) -> Self {
         Self::Line(v)
     }
 }
 
-fn walk_internal<'a>(elem: impl Into<Internal<'a>>, f: &mut impl FnMut(Internal<'_>) -> ControlFlow<()>) -> ControlFlow<()> {
+fn walk_internal<'a>(elem: impl Into<Node<'a>>, f: &mut impl FnMut(Node<'_>) -> ControlFlow<()>) -> ControlFlow<()> {
     let elem = elem.into();
     f(elem)?;
     match elem {
-        Internal::Value(value) => match value {
+        Node::Value(value) => match value {
             Value::Var(_) | Value::ReprVar(_) | Value::ResultHandle | Value::Binder |
             Value::BuiltinFunc(_) => (),
             Value::ValueBind(ValueBind(value, _)) => walk_internal(value, f)?,
@@ -95,7 +102,7 @@ fn walk_internal<'a>(elem: impl Into<Internal<'a>>, f: &mut impl FnMut(Internal<
             Value::DExp(dexp) => walk_lines_internal(dexp.lines.iter(), f)?,
             Value::Cmper(Cmper(cmp)) => walk_internal(cmp.as_ref().value, f)?,
         },
-        Internal::Line(logic_line) => match logic_line {
+        Node::Line(logic_line) => match logic_line {
             LogicLine::Op(op) => {
                 let crate::OpInfo { result, arg1, arg2, .. } = op.get_info();
                 walk_internal(result, f)?;
@@ -161,7 +168,7 @@ fn walk_internal<'a>(elem: impl Into<Internal<'a>>, f: &mut impl FnMut(Internal<
                 }
             },
         },
-        Internal::Cmp(cmp) => match cmp {
+        Node::Cmp(cmp) => match cmp {
             CmpTree::Deps(inline_block, cmp_tree) => {
                 walk_lines_internal(inline_block.iter(), f)?;
                 walk_internal(cmp_tree, f)?;
@@ -176,16 +183,16 @@ fn walk_internal<'a>(elem: impl Into<Internal<'a>>, f: &mut impl FnMut(Internal<
             },
             CmpTree::Atom(_) => (),
         },
-        Internal::Key(key) => match key {
+        Node::Key(key) => match key {
             ConstKey::Var(_) | ConstKey::Unused(_) => (),
             ConstKey::ValueBind(ValueBind(value, _)) => walk_internal(value, f)?,
         }
-        Internal::MatchPatAtom(match_pat_atom) => {
+        Node::MatchPatAtom(match_pat_atom) => {
             for value in &match_pat_atom.pattern {
                 walk_internal(value, f)?;
             }
         },
-        Internal::ConstMatchPatAtom(const_match_pat_atom) => {
+        Node::ConstMatchPatAtom(const_match_pat_atom) => {
             for value in const_match_pat_atom.pattern.as_ref().map_right(std::slice::from_ref).into_iter() {
                 walk_internal(value, f)?;
             }
@@ -194,25 +201,25 @@ fn walk_internal<'a>(elem: impl Into<Internal<'a>>, f: &mut impl FnMut(Internal<
     ControlFlow::Continue(())
 }
 
-fn walk_lines_internal<'a>(lines: impl IntoIterator<Item = &'a LogicLine>, f: &mut impl FnMut(Internal<'_>) -> ControlFlow<()>) -> ControlFlow<()> {
+fn walk_lines_internal<'a>(lines: impl IntoIterator<Item = &'a LogicLine>, f: &mut impl FnMut(Node<'_>) -> ControlFlow<()>) -> ControlFlow<()> {
     lines.into_iter().try_for_each(|line| walk_internal(line, f))
 }
 
-fn walk_args_internal(args: &Args, f: &mut impl FnMut(Internal<'_>) -> ControlFlow<()>) -> ControlFlow<()> {
+fn walk_args_internal(args: &Args, f: &mut impl FnMut(Node<'_>) -> ControlFlow<()>) -> ControlFlow<()> {
     match args {
         Args::Normal(values) => values.iter().chain(const { &Vec::new() }),
         Args::Expanded(values, values1) => values.iter().chain(values1),
     }.try_for_each(|value| walk_internal(value, f))
 }
 
-fn walk_matchpat_internal(pats: &MatchPat, f: &mut impl FnMut(Internal<'_>) -> ControlFlow<()>) -> ControlFlow<()> {
+fn walk_matchpat_internal(pats: &MatchPat, f: &mut impl FnMut(Node<'_>) -> ControlFlow<()>) -> ControlFlow<()> {
     match pats {
         MatchPat::Normal(match_pat_atoms) => match_pat_atoms.iter().chain(const { &Vec::new() }),
         MatchPat::Expanded(match_pat_atoms, match_pat_atoms1) => match_pat_atoms.iter().chain(match_pat_atoms1),
     }.try_for_each(|value| walk_internal(value, f))
 }
 
-fn walk_cmatchpat_internal(pats: &ConstMatchPat, f: &mut impl FnMut(Internal<'_>) -> ControlFlow<()>) -> ControlFlow<()> {
+fn walk_cmatchpat_internal(pats: &ConstMatchPat, f: &mut impl FnMut(Node<'_>) -> ControlFlow<()>) -> ControlFlow<()> {
     match pats {
         ConstMatchPat::Normal(match_pat_atoms) => match_pat_atoms.iter().chain(const { &Vec::new() }),
         ConstMatchPat::Expanded(match_pat_atoms, _, match_pat_atoms1) => match_pat_atoms.iter().chain(match_pat_atoms1),

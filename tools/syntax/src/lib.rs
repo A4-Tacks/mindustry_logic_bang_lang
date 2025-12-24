@@ -710,7 +710,7 @@ impl BoolOpsExtend for bool {
 /// 当未经过常量追溯, 那么它将采用ValueBind的行为
 #[derive(Debug, PartialEq, Clone)]
 pub struct ValueBindRef {
-    value: Box<Value>,
+    pub value: Box<Value>,
     pub bind_target: ValueBindRefTarget,
 }
 impl ValueBindRef {
