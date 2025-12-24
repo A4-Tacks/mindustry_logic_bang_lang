@@ -9,7 +9,7 @@ use line_column::line_column;
 use linked_hash_map::LinkedHashMap;
 use lsp_server::{IoThreads, Message};
 use lsp_types::{CompletionItem, CompletionItemKind, CompletionOptions, Diagnostic, DiagnosticSeverity, InitializeParams, InitializeResult, InsertTextFormat, MessageType, Position, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, Uri, notification::{self, Notification}, request::{self, Request}};
-use syntax::{Compile, CompileMeta, CompileMetaExtends, Emulate, EmulateInfo, Expand, LSP_DEBUG, LSP_HOVER};
+use syntax::{Compile, CompileMeta, CompileMetaExtends, Emulate, EmulateInfo, Expand, LSP_DEBUG, LSP_HOVER, walk};
 
 fn main() {
     main_loop().unwrap();
@@ -262,9 +262,10 @@ impl RequestHandler for request::Completion {
         let Some((top, src)) = ctx.try_parse_for_complete((line, col), &file) else {
             return Ok(None);
         };
+        let on_line_first = on_line_first(&top);
         let infos = emulate(top, src);
 
-        let completes = generate_completes(&infos);
+        let completes = generate_completes(&infos, on_line_first);
         let completes = lsp_types::CompletionResponse::Array(completes);
         Ok(Some(completes))
     }
@@ -317,8 +318,25 @@ impl RequestHandler for request::DocumentDiagnosticRequest {
     }
 }
 
-fn generate_completes(infos: &[EmulateInfo]) -> Vec<CompletionItem> {
-    let on_line_first = infos.iter().any(|it| it.in_other_line_first);
+fn solid_snippets(on_line_first: bool) -> impl Iterator<Item = CompletionItem> {
+    [
+        ("const", "const($0)", "const $1 = ${2:($0)};"),
+    ].into_iter().map(move |(label, value, stmt)| {
+        let snip = if on_line_first { stmt } else { value };
+
+        CompletionItem {
+            label: label.into(),
+            kind: Some(CompletionItemKind::KEYWORD),
+            insert_text: Some(snip.into()),
+            insert_text_format: Some(InsertTextFormat::SNIPPET),
+            detail: Some(snip.into()),
+            sort_text: Some(label.to_uppercase()),
+            ..Default::default()
+        }
+    })
+}
+
+fn generate_completes(infos: &[EmulateInfo], on_line_first: bool) -> Vec<CompletionItem> {
     let infos = infos.iter()
         .filter_map(|it| it.exist_vars.as_ref());
     let full_count = infos.clone().count() as u32;
@@ -379,13 +397,34 @@ fn generate_completes(infos: &[EmulateInfo]) -> Vec<CompletionItem> {
             insert_text_format,
             ..Default::default()
         }
-    }).collect();
+    }).chain(solid_snippets(on_line_first)).collect();
     items.sort_by(|a, b| {
         let a = a.sort_text.as_ref().unwrap_or(&a.label);
         let b = b.sort_text.as_ref().unwrap_or(&b.label);
         (a.starts_with('_'), a).cmp(&(b.starts_with('_'), b))
     });
     items
+}
+
+fn on_line_first(top: &Expand) -> bool {
+    let mut on_line_first = false;
+    let _ = walk::lines(top.iter(), |line| {
+        if let syntax::LogicLine::Other(args) = line
+            && let Some(normal) = args.as_normal()
+            && let Some(syntax::Value::Var(tail)
+                       |syntax::Value::ValueBind(syntax::ValueBind(_, tail))
+                       |syntax::Value::ValueBindRef(syntax::ValueBindRef {
+                           bind_target: syntax::ValueBindRefTarget::NameBind(tail),
+                           ..
+                       })) = normal.first()
+            && tail.ends_with(LSP_DEBUG)
+        {
+            on_line_first = true;
+            return std::ops::ControlFlow::Break(());
+        }
+        std::ops::ControlFlow::Continue(())
+    });
+    on_line_first
 }
 
 trait NotificationHandler: Notification {

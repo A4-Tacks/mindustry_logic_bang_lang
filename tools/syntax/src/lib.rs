@@ -1,4 +1,5 @@
 mod builtins;
+pub mod walk;
 #[cfg(test)]
 mod tests;
 
@@ -710,7 +711,7 @@ impl BoolOpsExtend for bool {
 #[derive(Debug, PartialEq, Clone)]
 pub struct ValueBindRef {
     value: Box<Value>,
-    bind_target: ValueBindRefTarget,
+    pub bind_target: ValueBindRefTarget,
 }
 impl ValueBindRef {
     pub fn new(value: Box<Value>, bind_target: ValueBindRefTarget) -> Self {
@@ -3872,18 +3873,6 @@ impl Compile for LogicLine {
                 meta.push(lab.to_string().into())
             },
             Self::Other(args) => {
-                if meta.is_emulated && let Some(normal) = args.as_normal()
-                    && let Some(Value::Var(tail)
-                               |Value::ValueBind(ValueBind(_, tail))
-                               |Value::ValueBindRef(ValueBindRef { bind_target: ValueBindRefTarget::NameBind(tail), .. })
-                               ) = normal.first()
-                    && tail.ends_with(LSP_DEBUG)
-                {
-                    meta.emulate(EmulateInfo {
-                        in_other_line_first: true,
-                        ..Default::default()
-                    });
-                }
                 let handles: Vec<Var> = args.into_taked_args_handle(meta);
                 let args = handles.into_iter()
                     .map_to_string()
@@ -4252,7 +4241,6 @@ pub struct EmulateInfo {
     pub diagnostic: Option<String>,
     pub is_error: bool,
     pub hover_doc: Option<String>,
-    pub in_other_line_first: bool,
 }
 
 struct HoverGuard<'a> { meta: &'a mut CompileMeta, handle: Option<Var> }

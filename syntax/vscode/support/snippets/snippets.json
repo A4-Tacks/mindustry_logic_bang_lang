@@ -96,13 +96,6 @@
             "}"
         ]
     },
-    "const value": {
-        "prefix": "const",
-        "description": "const value",
-        "body": [
-            "const $1 = ${2:()};"
-        ]
-    },
     "take": {
         "prefix": "take",
         "description": "take",
