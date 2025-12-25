@@ -1,4 +1,5 @@
 use display_source::DisplaySource;
+use getopts_macro::getopts_options;
 use itertools::Itertools;
 use std::{borrow::Cow, cell::RefCell, collections::HashSet, ops::ControlFlow, rc::Rc};
 
@@ -12,6 +13,30 @@ use lsp_types::{CompletionItem, CompletionItemKind, CompletionOptions, Diagnosti
 use syntax::{Compile, CompileMeta, CompileMetaExtends, Emulate, EmulateInfo, Expand, LSP_DEBUG, LSP_HOVER};
 
 fn main() {
+    let options = getopts_options! {
+        -h, --help          "show help message";
+        -v, --version       "show version";
+    };
+    let matches = match options.parse(std::env::args().skip(1)) {
+        Ok(it) => it,
+        Err(e) => {
+            eprintln!("{e}");
+            std::process::exit(2);
+        },
+    };
+    if matches.opt_present("help") {
+        println!("{}", options.short_usage(env!("CARGO_BIN_NAME")).trim_end());
+        return;
+    }
+    if matches.opt_present("version") {
+        println!("{}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+    if let Some(arg) = matches.free.first() {
+        eprintln!("Extra arg {arg:?}");
+        std::process::exit(2);
+    }
+
     main_loop().unwrap();
 }
 

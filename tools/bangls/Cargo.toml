@@ -1,6 +1,6 @@
 [package]
 name = "bangls"
-version = "0.1.12"
+version = "0.1.13"
 edition = "2024"
 
 [features]
@@ -11,6 +11,7 @@ lalrpop = ["parser/lalrpop"]
 anyhow = "1.0.100"
 crossbeam-channel = "0.5.15"
 display_source = { version = "*", path = "../display_source" }
+getopts-macro = "0.1.8"
 itertools = "0.14.0"
 line-column = "0.2.0"
 linked-hash-map = "0.5.6"
