@@ -341,12 +341,24 @@ impl Value {
                     }
                 },
                 Value::DExp(dexp) => return dexp.lines.iter().find_map(|line| {
+                    let is_ost = |name: &Var| {
+                        name.strip_prefix('_')
+                            .is_some_and(|s| s.parse::<u8>().is_ok())
+                    };
+                    let expand_or_ost = |args: &Args| {
+                        args.is_expanded() || args.as_normal().is_some_and(|args| {
+                            args.iter().filter_map(Value::as_var).any(is_ost)
+                        })
+                    };
                     match line {
                         LogicLine::ArgsRepeat(_) => Some(true),
-                        LogicLine::Match(m) => Some(m.args.is_expanded()),
-                        LogicLine::ConstMatch(m) => Some(m.args.is_expanded()),
-                        LogicLine::Other(args) => Some(args.is_expanded()),
-                        LogicLine::SetArgs(args) => Some(args.is_expanded()),
+                        LogicLine::Match(m) => Some(expand_or_ost(&m.args)),
+                        LogicLine::ConstMatch(m) => Some(expand_or_ost(&m.args)),
+                        LogicLine::Other(args) => Some(expand_or_ost(args)),
+                        LogicLine::SetArgs(args) => Some(expand_or_ost(args)),
+                        LogicLine::Const(Const(_, Value::Var(name), _)) |
+                        LogicLine::Take(Take(_, Value::Var(name)))
+                            if is_ost(name) => Some(true),
                         _ => None,
                     }
                 }).unwrap_or(false),
@@ -355,6 +367,7 @@ impl Value {
         false
     }
 }
+
 impl TakeHandle for Value {
     fn take_handle(self, meta: &mut CompileMeta) -> Var {
         if let Some(var) = self.try_eval_const_num_to_var(meta) {
