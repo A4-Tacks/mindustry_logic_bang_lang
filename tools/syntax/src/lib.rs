@@ -4290,7 +4290,27 @@ impl<'a> Drop for HoverGuard<'a> {
         let meta = &mut self.meta;
         let mut valued = None;
 
-        if let Some(data) = meta.get_const_value(var) {
+        if var == "@" {
+            let args = meta.get_env_args();
+            let doc = args.iter()
+                .map(|var| match meta.get_const_value(var) {
+                    Some(data) => {
+                        let value = data.value.display_src(meta);
+                        if value.trim().contains('\n') {
+                            format!("#*{var} complex {}*#", builtins::value_type(data.value()))
+                        } else {
+                            value.trim().to_owned()
+                        }
+                    },
+                    None => "#*unknown*#".into(),
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
+            meta.emulate(EmulateInfo {
+                hover_doc: Some(format!("Args = {doc}")),
+                ..Default::default()
+            });
+        } else if let Some(data) = meta.get_const_value(var) {
             let display = valued.get_or_insert(data.value.display_src(meta));
             meta.emulate(EmulateInfo {
                 hover_doc: Some(format!("Value = {display}")),

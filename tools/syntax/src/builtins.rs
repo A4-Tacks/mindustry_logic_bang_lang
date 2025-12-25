@@ -130,21 +130,22 @@ macro_rules! build_builtin_funcs {
     };
 }
 
-pub fn build_builtins() -> Vec<BuiltinFunc> {
-    fn value_type(value: impl Borrow<Value>) -> &'static str {
-        match value.borrow() {
-            Value::Var(_) => "var",
-            Value::DExp(_) => "dexp",
-            Value::ReprVar(_) => "reprvar",
-            Value::ResultHandle => "resulthandle",
-            Value::ValueBind(_) => "valuebind",
-            Value::ValueBindRef(_) => "valuebindref",
-            Value::Cmper(_) => "cmper",
-            Value::Binder => "binder",
-            Value::BuiltinFunc(_) => "builtinfunc",
-            Value::ClosuredValue(_) => "closuredvalue",
-        }
+pub(crate) fn value_type(value: impl Borrow<Value>) -> &'static str {
+    match value.borrow() {
+        Value::Var(_) => "var",
+        Value::DExp(_) => "dexp",
+        Value::ReprVar(_) => "reprvar",
+        Value::ResultHandle => "resulthandle",
+        Value::ValueBind(_) => "valuebind",
+        Value::ValueBindRef(_) => "valuebindref",
+        Value::Cmper(_) => "cmper",
+        Value::Binder => "binder",
+        Value::BuiltinFunc(_) => "builtinfunc",
+        Value::ClosuredValue(_) => "closuredvalue",
     }
+}
+
+pub fn build_builtins() -> Vec<BuiltinFunc> {
     macro_rules! check_type {
         ($type:literal $pat:pat = $value:expr => $body:expr) => {{
             let value = $value;

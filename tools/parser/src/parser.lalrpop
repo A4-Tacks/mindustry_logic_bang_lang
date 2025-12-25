@@ -145,7 +145,7 @@ ReprVar: Var = {
 }
 String: Var = r#""(?:\\\r?\n\s*(?:\\ )?|\r?\n|\\[n\\\[]|[^"\r\n\\])*""#
     => string_escape(<>).into();
-Ident: Var = r"[_\p{XID_Start}]\p{XID_Continue}*" => <>.into();
+Ident: Var = r"[_\p{XID_Start}]\p{XID_Continue}*|__lsp_hover__@" => <>.into();
 OIdent: Var = r"@[_\p{XID_Start}][\p{XID_Continue}\-]*" => <>.into(); // `@abc-def`这种
 pub Number: Var = r"-?(?:0x-?[\da-fA-F][_\da-fA-F]*|0b-?[01][_01]*|\d[_\d]*(?:\.\d[\d_]*|e[+\-]?\d[\d_]*)?)"
     => <>.chars().filter(|&c| c != '_').collect();
