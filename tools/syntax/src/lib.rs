@@ -3071,7 +3071,11 @@ impl Compile for ArgsRepeat {
         let count = match self.count.value {
             Either::Left(0) => { set_args = false; 0 },
             Either::Left(count) => count,
-            Either::Right(value) => {
+            Either::Right(mut value) => {
+                if let Value::Var(var) = &mut value {
+                    meta.debug_expand_env_status(var);
+                    meta.debug_hover_var_status(var);
+                }
                 let Some((n, _)) = value.try_eval_const_num(meta) else {
                     let loc = loc.location(&meta.source);
                     err!(loc =>
@@ -4243,7 +4247,10 @@ pub struct EmulateInfo {
     pub hover_doc: Option<String>,
 }
 
-struct HoverGuard<'a> { meta: &'a mut CompileMeta, handle: Option<Var> }
+struct HoverGuard<'a> {
+    meta: &'a mut CompileMeta,
+    handle: Option<Var>,
+}
 impl<'a> HoverGuard<'a> {
     fn update_hover(&mut self, binded: Var) -> Var {
         if let Some(slot) = self.handle.as_mut() {
@@ -4268,9 +4275,10 @@ impl<'a> Drop for HoverGuard<'a> {
     fn drop(&mut self) {
         let Some(ref var) = self.handle else { return };
         let meta = &mut self.meta;
+        let mut valued = None;
 
         if let Some(data) = meta.get_const_value(var) {
-            let display = data.value.display_src(meta).into_owned();
+            let display = valued.get_or_insert(data.value.display_src(meta));
             meta.emulate(EmulateInfo {
                 hover_doc: Some(format!("Value = {display}")),
                 ..Default::default()
@@ -4280,6 +4288,16 @@ impl<'a> Drop for HoverGuard<'a> {
                 hover_doc: Some(var.clone().into()),
                 ..Default::default()
             });
+        }
+        if let Some((num, complex)) = Value::from(var).try_eval_const_num(meta) {
+            let eq = if complex { "=" } else { ":=" };
+            let num = num.to_string();
+            if Some(num.as_str()) != valued.as_deref() {
+                meta.emulate(EmulateInfo {
+                    hover_doc: Some(format!("Eval {eq} {num}")),
+                    ..Default::default()
+                });
+            }
         }
     }
 }
