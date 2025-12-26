@@ -438,7 +438,7 @@ pub fn format_parse_err<const MAX_INVALID_TOKEN_VIEW: usize>(
 
 fn get_token_name(s: &str) -> Option<&'static str> {
     match s {
-        r###"r#"[_\\p{XID_Start}]\\p{XID_Continue}|__lsp_hover__@*"#"###
+        r###"r#"[_\\p{XID_Start}]\\p{XID_Continue}*|__lsp_hover__@"#"###
             => "Identify",
         r###"r#"@[_\\p{XID_Start}][\\p{XID_Continue}\\-]*"#"###
             => "OIdentify",
