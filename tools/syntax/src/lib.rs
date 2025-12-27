@@ -163,9 +163,9 @@ macro_rules! err {
         err!(None => $fmtter $(, $args)*);
     };
     ( $loc:expr => $fmtter:expr $(, $args:expr)* $(,)? ) => {
-        let err = format!(concat!("CompileError:\n", $fmtter), $($args),*);
-        eprintln!("\x1b[1;31m{err}\x1b[22;39m");
-        $crate::LAST_ERR.replace(($loc.into(), err));
+        let err = format_args!($fmtter, $($args),*);
+        eprintln!("\x1b[1;31mCompileError:\n{err}\x1b[22;39m");
+        $crate::LAST_ERR.replace(($loc.into(), format!("CompileError: {err}")));
     };
 }
 thread_local! {
@@ -389,7 +389,7 @@ impl TakeHandle for Value {
             ref cmp @ Self::Cmper(Cmper(ref loc)) => {
                 let loc = loc.location(&meta.source);
                 err!(loc =>
-                    "{}\n最终未被展开的 Cmper, 位于: {}:{}\n{}",
+                    "{}最终未被展开的 Cmper, 位于: {}:{}\n{}",
                     meta.err_info().join("\n"),
                     loc.0,
                     loc.1,
@@ -1107,7 +1107,7 @@ impl TakeHandle for DExp {
                 } else {
                     err!(
                         concat!(
-                            "{}\n\
+                            "{}\
                             尝试在`DExp`的返回句柄处使用值不为Var的const, ",
                             "此处仅允许使用`Var`\n",
                             "值: {}\n",
@@ -3092,7 +3092,7 @@ impl Compile for ArgsRepeat {
                 let Some((n, _)) = value.try_eval_const_num(meta) else {
                     let loc = loc.location(&meta.source);
                     err!(loc =>
-                        "{}\n重复块次数不是数字, 位于: {}:{}\n{}",
+                        "{}重复块次数不是数字, 位于: {}:{}\n{}",
                         meta.err_info().join("\n"),
                         loc.0, loc.1,
                         value.display_src(meta),
@@ -3103,7 +3103,7 @@ impl Compile for ArgsRepeat {
                 if n < 0.0 || !n.is_finite() {
                     let loc = loc.location(&meta.source);
                     err!(loc =>
-                        "{}\n重复块次数必须不小于0 ({}), 位于: {}:{}",
+                        "{}重复块次数必须不小于0 ({}), 位于: {}:{}",
                         meta.err_info().join("\n"),
                         n, loc.0, loc.1
                     );
@@ -3112,7 +3112,7 @@ impl Compile for ArgsRepeat {
                 if n > 512.0 {
                     let loc = loc.location(&meta.source);
                     err!(loc =>
-                        "{}\n重复块次数过大 ({}), 位于: {}:{}",
+                        "{}重复块次数过大 ({}), 位于: {}:{}",
                         meta.err_info().join("\n"),
                         n, loc.0, loc.1
                     );
@@ -4906,7 +4906,7 @@ impl CompileMeta {
     /// 对在DExp外部使用某些东西进行报错
     fn do_out_of_dexp_err(&self, value: &str) -> ! {
         err!(
-            "{}\n尝试在`DExp`的外部使用{}",
+            "{}尝试在`DExp`的外部使用{}",
             self.err_info().join("\n"),
             value,
         );
@@ -4998,6 +4998,7 @@ impl CompileMeta {
 
             res.push("已生成代码:".into());
             res.extend(tag_lines);
+            res.push(String::new());
         }
         res
     }
