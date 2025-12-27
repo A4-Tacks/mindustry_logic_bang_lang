@@ -112,7 +112,7 @@ COArgs<T, S>: Vec<T> = {
 #[inline]
 Opt<T>: bool = T? => <>.is_some();
 MakeDExpBody<T>: DExp = {
-    <var:(<Var> ":")?> <value:T>
+    <var:(<Loc<Var>> ":")?> <value:T>
         => DExp::new_optional_res(var, value.into()),
     <var:ReprVar> ":" <value:T>
         => DExp::new_notake(var, value.into()),

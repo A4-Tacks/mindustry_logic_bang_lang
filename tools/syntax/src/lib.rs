@@ -1035,12 +1035,12 @@ impl TakeHandle for ClosuredValue {
 #[derive(Debug, PartialEq, Clone)]
 pub struct DExp {
     take_result: bool,
-    result: Var,
+    result: IdxBox<Var>,
     lines: Expand,
 }
 impl DExp {
     pub fn new(result: Var, lines: Expand) -> Self {
-        Self::new_optional_res(result.into(), lines)
+        Self::new_optional_res(Some(IdxBox::new(0, result)), lines)
     }
 
     pub fn new_notake(result: Var, lines: Expand) -> Self {
@@ -1048,7 +1048,7 @@ impl DExp {
     }
 
     /// 新建一个可能指定返回值的DExp
-    pub fn new_optional_res(result: Option<Var>, lines: Expand) -> Self {
+    pub fn new_optional_res(result: Option<IdxBox<Var>>, lines: Expand) -> Self {
         Self {
             take_result: true,
             result: result.unwrap_or_default(),
@@ -1060,7 +1060,7 @@ impl DExp {
     pub fn new_optional_res_notake(result: Option<Var>, lines: Expand) -> Self {
         Self {
             take_result: false,
-            result: result.unwrap_or_default(),
+            result: IdxBox::new(1, result.unwrap_or_default()),
             lines
         }
     }
@@ -1071,7 +1071,7 @@ impl DExp {
     }
 
     pub fn result(&self) -> &str {
-        self.result.as_ref()
+        &self.result
     }
 
     pub fn lines(&self) -> &Expand {
@@ -1092,7 +1092,7 @@ impl TakeHandle for DExp {
 
         let dexp_res_is_alloced = result.is_empty();
         if dexp_res_is_alloced {
-            result = meta.get_tmp_var(); /* init tmp_var */
+            *result = meta.get_tmp_var(); /* init tmp_var */
         } else if take_result {
             meta.debug_expand_env_status(&mut result);
             meta.debug_hover_var_status(&mut result);
@@ -1101,28 +1101,26 @@ impl TakeHandle for DExp {
             {
                 // 对返回句柄使用常量值的处理
                 if value.is_result_handle() {
-                    result = meta.get_tmp_var();
+                    *result = meta.get_tmp_var();
                 } else if value.is_var() {
-                    result = value.as_var().unwrap().clone();
+                    *result = value.as_var().unwrap().clone();
                 } else {
-                    err!(
-                        concat!(
-                            "{}\
-                            尝试在`DExp`的返回句柄处使用值不为Var的const, ",
-                            "此处仅允许使用`Var`\n",
-                            "值: {}\n",
-                            "名称: {}",
-                        ),
+                    let loc = result.location(&meta.source);
+                    err!(loc =>
+                        "{}尝试在`DExp`的返回句柄处使用值不为Var的const, \
+                            此处仅允许使用`Var`\n\
+                            值: {}\n\
+                            名称: {}",
                         meta.err_info().join("\n"),
                         value.display_src(meta),
-                        Value::Var(result).display_src(meta),
+                        Value::Var(result.value).display_src(meta),
                     );
                     meta.exit(5);
                 }
             }
         }
         assert!(! result.is_empty());
-        meta.push_dexp_handle(result);
+        meta.push_dexp_handle(result.value);
         lines.compile(meta);
 
         meta.pop_dexp_handle()
