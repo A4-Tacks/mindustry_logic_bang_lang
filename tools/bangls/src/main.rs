@@ -385,15 +385,23 @@ fn solid_snippets(cur_location: CurLocation) -> impl Iterator<Item = CompletionI
 }
 
 fn generate_completes(infos: &[EmulateInfo], cur_location: CurLocation) -> Vec<CompletionItem> {
+    fn hide_special(s: &str) -> bool {
+        s.chars().next().as_ref().is_none_or(char::is_ascii_digit)
+            || s.starts_with("Builtin__")
+    }
     let infos = infos.iter()
         .filter_map(|it| it.exist_vars.as_ref());
     let full_count = infos.clone().count() as u32;
     let mut var_counter: LinkedHashMap<&syntax::Var, (u32, Vec<_>, bool)> = LinkedHashMap::new();
     for info in infos {
         for (kind, var, use_args) in info {
-            if var.starts_with("__") {
+            if var.strip_prefix("__").is_some_and(hide_special) {
                 continue;
             }
+            if var.is_empty() {
+                continue;
+            }
+
             let (slot, kinds, use_args_slot)
                 = var_counter.entry(var).or_default();
             *slot += 1;
