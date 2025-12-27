@@ -91,7 +91,7 @@ fn walk_internal<'a>(elem: impl Into<Node<'a>>, f: &mut impl FnMut(Node<'_>) -> 
     f(elem)?;
     match elem {
         Node::Value(value) => match value {
-            Value::Var(_) | Value::ReprVar(_) | Value::ResultHandle | Value::Binder |
+            Value::Var(_) | Value::ReprVar(_) | Value::ResultHandle(_) | Value::Binder |
             Value::BuiltinFunc(_) => (),
             Value::ValueBind(ValueBind(value, _)) => walk_internal(value, f)?,
             Value::ValueBindRef(it) => walk_internal(&it.value, f)?,

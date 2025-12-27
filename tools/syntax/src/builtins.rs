@@ -135,7 +135,7 @@ pub(crate) fn value_type(value: impl Borrow<Value>) -> &'static str {
         Value::Var(_) => "var",
         Value::DExp(_) => "dexp",
         Value::ReprVar(_) => "reprvar",
-        Value::ResultHandle => "resulthandle",
+        Value::ResultHandle(_) => "resulthandle",
         Value::ValueBind(_) => "valuebind",
         Value::ValueBindRef(_) => "valuebindref",
         Value::Cmper(_) => "cmper",

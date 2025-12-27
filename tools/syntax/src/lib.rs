@@ -242,7 +242,7 @@ pub enum Value {
     /// 不可被常量替换的普通值
     ReprVar(Var),
     /// 编译时被替换为当前DExp返回句柄
-    ResultHandle,
+    ResultHandle(Option<IdxBox>),
     ValueBind(ValueBind),
     ValueBindRef(ValueBindRef),
     /// 一个跳转条件, 未决目标的跳转, 它会被内联
@@ -323,7 +323,7 @@ impl Value {
         let mut slot = slot.clone();
         for _ in 0..8 {
             match slot {
-                Value::Var(_) | Value::ReprVar(_) | Value::ResultHandle |
+                Value::Var(_) | Value::ReprVar(_) | Value::ResultHandle(_) |
                 Value::Cmper(_) | Value::Binder => return false,
                 Value::BuiltinFunc(_) => return true,
                 Value::ClosuredValue(ClosuredValue::Uninit { value, .. }) => slot = *value,
@@ -378,7 +378,7 @@ impl TakeHandle for Value {
         match self {
             Self::Var(var) => var.take_handle(meta),
             Self::DExp(dexp) => dexp.take_handle(meta),
-            Self::ResultHandle => meta.dexp_handle().clone(),
+            Self::ResultHandle(loc) => meta.dexp_handle(loc.unwrap_or_default()).clone(),
             Self::ReprVar(var) => var,
             Self::ValueBind(val_bind) => val_bind.take_handle(meta),
             Self::ValueBindRef(bindref) => bindref.take_handle(meta),
@@ -517,11 +517,11 @@ impl Value {
     /// [`ResultHandle`]: Value::ResultHandle
     #[must_use]
     pub fn is_result_handle(&self) -> bool {
-        matches!(self, Self::ResultHandle)
+        matches!(self, Self::ResultHandle(_))
     }
 
     pub fn as_result_handle(&self) -> Option<()> {
-        if let Self::ResultHandle = self {
+        if let Self::ResultHandle(_) = self {
             ().into()
         } else {
             None
@@ -600,7 +600,7 @@ impl Value {
             Value::ValueBind(..) => None,
             Value::ValueBindRef(..) => None,
             // NOTE: 这不能实现, 否则可能牵扯一些不希望的作用域问题
-            Value::ResultHandle => None,
+            Value::ResultHandle(_) => None,
             Value::BuiltinFunc(_) | Value::DExp(_)
             | Value::Cmper(_) | Value::ClosuredValue(_) => None,
         }
@@ -1107,11 +1107,11 @@ impl TakeHandle for DExp {
                 } else {
                     let loc = result.location(&meta.source);
                     err!(loc =>
-                        "{}尝试在`DExp`的返回句柄处使用值不为Var的const, \
+                        "{}{}:{} 尝试在`DExp`的返回句柄处使用值不为Var的const, \
                             此处仅允许使用`Var`\n\
                             值: {}\n\
                             名称: {}",
-                        meta.err_info().join("\n"),
+                        meta.err_info().join("\n"), loc.0, loc.1,
                         value.display_src(meta),
                         Value::Var(result.value).display_src(meta),
                     );
@@ -1512,7 +1512,7 @@ impl JumpCmp {
             Self::StrictNotEqual(a, b) => {
                 Self::bool(
                     DExp::new_nores(vec![
-                        Op::StrictEqual(Value::ResultHandle, a, b).into()
+                        Op::StrictEqual(Value::ResultHandle(None), a, b).into()
                     ].into()).into()
                 ).reverse()
             },
@@ -1801,8 +1801,8 @@ impl CmpTree {
                     .into(),
                 | V::ReprVar(s)
                 => Some(&**s),
-                | V::ResultHandle
-                => Some(&**meta.dexp_handle()),
+                | V::ResultHandle(loc)
+                => Some(&**meta.dexp_handle(loc.clone().unwrap_or_default())),
                 | V::Binder
                 => Some(meta.get_dexp_expand_binder().map(|s| &**s).unwrap_or(UNNAMED_VAR)),
                 | V::DExp(_)
@@ -2825,7 +2825,7 @@ impl Const {
             Value::ClosuredValue(closure) => closure.catch_env(meta),
             val @ Value::ValueBindRef(_) => {
                 let Value::ValueBindRef(bindref)
-                    = replace(val, Value::ResultHandle)
+                    = replace(val, Value::ResultHandle(None))
                     else { unreachable!() };
                 let data = bindref.do_follow(meta);
                 match data {
@@ -3898,11 +3898,11 @@ impl Compile for LogicLine {
                 meta.push(args);
             },
             Self::SetResultHandle(value, must_effect) => {
-                if let Some(loc) = must_effect {
+                if let Some(ref loc) = must_effect {
                     meta.check_must_effect(loc.new_value(&value));
                 }
                 let new_dexp_handle = value.take_handle(meta);
-                meta.set_dexp_handle(new_dexp_handle);
+                meta.set_dexp_handle(new_dexp_handle, must_effect.unwrap_or_default());
             },
             Self::SetArgs(args) => {
                 fn iarg(i: usize) -> Var {
@@ -4885,26 +4885,27 @@ impl CompileMeta {
     }
 
     /// 获取当前DExp返回句柄
-    pub fn dexp_handle(&self) -> &Var {
+    pub fn dexp_handle(&self, loc: IdxBox) -> &Var {
         self.try_get_dexp_handle()
             .unwrap_or_else(
-                || self.do_out_of_dexp_err("`DExpHandle` (`$`)"))
+                || self.do_out_of_dexp_err("`DExpHandle` (`$`), 将其改为某个具体变量?", loc))
     }
 
     /// 将当前DExp返回句柄替换为新的
     /// 并将旧的句柄返回
-    pub fn set_dexp_handle(&mut self, new_dexp_handle: Var) -> Var {
+    pub fn set_dexp_handle(&mut self, new_dexp_handle: Var, loc: IdxBox) -> Var {
         if let Some(ref_) = self.dexp_result_handles.last_mut() {
             replace(ref_, new_dexp_handle)
         } else {
-            self.do_out_of_dexp_err("`setres`")
+            self.do_out_of_dexp_err("`setres`", loc)
         }
     }
 
     /// 对在DExp外部使用某些东西进行报错
-    fn do_out_of_dexp_err(&self, value: &str) -> ! {
-        err!(
-            "{}尝试在`DExp`的外部使用{}",
+    fn do_out_of_dexp_err(&self, value: &str, loc: IdxBox) -> ! {
+        let (line, col) = loc.location(&self.source);
+        err!((line, col) =>
+            "{}{line}:{col} 尝试在`DExp`的外部使用{}",
             self.err_info().join("\n"),
             value,
         );
@@ -5210,8 +5211,8 @@ impl CompileMeta {
             }
             match value {
                 Value::ReprVar(var) => Ok(var.into()),
-                Value::ResultHandle => meta.try_get_dexp_handle().ok_or_else(|| {
-                    QueryErr::NotFound(Value::ResultHandle)
+                Value::ResultHandle(loc) => meta.try_get_dexp_handle().ok_or_else(|| {
+                    QueryErr::NotFound(Value::ResultHandle(loc.clone()))
                 }).map(|v| v.into()),
                 Value::Binder => meta.get_dexp_expand_binder().ok_or_else(|| {
                     QueryErr::NotFound(Value::Binder)
@@ -5257,7 +5258,7 @@ impl CompileMeta {
     fn has_no_effect(&self, value: &Value) -> Option<Value> {
         match self.view_bind(value) {
             Ok(value) => match &value {
-                Value::Var(..) | Value::ReprVar(..) | Value::ResultHandle |
+                Value::Var(..) | Value::ReprVar(..) | Value::ResultHandle(_) |
                 Value::Binder => Some(value),
                 _ => None,
             },
@@ -5470,7 +5471,7 @@ impl OpExprType {
                 let (true_lab, skip_lab)
                     = (meta.get_tag(), meta.get_tag());
                 DExp::new_nores(vec![
-                    Take(child_result.into(), Value::ResultHandle).into(),
+                    Take(child_result.into(), Value::ResultHandle(None)).into(),
                     Goto(true_lab.clone(), cmp).into(),
                     false_line,
                     Goto(skip_lab.clone(), JumpCmp::Always.into()).into(),
@@ -5486,7 +5487,7 @@ impl OpExprType {
                 DExp::new_nores(vec![
                     LogicLine::Other(Args::Normal(vec![
                         Value::ReprVar("select".into()),
-                        Value::ResultHandle,
+                        Value::ResultHandle(None),
                         Value::ReprVar(cmp_str.into()),
                         a,
                         b,
@@ -5508,7 +5509,7 @@ impl OpExprType {
                 let set_line = ext
                     .map(|ext| *ext)
                     .unwrap_or_else(|| Self::Value(handle.clone().into()))
-                    .into_logic_line(meta, Value::ResultHandle);
+                    .into_logic_line(meta, Value::ResultHandle(None));
 
                 DExp::new_nores(vec![
                     Take(handle.into(), value).into(),
