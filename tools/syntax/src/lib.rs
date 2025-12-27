@@ -1161,6 +1161,7 @@ pub struct Meta {
     op_expr_refs: Vec<Var>,
     unnamed_var: Var,
     line_pack: Vec<(Vec<LogicLine>, Vec<LogicLine>)>,
+    pub testing: bool,
 }
 impl Default for Meta {
     fn default() -> Self {
@@ -1174,6 +1175,7 @@ impl Default for Meta {
             op_expr_refs: vec![unnamed_var.clone()],
             unnamed_var,
             line_pack: vec![],
+            testing: false,
         }
     }
 }

@@ -7,16 +7,20 @@ use logic_parser::{ParseLine, IdxBox};
 
 /// 快捷的创建一个新的`Meta`并且`parse`
 macro_rules! parse {
-    ( $parser:expr, $src:expr ) => {
-        ($parser).parse(&mut Meta::new(), $src)
-    };
+    ( $parser:expr, $src:expr ) => {{
+        let meta = &mut Meta::new();
+        meta.testing = true;
+        ($parser).parse(meta, $src)
+    }};
 }
 
 macro_rules! check_sugar {
     ( $parser:expr, $a:expr, $b:expr $(,)? ) => {
         let (a, b) = (parse!($parser, $a), parse!($parser, $b));
         if a != b {
-            panic!("check sugar fail:\nraw:\n{a:#?}\ndesugar:\n{b:#?}");
+            let (a, b) = (format!("{a:#?}"), format!("{b:#?}"));
+            differ(&a, &b);
+            panic!("check sugar fail");
         }
     };
 }
@@ -61,22 +65,27 @@ fn check_compile_result(current: Vec<String>, expected: &str) {
     if lines.clone().eq(&current) {
         return;
     }
+
+    differ(&current.join("\n"), &lines.collect::<Vec<_>>().join("\n"));
+
+    println!();
+    panic!("compile result mismatch")
+}
+
+#[track_caller]
+fn differ(current: &str, expect: &str) {
     println!("-- current --");
-    for cur in &current {
-        println!("{cur}")
-    }
+    println!("{current}");
     println!();
     println!("-- expected --");
-    for line in lines.clone() {
-        println!("{line}")
-    }
+    println!("{expect}");
 
     println!();
     println!("-- diff --");
 
     for diff_chunk in dissimilar::diff(
-        &current.join("\n"),
-        &lines.collect::<Vec<_>>().join("\n"),
+        &current,
+        &expect,
     ) {
         match diff_chunk {
             dissimilar::Chunk::Equal(s) => eprint!("{s}"),
@@ -84,9 +93,6 @@ fn check_compile_result(current: Vec<String>, expected: &str) {
             dissimilar::Chunk::Insert(s) => eprint!("\x1b[42m{s}\x1b[m\x1b[K"),
         }
     }
-
-    println!();
-    panic!("compile result mismatch")
 }
 
 trait PCompile {
@@ -163,20 +169,20 @@ fn expand_test() {
             DExp::new_nores(
                 vec![
                     Op::Add(
-                        Value::ResultHandle,
+                        Value::ResultHandle(None),
                         "1".into(),
                         "2".into()
                     ).into(),
                     Op::Mul(
-                        Value::ResultHandle,
-                        Value::ResultHandle,
+                        Value::ResultHandle(None),
+                        Value::ResultHandle(None),
                         "2".into()
                     ).into()
                 ].into()).into(),
-            DExp::new(
-                "x".into(),
+            DExp::new_optional_res(
+                Some(IdxBox::new(36, "x".into())),
                 vec![
-                    Op::Mul(Value::ResultHandle, "2".into(), "3".into()).into()
+                    Op::Mul(Value::ResultHandle(None), "2".into(), "3".into()).into()
                 ].into(),
             ).into()
         ).into()
@@ -191,19 +197,19 @@ fn expand_test() {
             DExp::new_nores(
                 vec![
                     Op::Add(
-                        Value::ResultHandle,
+                        Value::ResultHandle(None),
                         "1".into(),
                         "2".into()
                     ).into(),
                     Op::Mul(
-                        Value::ResultHandle,
-                        Value::ResultHandle,
+                        Value::ResultHandle(None),
+                        Value::ResultHandle(None),
                         "2".into()
                     ).into()
                 ].into()).into(),
             DExp::new_nores(
                 vec![
-                    Op::Mul(Value::ResultHandle, "2".into(), "3".into()).into()
+                    Op::Mul(Value::ResultHandle(None), "2".into(), "3".into()).into()
                 ].into(),
             ).into()
         ).into()
@@ -2156,7 +2162,7 @@ fn cmptree_test() {
         "#,
         r#"
         :x
-        goto :x (__:setres a;$=$+`1`) < b && c > d || ! e != f;
+        goto :x (`__`:setres a;$=$+`1`) < b && c > d || ! e != f;
         "#,
     };
 
@@ -2167,7 +2173,7 @@ fn cmptree_test() {
         "#,
         r#"
         :x
-        goto :x (__:setres a;$=$-`1`) < b && c > d || ! e != f;
+        goto :x (`__`:setres a;$=$-`1`) < b && c > d || ! e != f;
         "#,
     };
 
@@ -2551,6 +2557,7 @@ fn switch_catch_test() {
 
     check_sugar! {parser,
         r#"
+        # align...
         switch (op $ x + 2;) {
             end;
         case <!> e:
@@ -2605,6 +2612,7 @@ fn switch_catch_test() {
 
     check_sugar! {parser,
         r#"
+        # align...
         switch (op $ x + 2;) {
             end;
         case <> e:
@@ -2658,6 +2666,7 @@ fn switch_catch_test() {
 
     check_compile_eq!(parser,
         r#"
+        # align...
         switch (op $ x + 2;) {
         case !:
             stop;
@@ -2715,7 +2724,7 @@ fn quick_dexp_take_test() {
         "#).unwrap(),
         vec![LogicLine::Other(vec![
             Value::ReprVar("print".into()),
-            DExp::new("__".into(), vec![
+            DExp::new_notake("__".into(), vec![
                 LogicLine::SetArgs(vec!["1".into(), "2".into()].into()),
                 LogicLine::SetResultHandle("Foo".into(), Some(IdxBox::new(19, ()))),
             ].into()).into(),
@@ -3187,7 +3196,7 @@ fn value_bind_test() {
         print (%(x: print 1 2;)).x;
         "#,
         r#"
-        print (%x: print 1 2;%).x;
+        print  (%x: print 1 2;%).x;
         "#,
     };
 
@@ -3559,7 +3568,7 @@ fn op_expr_test() {
         take Foo = (?m: a+b);
         "#,
         r#"
-        take Foo = (m: $ = a+b;);
+        take Foo =  (m: $ = a+b;);
         "#,
     };
 
@@ -3642,7 +3651,7 @@ fn op_expr_test() {
         x = ++i;
         "#,
         r#"
-        x = (__:
+        x = (`__`:
             setres i;
             $ = $ + `1`;
         );
@@ -3654,7 +3663,7 @@ fn op_expr_test() {
         x = --i;
         "#,
         r#"
-        x = (__:
+        x = (`__`:
             setres i;
             $ = $ - `1`;
         );
@@ -3679,7 +3688,7 @@ fn op_expr_test() {
         x = 2 + ++i;
         "#,
         r#"
-        x = 2 + (__:
+        x = 2 + (`__`:
             setres i;
             $ = $ + `1`;
         );
@@ -3691,7 +3700,7 @@ fn op_expr_test() {
         x = 2 + --i;
         "#,
         r#"
-        x = 2 + (__:
+        x = 2 + (`__`:
             setres i;
             $ = $ - `1`;
         );
@@ -3759,7 +3768,7 @@ fn op_expr_test() {
         print (?++i);
         "#,
         r#"
-        print ($ = (__: setres i; $ = $ + `1`;););
+        print ($ = (`__`: setres i; $ = $ + `1`;););
         "#,
     };
 
@@ -3768,7 +3777,7 @@ fn op_expr_test() {
         print (*++i);
         "#,
         r#"
-        print (__: setres i; $ = $ + `1`;);
+        print (`__`: setres i; $ = $ + `1`;);
         "#,
     };
 
@@ -3978,7 +3987,7 @@ fn op_expr_test() {
         x = abs((?m:x+1));
         "#,
         r#"
-        x = abs(?m:x+1);
+        x =  abs(?m:x+1);
         "#,
     };
 
@@ -3987,7 +3996,7 @@ fn op_expr_test() {
         x = abs((?m:x));
         "#,
         r#"
-        x = abs(?m:x);
+        x =  abs(?m:x);
         "#,
     };
 
@@ -4014,7 +4023,7 @@ fn op_expr_test() {
         x = abs((m:=x));
         "#,
         r#"
-        x = abs(m:=x);
+        x =  abs(m:=x);
         "#,
     };
 
@@ -4023,7 +4032,7 @@ fn op_expr_test() {
         x = abs((m:=x,));
         "#,
         r#"
-        x = abs(m:=x,);
+        x =  abs(m:=x,);
         "#,
     };
 
@@ -4032,7 +4041,7 @@ fn op_expr_test() {
         x = abs((m:=x,));
         "#,
         r#"
-        x = abs(m:=x);
+        x =  abs(m:=x);
         "#,
     };
 
@@ -4417,7 +4426,7 @@ fn consted_dexp() {
         Expand(vec![
             LogicLine::Other(vec![
                 "foo".into(),
-                DExp::new(
+                DExp::new_notake(
                     "__".into(),
                     vec![
                         Const(
@@ -7615,7 +7624,7 @@ fn const_match_test() {
         r#"
         const Val = 2;
         const match Val {
-            [?(__: print _0;)] {
+            [?(`__`: print _0;)] {
                 print x;
             }
         }

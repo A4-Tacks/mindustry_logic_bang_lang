@@ -524,7 +524,7 @@ dependencies = [
 
 [[package]]
 name = "parser"
-version = "0.3.73"
+version = "0.3.74"
 dependencies = [
  "lalrpop",
  "lalrpop-util",
@@ -536,7 +536,7 @@ dependencies = [
 
 [[package]]
 name = "parser-tests"
-version = "0.1.95"
+version = "0.1.96"
 dependencies = [
  "dissimilar",
  "either",

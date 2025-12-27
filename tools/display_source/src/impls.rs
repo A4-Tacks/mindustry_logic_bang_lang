@@ -1103,7 +1103,7 @@ fn display_source_test() {
         r#"
         take Foo[a b].x;
         "#,
-        "take __ = (%(__:\n    # setArgs a b;\n    setres Foo;\n)).x;"
+        "take __ = (%(`__`:\n    # setArgs a b;\n    setres Foo;\n)).x;"
     );
 
     check!(
