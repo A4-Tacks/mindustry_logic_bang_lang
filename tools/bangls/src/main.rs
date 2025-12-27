@@ -9,7 +9,7 @@ use display_source::DisplaySourceMeta;
 use line_column::line_column;
 use linked_hash_map::LinkedHashMap;
 use lsp_server::{IoThreads, Message};
-use lsp_types::{CompletionItem, CompletionItemKind, CompletionOptions, Diagnostic, DiagnosticSeverity, InitializeParams, InitializeResult, InsertTextFormat, MessageType, Position, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, Uri, notification::{self, Notification}, request::{self, Request}};
+use lsp_types::{CompletionItem, CompletionItemKind, CompletionOptions, Diagnostic, DiagnosticSeverity, InitializeParams, InitializeResult, InsertTextFormat, MessageType, Position, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, TraceValue, Uri, notification::{self, Notification}, request::{self, Request}};
 use syntax::{Compile, CompileMeta, CompileMetaExtends, Emulate, EmulateInfo, Expand, LSP_DEBUG, LSP_HOVER};
 
 fn main() {
@@ -109,10 +109,12 @@ fn main_loop() -> Result<()> {
     };
     let InitializeParams {
         workspace_folders,
+        trace,
         ..
     } = serde_json::from_value::<InitializeParams>(init_params)?;
     let _workspace_folders = workspace_folders.ok_or(anyhow!("Cannot find workspace folder"))?;
     let mut ctx = Ctx::new(connect.sender, connect.receiver);
+    ctx.trace = !matches!(trace, None | Some(TraceValue::Off));
     ctx.run()
 }
 
@@ -120,6 +122,7 @@ struct Ctx {
     open_files: LinkedHashMap<Uri, String>,
     sender: Sender<Message>,
     recver: Receiver<Message>,
+    trace: bool,
 }
 impl Ctx {
     fn new(sender: Sender<Message>, recver: Receiver<Message>) -> Self {
@@ -127,6 +130,7 @@ impl Ctx {
             open_files: Default::default(),
             sender,
             recver,
+            trace: false,
         }
     }
 
@@ -272,6 +276,22 @@ impl Ctx {
         });
         self.sender.send(msg)?;
         Ok(())
+    }
+
+    fn trace(&self, s: impl std::fmt::Display) {
+        if !self.trace {
+            return;
+        }
+        let mut log = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(concat!(env!("CARGO_BIN_NAME"), ".log"))
+            .expect("cannot open log file");
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_else(|_| std::time::Duration::from_secs(0));
+        let now = now.as_secs_f64();
+        let _ = std::io::Write::write_fmt(&mut log, format_args!("{now:.6} {s}\n"));
     }
 }
 
@@ -526,6 +546,8 @@ fn tigger_diagnostics(ctx: &mut Ctx, uri: &Uri) -> Vec<Diagnostic> {
         Err(((sindex, eindex), error)) => {
             let start = rgpos(line_column(file, sindex));
             let end = rgpos(line_column(file, eindex));
+            ctx.trace(format_args!("diagnostic parse error: {error:#?}"));
+
             diags.push(Diagnostic {
                 message: error,
                 range: lsp_types::Range { start, end },
@@ -535,6 +557,8 @@ fn tigger_diagnostics(ctx: &mut Ctx, uri: &Uri) -> Vec<Diagnostic> {
         }
         Ok(top) => {
             let infos = emulate(top, file.clone());
+            ctx.trace(format_args!("diagnostic infos: {infos:#?}"));
+
             for info in infos {
                 let Some(diagnostic) = info.diagnostic else { continue };
                 let Some(loc) = info.location.or_else(|| info.is_error.then(|| {
