@@ -354,11 +354,12 @@ impl Value {
                         LogicLine::ArgsRepeat(_) => Some(true),
                         LogicLine::Match(m) => Some(expand_or_ost(&m.args)),
                         LogicLine::ConstMatch(m) => Some(expand_or_ost(&m.args)),
-                        LogicLine::Other(args) => Some(expand_or_ost(args)),
                         LogicLine::SetArgs(args) => Some(expand_or_ost(args)),
                         LogicLine::Const(Const(_, Value::Var(name), _)) |
                         LogicLine::Take(Take(_, Value::Var(name)))
                             if is_ost(name) => Some(true),
+                        LogicLine::Other(args)
+                            if expand_or_ost(args) => Some(true),
                         _ => None,
                     }
                 }).unwrap_or(false),
