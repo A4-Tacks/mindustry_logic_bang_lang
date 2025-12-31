@@ -1,0 +1,909 @@
+#**
+* High 变量为希望编译出在多高的像素内显示
+* 建议用11*12(372), 或15*16(500)的显示单元
+* 取消 take Render 或 take UserInput 的注释以编译不同逻辑的代码
+* 两个逻辑块都需要连接两个电弧(arc), 内存元, 与最左下角的显示单元
+* Render 逻辑块还需连接两个按钮用于刷新与重新开始
+*#
+Builtin.BindSep! '->';
+Builtin.MissesMatch! 1;
+
+take*High = 500;
+
+const For = (const match @ {
+    *I [in] _ *Stop F {
+        setres For[I in 0 .. Stop .. 1 F];
+    }
+    *I [in] *Start _ *Stop F {
+        setres For[I in Start .. Stop .. 1 F];
+    }
+    *I [in] *Start _ _ *Stop F {
+        setres For[I in Start .. .. Stop .. 1 F];
+    }
+    *I [in] *Start _ *Stop _ *Step F {
+        setres For[I in_impl Start .. Stop .. Step F (?I < Stop)];
+    }
+    *I [in] *Start _ _ *Stop _ *Step F {
+        setres For[I in_impl Start .. Stop .. Step F (?I <= Stop)];
+    }
+    *I [inrev] _ *Stop F {
+        setres For[I inrev 0 .. Stop .. 1 F];
+    }
+    *I [inrev] *Start _ *Stop F {
+        setres For[I inrev Start .. Stop .. 1 F];
+    }
+    *I [inrev] *Start _ _ *Stop F {
+        setres For[I inrev Start .. .. Stop .. 1 F];
+    }
+    *I [inrev] *Start _ *Stop _ *Step F {
+        setres For[I inrev_impl Start .. Stop .. Step F (?I > Stop)];
+    }
+    *I [inrev] *Start _ _ *Stop _ *Step F {
+        setres For[I inrev_impl Start .. Stop .. Step F (?I >= Stop)];
+    }
+    *I [in_impl] *Start _ *Stop _ *Step F C {
+        setres For[I in_impl Start .. Stop .. Step F C (_0 += _1;)];
+    }
+    *I [inrev_impl] *Start _ *Stop _ *Step F C {
+        setres For[I in_impl Start .. Stop .. Step F C (_0 -= _1;)];
+    }
+    *I [in_impl] *Start _ *Stop _ *Step F C Inc {
+        {
+            const I = Start;
+            match Builtin.EvalNum[C] {
+                [`__` 0] { goto :end !C; }
+                [1] {}
+            }
+        }
+        I = Start;
+        do {
+            setres F[I];
+            Inc! I Step;
+        } while C;
+        :end
+    }
+    *I [of] @ F {
+        inline@ Arg {{
+            take Builtin.Const[I `Arg`];
+            take F[];
+        }}
+    }
+    *I [as] _ *Stop F {
+        setres For[I as 0 .. Stop .. 1 F];
+    }
+    *I [as] *Start _ *Stop F {
+        setres For[I as Start .. Stop .. 1 F];
+    }
+    *I [as] *Start _ _ *Stop F {
+        setres For[I as Start .. .. Stop .. 1 F];
+    }
+    *I [as] *Start _ *Stop _ *Step F {
+        setres For[I as_impl Start .. Stop .. Step F (?J < Stop)];
+    }
+    *I [as] *Start _ _ *Stop _ *Step F {
+        setres For[I as_impl Start .. Stop .. Step F (?J <= Stop)];
+    }
+    *I [asrev] _ *Stop F {
+        setres For[I asrev 0 .. Stop .. 1 F];
+    }
+    *I [asrev] *Start _ *Stop F {
+        setres For[I asrev Start .. Stop .. 1 F];
+    }
+    *I [asrev] *Start _ _ *Stop F {
+        setres For[I asrev Start .. .. Stop .. 1 F];
+    }
+    *I [asrev] *Start _ *Stop _ *Step F {
+        setres For[I asrev_impl Start .. Stop .. Step F (?J > Stop)];
+    }
+    *I [asrev] *Start _ _ *Stop _ *Step F {
+        setres For[I asrev_impl Start .. Stop .. Step F (?J >= Stop)];
+    }
+    *I [as_impl] *Start _ *Stop _ *Step F C {
+        setres For[I as_impl Start .. Stop .. Step F C (?_0 + _1)];
+    }
+    *I [asrev_impl] *Start _ *Stop _ *Step F C {
+        setres For[I as_impl Start .. Stop .. Step F C (?_0 - _1)];
+    }
+    *I [as_impl] *Start _ *Stop _ *Step F C Inc {
+        match Builtin.EvalNum[(?Start+Step+Stop)] {
+            [`__`] {
+                match "for-as: can not eval ("Start".."Stop".."Step")" => @ {}
+                take E = ""; inline@ S {
+                    take E = Builtin.Concat[E *Builtin.Stringify[S]];
+                }
+                Builtin.Err! E;
+                Builtin.Exit! 2;
+            }
+            _ {}
+        }
+        match Builtin.EvalNum[(?Step <= 0)] {
+            [0] {}
+            [1] {
+                Builtin.Err! *Builtin.Concat[
+                    "for-as: invalid step "
+                    *Builtin.Stringify[Step]
+                ];
+                Builtin.Exit! 2;
+            }
+        }
+        take J = Start;
+        inline 0@ { match Builtin.EvalNum[C] {
+            [1] {
+                {
+                    Builtin.Const! I `J`;
+                    take F[];
+                }
+                take J = Inc[J Step];
+            }
+            [0] { Builtin.StopRepeat!; }
+        } }
+    }
+});
+const MemPack = (match @ {
+    [@impl] Mem Addr $Handle {
+        const $.Mem = Mem;
+        const $.Addr = Addr;
+        const $.Store = ([Mem Addr ..H](match @ {
+            {
+                setres H;
+                write H Mem Addr;
+            }
+            Value {
+                H = Value;
+                setres H.Store[];
+            }
+        }));
+        const $.Load = ([Mem Addr ..H](match @ {
+            {
+                setres H;
+                read H Mem Addr;
+            }
+            Result {
+                setres H;
+                Result = H;
+                read H Mem Addr;
+            }
+        }));
+        const $.Read = ([Mem Addr ..H](match @ {
+            {
+                read $ Mem Addr;
+            }
+            $Result {
+                read Result Mem Addr;
+            }
+        }));
+        const $.Write = ([Mem Addr ..H](match @ {
+            Value {
+                setres H;
+                write Value Mem Addr;
+            }
+        }));
+        const $.Exchange = ([Mem Addr ..H](match @ {
+            $Result {
+                read Result Mem Addr;
+                write H Mem Addr;
+            }
+            {
+                setres H;
+                H.Exchange! +Tmp;
+                H = Tmp;
+            }
+        }));
+    }
+    Mem Addr Fst @ {
+        MemPack! @impl Mem Addr Fst;
+        inline@ Handle {
+            take*Addr = Addr+1;
+            MemPack! @impl Mem Addr Handle;
+        }
+    }
+});
+const Function = (const match @ => *@ F {
+    take B = $;
+    take DeclStat = null;
+
+    take I=0;
+    inline 0@ {
+        take*I=I+1;
+        match @ {
+            [@declare] @ { take DeclStat = @declare; }
+            [@define] B @ { take*I=I+1; take DeclStat = @define; }
+            @ { take*I=I- 1; Builtin.StopRepeat!; }
+        }
+    }
+    Builtin.SliceArgs! I *Builtin.ArgsLen[];
+
+    match DeclStat { [null @declare] {} [@define] {
+        B.define_line = @counter + 1;
+    } }
+    match DeclStat { [@declare] {} [null @define] {
+        goto :end;
+    } }
+    {
+        const B.Return = (const match @ {
+            {
+                @counter = ...ret_counter;
+            }
+            F {
+                F! ..->ret_counter;
+            }
+        });
+        const B.DefaultReturn = B->Return;
+        const B.Body = F;
+        const B.Expander = (
+            ...Body! @;
+            ...DefaultReturn!;
+        );
+        const B.RawCall = (match @ {
+            {
+                ...Goto!;
+                setres ...result;
+            }
+        });
+        inline@ Arg {
+            take Handle = Builtin.BindHandle2[`B` Arg];
+            const B.Expander = ([Handle &E:B->Expander](
+                setres E[Handle @];
+            ));
+            const B.RawCall = ([Handle &C:B->RawCall](match @ {
+                @ Fst {
+                    match Fst { [Handle] {} _ { Handle = Fst; } }
+                    setres C[@];
+                }
+            }));
+        }
+
+        take*B.ArgC = Builtin.ArgsLen[];
+        const B.RawCall = ([ArgC:B.ArgC &C:B->RawCall](
+            match Builtin.ArgsLen[] {
+                [ArgC] {
+                    setres C[@];
+                }
+                N {
+                    Builtin.ExpandStack!;
+                    Builtin.Err! *Builtin.Concat[
+                        "Unexpected argc "
+                        *Builtin.Concat[
+                            *Builtin.Stringify[N]
+                            *Builtin.Concat[
+                                ", expected: "
+                                *Builtin.Stringify[ArgC]
+                            ]
+                        ]
+                    ];
+                    inline@ Arg {
+                        Builtin.Err! Arg;
+                    }
+                    Builtin.Exit! 3;
+                }
+            }
+        ));
+
+        const B.Call = (match @ => @ {
+            setres ...RawCall[@];
+        });
+        const B.Goto = ([B DeclStat](
+            setres B.result;
+            B.ret_counter = @counter + 1;
+            match DeclStat {
+                [null] { goto :start; }
+                [@declare @define] { @counter = B.define_line; }
+            }
+        ));
+        match DeclStat { [@declare @define] {} [null] {
+            :start
+            const B.Goto = ([| :start]B->Goto);
+        } }
+
+        match DeclStat { [@declare] {} [null @define] {
+            B.Expander!;
+        } }
+    }
+    :end
+});
+const MakeTickLocker = (match @ => $Locker Mem Addr {
+    #**
+    * 帧互斥锁, 又称刻互斥锁,
+    * 利用每帧头部更新 @tick 环境变量的特性对多逻辑进行全局同步,
+    * 同步成功后抢锁可以避免坏读写, 实现稳定抢锁
+    *
+    * 要求不同加锁者必须各自提供不同的 id
+    * 要求未加锁时内存地址处的值被初始化为 -1, 可以通过调用 Init 实现
+    *
+    * 优点是可以任意核加锁、对 id 只有不重复的要求, 并且实现简单
+    * 缺点是单核性能被锁死, 每次尝试加锁通常要消耗一两个完整的 @ipt,
+    *   当使用超核时 ipt 已经达到了 25, 而使用世处 ipt 将可以达到 1000
+    *   所以该锁在最快的世处进行加锁时, 通常需要执行一两千条语句, 这很影响速度
+    *#
+    const $.Mem = Mem;
+    const $.Addr = Addr;
+    const $.Init = (match @ => { write -1 ...Mem ...Addr });
+    const $.TickSync = (match @ => {
+        ...tick = @tick;
+        do { } while @tick == ...tick;
+    });
+    const $.Lock = (match @ => Id {
+        do {
+            do { ...TickSync! } while (read $ ...Mem ...Addr) != -1;
+            write Id ...Mem ...Addr;
+            ...TickSync!;
+        } while (read $ ...Mem ...Addr) != Id;
+    });
+    const $.Free = (match @ => @ { write -1 ...Mem ...Addr });
+    const $.With = (const match @ => *_Id_ _F_ {
+        ...Lock! _Id_;
+        setres _F_[];
+        ...Free! _Id_;
+    });
+});
+
+MemPack! cell1 50,
+user.0.x, user.0.y,
+user.1.x, user.1.y;
+MakeTickLocker! input.lock cell1 49;
+
+take*Unit = High // 10;
+take*Off = Unit // 2;
+take*LSize = Unit // 2.2;
+
+take*HUC = Unit*10;
+take*WUC = Unit*9;
+
+const CurPos = (match @ => Ctrl {
+    sensor display1.x display1 @x;
+    sensor display1.y display1 @y;
+
+    sensor {X} Ctrl @shootX;
+    sensor {Y} Ctrl @shootY;
+    X, Y -= display1.x, display1.y;
+    $.X, $.Y = round[X*(32/Unit)-(16/Unit), Y*(32/Unit)-(16/Unit)];
+});
+const ValidPos = goto(_0 >= 0 and _1 >= 0 and _0 < 9 and _1 < 10);
+
+const Loc = (match @ => $Loc {
+    const $.Sid = ([..B](
+        setres (*B*Unit);
+        take ...__Value = $;
+    ));
+    const $.Mid = ([..B](
+        setres (*B.Sid+Off);
+        take ...__Value = $;
+    ));
+});
+
+
+const UserInput = (
+    const Handler = (match @ => H Turret {
+        sensor {Shooting} Turret @shooting;
+        if Turret.prev_shooting != Shooting and Shooting {
+            take {X Y} = CurPos[Turret];
+            if [X Y]ValidPos {
+                input->lock->With! 1 ([H X Y](
+                    H.x->Write! X;
+                    H.y->Write! Y;
+                ));
+            }
+        }
+        Turret.prev_shooting = Shooting;
+    });
+    Handler! user->0 arc1;
+    Handler! user->1 arc2;
+);
+
+const Render = (
+    #const Elapsed = ([__:(now:=@time)](match @ => Name {
+    #    print Name": "(*@time - now)"\n";
+    #    now = @time;
+    #}));
+    bg      = '%003333';
+    fg      = '%ffffff';
+    cursor  = '%ffffffc0';
+    fromsel = '%0080ffa0';
+    play1c  = '%df4040';
+    play2c  = '%207f20';
+    play1b  = '%dddddd';
+    play2b  = '%111111';
+    winsel  = '%30ff3e';
+
+    ui.timeout = 50;
+    restart.timeout = 1000;
+
+    const Bg = (draw col bg 0 0 0 0 0; @;);
+    const Fg = (draw col fg 0 0 0 0 0; @;);
+
+    const SLoc = (
+        take L = _0;
+        setres Loc[L].Sid;
+    );
+
+    const FacePoint = (match @ => X Y {
+        take*Xd, Xi = X- 1, X+2;
+        take*Yd, Yi = Y- 1, Y+2;
+
+        take*P = Unit // 5;
+        take*N = -P;
+        take*A = Unit // 24;
+        take*B = -A;
+
+        draw rect Xd Yd N B 0 0;
+        draw rect Xd Yd B N 0 0;
+
+        draw rect Xd Yi N A 0 0;
+        draw rect Xd Yi B P 0 0;
+
+        draw rect Xi Yi P A 0 0;
+        draw rect Xi Yi A P 0 0;
+
+        draw rect Xi Yd P B 0 0;
+        draw rect Xi Yd A N 0 0;
+    });
+
+    const l.ju = (车:setres 0);
+    const l.ma = (马:setres 1);
+    const l.pc = (炮:setres 2);
+    const l.uk = (帅:setres 3);
+    const l.ui = (士:setres 4);
+    const l.xl = (相:setres 5);
+    const l.bk = (兵:setres 6);
+
+    draw clear 0x20 0x20 0x20 0 0 0;
+
+    const EnQ = (match @ => Name X Y Color {
+        setres (*X*1000 + Color*100 + Y + Name*10);
+    });
+    const DeQ = (match @ => $Code {
+        const $.X = ([Code]Loc[(?Code // 1000)]);
+        const $.Color = ([Code](?Code // 100 % 10));
+        const $.Name = ([Code](?Code // 10 % 10));
+        const $.Y = ([Code]Loc[(?Code % 10)]);
+    });
+    const g.LCount = 0;
+    const InitL = (match @ => Name X Y Color {
+        take {LCount} = g;
+        write EnQ[Name X Y Color] cell1 LCount;
+        take*g.LCount=LCount+1;
+    });
+
+    For! `Y` of 0 9 (
+        InitL! l->ju 0 Y (*!Y);
+        InitL! l->ma 1 Y (*!Y);
+        InitL! l->xl 2 Y (*!Y);
+        InitL! l->ui 3 Y (*!Y);
+        InitL! l->uk 4 Y (*!Y);
+        InitL! l->ui 5 Y (*!Y);
+        InitL! l->xl 6 Y (*!Y);
+        InitL! l->ma 7 Y (*!Y);
+        InitL! l->ju 8 Y (*!Y);
+    );
+    InitL! l->pc 7 2 1;
+    InitL! l->pc 1 2 1;
+    InitL! l->pc 7 7 0;
+    InitL! l->pc 1 7 0;
+    For! `Y` of 3 6 (
+        For! `X` as 0....9..2 (
+            InitL! l->bk X Y (*Y==3);
+        );
+    );
+
+    const InRng = (match @ => N A B {
+        if A <= B {
+            $ = A < N && N < B;
+        } else {
+            $ = B < N && N < A;
+        }
+    });
+    const FindL = (const match @ => _F {
+        take _R=$.slot;
+        $ = -1;
+        For! +_I in ..lcount ([_R &_F](
+            goto :fin [*(_R:read $ cell1 _I)]_F;
+        ));
+        skip {
+            :fin
+            $ = _I;
+        }
+    });
+
+    from = -1;
+    run = 1;
+    win = -1;
+
+    user->0->x->Write! -1;
+    user->1->x->Write! -1;
+
+    lcount = g->LCount;
+    const g.LCount = (Builtin.Err! "do not use static lcount"; Builtin.Exit! 1;);
+
+    const Playground = (match @ {
+        X Y {
+            take {X:Sid MX:Mid} = X;
+            take {Y:Sid MY:Mid} = Y;
+            PlaygroundCallee! X Y MX MY;
+        }
+        [@static] SX SY MX MY {
+            take*X, Y = SX, SY;
+            Bg! draw rect X Y Unit Unit 0 0;
+            Fg! ;
+            draw rect MX Y 1 Unit 0 0;
+            draw rect X MY Unit 1 0 0;
+            if (*X % SLoc[2]) == 0 and (Y == SLoc[3] or Y == SLoc[6])
+            or (X == SLoc[1] or X == SLoc[7]) and (Y == SLoc[2] or Y == SLoc[7])
+            {
+                FacePoint! MX MY;
+            }
+
+            if X == 0 {
+                Bg! draw rect X Y Off Unit 0 0;
+            } elif X == SLoc[8] {
+                Bg! draw rect (*MX+1) Y Off Unit 0 0;
+            }
+
+            if Y == 0 {
+                Bg! draw rect X Y Unit Off 0 0;
+            } elif Y == SLoc[9] {
+                Bg! draw rect X (*MY+1) Unit Off 0 0;
+            } elif Y == SLoc[4] {
+                if X != SLoc[0] and X != SLoc[8] {
+                    Bg! draw rect X (*MY+1) Unit Off 0 0;
+                }
+            } elif Y == SLoc[5] {
+                if X != SLoc[0] and X != SLoc[8] {
+                    Bg! draw rect X MY Unit (*-Off) 0 0;
+                }
+            }
+        }
+    });
+    const PlaygroundCallee = Function[sx sy mx my (
+        take {SX:sx MX:mx} = ..;
+        take {SY:sy MY:my} = ..;
+        Playground! @static SX SY MX MY;
+    )]->Call;
+
+    const DrawL = (match @ {
+        $Data {
+            take {Name X Y Color} = DeQ[Data];
+            DrawL! Name X Y Color;
+        }
+        Name X Y Color {
+            DrawLCallee! Name, X.Sid, Y.Sid, X.Mid, Y.Mid, Color;
+        }
+        [@static] Name SX SY MX MY Color {
+            Playground! @static SX SY, MX MY;
+            take*T = LSize//1.2;
+
+            draw col (*select Color ? play1b : play2b) 0 0 0 0 0;
+            draw poly MX MY 36 LSize 0 0;
+            draw col (*select Color ? play1c : play2c) 0 0 0 0 0;
+            draw linePoly MX MY 36 T 0 0;
+
+            # AD  ED  MD  GD  CD
+            # AH  EH  MH  GH  CH
+            # AN  EN  MN  GN  CN
+            # AF  EF  MF  GF  CF
+            # AB  EB  MB  GB  CB
+            # for c in "abcdefghmn" | exe 'imap <expr> '.c.' mode() =~#"^R" ? "'.toupper(c).' " : "'.c.'"' | endfor
+            take*P = LSize // 2.2;
+            take*Q = P // 2;
+            take*M, N = MX, MY;
+            take*R, S = MY+T, MY-T;
+            take*A, B, C, D = [MX, MY]-P, [MX, MY]+P;
+            take*E, F, G, H = [MX, MY]-Q, [MX, MY]+Q;
+            take*I = MY + Q//2;
+            gswitch Name {
+                break;
+            case l->bk:
+                if Color {
+                    draw line E D G D 0 0;
+                    draw line E H C H 0 0;
+                    draw line A N C N 0 0;
+                    draw line E D E N 0 0;
+                    draw line G H G N 0 0;
+                    draw line E F A B 0 0;
+                    draw line G F C B 0 0;
+                } else {
+                    draw line M D M H 0 0;
+                    draw line A H C H 0 0;
+
+                    draw line E H E N 0 0;
+                    draw line G H G N 0 0;
+                    draw line E N A F 0 0;
+                    draw line E N M F 0 0;
+                    draw line G N M F 0 0;
+                    draw line G N C F 0 0;
+
+                    draw line A F C F 0 0;
+                    draw line M F M B 0 0;
+                }
+            case l->ma:
+                draw line E D G D 0 0;
+                draw line E H E N 0 0;
+                draw line G D G N 0 0;
+                draw line E N C N 0 0;
+                draw line C N C B 0 0;
+                draw line G B C B 0 0;
+                draw line A F G F 0 0;
+            case l->ui:
+                draw line A I C I 0 0;
+                draw line E B G B 0 0;
+                draw line M D M B 0 0;
+            case l->xl:
+                draw line A H M H 0 0;
+                draw line E D E B 0 0;
+                draw line A F E H 0 0;
+                draw line M F E H 0 0;
+                draw line M D M B 0 0;
+                draw line C D C B 0 0;
+                draw line M D C D 0 0;
+                draw line M B C B 0 0;
+                draw line M I C I 0 0;
+                draw line M F C F 0 0;
+            case l->ju:
+                draw line E D G D 0 0;
+                draw line E H G H 0 0;
+                draw line E N G N 0 0;
+                draw line E N G N 0 0;
+                draw line E H E F 0 0;
+                draw line G H G F 0 0;
+                draw line E F G F 0 0;
+                draw line A B C B 0 0;
+                draw line M S M R 0 0;
+            case l->pc:
+                draw line A H E H 0 0;
+                draw line E H A N 0 0;
+                draw line A N E N 0 0;
+                draw line A F E F 0 0;
+                draw line A N A F 0 0;
+                draw line E N E F 0 0;
+
+                draw line G D M H 0 0;
+                draw line G H C H 0 0;
+                draw line C H C F 0 0;
+                draw line M N M B 0 0;
+                draw line M N G N 0 0;
+                draw line G N G F 0 0;
+                draw line G F M F 0 0;
+                draw line M B C B 0 0;
+            case l->uk:
+                if Color {
+                    draw line A H A F 0 0;
+                    draw line E D E F 0 0;
+                    draw line E F A B 0 0;
+                    draw line M H M F 0 0;
+                    draw line M H C H 0 0;
+                    draw line C H C F 0 0;
+                    draw line G D G B 0 0;
+                } else {
+                    draw line A H E N 0 0;
+                    draw line A B E F 0 0;
+                    draw line G D C D 0 0;
+                    draw line G H C D 0 0;
+                    draw line M H G H 0 0;
+                    draw line M H G D 0 0;
+                    draw line E D E B 0 0;
+
+                    draw line M N C N 0 0;
+                    draw line C H C B 0 0;
+                    draw line G B C B 0 0;
+                    draw line M N G F 0 0;
+                }
+            }
+
+            drawflush display1;
+        }
+    });
+    const DrawLCallee = Function[name sx sy mx my color (
+        take {SX:sx MX:mx} = ..;
+        take {SY:sy MY:my} = ..;
+        take {Name:name Color:color} = ..;
+        DrawL! @static Name SX SY MX MY Color;
+    )]->Call;
+
+    const DrawSelect = (match @ => X Y {
+        draw linePoly X.Mid Y.Mid 4 (*Unit//1.5) 45 0;
+    });
+    const DeleteL = (match @ => I {
+        write (read $ cell1 (*--lcount)) cell1 I;
+    });
+    const ValidMove = (match @ => Name Color FX FY TX TY Target {
+        $ = false;
+        if Name == l->ju || Name == l->pc and Target == -1 {
+            if FX == TX and FindL[goto(DeQ[_0]->X == FX and InRng[DeQ[_0]->Y FY TY])] == -1
+            or FY == TY and FindL[goto(DeQ[_0]->Y == FY and InRng[DeQ[_0]->X FX TX])] == -1
+            {
+                $ = true;
+            }
+        } elif Name == l->pc {
+            take+A+B;
+            +C = 0;
+            if FX == TX {
+                For! +I in ..lcount ([C FX TX FY TY](
+                    take L = DeQ[(read $ cell1 I;)];
+                    if L.X == FX and InRng[L.Y FY TY] {
+                        C++;
+                    }
+                ));
+            } elif FY == TY {
+                For! +I in ..lcount ([C FX TX FY TY](
+                    take L = DeQ[(read $ cell1 I;)];
+                    if L.Y == FY and InRng[L.X FX TX] {
+                        C++;
+                    }
+                ));
+            }
+            $ = C == 1;
+        } elif Name == l->ma {
+            +OX+OY = TX - FX, TY - FY;
+            if OX != 0 and OY != 0 and (*abs OX+abs OY) == 3 {
+                +JX+JY = round[OX/3, OY/3];
+                JX, JY += FX, FY;
+                $ = FindL[goto(DeQ[_0].X == JX and DeQ[_0].Y == JY)] == -1;
+            }
+        } elif Name == l->xl {
+            +OX+OY = TX - FX, TY - FY;
+            if (*abs OX) == 2 and (*abs OY) == 2
+            and (Color and TY <= 4 or !Color and TY >= 5)
+            {
+                +JX+JY = round[OX/2, OY/2];
+                JX, JY += FX, FY;
+                $ = FindL[goto(DeQ[_0].X == JX and DeQ[_0].Y == JY)] == -1;
+            }
+        } elif Name == l->ui {
+            +OX+OY = TX - FX, TY - FY;
+            if (*abs OX) == 1 and (*abs OY) == 1 and TX >= 3 and TX <= 5 {
+                $ = if Color ? TY <= 2 : TY >= 7;
+            }
+        } elif Name == l->uk {
+            +OX+OY = TX - FX, TY - FY;
+            if ((*abs OX) == 1 or (*abs OY) == 1)
+            and (!OX or !OY)
+            and TX >= 3 and TX <= 5
+            {
+                $ = if Color ? TY <= 2 : TY >= 7;
+            }
+        } elif Name == l->bk {
+            if Color {
+                if FY < 5 {
+                    if FX == TX and (*FY+1) == TY {
+                        $ = true;
+                    }
+                } elif FX == TX and (*FY+1) == TY
+                ||     FY == TY and (*abs(FX-TX)) == 1
+                {
+                    $ = true;
+                }
+            } else {
+                if FY >= 5 {
+                    if FX == TX and (*FY- 1) == TY {
+                        $ = true;
+                    }
+                } elif FX == TX and (*FY- 1) == TY
+                or FY == TY and (*abs(FX-TX)) == 1 {
+                    $ = true;
+                }
+            }
+        }
+    });
+
+
+    const FullDraw = switch1;
+    const Restart  = switch2;
+    control enabled FullDraw true 0 0 0;
+
+    ui.x, ui.y, ui.hook = -1;
+
+    do {
+        const FromSel = (match @ => X Y {
+            draw col (*select run == win ? winsel : fromsel) 0 0 0 0 0;
+            DrawSelect! X Y;
+        });
+
+        if (sensor $ FullDraw @enabled;) {
+            # 绘制棋盘
+            For! y in 0..10 (
+                For! x in 0..9 (
+                    Playground! Loc[x], Loc[y];
+                    drawflush display1;
+                );
+            );
+
+            # 绘制棋子
+            draw stroke (*Unit//15) 0 0 0 0 0;
+            For! i in ..lcount (
+                DrawL! *(read $ cell1 i;);
+            );
+
+            if from != -1 {
+                read {Data} cell1 from;
+                DrawL! Data;
+                FromSel! Data.X Data.Y;
+            }
+
+            control enabled FullDraw false 0 0 0;
+
+            input->lock->Init! ;
+        }
+        restart.prev = restart;
+        sensor restart Restart @enabled;
+        if restart != restart.prev {
+            if restart {
+                restart.time = @time + restart.timeout;
+            } else {
+                break @time < restart.time;
+            }
+        } elif @time >= restart.time and restart {
+            control enabled Restart false 0 0 0;
+        }
+        Bg! ;
+
+        # 绘制选择框
+        {
+            take*X, Y = input.x, input.y;
+            const ReadClick = (match @ => H {
+                input->lock->With! 2 ([H X Y](
+                    H->x->Read! X;
+                    H->y->Read! Y;
+                    if X != -1 {
+                        H->x->Write! -1;
+                    }
+                ));
+            });
+            if run or !(sensor $ arc2 @controlled) {
+                ReadClick! user->0;
+            } else {
+                ReadClick! user->1;
+            }
+
+            if ui.x != -1 and (*@time - ui.time) > ui.timeout {
+                Playground! Loc[ui.x] Loc[ui.y];
+                ui.x = -1;
+                if ui.hook != -1 {
+                    DrawL! (read $ cell1 ui.hook;);
+                }
+                ui.hook = -1;
+            }
+
+            if [X Y]ValidPos {
+                take Selected = FindL[goto( [DeQ->[_0]](_0.X == X and _0.Y == Y) )];
+
+                selcolor = if Selected != -1 ? DeQ[Selected.slot].Color : -1;
+                if selcolor == run {
+                    if from != -1 {
+                        DrawL! (read $ cell1 from;);
+                    }
+                    from = Selected;
+                    DrawL! Selected.slot;
+                    take {X Y} = Selected.slot;
+                    FromSel! X Y;
+                } elif from != -1 {
+                    take H{Name} = DeQ[(read $ cell1 from;)];
+                    take Color = run;
+                    ui.hook = Selected;
+
+                    if ValidMove[Name Color, H->X, H->Y, X, Y, Selected] {
+                        if Selected != -1 {
+                            if Selected.slot.Name == l->uk {
+                                win = run;
+                            }
+                            DeleteL! Selected;
+                        }
+
+                        Playground! H.X, H.Y;
+                        DrawL! Name Loc[X] Loc[Y] Color;
+                        write EnQ[Name X Y Color] cell1 from;
+                        ui.hook = from;
+                        from = -1;
+                        run = !run;
+                    }
+
+                    draw col cursor 0 0 0 0 0;
+                    DrawSelect! Loc[X], Loc[Y];
+                    ui.x, ui.y, ui.time = X, Y, @time;
+                }
+            }
+        }
+
+        drawflush display1;
+    } while;
+);
+take Render;
+#take UserInput;
