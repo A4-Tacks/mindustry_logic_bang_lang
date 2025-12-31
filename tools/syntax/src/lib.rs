@@ -741,7 +741,7 @@ impl ValueBindRef {
                         meta.log_err(format_args!("meta.source is empty"));
                     }
                     let (line, column) = loc.location(&meta.source);
-                    meta.log_info(format_args!(
+                    meta.log_info_at(line, column, format_args!(
                             "{line}:{column} Misses binder ref",
                     ));
                     meta.log_expand_stack::<false>();
@@ -3180,7 +3180,7 @@ impl Compile for Match {
             let args = args.into_iter()
                 .map(|v| v.display_src(meta).into_owned())
                 .collect::<Vec<_>>();
-            meta.log_info(format_args!(
+            meta.log_info_at(line, column, format_args!(
                     "{line}:{column} Misses match, [{}]",
                     args.join(" "),
             ));
@@ -3383,7 +3383,7 @@ impl Compile for ConstMatch {
             let args = args.into_iter()
                 .map(|v| v.display_src(meta).into_owned())
                 .collect::<Vec<_>>();
-            meta.log_info(format_args!(
+            meta.log_info_at(line, column, format_args!(
                     "{line}:{column} Misses const match, [{}]",
                     args.join(" "),
             ));
