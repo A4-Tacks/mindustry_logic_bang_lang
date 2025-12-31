@@ -7384,6 +7384,22 @@ fn match_test() {
             b
         "#,
     };
+
+    // 空语句不添加
+    check_compile!{parser,
+        r#"
+        match a b c => @ {}
+        @;
+        match => @ {}
+        @;
+        match d e f => @ {}
+        @;
+        "#,
+        r#"
+            a b c
+            d e f
+        "#,
+    };
 }
 
 #[test]

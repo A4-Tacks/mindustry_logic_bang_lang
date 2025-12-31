@@ -3894,10 +3894,10 @@ impl Compile for LogicLine {
                 let args = handles.into_iter()
                     .map_to_string()
                     .map_into()
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .unwrap();
-                meta.push(args);
+                    .collect::<Vec<_>>();
+                if !args.is_empty() {
+                    meta.push(args.try_into().unwrap());
+                }
             },
             Self::SetResultHandle(value, must_effect) => {
                 if let Some(ref loc) = must_effect {
