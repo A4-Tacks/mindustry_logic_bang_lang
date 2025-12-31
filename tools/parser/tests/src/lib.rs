@@ -28,14 +28,14 @@ macro_rules! check_sugar {
 macro_rules! check_compile {
     ( $parser:expr, $a:expr, $b:expr $(,)? ) => {{
         let meta = CompileMeta::new();
-        let meta = check_compile!(@compile(meta) $parser, $a, $b);
+        let meta = check_compile!{@compile(meta) $parser, $a, $b};
         meta.hit_log(0);
         meta
     }};
     (@with_source $parser:expr, $a:expr, $b:expr $(,)? ) => {{
         let src = $a;
         let meta = CompileMeta::with_source(src.to_owned().into());
-        check_compile!(@compile(meta) $parser, src, $b)
+        check_compile!{@compile(meta) $parser, src, $b}
     }};
     (@compile($meta:ident) $parser:expr, $a:expr, $b:expr $(,)? ) => {{
         let mut meta = $meta.compile_res_self(parse!($parser, $a).unwrap());
@@ -48,12 +48,12 @@ macro_rules! check_compile {
 
 macro_rules! check_compile_eq {
     ( $parser:expr, $a:expr, $b:expr $(,)? ) => {{
-        check_compile!($parser,
+        check_compile!{$parser,
             $a,
             &CompileMeta::new().compile(
                 parse!($parser, $b).unwrap()
             ).compile().unwrap().join("\n"),
-        );
+        };
     }};
 }
 
@@ -478,7 +478,7 @@ fn reverse_test() {
 fn goto_compile_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         goto :x _;
         :x
@@ -488,9 +488,9 @@ fn goto_compile_test() {
         jump 1 always 0 0
         end
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const 0 = 1;
         goto :x _;
@@ -501,9 +501,9 @@ fn goto_compile_test() {
                jump 1 always 0 0
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const 0 = 1;
         goto :x !_;
@@ -513,9 +513,9 @@ fn goto_compile_test() {
         r#"
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const 0 = 1;
         const false = true;
@@ -527,9 +527,9 @@ fn goto_compile_test() {
                jump 1 strictEqual a b
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const 0 = 1;
         const false = true;
@@ -541,9 +541,9 @@ fn goto_compile_test() {
                jump 1 strictEqual a b
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const 0 = 1;
         const false = true;
@@ -556,9 +556,9 @@ fn goto_compile_test() {
                jump 2 equal __0 false
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const 0 = 1;
         const false = true;
@@ -571,9 +571,9 @@ fn goto_compile_test() {
                jump 2 equal __0 false
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         skip !_ && !_ {
             print true;
@@ -585,9 +585,9 @@ fn goto_compile_test() {
                print true
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         skip _ && !_ {
             print true;
@@ -598,9 +598,9 @@ fn goto_compile_test() {
                print true
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         skip !_ {
             print true;
@@ -611,7 +611,7 @@ fn goto_compile_test() {
                print true
                end
         "#
-    );
+    };
 }
 
 #[test]
@@ -827,7 +827,7 @@ fn op_generate_test() {
 fn compile_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         op x 1 + 2;
         op y (op $ x + 3;) * (op $ x * 2;);
@@ -852,7 +852,7 @@ fn compile_test() {
         op add __3 y 3
         print __3
         "#
-    );
+    };
 }
 
 #[test]
@@ -876,7 +876,7 @@ fn compile_take_test() {
 fn const_value_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         x = C;
         const C = (read $ cell1 0;);
@@ -887,9 +887,9 @@ fn const_value_test() {
         read __0 cell1 0
         set y __0
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         x = C;
         const C = (k: read k cell1 0;);
@@ -900,9 +900,9 @@ fn const_value_test() {
         read k cell1 0
         set y k
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         x = C;
         const C = (read $ cell1 0;);
@@ -914,9 +914,9 @@ fn const_value_test() {
         read __1 cell1 0
         foo a b __0 d __1
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const C = (m: read $ cell1 0;);
         x = C;
@@ -925,9 +925,9 @@ fn const_value_test() {
         read m cell1 0
         set x m
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const C = (read $ cell1 (i: read $ cell2 0;););
         print C;
@@ -937,14 +937,14 @@ fn const_value_test() {
         read __0 cell1 i
         print __0
         "#
-    );
+    };
 }
 
 #[test]
 fn const_value_block_range_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         {
             x = C;
@@ -970,14 +970,14 @@ fn const_value_block_range_test() {
         foo __2 __3
         set z C
         "#
-    );
+    };
 }
 
 #[test]
 fn take_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print start;
         const F = (read $ cell1 0;);
@@ -997,9 +997,9 @@ fn take_test() {
         read __1 cell1 0
         print __1
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = (m: read $ cell1 0;);
         take V = F; # 求值并映射
@@ -1009,9 +1009,9 @@ fn take_test() {
         read m cell1 0
         print m
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         take X = 2;
         take Y = `X`;
@@ -1022,9 +1022,9 @@ fn take_test() {
         print X
         print X
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         take X = 2;
         take Y = X;
@@ -1035,9 +1035,9 @@ fn take_test() {
         print 2
         print 2
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const 2 = 3;
         take X = `2`;
@@ -1049,7 +1049,7 @@ fn take_test() {
         print 2
         print 2
         "#
-    );
+    };
 
     check_sugar! {parser,
         r#"
@@ -1281,7 +1281,7 @@ fn take_test() {
 fn print_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print "abc" "def" "ghi" j 123 @counter;
         "#,
@@ -1293,7 +1293,7 @@ fn print_test() {
         print 123
         print @counter
         "#
-    );
+    };
 
 }
 
@@ -1330,7 +1330,7 @@ fn in_const_label_test() {
 fn const_expand_label_rename_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         :start
         const X = (
@@ -1355,9 +1355,9 @@ fn const_expand_label_rename_test() {
             print "num < 2"
             jump 0 always 0 0
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         # 这里是__0以此类推, 所以接下来的使用C的句柄为__2, 测试数据解释
         const A = (
@@ -1385,14 +1385,14 @@ fn const_expand_label_rename_test() {
             op add i i 1
             jump 4 lessThan i 5
         "#
-    );
+    };
 }
 
 #[test]
 fn dexp_result_handle_use_const_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         {
             print (R: $ = 2;);
@@ -1409,14 +1409,14 @@ fn dexp_result_handle_use_const_test() {
         set R 2
         print R
         "#
-    );
+    };
 }
 
 #[test]
 fn dexp_result_handle_use_result_handle_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         {
             print (R: $ = 2;);
@@ -1433,7 +1433,7 @@ fn dexp_result_handle_use_result_handle_test() {
         set R 2
         print R
         "#
-    );
+    };
 }
 
 #[test]
@@ -1589,7 +1589,7 @@ fn take2_test() {
 fn take_args_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const M = (
             print _0 _1 _2;
@@ -1610,9 +1610,9 @@ fn take_args_test() {
         set __7 3
         print __7
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const DO = (
             print _0 "start";
@@ -1649,9 +1649,9 @@ fn take_args_test() {
         jump 11 lessThan i 10
         printflush message1
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = (y:print _0 $;);
         take (x:
@@ -1662,14 +1662,14 @@ fn take_args_test() {
         print x
         print y
         "#
-    );
+    };
 }
 
 #[test]
 fn const_value_clone_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const A = 1;
         const B = A;
@@ -1680,9 +1680,9 @@ fn const_value_clone_test() {
                print 2
                print 1
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const A = 1;
         const B = A;
@@ -1697,9 +1697,9 @@ fn const_value_clone_test() {
                print 3
                print 1
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const A = B;
         const B = 2;
@@ -1708,9 +1708,9 @@ fn const_value_clone_test() {
         r#"
                print B
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const A = B;
         const B = 2;
@@ -1720,9 +1720,9 @@ fn const_value_clone_test() {
         r#"
                print B
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const A = B;
         const B = 2;
@@ -1734,9 +1734,9 @@ fn const_value_clone_test() {
         r#"
                print B
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const A = B;
         {
@@ -1748,9 +1748,9 @@ fn const_value_clone_test() {
         r#"
                print B
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const A = B;
         {
@@ -1761,9 +1761,9 @@ fn const_value_clone_test() {
         r#"
                print B
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const A = B;
         const B = C;
@@ -1773,9 +1773,9 @@ fn const_value_clone_test() {
         r#"
                print B
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const A = C;
         const C = 2;
@@ -1787,7 +1787,7 @@ fn const_value_clone_test() {
         r#"
                print C
         "#
-    );
+    };
 }
 
 #[test]
@@ -1868,7 +1868,7 @@ fn cmptree_test() {
         ).into()
     );
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         goto :end a && b;
         foo;
@@ -1881,9 +1881,9 @@ fn cmptree_test() {
                foo
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         goto :end (a || b) && c;
         foo;
@@ -1897,9 +1897,9 @@ fn cmptree_test() {
                foo
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         goto :end (a || b) && (c || d);
         foo;
@@ -1914,9 +1914,9 @@ fn cmptree_test() {
                foo
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         goto :end a || b || c || d || e;
         foo;
@@ -1932,9 +1932,9 @@ fn cmptree_test() {
                foo
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         goto :end a && b && c && d && e;
         foo;
@@ -1950,9 +1950,9 @@ fn cmptree_test() {
                foo
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         goto :end (a && b && c) && d && e;
         foo;
@@ -1968,9 +1968,9 @@ fn cmptree_test() {
                foo
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         goto :end a && b && (c && d && e);
         foo;
@@ -1986,9 +1986,9 @@ fn cmptree_test() {
                foo
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         goto :end a && (op $ b && c;);
         foo;
@@ -2002,9 +2002,9 @@ fn cmptree_test() {
                foo
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         goto :end a && b || c && d;
         foo;
@@ -2019,9 +2019,9 @@ fn cmptree_test() {
                foo
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         goto :end !a && b || c && d;
         foo;
@@ -2036,9 +2036,9 @@ fn cmptree_test() {
                foo
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         goto :end (a && b) || !(c && d);
         foo;
@@ -2053,9 +2053,9 @@ fn cmptree_test() {
                foo
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         goto :end (a && b && c) || (d && e);
         foo;
@@ -2071,9 +2071,9 @@ fn cmptree_test() {
                foo
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         goto :end (a && b || c) || (d && e);
         foo;
@@ -2089,9 +2089,9 @@ fn cmptree_test() {
                foo
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         goto :end ((a && b) || c) || (d && e);
         foo;
@@ -2107,9 +2107,9 @@ fn cmptree_test() {
                foo
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         goto :end (a && (b || c)) || (d && e);
         foo;
@@ -2125,9 +2125,9 @@ fn cmptree_test() {
                foo
                end
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         goto :end (op $ a + 2;) && (op $ b + 2;);
         foo;
@@ -2142,7 +2142,7 @@ fn cmptree_test() {
                foo
                end
         "#
-    );
+    };
 
     check_sugar! {parser,
         r#"
@@ -2183,7 +2183,7 @@ fn cmptree_test() {
 fn set_res_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print (setres (x: op $ 1 + 2;););
         "#,
@@ -2191,23 +2191,23 @@ fn set_res_test() {
                op add x 1 2
                print x
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print (setres m;);
         "#,
         r#"
                print m
         "#
-    );
+    };
 }
 
 #[test]
 fn repr_var_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print a;
         print `a`;
@@ -2229,14 +2229,14 @@ fn repr_var_test() {
                print _
                print len
         "#
-    );
+    };
 }
 
 #[test]
 fn select_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         select 1 {
             print 0;
@@ -2247,9 +2247,9 @@ fn select_test() {
         op add @counter @counter 1
         print 0
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         select 1 {
             print 0;
@@ -2262,9 +2262,9 @@ fn select_test() {
         print 0
         jump 0 always 0 0
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         select 1 {
             print 0;
@@ -2278,9 +2278,9 @@ fn select_test() {
         jump 3 always 0 0
         print 2
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         select 1 {
             print 0;
@@ -2297,9 +2297,9 @@ fn select_test() {
         print " is one!"
         print 2
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         select x {
             print 0;
@@ -2313,26 +2313,26 @@ fn select_test() {
         print 1
         print 2
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         select (y: op $ x + 2;) {}
         "#,
         r#"
         op add y x 2
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         select x {}
         "#,
         r#"
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         select m {
             print 0;
@@ -2352,7 +2352,7 @@ fn select_test() {
         print "\n"
         print 2
         "#
-    );
+    };
 }
 
 #[test]
@@ -2410,7 +2410,7 @@ fn switch_catch_test() {
         "#
     );
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         switch (op $ x + 2;) {
             end;
@@ -2441,9 +2441,9 @@ fn switch_catch_test() {
             }
         }
         "#
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         switch (op $ x + 2;) {
             end;
@@ -2479,9 +2479,9 @@ fn switch_catch_test() {
             }
         }
         "#
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         switch (op $ x + 2;) {
             end;
@@ -2512,9 +2512,9 @@ fn switch_catch_test() {
             }
         }
         "#
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         switch (op $ x + 2;) {
             end;
@@ -2553,7 +2553,7 @@ fn switch_catch_test() {
             }
         }
         "#
-    );
+    };
 
     check_sugar! {parser,
         r#"
@@ -2664,7 +2664,7 @@ fn switch_catch_test() {
         "#
     }
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         # align...
         switch (op $ x + 2;) {
@@ -2687,14 +2687,14 @@ fn switch_catch_test() {
             {}
         }
         "#
-    );
+    };
 }
 
 #[test]
 fn switch_ignore_append_test() {
     let parser = TopLevelParser::new();
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         switch i {
             end;
@@ -2711,7 +2711,7 @@ fn switch_ignore_append_test() {
             { print 3; }
         }
         "#
-    );
+    };
 }
 
 #[test]
@@ -2732,7 +2732,7 @@ fn quick_dexp_take_test() {
     );
 
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Add = (
             take A = _0;
@@ -2745,9 +2745,9 @@ fn quick_dexp_take_test() {
                op add __2 1 2
                print __2
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Add = (
             take A = _0;
@@ -2766,7 +2766,7 @@ fn quick_dexp_take_test() {
                op add __3 1 2
                print __3
         "#
-    );
+    };
 
     check_sugar! {parser,
         r#"
@@ -3148,7 +3148,7 @@ fn quick_dexp_take_test() {
 fn value_bind_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Jack = jack;
         Jack, Jack.age = "jack", 18;
@@ -3160,9 +3160,9 @@ fn value_bind_test() {
                print jack
                print __0
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print a.b.c;
         print a.b;
@@ -3171,7 +3171,7 @@ fn value_bind_test() {
                print __1
                print __0
         "#
-    );
+    };
 
     check_sugar! {parser,
         r#"
@@ -3200,14 +3200,14 @@ fn value_bind_test() {
         "#,
     };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print (%()).x;
         "#,
         r#"
                print __1
         "#
-    );
+    };
 
     check_sugar! {parser,
         r#"
@@ -3305,7 +3305,7 @@ fn logic_line_from() {
 fn op_expr_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         a, b, c = 1, 2, ({}op $ 2 + 1;);
         "#,
@@ -3315,7 +3315,7 @@ fn op_expr_test() {
             op add __0 2 1
             set c __0
         "#
-    );
+    };
 
     assert!(parse!(parser, r#"
     a, b, c = 1 2;
@@ -4398,7 +4398,7 @@ fn inline_block_test() {
         ]).into()
     );
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print A;
         inline {
@@ -4412,7 +4412,7 @@ fn inline_block_test() {
                print 2
                print 2
         "#
-    );
+    };
 }
 
 #[test]
@@ -4444,7 +4444,7 @@ fn consted_dexp() {
         ]).into()
     );
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Do2 = (
             const F = _0;
@@ -4471,9 +4471,9 @@ fn consted_dexp() {
                jump 0 always 0 0
                print 1
         "#
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Do2 = (
             const F = _0;
@@ -4500,7 +4500,7 @@ fn consted_dexp() {
                jump 0 always 0 0
                print 1
         "#
-    );
+    };
 
     assert!(CompileMeta::new().compile(parse!(parser, r#"
     const Do2 = (
@@ -4528,7 +4528,7 @@ fn consted_dexp() {
         "#,
     };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const x.Y = 2;
         print const!(%setres x;%).Y;
@@ -4536,145 +4536,145 @@ fn consted_dexp() {
         r#"
                print 2
         "#
-    );
+    };
 }
 
 #[test]
 fn inline_cmp_op_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         :0 goto :0 a < b;
         "#,
         r#"
             jump 0 lessThan a b
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         :0 goto :0 a < b;
         "#,
         r#"
         :0 goto :0 a < b;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         :0 goto :0 (op $ a < b;);
         "#,
         r#"
         :0 goto :0 a < b;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         :0 goto :0 (op $ a === b;);
         "#,
         r#"
         :0 goto :0 a === b;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         :0 goto :0 (x: op x a === b;);
         "#,
         r#"
         :0 goto :0 (x: op x a === b;);
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         :0 goto :0 (op x a === b;);
         "#,
         r#"
         :0 goto :0 (op x a === b;);
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         :0 goto :0 (x: op $ a === b;);
         "#,
         r#"
         :0 goto :0 (x: op $ a === b;);
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         :0 goto :0 !(op $ a < b;);
         "#,
         r#"
         :0 goto :0 !a < b;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         :0 goto :0 !!!(op $ a < b;);
         "#,
         r#"
         :0 goto :0 !!!a < b;
         "#,
-    );
+    };
 
     // 暂未实现直接到StrictNotEqual, 目前这就算了吧, 反正最终编译产物一样
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         :0 goto :0 !(op $ a === b;);
         "#,
         r#"
         :0 goto :0 a !== b;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         :0 goto :0 (noop; op $ a < b;);
         "#,
         r#"
         :0 goto :0 (noop; op $ a < b;);
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         :0 goto :0 (op $ a < b; noop;);
         "#,
         r#"
         :0 goto :0 (op $ a < b; noop;);
         "#,
-    );
+    };
 
     // 连续内联的作用
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         :0 goto :0 (op $ !(op $ a < b;););
         "#,
         r#"
         :0 goto :0 !a < b;
         "#,
-    );
+    };
 
     // 连续内联的作用
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         :0 goto :0 (op $ !(op $ !(op $ a < b;);););
         "#,
         r#"
         :0 goto :0 a < b;
         "#,
-    );
+    };
 
     // 强化内联
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const F = false;
         do {} while (op $ a < b;) != F;
@@ -4684,9 +4684,9 @@ fn inline_cmp_op_test() {
         do {} while a < b;
         do {} while !a < b;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const F = 0;
         do {} while (op $ a < b;) != F;
@@ -4696,9 +4696,9 @@ fn inline_cmp_op_test() {
         do {} while a < b;
         do {} while !a < b;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const F = 0;
         const Op = (op $ a < b;);
@@ -4709,9 +4709,9 @@ fn inline_cmp_op_test() {
         do {} while a < b;
         do {} while !a < b;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const Op = (op $ a < b;);
         do {} while Op != (0:);
@@ -4721,9 +4721,9 @@ fn inline_cmp_op_test() {
         do {} while a < b;
         do {} while !a < b;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const F = (0:);
         const Op = (op $ a < b;);
@@ -4734,9 +4734,9 @@ fn inline_cmp_op_test() {
         do {} while a < b;
         do {} while !a < b;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const F = (false:);
         const Op = (op $ a < b;);
@@ -4747,9 +4747,9 @@ fn inline_cmp_op_test() {
         do {} while a < b;
         do {} while !a < b;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const F = 0;
         const Op = (op $ (op $ a < b;) != F;);
@@ -4760,9 +4760,9 @@ fn inline_cmp_op_test() {
         do {} while a < b;
         do {} while !a < b;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const F = 0;
         const Op = (op $ (op $ a < b;) == F;);
@@ -4773,9 +4773,9 @@ fn inline_cmp_op_test() {
         do {} while !a < b;
         do {} while a < b;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const false = 2;
         const Cmp = goto(a < b);
@@ -4785,9 +4785,9 @@ fn inline_cmp_op_test() {
         const Cmp = goto(a < b);
         do {} while Cmp != (`false`:);
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const false = 2;
         const Cmp = (?a < b);
@@ -4796,9 +4796,9 @@ fn inline_cmp_op_test() {
         r#"
             jump 0 lessThan a b
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const false = 2;
         const Cmp = (?a < b);
@@ -4808,9 +4808,9 @@ fn inline_cmp_op_test() {
             op lessThan __0 a b
             jump 0 notEqual __0 2
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const false = 2;
         const Cmp = (?m: a < b);
@@ -4820,9 +4820,9 @@ fn inline_cmp_op_test() {
             op lessThan m a b
             jump 0 notEqual m false
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const false = 2;
         const Cmp = (?a < b);
@@ -4832,9 +4832,9 @@ fn inline_cmp_op_test() {
             op lessThan __0 a b
             jump 0 notEqual __0 false
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const false = 2;
         const Cmp = (?a < b);
@@ -4844,9 +4844,9 @@ fn inline_cmp_op_test() {
             op lessThan __0 a b
             jump 0 equal __0 false
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         break (?a<b);
         break (?a<=b);
@@ -4859,9 +4859,9 @@ fn inline_cmp_op_test() {
             jump 0 greaterThan a b
             jump 0 greaterThanEq a b
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const false = 2;
         const Cmp = (?a < b);
@@ -4870,14 +4870,14 @@ fn inline_cmp_op_test() {
         r#"
             jump 0 greaterThanEq a b
         "#,
-    );
+    };
 }
 
 #[test]
 fn top_level_break_and_continue_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         foo;
         continue;
@@ -4888,9 +4888,9 @@ fn top_level_break_and_continue_test() {
             jump 0 always 0 0
             bar
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         foo;
         continue _;
@@ -4901,9 +4901,9 @@ fn top_level_break_and_continue_test() {
             jump 0 always 0 0
             bar
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         foo;
         continue a < b;
@@ -4914,9 +4914,9 @@ fn top_level_break_and_continue_test() {
             jump 0 lessThan a b
             bar
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         foo;
         continue a < b || c < d;
@@ -4928,9 +4928,9 @@ fn top_level_break_and_continue_test() {
             jump 0 lessThan c d
             bar
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         foo;
         continue;
@@ -4941,9 +4941,9 @@ fn top_level_break_and_continue_test() {
             jump 0 always 0 0
             bar
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         foo;
         continue _;
@@ -4954,9 +4954,9 @@ fn top_level_break_and_continue_test() {
             jump 0 always 0 0
             bar
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         foo;
         continue a < b;
@@ -4967,9 +4967,9 @@ fn top_level_break_and_continue_test() {
             jump 0 lessThan a b
             bar
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         foo;
         continue a < b || c < d;
@@ -4981,7 +4981,7 @@ fn top_level_break_and_continue_test() {
             jump 0 lessThan c d
             bar
         "#,
-    );
+    };
 
 }
 
@@ -4989,7 +4989,7 @@ fn top_level_break_and_continue_test() {
 fn control_stmt_break_and_continue_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         foo;
         while a < b {
@@ -5018,9 +5018,9 @@ fn control_stmt_break_and_continue_test() {
             bar
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         foo;
         gwhile a < b {
@@ -5049,9 +5049,9 @@ fn control_stmt_break_and_continue_test() {
             bar
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         foo;
         xxx;
@@ -5082,9 +5082,9 @@ fn control_stmt_break_and_continue_test() {
             bar
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         switch a {
         case 0: foo;
@@ -5102,9 +5102,9 @@ fn control_stmt_break_and_continue_test() {
             end
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         select a {
             foo;
@@ -5122,9 +5122,9 @@ fn control_stmt_break_and_continue_test() {
             end
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         foo;
         while a < b {
@@ -5153,10 +5153,10 @@ fn control_stmt_break_and_continue_test() {
             bar
             jump 0 always 0 0
         "#,
-    );
+    };
 
     // 4 -> 6
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         foo;
         while a < b {
@@ -5185,9 +5185,9 @@ fn control_stmt_break_and_continue_test() {
             bar
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         foo;
         gwhile a < b {
@@ -5216,9 +5216,9 @@ fn control_stmt_break_and_continue_test() {
             bar
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         foo;
         xxx;
@@ -5249,9 +5249,9 @@ fn control_stmt_break_and_continue_test() {
             bar
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         switch a {
         case 0: foo;
@@ -5269,9 +5269,9 @@ fn control_stmt_break_and_continue_test() {
             end
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         select a {
             foo;
@@ -5289,9 +5289,9 @@ fn control_stmt_break_and_continue_test() {
             end
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         end;
         switch a {
@@ -5311,9 +5311,9 @@ fn control_stmt_break_and_continue_test() {
             end
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         end;
         select a {
@@ -5333,7 +5333,7 @@ fn control_stmt_break_and_continue_test() {
             end
             jump 0 always 0 0
         "#,
-    );
+    };
 
 }
 
@@ -5453,7 +5453,7 @@ fn optional_jumpcmp_test() {
 fn control_block_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         a;
         break {
@@ -5472,9 +5472,9 @@ fn control_block_test() {
             d
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         a;
         break! {
@@ -5493,9 +5493,9 @@ fn control_block_test() {
             d
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         a;
         continue {
@@ -5514,9 +5514,9 @@ fn control_block_test() {
             d
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         a;
         continue! {
@@ -5535,9 +5535,9 @@ fn control_block_test() {
             d
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         a;
         continue {
@@ -5556,9 +5556,9 @@ fn control_block_test() {
             d
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         a;
         break {
@@ -5577,9 +5577,9 @@ fn control_block_test() {
             d
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         a;
         break continue {
@@ -5598,9 +5598,9 @@ fn control_block_test() {
             c
             d
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         a;
         continue break {
@@ -5619,9 +5619,9 @@ fn control_block_test() {
             c
             d
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         a;
         continue! break! {
@@ -5640,7 +5640,7 @@ fn control_block_test() {
             c
             d
         "#,
-    );
+    };
 }
 
 #[test]
@@ -5732,7 +5732,7 @@ fn number_test() {
 fn cmper_test() {
     let parser = TopLevelParser::new();
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const Cmp = goto(_0 < _1);
         do {} while ({const _0 = a; const _1 = b;} => Cmp);
@@ -5740,9 +5740,9 @@ fn cmper_test() {
         r#"
         do {} while a < b;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const Cmp = goto(_0 < _1);
         do {} while !({const _0 = a; const _1 = b;} => Cmp);
@@ -5750,9 +5750,9 @@ fn cmper_test() {
         r#"
         do {} while !a < b;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const Cmp = goto(_0 < _1);
         do {} while ({const _0 = a; const _1 = b;} => !Cmp);
@@ -5760,7 +5760,7 @@ fn cmper_test() {
         r#"
         do {} while !a < b;
         "#,
-    );
+    };
 
     check_sugar! {parser,
         r#"
@@ -5773,7 +5773,7 @@ fn cmper_test() {
         "#,
     };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const Cmp = goto(!_0 < _1);
         do {} while ({const _0 = a; const _1 = b;} => Cmp);
@@ -5781,9 +5781,9 @@ fn cmper_test() {
         r#"
         do {} while !a < b;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const Cmp = goto(!_0 < _1);
         do {} while ({const _0 = a; const _1 = b;} => !Cmp);
@@ -5791,9 +5791,9 @@ fn cmper_test() {
         r#"
         do {} while a < b;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const Cmp = goto(_0 < _1);
         do {} while !(x && ({const _0 = a; const _1 = b;} => Cmp));
@@ -5801,27 +5801,27 @@ fn cmper_test() {
         r#"
         do {} while !(x && a < b);
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         do {} while !(x && ({const _0 = a; const _1 = b;} => goto(_0 < _1)));
         "#,
         r#"
         do {} while !(x && a < b);
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         do {} while !(x && ({const _0 = a; const _1 = b;} => !goto(_0 < _1)));
         "#,
         r#"
         do {} while !(x && !a < b);
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const x.Cmp = goto(.. < 2);
         const Cmp = x->Cmp;
@@ -5830,9 +5830,9 @@ fn cmper_test() {
         r#"
         do {} while x < 2;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const x.New = (
             setres ..;
@@ -5844,9 +5844,9 @@ fn cmper_test() {
         r#"
         do {} while x < 2;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const x.New = (
             setres ..;
@@ -5858,9 +5858,9 @@ fn cmper_test() {
         r#"
         do {print x;} while x < 2;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const x.Cmp = goto(.. < 2);
         const Cmp = x->Cmp;
@@ -5871,9 +5871,9 @@ fn cmper_test() {
         do {} while x < 2;
         do {} while x < 2;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const x.Cmp = goto({
             do {} while;
@@ -5886,9 +5886,9 @@ fn cmper_test() {
         do {do {} while;} while x < 2;
         do {do {} while;} while x < 2;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const x.Cmp = goto({
             do {} while;
@@ -5903,9 +5903,9 @@ fn cmper_test() {
         do {do {} while;} while x < 2;
         print __;
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         break ({match 1 2 3 => @ {}} => _);
         print _0 @;
@@ -5914,9 +5914,9 @@ fn cmper_test() {
             jump 0 always 0 0
             print _0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         break (=>[1 2 3] _);
         print _0 @;
@@ -5925,9 +5925,9 @@ fn cmper_test() {
             jump 0 always 0 0
             print _0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         break (=> a);
         print _0 @;
@@ -5936,9 +5936,9 @@ fn cmper_test() {
             jump 0 notEqual a false
             print _0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         break ( [1 2 3] a);
         print _0 @;
@@ -5947,9 +5947,9 @@ fn cmper_test() {
             jump 0 notEqual a false
             print _0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         break [1 2 3] a;
         print _0 @;
@@ -5958,9 +5958,9 @@ fn cmper_test() {
             jump 0 notEqual a false
             print _0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         break [1 2 3] [4 5] _0;
         print _0 @;
@@ -5969,9 +5969,9 @@ fn cmper_test() {
             jump 0 notEqual 4 false
             print _0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         break ( [1 2 3] [4 5] _0);
         print _0 @;
@@ -5980,9 +5980,9 @@ fn cmper_test() {
             jump 0 notEqual 4 false
             print _0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         break (=>[1 2 3] a);
         print _0 @;
@@ -5991,9 +5991,9 @@ fn cmper_test() {
             jump 0 notEqual a false
             print _0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         break (=>[a] _0 && _0);
         print _0 @;
@@ -6003,9 +6003,9 @@ fn cmper_test() {
             jump 0 notEqual _0 false
             print _0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         break (=>[a] (_0 && _0));
         print _0 @;
@@ -6015,9 +6015,9 @@ fn cmper_test() {
             jump 0 notEqual a false
             print _0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         break (=>[1 2 3] _);
         print _0 @;
@@ -6026,9 +6026,9 @@ fn cmper_test() {
             jump 0 always 0 0
             print _0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         break ( [1 2 3]_);
         print _0 @;
@@ -6037,9 +6037,9 @@ fn cmper_test() {
             jump 0 always 0 0
             print _0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         break [1 2 3]_;
         print _0 @;
@@ -6048,7 +6048,7 @@ fn cmper_test() {
             jump 0 always 0 0
             print _0
         "#,
-    );
+    };
 
     check_sugar! {parser,
         r#"
@@ -6236,7 +6236,7 @@ fn switch_append_tail_once_test() {
 fn const_expr_eval_test() {
     let parser = TopLevelParser::new();
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         print 1.00;
         print `1.00`;
@@ -6247,18 +6247,18 @@ fn const_expr_eval_test() {
         print 1.00;
         print 1.00;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         print ($ = 1.00;);
         "#,
         r#"
         print 1;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         take N = (op $ (op $ (op $ 1 + 2;) + 3;) + 4;);
         print N;
@@ -6266,9 +6266,9 @@ fn const_expr_eval_test() {
         r#"
         print `10`;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         take N = ($ = 1 + 2 + 3 + 4;);
         print N;
@@ -6276,9 +6276,9 @@ fn const_expr_eval_test() {
         r#"
         print `10`;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         take N = ($ = 1 << 10;);
         print N;
@@ -6287,9 +6287,9 @@ fn const_expr_eval_test() {
         take N = 1024;
         print N;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         take N = ($ = 1.0 == 1;);
         print N;
@@ -6298,9 +6298,9 @@ fn const_expr_eval_test() {
         take N = 1;
         print N;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         take N = (m: $ = 1.0 == 1;);
         print N;
@@ -6309,19 +6309,19 @@ fn const_expr_eval_test() {
         m = 1.0 == 1;
         print m;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         print ($ = (`set` $ ($ = 1 + 1;);););
         "#,
         r#"
         print 2;
         "#,
-    );
+    };
 
     // 非匿名句柄不优化
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         print (x: $ = 1 + 1;);
         "#,
@@ -6329,18 +6329,18 @@ fn const_expr_eval_test() {
         op x 1 + 1;
         print x;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         print ($ = log(0););
         "#,
         r#"
         print null;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         print ($ = acos(0.5););
         print ($ = cos(60););
@@ -6349,18 +6349,18 @@ fn const_expr_eval_test() {
         print 60.00000000000001;
         print 0.5000000000000001;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         print ($ = -3 // 2;);
         "#,
         r#"
         print -2;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const N=($ = -3 // 2;);
         const N1=($ = -N;);
@@ -6369,9 +6369,9 @@ fn const_expr_eval_test() {
         r#"
         print 2;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const N=($ = -3 // 2;);
         take N1=($ = -N;);
@@ -6380,9 +6380,9 @@ fn const_expr_eval_test() {
         r#"
         print 2;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         const N=($ = -3 // 2;);
         take N=($ = -N;);
@@ -6391,9 +6391,9 @@ fn const_expr_eval_test() {
         r#"
         print 2;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         print ($ = -2 - 3;);
         print ($ = max(3, 5););
@@ -6410,9 +6410,9 @@ fn const_expr_eval_test() {
         print 0;
         print null;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         print ($ = 999999+0;);
         print ($ = 999999+1;);
@@ -6427,9 +6427,9 @@ fn const_expr_eval_test() {
         print 0x-F4240;
         print 0;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         print (*select 2 < 4 ? 5 : 8);
         print (*select 4 < 2 ? 5 : 8);
@@ -6438,16 +6438,16 @@ fn const_expr_eval_test() {
         print 5;
         print 8;
         "#,
-    );
+    };
 
-    check_compile_eq!(parser,
+    check_compile_eq!{parser,
         r#"
         print (*select 2 < 4 ? a : 8);
         "#,
         r#"
         print ('select' $ lessThan 2 4 a 8);
         "#,
-    );
+    };
 }
 
 #[test]
@@ -6503,7 +6503,7 @@ fn string_escape_test() {
 fn match_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Foo = (
             inline@{
@@ -6517,9 +6517,9 @@ fn match_test() {
             print b
             print c
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Foo = (
             print @;
@@ -6531,26 +6531,26 @@ fn match_test() {
             print b
             print c
         "#,
-    );
+    };
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         take Foo[a b c];
         print @;
         "#,
         r#""#
-    ).hit_log(1);
+    }.hit_log(1);
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         match a b c {}
         print @;
         "#,
         r#"
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         match a b c { @{} }
         print @;
@@ -6560,10 +6560,10 @@ fn match_test() {
             print b
             print c
         "#,
-    );
+    };
 
     // 作用域测试
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         {
             match a b c { @{} }
@@ -6572,10 +6572,10 @@ fn match_test() {
         "#,
         r#"
         "#,
-    );
+    };
 
     // 作用域测试
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         match a b c { @{} }
         inline@{
@@ -6593,10 +6593,10 @@ fn match_test() {
             print b
             print c
         "#,
-    );
+    };
 
     // 作用域测试
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         match a b c { @{} }
         inline 2@{
@@ -6613,9 +6613,9 @@ fn match_test() {
             print b
             print c
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const C = 1;
         match a b c { @{} }
@@ -6634,9 +6634,9 @@ fn match_test() {
             print b
             print c
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const C = 1;
         match a b c { @{} }
@@ -6654,9 +6654,9 @@ fn match_test() {
             print b
             print c
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const C = 2;
         match a b c { @{} }
@@ -6674,9 +6674,9 @@ fn match_test() {
             print b
             print c
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         match a b c { __ @{} }
         print @;
@@ -6685,9 +6685,9 @@ fn match_test() {
             print b
             print c
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         match a b c {
             X Y {}
@@ -6700,9 +6700,9 @@ fn match_test() {
             print b
             print c
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         match a b {
             X Y {}
@@ -6712,9 +6712,9 @@ fn match_test() {
         "#,
         r#"
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         match a b {
             X Y {}
@@ -6726,9 +6726,9 @@ fn match_test() {
             print a
             print b
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Foo = (
             match @ {
@@ -6749,9 +6749,9 @@ fn match_test() {
             print c
             print end
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Foo = (
             match @ {
@@ -6772,9 +6772,9 @@ fn match_test() {
             print a
             print end
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Foo = (
             match @ {
@@ -6800,9 +6800,9 @@ fn match_test() {
             print d
             print c
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Foo = (
             match @ {
@@ -6830,9 +6830,9 @@ fn match_test() {
             print d
             print end
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Foo = ( # 循环展开版本
             inline@{
@@ -6866,9 +6866,9 @@ fn match_test() {
             print other
             print 6
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Foo = ( # 右递归版本
             match @ {
@@ -6904,9 +6904,9 @@ fn match_test() {
             print other
             print 6
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Foo = ( # 左递归版本
             match @ {
@@ -6942,9 +6942,9 @@ fn match_test() {
             print other
             print 6
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Eq = ( # 引用前部匹配
             match @ {
@@ -6970,9 +6970,9 @@ fn match_test() {
             print a
             print b
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Foo = (
             # 验证滞后const,
@@ -6991,9 +6991,9 @@ fn match_test() {
             print 5
             print 5
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         # 验证其并不会连锁追溯
         const Foo = (
@@ -7010,9 +7010,9 @@ fn match_test() {
             print X
             print X
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         # 验证其并不会连锁追溯
         const Foo = (
@@ -7032,9 +7032,9 @@ fn match_test() {
             print X
             print X
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         # 验证其并不会连锁追溯
         const X = 2;
@@ -7050,9 +7050,9 @@ fn match_test() {
         r#"
             print X
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const 3 = 0;
         const X = 2;
@@ -7068,9 +7068,9 @@ fn match_test() {
             print 3
             print 4
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         # 关于二次追溯
         {
@@ -7096,9 +7096,9 @@ fn match_test() {
             print Y
             print Y
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         # 关于二次追溯
         {
@@ -7130,9 +7130,9 @@ fn match_test() {
             print Y
             print Y
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         # 关于参数展开在match和repeat中对绑定者的丢失
         const a.F = (nouse:
@@ -7165,7 +7165,7 @@ fn match_test() {
             print a
             print nouse
         "#,
-    );
+    };
 
     check_sugar! {parser,
         r#"
@@ -7231,7 +7231,7 @@ fn match_test() {
         "#,
     };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         match 1 2 => @ {
             print _0 _1 @;
@@ -7248,9 +7248,9 @@ fn match_test() {
             print 1
             print 2
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const match 1 2 => @ {
             print _0 _1 @;
@@ -7267,9 +7267,9 @@ fn match_test() {
             print 1
             print 2
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Foo = (match @ {
             { print 0; }
@@ -7283,9 +7283,9 @@ fn match_test() {
             print 1
             print 2
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Foo = (match @ {
             $_ { print 1; }
@@ -7296,9 +7296,9 @@ fn match_test() {
             print 1
             print 6
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Foo = (match @ {
             $X { print 8 X 8; }
@@ -7311,9 +7311,9 @@ fn match_test() {
             print 8
             print 6
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Foo = (match @ {
             $X $Y { print 8 X 8; }
@@ -7326,9 +7326,9 @@ fn match_test() {
             print 8
             print 9
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Foo = (match @ {
             X $Y { print 8 X 8; }
@@ -7341,9 +7341,9 @@ fn match_test() {
             print 8
             print 9
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Foo = (match @ {
             $X Y { print 8 X 8; }
@@ -7356,9 +7356,9 @@ fn match_test() {
             print 8
             print 6
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Foo = (match @ {
             X Y { print 8 X 8; }
@@ -7371,9 +7371,9 @@ fn match_test() {
             print 8
             print __2
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const match (arg;) => @ {}
         match (a;) @ (b;) => @ {}
@@ -7383,7 +7383,7 @@ fn match_test() {
             arg
             b
         "#,
-    );
+    };
 }
 
 #[test]
@@ -7491,7 +7491,7 @@ fn param_comma_sugar_test() {
 fn const_match_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const match {
             {
@@ -7502,9 +7502,9 @@ fn const_match_test() {
         r#"
             print empty
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         match 1 2 { @ {} }
         const match {
@@ -7515,9 +7515,9 @@ fn const_match_test() {
         "#,
         r#"
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Val = (res:
             print taked;
@@ -7533,9 +7533,9 @@ fn const_match_test() {
             print taked
             print res
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Val = (res:
             print taked;
@@ -7551,9 +7551,9 @@ fn const_match_test() {
             print 1
             print res
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Val = 2;
         const match `Val` {
@@ -7566,9 +7566,9 @@ fn const_match_test() {
             print 1
             print Val
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Val = 2;
         const match Val {
@@ -7585,9 +7585,9 @@ fn const_match_test() {
             print x2
             print 2
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Val = 2;
         const match Val {
@@ -7604,9 +7604,9 @@ fn const_match_test() {
             print x2
             print 2
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Val = 2;
         const match Val {
@@ -7618,9 +7618,9 @@ fn const_match_test() {
         r#"
             print 2
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Val = 2;
         const match Val {
@@ -7633,9 +7633,9 @@ fn const_match_test() {
             print 2
             print x
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Val = 2;
         const match Val {
@@ -7648,9 +7648,9 @@ fn const_match_test() {
             print 2
             print x
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Val = 2;
         const match Val {
@@ -7663,9 +7663,9 @@ fn const_match_test() {
             print 2
             print x
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const match 2 {
             [2] {
@@ -7679,9 +7679,9 @@ fn const_match_test() {
         r#"
             print only
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const match (print err;) {
             [2] {
@@ -7698,9 +7698,9 @@ fn const_match_test() {
         r#"
             print default
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const match (%2: print x;%)->$ {
             [2] {
@@ -7715,9 +7715,9 @@ fn const_match_test() {
             print x
             print only
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const match (2: print x;) {
             _ {
@@ -7731,9 +7731,9 @@ fn const_match_test() {
         r#"
             print only
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const match (2: print x;) {
             *_ {
@@ -7748,9 +7748,9 @@ fn const_match_test() {
             print x
             print only
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const match (2: print x;) {
             [*] {
@@ -7765,9 +7765,9 @@ fn const_match_test() {
             print x
             print only
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const match (2: print x;) {
             [*3] {
@@ -7786,9 +7786,9 @@ fn const_match_test() {
             print x
             print only
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const match (2: print x;) 3 {
             [*2] [2] {
@@ -7804,9 +7804,9 @@ fn const_match_test() {
             print x
             print only
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const match (2: print x;) 3 {
             *_ [2] {
@@ -7821,9 +7821,9 @@ fn const_match_test() {
             print x
             print only
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         match A { @ {} }
         const A = 2;
@@ -7839,9 +7839,9 @@ fn const_match_test() {
         r#"
             print yes
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         foo (const match (h: print taked;) {
             $_ {
@@ -7854,9 +7854,9 @@ fn const_match_test() {
             print body
             foo h
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         foo (const match (h: print taked;) {
             $*M {
@@ -7870,9 +7870,9 @@ fn const_match_test() {
             print h
             foo h
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         foo (const match (h: print taked;) {
             $*M {
@@ -7887,9 +7887,9 @@ fn const_match_test() {
             print h
             foo h
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         foo (const match (h: print taked;) {
             $*M:[h] {
@@ -7900,9 +7900,9 @@ fn const_match_test() {
         r#"
             foo __0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         foo (const match (h: print taked;) {
             $*M:[*h] {
@@ -7918,9 +7918,9 @@ fn const_match_test() {
             print h
             foo h
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         foo (const match (h: print taked;) {
             $M:[*h] {
@@ -7938,9 +7938,9 @@ fn const_match_test() {
             print h
             foo h
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         foo (const match (h: print taked;) {
             $M {
@@ -7957,9 +7957,9 @@ fn const_match_test() {
             print h
             foo h
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const match (arg;) => @ {}
         const match (a;) @ (b;) => A @ *B {}
@@ -7967,9 +7967,9 @@ fn const_match_test() {
         r#"
             b
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const match (arg;) => @ {}
         const match (a;) @ (b;) => *A @ *B {}
@@ -7978,9 +7978,9 @@ fn const_match_test() {
             a
             b
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const match (arg;) => @ {}
         const match (a;) @ (b;) => *A *@ *B {}
@@ -7990,9 +7990,9 @@ fn const_match_test() {
             arg
             b
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const match (arg;) => @ {}
         const match (a;) @ (b;) => A *@ *B {}
@@ -8001,9 +8001,9 @@ fn const_match_test() {
             arg
             b
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const match (arg;) => @ {}
         const match (a;) @ (b;) => A *@ *B { end; }
@@ -8013,9 +8013,9 @@ fn const_match_test() {
             b
             end
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const match (8: arg;) => @ {}
         const match (a @;) @ (b @;) => *A *@ *B { end; }
@@ -8028,10 +8028,10 @@ fn const_match_test() {
             b 8
             end
         "#,
-    );
+    };
 
     // 测试守卫作用域
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const match 1 { [?_0 == 1] { x; } _ { y; }}
         print _0 @;
@@ -8040,10 +8040,10 @@ fn const_match_test() {
             x
             print _0
         "#,
-    );
+    };
 
     // 无限重复块
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         take*I = 0;
         inline 0@ {
@@ -8060,10 +8060,10 @@ fn const_match_test() {
             print 3
             print 4
         "#,
-    );
+    };
 
     // 不重设参数情况
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         take*I = 0;
         inline 0@ {
@@ -8083,10 +8083,10 @@ fn const_match_test() {
             bar
             baz 3
         "#,
-    );
+    };
 
     // 重设参数情况
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         take*I = 0;
         inline*0@ {
@@ -8106,14 +8106,14 @@ fn const_match_test() {
             bar
             baz 3
         "#,
-    );
+    };
 }
 
 #[test]
 fn value_bind_of_constkey_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         take X = ();
         take X.Y = 2;
@@ -8122,9 +8122,9 @@ fn value_bind_of_constkey_test() {
         r#"
             print 2
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         take X = ();
         {
@@ -8135,9 +8135,9 @@ fn value_bind_of_constkey_test() {
         r#"
             print 2
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         take X = ();
         {
@@ -8153,23 +8153,23 @@ fn value_bind_of_constkey_test() {
             jump 0 always 0 0
             jump 1 always 0 0
         "#,
-    );
+    };
 }
 
 #[test]
 fn const_value_expand_binder_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print ..;
         "#,
         r#"
             print __
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const X.Y = (
             print ..;
@@ -8179,9 +8179,9 @@ fn const_value_expand_binder_test() {
         r#"
             print X
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const X.Y = (
             const Foo = (
@@ -8194,9 +8194,9 @@ fn const_value_expand_binder_test() {
         r#"
             print X
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const X.Y = (
             const Foo.Bar = (
@@ -8209,9 +8209,9 @@ fn const_value_expand_binder_test() {
         r#"
             print Foo
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const X.Y = (
             const Foo.Bar = (
@@ -8225,9 +8225,9 @@ fn const_value_expand_binder_test() {
         r#"
             print Foo
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Box = (
             $.val = _0;
@@ -8246,9 +8246,9 @@ fn const_value_expand_binder_test() {
             op add __2 __2 __6
             print __
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Box = (
             $.val = _0;
@@ -8266,9 +8266,9 @@ fn const_value_expand_binder_test() {
             set __6 3
             op add __2 __2 __6
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Box = (
             $.val = _0;
@@ -8286,9 +8286,9 @@ fn const_value_expand_binder_test() {
             set __6 3
             op add __2 __2 __6
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         take a.B = 1;
         take a.B = 2;
@@ -8297,9 +8297,9 @@ fn const_value_expand_binder_test() {
         r#"
             print 2
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         take a.N = 1;
         take b.N = 2;
@@ -8311,9 +8311,9 @@ fn const_value_expand_binder_test() {
             op add __2 1 2
             print __2
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         take a.N = 1;
         take b.N = 2;
@@ -8324,9 +8324,9 @@ fn const_value_expand_binder_test() {
         r#"
             print 3
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const a.X = (
             print ..;
@@ -8339,9 +8339,9 @@ fn const_value_expand_binder_test() {
             print a
             print a
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const A = a;
         const A.X = (
@@ -8352,9 +8352,9 @@ fn const_value_expand_binder_test() {
         r#"
             print a
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const a.X = (
             print ..;
@@ -8370,23 +8370,23 @@ fn const_value_expand_binder_test() {
             print a
             print a
         "#,
-    );
+    };
 }
 
 #[test]
 fn builtin_func_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print Builtin.Type[x];
         "#,
         r#"
             print var
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print Builtin.Stringify[2];
         print Builtin.Stringify[x];
@@ -8397,9 +8397,9 @@ fn builtin_func_test() {
             print "x"
             print "x"
         "#,
-    );
+    };
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         print Builtin.Concat["abc" "def"];
         print Builtin.Status;
@@ -8412,9 +8412,9 @@ fn builtin_func_test() {
             print __
             print 2
         "#,
-    ).hit_log(1);
+    }.hit_log(1);
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print Builtin.Type[()];
         print Builtin.Type[`m`];
@@ -8423,9 +8423,9 @@ fn builtin_func_test() {
             print dexp
             print var
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const A = ();
         const B = `emmm`;
@@ -8445,9 +8445,9 @@ fn builtin_func_test() {
             print resulthandle
             print binder
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const A.B = 2;
         print Builtin.Type[A.B];
@@ -8455,9 +8455,9 @@ fn builtin_func_test() {
         r#"
             print valuebind
         "#,
-    );
+    };
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         const A = x;
         print Builtin.Info[A];
@@ -8471,9 +8471,9 @@ fn builtin_func_test() {
             print x
             print y
         "#,
-    ).hit_log(4);
+    }.hit_log(4);
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const A = x.y;
         print Builtin.Unbind[A];
@@ -8483,9 +8483,9 @@ fn builtin_func_test() {
             print y
             print y
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         {
             const Name = `X`;
@@ -8510,9 +8510,9 @@ fn builtin_func_test() {
             print i
             print i
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Value = (x:);
         const Binded = Value.x;
@@ -8526,9 +8526,9 @@ fn builtin_func_test() {
             print dexp
             print x
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Foo = (
             take Builtin.SliceArgs[1 4];
@@ -8541,9 +8541,9 @@ fn builtin_func_test() {
             print 2
             print 3
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Foo = (
             print Builtin.ArgsLen[];
@@ -8558,9 +8558,9 @@ fn builtin_func_test() {
             print 6
             print 2
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Foo = (
             take Handle = Builtin.ArgsHandle[1];
@@ -8573,9 +8573,9 @@ fn builtin_func_test() {
             print __1
             print 1
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = ($ = 1+2;);
         print Builtin.EvalNum[F];
@@ -8583,9 +8583,9 @@ fn builtin_func_test() {
         r#"
             print 3
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = ($ = 1+x;);
         print Builtin.EvalNum[F];
@@ -8593,9 +8593,9 @@ fn builtin_func_test() {
         r#"
             print __
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const N = 2 S = "s" D = ();
         print Builtin.IsString[N];
@@ -8613,9 +8613,9 @@ fn builtin_func_test() {
             print 1
             print 1
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = (
             {
@@ -8630,9 +8630,9 @@ fn builtin_func_test() {
         r#"
             print 113
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         take Builtin.SetNoOp["set noop \\'noop\n\\'"];
         noop;
@@ -8640,9 +8640,9 @@ fn builtin_func_test() {
         r#"
             set noop "noop\n"
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         take Builtin.SetNoOp["set noop \\'noop\n\\'"];
         select x {
@@ -8682,9 +8682,9 @@ fn builtin_func_test() {
             print 4
             print 5
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         take Builtin.SetNoOp['\"str\"'];
         select x {
@@ -8724,9 +8724,9 @@ fn builtin_func_test() {
             print 4
             print 5
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         take Builtin.BindSep[x];
         print a.b;
@@ -8751,9 +8751,9 @@ fn builtin_func_test() {
             print cxd
             print 3
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const match (a;) (b;) => @ {}
         start;
@@ -8768,151 +8768,151 @@ fn builtin_func_test() {
             b
             end
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print Builtin.Ord[a];
         "#,
         r#"
             print 97
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print Builtin.Ord["a"];
         "#,
         r#"
             print 97
         "#,
-    );
+    };
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         print Builtin.Ord[ab];
         "#,
         r#"
             print __
         "#,
-    ).hit_log(1);
+    }.hit_log(1);
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print Builtin.Ord['\n'];
         "#,
         r#"
             print 10
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print Builtin.Ord['\t'];
         "#,
         r#"
             print 9
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print Builtin.Ord['\r'];
         "#,
         r#"
             print 13
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print Builtin.Ord['\e'];
         "#,
         r#"
             print 27
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print Builtin.Ord['"'];
         "#,
         r#"
             print 34
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print Builtin.Ord["'"];
         "#,
         r#"
             print 39
         "#,
-    );
+    };
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         print Builtin.Ord[""];
         "#,
         r#"
             print __
         "#,
-    ).hit_log(1);
+    }.hit_log(1);
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         print Builtin.Ord["ab"];
         "#,
         r#"
             print __
         "#,
-    ).hit_log(1);
+    }.hit_log(1);
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print Builtin.Chr[32];
         "#,
         r#"
             print " "
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print Builtin.Chr[97];
         "#,
         r#"
             print "a"
         "#,
-    );
+    };
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         print Builtin.Chr[10];
         "#,
         r#"
             print __
         "#,
-    ).hit_log(1);
+    }.hit_log(1);
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         print Builtin.Chr[34];
         "#,
         r#"
             print __
         "#,
-    ).hit_log(1);
+    }.hit_log(1);
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print Builtin.Chr[0x61];
         "#,
         r#"
             print "a"
         "#,
-    );
+    };
 }
 
 #[test]
@@ -8928,7 +8928,7 @@ fn closure_value_test() {
         "#,
     };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const A = (a: print "makeA";);
         const B = (b: print "makeB";);
@@ -8946,9 +8946,9 @@ fn closure_value_test() {
             print b
             print "End"
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const A = 2;
         const B = `A`;
@@ -8960,9 +8960,9 @@ fn closure_value_test() {
         r#"
             print A
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const A = 2;
         const B = `A`;
@@ -8973,9 +8973,9 @@ fn closure_value_test() {
         r#"
             print B
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Do = (
             take _0 _0;
@@ -8995,9 +8995,9 @@ fn closure_value_test() {
             jump 2 lessThan a b
             jump 4 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Do = (
             take _0 _0;
@@ -9019,9 +9019,9 @@ fn closure_value_test() {
             jump 2 lessThan a b
             jump 4 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print ([X:1](
             print "foo";
@@ -9032,9 +9032,9 @@ fn closure_value_test() {
             print "foo"
             print 1
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const x.Clos = ([N:2](
             print .. __Binder;
@@ -9045,9 +9045,9 @@ fn closure_value_test() {
             print __0
             print x
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const x.Clos = ([N:2 ..B](
             print .. B;
@@ -9058,9 +9058,9 @@ fn closure_value_test() {
             print __0
             print x
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         # 污染
         const F = ([N:2](match @ => F {
@@ -9073,9 +9073,9 @@ fn closure_value_test() {
             print 2
             foo m
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         # 懒闭包
         const F = ([N:2]match @ => F {
@@ -9088,9 +9088,9 @@ fn closure_value_test() {
             print 3
             foo m
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = ([N:2]match @ {
             {}
@@ -9105,9 +9105,9 @@ fn closure_value_test() {
             print 3
             foo m
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = ([N:2](const match @ {
             {}
@@ -9124,9 +9124,9 @@ fn closure_value_test() {
             print 2
             foo m
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = ([N:2]const match @ {
             {}
@@ -9143,9 +9143,9 @@ fn closure_value_test() {
             print 2
             foo m
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = ([N:2]const match @ {
             {}
@@ -9162,9 +9162,9 @@ fn closure_value_test() {
             mid
             foo m
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = ([N:2]r:const match @ {
             {}
@@ -9182,9 +9182,9 @@ fn closure_value_test() {
             foo m
             ret r
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = ([N:2]r:match @ {
             {}
@@ -9202,9 +9202,9 @@ fn closure_value_test() {
             foo m
             ret r
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = ([N:2]r:const match @ {
             [?(0:const match @ {})] {}
@@ -9222,9 +9222,9 @@ fn closure_value_test() {
             foo m
             ret r
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = ([N:2]r:const match @ {
             [?(0:const match @ {})] {}
@@ -9242,9 +9242,9 @@ fn closure_value_test() {
             foo m
             ret r
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = ([N:2]r:const match @ {
             [?(0:const match @ {})] {}
@@ -9262,14 +9262,14 @@ fn closure_value_test() {
             foo m
             ret r
         "#,
-    );
+    };
 }
 
 #[test]
 fn value_bind_ref_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const bind.V = (
             print "take";
@@ -9289,9 +9289,9 @@ fn value_bind_ref_test() {
             print "take"
             print "finish"
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Bind = bind;
         const Bind.V = (
@@ -9315,9 +9315,9 @@ fn value_bind_ref_test() {
             print "take"
             print "finish"
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const bind.V = (
             print "take";
@@ -9336,9 +9336,9 @@ fn value_bind_ref_test() {
             print 2
             print bind
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const bind.V = (
             print "take";
@@ -9357,9 +9357,9 @@ fn value_bind_ref_test() {
             print 2
             print bind
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Res = (%
             print "maked";
@@ -9372,9 +9372,9 @@ fn value_bind_ref_test() {
             print 1
             print 2
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = (print 2;);
         print 1;
@@ -9387,9 +9387,9 @@ fn value_bind_ref_test() {
             print 3
             print __1
         "#,
-    );
+    };
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         const bind.next.X = 2;
         const F = bind->next->X;
@@ -9400,9 +9400,9 @@ fn value_bind_ref_test() {
         print __0
         print __
         "#
-    ).hit_log(2);
+    }.hit_log(2);
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const bind.X = (x: print "makeX";);
         const bind.Y = (y: print "makeY";);
@@ -9424,9 +9424,9 @@ fn value_bind_ref_test() {
             print bind
             print bind
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = ($ = 1+2;);
         print F->op;
@@ -9434,9 +9434,9 @@ fn value_bind_ref_test() {
         r#"
             print 3
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = ($ = 1+x;);
         print F->op;
@@ -9444,9 +9444,9 @@ fn value_bind_ref_test() {
         r#"
             print __
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const N = 1;
         const F = ($ = N+2;);
@@ -9457,9 +9457,9 @@ fn value_bind_ref_test() {
         r#"
             print 3
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const N = 1;
         const F = ($ = N+x;);
@@ -9470,14 +9470,14 @@ fn value_bind_ref_test() {
         r#"
             print __
         "#,
-    );
+    };
 }
 
 #[test]
 fn gswitch_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         gswitch x {
         case: print 1;
@@ -9491,9 +9491,9 @@ fn gswitch_test() {
             print 1
             print 2
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         gswitch x {
             break;
@@ -9510,9 +9510,9 @@ fn gswitch_test() {
             print 2
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         gswitch x {
             break;
@@ -9530,9 +9530,9 @@ fn gswitch_test() {
             print 2
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         gswitch x {
             break;
@@ -9553,9 +9553,9 @@ fn gswitch_test() {
             print 2
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         gswitch x {
             break;
@@ -9577,9 +9577,9 @@ fn gswitch_test() {
             print 2
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         gswitch x {
             break;
@@ -9603,9 +9603,9 @@ fn gswitch_test() {
             jump 11 always 0 0
             end
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         gswitch x {
             break;
@@ -9629,9 +9629,9 @@ fn gswitch_test() {
             jump 11 always 0 0
             end
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         gswitch x {
             break;
@@ -9655,9 +9655,9 @@ fn gswitch_test() {
             jump 11 always 0 0
             end
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         gswitch x {
             break;
@@ -9681,9 +9681,9 @@ fn gswitch_test() {
             jump 11 always 0 0
             end
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         gswitch x {
             break;
@@ -9708,9 +9708,9 @@ fn gswitch_test() {
             jump 12 always 0 0
             end
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const I = 1;
         gswitch x {
@@ -9727,9 +9727,9 @@ fn gswitch_test() {
             jump 5 always 0 0
             end
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const I = 1;
         gswitch x {
@@ -9749,9 +9749,9 @@ fn gswitch_test() {
             jump 8 always 0 0
             end
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         match 1 2 { @ {} }
         gswitch x {
@@ -9769,9 +9769,9 @@ fn gswitch_test() {
             jump 6 always 0 0
             end
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const match (1:) 2 { @ {} }
         gswitch x {
@@ -9789,9 +9789,9 @@ fn gswitch_test() {
             jump 6 always 0 0
             end
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const match (1:) (2: print start;) { @ {} }
         gswitch x {
@@ -9810,9 +9810,9 @@ fn gswitch_test() {
             jump 7 always 0 0
             end
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         gswitch x {
         case: print 1;
@@ -9828,9 +9828,9 @@ fn gswitch_test() {
             print 3
             print 4
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         gswitch x {
         case 0: print 0;
@@ -9848,9 +9848,9 @@ fn gswitch_test() {
             print 2
             print 3
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         gswitch x {
             break;
@@ -9870,9 +9870,9 @@ fn gswitch_test() {
             print end
             end
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         gswitch x {
             break;
@@ -9892,14 +9892,14 @@ fn gswitch_test() {
             jump 8 always 0 0
             end
         "#,
-    );
+    };
 }
 
 #[test]
 fn closure_catch_label_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Run = (
             :x
@@ -9917,9 +9917,9 @@ fn closure_catch_label_test() {
             print unexpected
             jump 1 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Run = (
             :x
@@ -9937,9 +9937,9 @@ fn closure_catch_label_test() {
             print unexpected
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = (
             const Run = (
@@ -9960,9 +9960,9 @@ fn closure_catch_label_test() {
             print unexpected
             jump 0 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = (
             const Run = (
@@ -9986,9 +9986,9 @@ fn closure_catch_label_test() {
             print unexpected
             jump 3 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = (
             const Run = (
@@ -10014,9 +10014,9 @@ fn closure_catch_label_test() {
             jump 4 always 0 0
             jump 4 always 0 0
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = (
             const Run = (
@@ -10042,9 +10042,9 @@ fn closure_catch_label_test() {
             jump 7 always 0 0
             print expected
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Run = (
             :x
@@ -10063,14 +10063,14 @@ fn closure_catch_label_test() {
             jump 3 always 0 0
             print expected
         "#,
-    );
+    };
 }
 
 #[test]
 fn non_take_result_handle_dexp_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const H = 2;
         print (H: print pre;);
@@ -10079,9 +10079,9 @@ fn non_take_result_handle_dexp_test() {
             print pre
             print 2
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const H = 2;
         print (`H`: print pre;);
@@ -10090,9 +10090,9 @@ fn non_take_result_handle_dexp_test() {
             print pre
             print H
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const H = (2:);
         print (`H`: print pre;);
@@ -10101,9 +10101,9 @@ fn non_take_result_handle_dexp_test() {
             print pre
             print H
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         print (?`n`: 2);
         "#,
@@ -10111,7 +10111,7 @@ fn non_take_result_handle_dexp_test() {
             set n 2
             print n
         "#,
-    );
+    };
 }
 
 #[test]
@@ -10153,7 +10153,7 @@ fn to_label_code_test() {
 fn closure_catch_args_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         match a b c => @ {}
         const Clos = ([@](
@@ -10166,9 +10166,9 @@ fn closure_catch_args_test() {
             print b
             print c
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         match a b c => @ {}
         const Clos = ([@](
@@ -10182,9 +10182,9 @@ fn closure_catch_args_test() {
             print b
             print c
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         match a b c => @ {}
         const Clos = ([@](
@@ -10202,9 +10202,9 @@ fn closure_catch_args_test() {
             print e
             print f
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         match a b c => @ {}
         const Clos = ([@](
@@ -10218,9 +10218,9 @@ fn closure_catch_args_test() {
             print b
             print c
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         match a b c => @ {}
         const Clos = ([@](
@@ -10233,10 +10233,10 @@ fn closure_catch_args_test() {
             print b
             print c
         "#,
-    );
+    };
 
     // moved value owned test
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Builder = (
             const $.F = ([@](
@@ -10257,9 +10257,9 @@ fn closure_catch_args_test() {
             print b
             print c
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Builder = (
             const $.F = ([@](
@@ -10280,9 +10280,9 @@ fn closure_catch_args_test() {
             print b
             print c
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Builder = (
             const $.F = ([@](
@@ -10300,9 +10300,9 @@ fn closure_catch_args_test() {
             print run
             print x
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Builder = (
             const $.F = ([P:(print pre;) @](
@@ -10321,9 +10321,9 @@ fn closure_catch_args_test() {
             print run
             print x
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Builder = (
             const $.F = ([@](
@@ -10339,9 +10339,9 @@ fn closure_catch_args_test() {
             print m
             print m
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const Builder = (
             const $.F = ([@](
@@ -10358,14 +10358,14 @@ fn closure_catch_args_test() {
             print m
             print m
         "#,
-    );
+    };
 }
 
 #[test]
 fn param_deref_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = (
             const N = 2;
@@ -10379,9 +10379,9 @@ fn param_deref_test() {
             print 2
             print 1
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = (
             const N = 2;
@@ -10398,9 +10398,9 @@ fn param_deref_test() {
             print 1
             print 2
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = (
             const N = 2;
@@ -10418,14 +10418,14 @@ fn param_deref_test() {
             print 1
             print 1
         "#,
-    );
+    };
 }
 
 #[test]
 fn param_inf_len_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const F = (
             print @;
@@ -10467,9 +10467,9 @@ fn param_inf_len_test() {
             print 30
             print 31
         "#,
-    );
+    };
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         (%print @;%)! 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
             16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31;
@@ -10508,7 +10508,7 @@ fn param_inf_len_test() {
             print 30
             print 31
         "#,
-    );
+    };
 }
 
 #[test]
@@ -10589,7 +10589,7 @@ fn keywords_sugar_test() {
 fn global_bind_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(parser,
+    check_compile!{parser,
         r#"
         const MakeBind = (
             const _0.Foo = ([N:_1 ..B](
@@ -10611,7 +10611,7 @@ fn global_bind_test() {
             print b
             print 2
         "#,
-    );
+    };
 }
 
 #[test]
@@ -10822,16 +10822,16 @@ fn loop_do_sugar_test() {
 fn no_effect_hint_test() {
     let parser = TopLevelParser::new();
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         Foo[];
         "#,
         r#"
         Foo
         "#
-    ).hit_log(1);
+    }.hit_log(1);
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         const Foo = 2;
         Foo[];
@@ -10839,9 +10839,9 @@ fn no_effect_hint_test() {
         r#"
         2
         "#
-    ).hit_log(1);
+    }.hit_log(1);
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         const Foo.X = 2;
         Foo.X[];
@@ -10849,27 +10849,27 @@ fn no_effect_hint_test() {
         r#"
         2
         "#
-    ).hit_log(1);
+    }.hit_log(1);
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         foo.X[];
         "#,
         r#"
         __0
         "#
-    ).hit_log(1);
+    }.hit_log(1);
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         foo.bar.X[];
         "#,
         r#"
         __1
         "#
-    ).hit_log(1);
+    }.hit_log(1);
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         const foo.bar = m;
         foo.bar.X[];
@@ -10877,9 +10877,9 @@ fn no_effect_hint_test() {
         r#"
         __1
         "#
-    ).hit_log(1);
+    }.hit_log(1);
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         const Foo.X = 2;
         Foo->X[];
@@ -10887,9 +10887,9 @@ fn no_effect_hint_test() {
         r#"
         2
         "#
-    ).hit_log(1);
+    }.hit_log(1);
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         const Foo.X = 2;
         `Foo`->X[];
@@ -10897,9 +10897,9 @@ fn no_effect_hint_test() {
         r#"
         2
         "#
-    ).hit_log(1);
+    }.hit_log(1);
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         const foo.bar.X = 2;
         `foo`.bar->X[];
@@ -10907,9 +10907,9 @@ fn no_effect_hint_test() {
         r#"
         2
         "#
-    ).hit_log(1);
+    }.hit_log(1);
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         const foo.X = ();
         foo.X[];
@@ -10917,9 +10917,9 @@ fn no_effect_hint_test() {
         r#"
         __1
         "#
-    ).hit_log(0);
+    }.hit_log(0);
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         const foo.X = ();
         foo->X[];
@@ -10927,9 +10927,9 @@ fn no_effect_hint_test() {
         r#"
         __1
         "#
-    ).hit_log(0);
+    }.hit_log(0);
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         const foo.X = ();
         `foo`->X[];
@@ -10937,9 +10937,9 @@ fn no_effect_hint_test() {
         r#"
         __1
         "#
-    ).hit_log(0);
+    }.hit_log(0);
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         const foo.bar.X = ();
         foo.bar.X[];
@@ -10947,9 +10947,9 @@ fn no_effect_hint_test() {
         r#"
         __2
         "#
-    ).hit_log(0);
+    }.hit_log(0);
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         const foo.bar.X = ();
         foo.bar->X[];
@@ -10957,9 +10957,9 @@ fn no_effect_hint_test() {
         r#"
         __2
         "#
-    ).hit_log(0);
+    }.hit_log(0);
 
-    check_compile!(@with_source parser,
+    check_compile!{@with_source parser,
         r#"
         const foo.bar.X = ();
         `foo`.bar->X[];
@@ -10967,5 +10967,5 @@ fn no_effect_hint_test() {
         r#"
         __2
         "#
-    ).hit_log(0);
+    }.hit_log(0);
 }
