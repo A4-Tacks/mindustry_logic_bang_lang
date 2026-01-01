@@ -309,6 +309,7 @@ impl RequestHandler for request::Completion {
         };
         let cur_location = cur_location(&top);
         let infos = emulate(top, src);
+        ctx.trace(format_args!("complete infos: {infos:#?}"));
 
         let completes = generate_completes(&infos, cur_location);
         let completes = lsp_types::CompletionResponse::Array(completes);
