@@ -10,7 +10,7 @@ use line_column::line_column;
 use linked_hash_map::LinkedHashMap;
 use lsp_server::{IoThreads, Message};
 use lsp_types::{CompletionItem, CompletionItemKind, CompletionOptions, Diagnostic, DiagnosticSeverity, InitializeParams, InitializeResult, InsertTextFormat, MessageType, Position, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, TraceValue, Uri, notification::{self, Notification}, request::{self, Request}};
-use syntax::{Compile, CompileMeta, CompileMetaExtends, Emulate, EmulateInfo, Expand, LSP_DEBUG, LSP_HOVER};
+use syntax::{Compile, CompileMeta, CompileMetaExtends, Emulate, EmulateConfig, EmulateInfo, Expand, LSP_DEBUG, LSP_HOVER};
 
 fn main() {
     let options = getopts_options! {
@@ -308,7 +308,10 @@ impl RequestHandler for request::Completion {
             return Ok(None);
         };
         let cur_location = cur_location(&top);
-        let infos = emulate(top, src);
+        let infos = emulate(top, src, EmulateConfig {
+            complete_filter: Some(completion_name_filter),
+            ..Default::default()
+        });
         ctx.trace(format_args!("complete infos: {infos:#?}"));
 
         let completes = generate_completes(&infos, cur_location);
@@ -325,7 +328,8 @@ impl RequestHandler for request::HoverRequest {
         let Some((top, src)) = ctx.try_parse_for_hover((line, col), &file) else {
             return Ok(None);
         };
-        let infos = emulate(top, src);
+        let cfg = EmulateConfig::default();
+        let infos = emulate(top, src, cfg);
         let mut strings = vec![];
         let mut dedup_set = HashSet::new();
 
@@ -385,24 +389,28 @@ fn solid_snippets(cur_location: CurLocation) -> impl Iterator<Item = CompletionI
     })
 }
 
-fn generate_completes(infos: &[EmulateInfo], cur_location: CurLocation) -> Vec<CompletionItem> {
+fn completion_name_filter(var: &str) -> bool {
+    if var.is_empty() {
+        return false;
+    }
+    if var.strip_prefix("__").is_some_and(hide_special) {
+        return false;
+    }
+    return true;
+
     fn hide_special(s: &str) -> bool {
         s.chars().next().as_ref().is_none_or(char::is_ascii_digit)
             || s.starts_with("Builtin__")
     }
+}
+
+fn generate_completes(infos: &[EmulateInfo], cur_location: CurLocation) -> Vec<CompletionItem> {
     let infos = infos.iter()
         .filter_map(|it| it.exist_vars.as_ref());
     let full_count = infos.clone().count() as u32;
     let mut var_counter: LinkedHashMap<&syntax::Var, (u32, Vec<_>, bool)> = LinkedHashMap::new();
     for info in infos {
         for (kind, var, use_args) in info {
-            if var.strip_prefix("__").is_some_and(hide_special) {
-                continue;
-            }
-            if var.is_empty() {
-                continue;
-            }
-
             let (slot, kinds, use_args_slot)
                 = var_counter.entry(var).or_default();
             *slot += 1;
@@ -566,7 +574,8 @@ fn tigger_diagnostics(ctx: &mut Ctx, uri: &Uri) -> Vec<Diagnostic> {
             });
         }
         Ok(top) => {
-            let infos = emulate(top, file.clone());
+            let cfg = EmulateConfig { diagnostics: true, ..Default::default() };
+            let infos = emulate(top, file.clone(), cfg);
             ctx.trace(format_args!("diagnostic infos: {infos:#?}"));
 
             for info in infos {
@@ -592,10 +601,10 @@ fn tigger_diagnostics(ctx: &mut Ctx, uri: &Uri) -> Vec<Diagnostic> {
     diags
 }
 
-fn emulate(top: Expand, src: String) -> Vec<EmulateInfo> {
+fn emulate(top: Expand, src: String, cfg: EmulateConfig) -> Vec<EmulateInfo> {
     let source: Rc<String> = src.into();
     let mut meta = CompileMeta::with_source(source.clone());
-    meta.is_emulated = true;
+    meta.emutale_config = Some(cfg);
     meta.set_extender(Box::new(Extender::new(source, DisplaySourceMeta::new().into())));
 
     let assert_meta = std::panic::AssertUnwindSafe(&mut meta);

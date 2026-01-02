@@ -4261,6 +4261,13 @@ pub struct EmulateInfo {
     pub hover_doc: Option<String>,
 }
 
+#[derive(Debug, Default)]
+pub struct EmulateConfig {
+    pub diagnostics: bool,
+    pub complete_filter: Option<fn(&str) -> bool>,
+    pub abort: bool,
+}
+
 struct HoverGuard<'a> {
     meta: &'a mut CompileMeta,
     handle: Option<Var>,
@@ -4368,7 +4375,7 @@ pub struct CompileMeta {
     bind_custom_sep: Option<Var>,
     log_count: usize,
     source: Rc<String>,
-    pub is_emulated: bool,
+    pub emutale_config: Option<EmulateConfig>,
     pub emulate_infos: Cell<Vec<EmulateInfo>>,
 }
 impl Debug for CompileMeta {
@@ -4441,7 +4448,7 @@ impl CompileMeta {
             bind_custom_sep: None,
             log_count: 0,
             source,
-            is_emulated: false,
+            emutale_config: Default::default(),
             emulate_infos: vec![].into(),
         };
         let builtin = Var::from(Self::BUILTIN_FUNCS_BINDER);
@@ -4591,7 +4598,7 @@ impl CompileMeta {
     }
 
     fn emulate(&self, emulate_info: EmulateInfo) {
-        if self.is_emulated {
+        if self.emutale_config.is_some() {
             let mut infos = self.emulate_infos.take();
             infos.push(emulate_info);
             self.emulate_infos.set(infos);
@@ -4599,7 +4606,7 @@ impl CompileMeta {
     }
 
     fn exit(&self, code: i32) -> ! {
-        if self.is_emulated {
+        if self.emutale_config.is_some() {
             let (location, error) = LAST_ERR.take();
             if !error.is_empty() {
                 self.emulate(EmulateInfo {
@@ -4609,16 +4616,18 @@ impl CompileMeta {
                     ..Default::default()
                 });
             }
-            panic!("exit code {code}");
-        } else {
+        }
+
+        if let Some(EmulateConfig { abort: true, .. }) = self.emutale_config {
             std::process::exit(code)
+        } else {
+            panic!("exit code {code}")
         }
     }
 
     fn debug_expand_env_status(&mut self, var: &mut Var) {
-        if !self.is_emulated {
-            return;
-        }
+        let Some(cfg) = &self.emutale_config else { return };
+        let filter = cfg.complete_filter.unwrap_or(|_| true);
 
         let Some(raw_var) = var.strip_suffix(LSP_DEBUG) else { return };
         *var = raw_var.into();
@@ -4628,6 +4637,7 @@ impl CompileMeta {
             .flat_map(|env| env.consts.keys())
             .map(|var| (Emulate::Const, var))
             .chain(self.value_bind_pairs.keys().map(|var| (Emulate::Binder, var)))
+            .filter(|(_, name)| filter(name))
             .for_each(|(kind, var)| if printed.insert(var) {
                 let value = Value::from(var.clone());
                 vars.push((kind, var.clone(), value.like_used_args_system(self)));
@@ -4636,7 +4646,7 @@ impl CompileMeta {
     }
 
     fn debug_hover_var_status(&mut self, var: &mut Var) -> HoverGuard<'_> {
-        if !self.is_emulated {
+        if self.emutale_config.is_none() {
             return HoverGuard { meta: self, handle: None };
         }
         let raw_var = var.replacen(LSP_HOVER, "", 1);
@@ -4649,7 +4659,7 @@ impl CompileMeta {
     }
 
     fn debug_binds_status(&mut self, handle: &Var, name: &mut Var) {
-        if !self.is_emulated {
+        if self.emutale_config.is_none() {
             return;
         }
         let Some(raw_name) = name.strip_suffix(LSP_DEBUG) else { return };
@@ -4994,7 +5004,7 @@ impl CompileMeta {
     pub fn err_info(&self) -> Vec<String> {
         let mut res = Vec::new();
 
-        if !self.is_emulated {
+        if self.emutale_config.is_none() {
             let mut tag_lines = self.debug_tag_codes();
             line_first_add(&mut tag_lines, "\t");
 
@@ -5101,7 +5111,7 @@ impl CompileMeta {
     }
 
     pub fn log_info_at(&mut self, line: u32, column: u32, s: impl std::fmt::Display) {
-        if self.is_emulated {
+        if self.emutale_config.as_ref().is_some_and(|it| it.diagnostics) {
             self.emulate(EmulateInfo {
                 location: Some((line, column)),
                 diagnostic: Some(s.to_string()),
