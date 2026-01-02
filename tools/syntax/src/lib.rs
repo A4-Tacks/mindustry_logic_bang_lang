@@ -340,29 +340,7 @@ impl Value {
                         Err(_) => return false,
                     }
                 },
-                Value::DExp(dexp) => return dexp.lines.iter().find_map(|line| {
-                    let is_ost = |name: &Var| {
-                        name.strip_prefix('_')
-                            .is_some_and(|s| s.parse::<u8>().is_ok())
-                    };
-                    let expand_or_ost = |args: &Args| {
-                        args.is_expanded() || args.as_normal().is_some_and(|args| {
-                            args.iter().filter_map(Value::as_var).any(is_ost)
-                        })
-                    };
-                    match line {
-                        LogicLine::ArgsRepeat(_) => Some(true),
-                        LogicLine::Match(m) => Some(expand_or_ost(&m.args)),
-                        LogicLine::ConstMatch(m) => Some(expand_or_ost(&m.args)),
-                        LogicLine::SetArgs(args) => Some(expand_or_ost(args)),
-                        LogicLine::Const(Const(_, Value::Var(name), _)) |
-                        LogicLine::Take(Take(_, Value::Var(name)))
-                            if is_ost(name) => Some(true),
-                        LogicLine::Other(args)
-                            if expand_or_ost(args) => Some(true),
-                        _ => None,
-                    }
-                }).unwrap_or(false),
+                Value::DExp(dexp) => return dexp.like_used_args_system().unwrap_or(false),
             }
         }
         false
@@ -1085,6 +1063,38 @@ impl DExp {
 
     pub fn take_result(&self) -> bool {
         self.take_result
+    }
+
+    fn like_used_args_system(&self) -> Option<bool> {
+        self.lines.iter().find_map(|line| {
+            let is_ost = |name: &Var| {
+                name.strip_prefix('_')
+                    .is_some_and(|s| s.parse::<u8>().is_ok())
+            };
+            let expand_or_ost = |args: &Args| {
+                args.is_expanded() || args.as_normal().is_some_and(|args| {
+                    args.iter().filter_map(Value::as_var).any(is_ost)
+                })
+            };
+            match line {
+                LogicLine::ArgsRepeat(_) => Some(true),
+                LogicLine::Match(m) => Some(expand_or_ost(&m.args)),
+                LogicLine::ConstMatch(m) => Some(expand_or_ost(&m.args)),
+                LogicLine::SetArgs(args) => Some(expand_or_ost(args)),
+                LogicLine::Const(Const(_, Value::Var(name), _)) |
+                LogicLine::Take(Take(_, Value::Var(name)))
+                    if is_ost(name) => Some(true),
+                LogicLine::Other(args)
+                    if expand_or_ost(args) => Some(true),
+                LogicLine::Op(op)
+                    if op.get_info().args().any(|arg| match arg {
+                        Value::Var(var) => is_ost(var),
+                        Value::DExp(dexp) => dexp.like_used_args_system().unwrap_or(false),
+                        _ => false,
+                    }) => Some(true),
+                _ => None,
+            }
+        })
     }
 }
 impl TakeHandle for DExp {
@@ -2007,6 +2017,10 @@ impl<Arg> OpInfo<Arg> {
             arg1,
             arg2
         }
+    }
+
+    pub fn args(self) -> impl Iterator<Item = Arg> {
+        [self.result, self.arg1].into_iter().chain(self.arg2)
     }
 }
 
