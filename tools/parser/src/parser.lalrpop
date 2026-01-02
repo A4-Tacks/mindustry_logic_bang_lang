@@ -1369,7 +1369,7 @@ BuiltinCommand: LogicLine = {
 }
 TakeDestructAtom: (bool, Var, Var) = {
     <Opt<"&">> <Var> ":" <Var>,
-    <c:Opt<"&">> <v:Var> => (c, v.clone(), v),
+    <c:Opt<"&">> <v:Var> => (c, crate::trim_complete(&v), v),
 }
 TakeDestruct: Vec<(bool, Var, Var)> = MBlock<(<TakeDestructAtom> ","?)*>;
 TakeDestructSin: LogicLine = <de:TakeDestruct> "=" <val:Value> => {

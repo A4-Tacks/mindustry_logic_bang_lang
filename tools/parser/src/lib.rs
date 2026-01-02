@@ -23,6 +23,14 @@ use ::syntax::{
     Meta,
 };
 
+fn trim_complete(v: &Var) -> Var {
+    if let Some(real) = v.strip_suffix(syntax::LSP_DEBUG) {
+        real.into()
+    } else {
+        v.clone()
+    }
+}
+
 fn make_take_destructs(
     meta: &mut Meta,
     mut key: ConstKey,
