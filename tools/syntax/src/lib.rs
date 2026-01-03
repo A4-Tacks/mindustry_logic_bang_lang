@@ -3035,6 +3035,13 @@ impl Args {
         }
     }
 
+    pub fn first(&self) -> Option<&Value> {
+        match self {
+            Args::Expanded(values, _) |
+            Args::Normal(values) => values.first(),
+        }
+    }
+
     pub fn try_into_normal(self) -> Result<Vec<Value>, Self> {
         match self {
             Self::Normal(args) => Ok(args),
@@ -3174,7 +3181,8 @@ pub struct Match {
     cases: Vec<(MatchPat, InlineBlock)>,
 }
 impl Compile for Match {
-    fn compile(self, meta: &mut CompileMeta) {
+    fn compile(mut self, meta: &mut CompileMeta) {
+        let meta = &mut meta.debug_hover_args_expand_status(&mut self.args);
         let closure = meta.consume_lazy_closure();
         let loc = self.args.unit();
         let args = self.args.value.into_taked_args_handle(meta);
@@ -3361,7 +3369,8 @@ impl ConstMatch {
     }
 }
 impl Compile for ConstMatch {
-    fn compile(self, meta: &mut CompileMeta) {
+    fn compile(mut self, meta: &mut CompileMeta) {
+        let meta = &mut meta.debug_hover_args_expand_status(&mut self.args);
         let closure = meta.consume_lazy_closure();
         let loc = self.args.unit();
         let args = self.args.value.into_value_args(meta)
@@ -3904,12 +3913,21 @@ impl Compile for LogicLine {
                 lab = meta.get_in_const_label(lab);
                 meta.push(lab.to_string().into())
             },
-            Self::Other(args) => {
+            Self::Other(mut args) => {
+                let hover_line = args.first().and_then(Value::as_var)
+                    .is_some_and(|first| first.contains(LSP_HOVER) && first != LSP_HOVER);
+                let meta = &mut meta.debug_hover_args_expand_status(&mut args);
                 let handles: Vec<Var> = args.into_taked_args_handle(meta);
                 let args = handles.into_iter()
                     .map_to_string()
                     .map_into()
                     .collect::<Vec<_>>();
+                if hover_line {
+                    meta.emulate(EmulateInfo {
+                        hover_doc: Some(format!("Compile: {}", args.join(" "))),
+                        ..Default::default()
+                    });
+                }
                 if !args.is_empty() {
                     meta.push(args.try_into().unwrap());
                 }
@@ -4282,6 +4300,7 @@ pub struct EmulateConfig {
     pub abort: bool,
 }
 
+#[derive(Debug)]
 struct HoverGuard<'a> {
     meta: &'a mut CompileMeta,
     handle: Option<Var>,
@@ -4670,6 +4689,27 @@ impl CompileMeta {
         *var = raw_var.into();
 
         HoverGuard { meta: self, handle: var.clone().into() }
+    }
+
+    fn debug_hover_args_expand_status(&mut self, args: &mut Args) -> HoverGuard<'_> {
+        if self.emutale_config.is_none() {
+            return HoverGuard { meta: self, handle: None };
+        }
+        let Some(normal) = args.as_normal_mut() else {
+            return HoverGuard { meta: self, handle: None };
+        };
+        let Some(pos) = normal.iter().position(|it| it.as_var().is_some_and(|var| {
+            let raw = var.strip_prefix(LSP_HOVER).or(var.strip_suffix(LSP_HOVER));
+            raw == Some("@")
+        })) else {
+            return HoverGuard { meta: self, handle: None };
+        };
+        let right = normal.split_off(pos+1);
+        normal.pop().unwrap();
+
+        *args = Args::Expanded(mem::take(normal), right);
+
+        HoverGuard { meta: self, handle: Some("@".into()) }
     }
 
     fn debug_binds_status(&mut self, handle: &Var, name: &mut Var) {
