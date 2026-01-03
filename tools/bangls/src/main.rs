@@ -431,7 +431,7 @@ fn generate_completes(infos: &[EmulateInfo], cur_location: CurLocation) -> Vec<C
                 Emulate::Binder => format!("binder"),
                 Emulate::ConstBind(var) => format!("const bind to `{var}`"),
                 Emulate::NakedBind(var) => format!("naked bind to `{var}`"),
-            }).unique().join(" & ");
+            }).unique().join("\n    & ");
 
         let (label, detail) = if is_full_deps {
             (var.to_string(), format!("kind: {kind}\nfull deps ({count}/{full_count})"))
