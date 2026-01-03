@@ -4673,14 +4673,14 @@ impl CompileMeta {
     }
 
     fn debug_binds_status(&mut self, handle: &Var, name: &mut Var) {
-        if self.emutale_config.is_none() {
-            return;
-        }
+        let Some(cfg) = &self.emutale_config else { return };
+        let filter = cfg.complete_filter.unwrap_or(|_| true);
         let Some(raw_name) = name.strip_suffix(LSP_DEBUG) else { return };
         *name = raw_name.into();
         let bind_vars = self.value_bind_pairs.get(handle)
             .into_iter()
             .flat_map(|pairs| pairs.iter())
+            .filter(|(bindname, _)| filter(bindname))
             .map(|(bindname, binded)| {
                 let value = Value::from(binded);
                 let emulate = if self.get_const_value(binded).is_some() {
