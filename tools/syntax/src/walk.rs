@@ -181,7 +181,12 @@ fn walk_internal<'a>(elem: impl Into<Node<'a>>, f: &mut impl FnMut(Node<'_>) -> 
                 walk_internal(cmp_tree, f)?;
                 walk_internal(cmp_tree1, f)?;
             },
-            CmpTree::Atom(_) => (),
+            CmpTree::Atom(it) => {
+                if let Some((lhs, rhs)) = it.get_values_ref() {
+                    walk_internal(lhs, f)?;
+                    walk_internal(rhs, f)?;
+                }
+            },
         },
         Node::Key(key) => match key {
             ConstKey::Var(_) | ConstKey::Unused(_) => (),

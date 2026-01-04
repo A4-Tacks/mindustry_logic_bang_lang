@@ -1,7 +1,7 @@
 use display_source::DisplaySource;
 use getopts_macro::getopts_options;
 use itertools::Itertools;
-use std::{any::Any, borrow::Cow, cell::RefCell, collections::HashSet, ops::ControlFlow, rc::Rc};
+use std::{any::Any, borrow::Cow, cell::RefCell, collections::HashSet, rc::Rc};
 
 use anyhow::{Result, anyhow, bail};
 use crossbeam_channel::{Receiver, Sender};
@@ -11,6 +11,7 @@ use linked_hash_map::LinkedHashMap;
 use lsp_server::{IoThreads, Message, RequestId};
 use lsp_types::{CodeAction, CodeActionKind, CodeActionOptions, CodeActionOrCommand, CompletionItem, CompletionItemKind, CompletionOptions, Diagnostic, DiagnosticSeverity, InitializeParams, InitializeResult, InsertTextFormat, MessageType, Position, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, TraceValue, Uri, notification::{self, Notification}, request::{self, Request}};
 use syntax::{Compile, CompileMeta, CompileMetaExtends, Emulate, EmulateConfig, EmulateInfo, Expand, LSP_DEBUG, LSP_HOVER};
+use bangls::*;
 
 fn main() {
     let options = getopts_options! {
@@ -590,50 +591,6 @@ fn generate_completes(infos: &[EmulateInfo], cur_location: CurLocation) -> Vec<C
         (a.starts_with('_'), a).cmp(&(b.starts_with('_'), b))
     });
     items
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum CurLocation {
-    LineFirst,
-    Binder,
-    BindName { first: bool },
-    Other,
-}
-
-fn cur_location(top: &Expand) -> CurLocation {
-    use syntax::*;
-    use walk::Node;
-
-    let mut location = CurLocation::Other;
-    let pred = |s: &syntax::Var| s.ends_with(LSP_DEBUG);
-    let _ = walk::nodes(top.iter(), |node| {
-        match node {
-            Node::Value(Value::Var(var)) |
-            Node::Key(ConstKey::Var(var))
-                if pred(var) => return ControlFlow::Break(()),
-            Node::Value(Value::ValueBindRef(syntax::ValueBindRef { bind_target: syntax::ValueBindRefTarget::NameBind(name), .. })) |
-            Node::Value(Value::ValueBind(syntax::ValueBind(_, name))) |
-            Node::Key(ConstKey::ValueBind(syntax::ValueBind(_, name)))
-                if pred(name) => return ControlFlow::Break(location = CurLocation::BindName { first: false }),
-            Node::Line(LogicLine::Other(args)) => if let Some(first) = args.first() {
-                match first {
-                    Value::Var(var) if pred(var) => return ControlFlow::Break(location = CurLocation::LineFirst),
-                    Value::ValueBindRef(ValueBindRef { bind_target: ValueBindRefTarget::NameBind(name), .. }) |
-                    Value::ValueBind(ValueBind(_, name))
-                        if pred(name) => return ControlFlow::Break(location = CurLocation::BindName { first: true }),
-                    _ => ()
-                }
-            }
-            Node::Value(Value::ValueBindRef(syntax::ValueBindRef { value, .. })) |
-            Node::Value(Value::ValueBind(syntax::ValueBind(value, _))) |
-            Node::Key(ConstKey::ValueBind(syntax::ValueBind(value, _)))
-                if value.as_var().is_some_and(pred) => return ControlFlow::Break(location = CurLocation::Binder),
-            _ => (),
-        }
-
-        ControlFlow::Continue(())
-    });
-    location
 }
 
 trait NotificationHandler: Notification {
