@@ -1,15 +1,15 @@
 use display_source::DisplaySource;
 use getopts_macro::getopts_options;
 use itertools::Itertools;
-use std::{borrow::Cow, cell::RefCell, collections::HashSet, ops::ControlFlow, rc::Rc};
+use std::{any::Any, borrow::Cow, cell::RefCell, collections::HashSet, ops::ControlFlow, rc::Rc};
 
 use anyhow::{Result, anyhow, bail};
 use crossbeam_channel::{Receiver, Sender};
 use display_source::DisplaySourceMeta;
 use line_column::line_column;
 use linked_hash_map::LinkedHashMap;
-use lsp_server::{IoThreads, Message};
-use lsp_types::{CompletionItem, CompletionItemKind, CompletionOptions, Diagnostic, DiagnosticSeverity, InitializeParams, InitializeResult, InsertTextFormat, MessageType, Position, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, TraceValue, Uri, notification::{self, Notification}, request::{self, Request}};
+use lsp_server::{IoThreads, Message, RequestId};
+use lsp_types::{CodeAction, CodeActionKind, CodeActionOptions, CodeActionOrCommand, CompletionItem, CompletionItemKind, CompletionOptions, Diagnostic, DiagnosticSeverity, InitializeParams, InitializeResult, InsertTextFormat, MessageType, Position, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, TraceValue, Uri, notification::{self, Notification}, request::{self, Request}};
 use syntax::{Compile, CompileMeta, CompileMetaExtends, Emulate, EmulateConfig, EmulateInfo, Expand, LSP_DEBUG, LSP_HOVER};
 
 fn main() {
@@ -44,9 +44,14 @@ fn lopos(pos: Position) -> (u32, u32) {
     (pos.line + 1, pos.character + 1)
 }
 
+fn _loidx(pos: Position, src: &str) -> usize {
+    let (line, column) = lopos(pos);
+    line_column::index(src, line, column)
+}
+
 fn rgpos((line, column): (u32, u32)) -> Position {
-    debug_assert_ne!(line, 0);
-    debug_assert_ne!(column, 0);
+    assert_ne!(line, 0);
+    assert_ne!(column, 0);
     Position { line: line - 1, character: column - 1 }
 }
 
@@ -89,6 +94,11 @@ fn main_loop() -> Result<()> {
         )),
         text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
         hover_provider: Some(lsp_types::HoverProviderCapability::Simple(true)),
+        code_action_provider: Some(lsp_types::CodeActionProviderCapability::Options(CodeActionOptions {
+            resolve_provider: Some(true),
+            code_action_kinds: Some([CodeActionKind::EMPTY].into()),
+            ..Default::default()
+        })),
         ..Default::default()
     };
     let init_params = {
@@ -115,7 +125,7 @@ fn main_loop() -> Result<()> {
     let _workspace_folders = workspace_folders.ok_or(anyhow!("Cannot find workspace folder"))?;
     let mut ctx = Ctx::new(connect.sender, connect.receiver);
     ctx.trace = !matches!(trace, None | Some(TraceValue::Off));
-    ctx.run()
+    ctx.run().map_err(|e| { ctx.trace(&e); e })
 }
 
 struct Ctx {
@@ -123,6 +133,9 @@ struct Ctx {
     sender: Sender<Message>,
     recver: Receiver<Message>,
     trace: bool,
+    active_actions: LinkedHashMap<String, actions::Info>,
+    id_counter: i32,
+    request_contents: LinkedHashMap<RequestId, (&'static str, Box<dyn Any>)>,
 }
 impl Ctx {
     fn new(sender: Sender<Message>, recver: Receiver<Message>) -> Self {
@@ -131,6 +144,9 @@ impl Ctx {
             sender,
             recver,
             trace: false,
+            active_actions: Default::default(),
+            id_counter: 1,
+            request_contents: Default::default(),
         }
     }
 
@@ -139,14 +155,21 @@ impl Ctx {
             match msg {
                 Message::Request(request) => self.handle_requests(request)?,
                 Message::Response(response) => {
-                    eprintln!("unknown response {response:?}")
+                    let response = &mut Some(response);
+
+                    if let Some(response) = response {
+                        self.trace(format_args!("unknown response {response:?}"));
+                    }
                 },
                 Message::Notification(notification) => {
                     let notification = &mut Some(notification);
                     self.try_handle_notif::<notification::DidOpenTextDocument>(notification)?;
                     self.try_handle_notif::<notification::DidChangeTextDocument>(notification)?;
                     self.try_handle_notif::<notification::DidCloseTextDocument>(notification)?;
-                    eprintln!("unknown notification {notification:?}")
+
+                    if let Some(notification) = notification {
+                        self.trace(format_args!("unknown notification {notification:#?}"));
+                    }
                 },
             }
         }
@@ -159,9 +182,48 @@ impl Ctx {
         self.try_handle_req::<request::Completion>(request)?;
         self.try_handle_req::<request::HoverRequest>(request)?;
         self.try_handle_req::<request::DocumentDiagnosticRequest>(request)?;
+        self.try_handle_req::<request::CodeActionRequest>(request)?;
+        self.try_handle_req::<request::CodeActionResolveRequest>(request)?;
 
         if let Some(request) = request {
             bail!("unknown request {request:#?}")
+        }
+        Ok(())
+    }
+
+    #[expect(dead_code)]
+    fn try_handle_response<T: ResponseHandler>(&mut self, response: &mut Option<lsp_server::Response>) -> Result<()> {
+        let Some(response) = response.take_if(|res| {
+            self.request_contents.get(&res.id)
+                .is_some_and(|(method, _)| *method == T::METHOD)
+        }) else {
+            return Ok(());
+        };
+        let lsp_server::Response { id, result, error } = response;
+        let (_, content) = self.request_contents.remove(&id).unwrap();
+        let content = content.downcast::<T::Content>().unwrap();
+        if let Some(lsp_server::ResponseError { code, message, data }) = error {
+            self.send_window_notif(MessageType::ERROR, format_args!(
+                "response {} error ({id}, {code}): {message} : {data:#?}",
+                T::METHOD,
+            ))?;
+            return Ok(());
+        }
+        let Some(result) = result else {
+            self.send_window_notif(MessageType::ERROR, format_args!(
+                "response {} error ({id}): no provides response value",
+                T::METHOD,
+            ))?;
+            return Ok(());
+        };
+        match serde_json::from_value(result) {
+            Ok(result) => T::handle_response(self, result, *content)?,
+            Err(e) => {
+                self.send_window_notif(MessageType::ERROR, format_args!(
+                    "response {} error ({id}): cannot deserialize response value: {e}",
+                    T::METHOD,
+                ))?;
+            },
         }
         Ok(())
     }
@@ -201,7 +263,12 @@ impl Ctx {
                 }),
             },
         };
-        self.sender.send(Message::Response(response)).map_err(Into::into)
+        let err = response.error.clone();
+        self.sender.send(Message::Response(response))?;
+        if let Some(err) = err {
+            self.send_window_notif(MessageType::ERROR, err.message)?;
+        }
+        Ok(())
     }
 
     fn read_file(&self, uri: &Uri) -> Result<&str> {
@@ -236,7 +303,7 @@ impl Ctx {
             Err(_) => None,
             Ok(top) => Some((top, source)),
         }
-}
+    }
 
     fn parse_for_parse_error(&self, file: &str) -> Result<Expand, ((usize, usize), String)> {
         let parser = parser::TopLevelParser::new();
@@ -268,6 +335,20 @@ impl Ctx {
         self.send_notif::<notification::ShowMessage>(params)
     }
 
+    #[expect(dead_code)]
+    fn send_request<T: ResponseHandler>(&mut self, content: T::Content, params: T::Params) -> Result<()> {
+        let params = serde_json::to_value(params)?;
+        let id = self.fetch_id_counter();
+        self.request_contents.insert(id.clone(), (T::METHOD, Box::new(content)));
+        let msg = Message::Request(lsp_server::Request {
+            id,
+            method: T::METHOD.to_owned(),
+            params,
+        });
+        self.sender.send(msg)?;
+        Ok(())
+    }
+
     fn send_notif<T: Notification>(&self, params: T::Params) -> Result<()> {
         let params = serde_json::to_value(params)?;
         let msg = Message::Notification(lsp_server::Notification {
@@ -282,16 +363,24 @@ impl Ctx {
         if !self.trace {
             return;
         }
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_else(|_| std::time::Duration::from_secs(0));
+        let now = now.as_secs_f64();
+        let args = format_args!("{now:.6} {s}\n");
+        eprint!("{args}");
         let mut log = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
             .open(concat!(env!("CARGO_BIN_NAME"), ".log"))
             .expect("cannot open log file");
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_else(|_| std::time::Duration::from_secs(0));
-        let now = now.as_secs_f64();
-        let _ = std::io::Write::write_fmt(&mut log, format_args!("{now:.6} {s}\n"));
+        let _ = std::io::Write::write_fmt(&mut log, args);
+    }
+
+    fn fetch_id_counter(&mut self) -> RequestId {
+        let id_counter = self.id_counter;
+        self.id_counter += 1;
+        id_counter.into()
     }
 }
 
@@ -308,7 +397,7 @@ impl RequestHandler for request::Completion {
             return Ok(None);
         };
         let cur_location = cur_location(&top);
-        let infos = emulate(top, src, EmulateConfig {
+        let (infos, _) = emulate(top, src, EmulateConfig {
             complete_filter: Some(completion_name_filter),
             ..Default::default()
         });
@@ -329,7 +418,7 @@ impl RequestHandler for request::HoverRequest {
             return Ok(None);
         };
         let cfg = EmulateConfig::default();
-        let infos = emulate(top, src, cfg);
+        let (infos, _) = emulate(top, src, cfg);
         let mut strings = vec![];
         let mut dedup_set = HashSet::new();
 
@@ -367,6 +456,36 @@ impl RequestHandler for request::DocumentDiagnosticRequest {
         ))
     }
 }
+impl RequestHandler for request::CodeActionRequest {
+    fn handle(ctx: &mut Ctx, param: Self::Params) -> Result<Self::Result> {
+        ctx.active_actions.clear();
+        let actions = actions::all().iter().filter_map(|handler| {
+            let (label, info) = handler(ctx, &param)?;
+            let code_action = CodeAction {
+                title: label.clone(),
+                kind: Some(CodeActionKind::EMPTY),
+                ..Default::default()
+            };
+            ctx.active_actions.insert(label, info);
+            CodeActionOrCommand::CodeAction(code_action).into()
+        }).collect();
+        Ok(Some(actions))
+    }
+}
+impl RequestHandler for request::CodeActionResolveRequest {
+    fn handle(ctx: &mut Ctx, param: Self::Params) -> Result<Self::Result> {
+        let actions::Info { handler }
+            = ctx.active_actions.remove(&param.title)
+            .ok_or_else(|| anyhow!("unknown code action resolve: {param:#?}"))?;
+        let edits = handler(ctx)?;
+        Ok(CodeAction {
+            edit: Some(edits),
+            ..param
+        })
+    }
+}
+
+mod actions;
 
 fn solid_snippets(cur_location: CurLocation) -> impl Iterator<Item = CompletionItem> {
     [
@@ -524,6 +643,7 @@ trait NotificationHandler: Notification {
 }
 impl NotificationHandler for notification::DidOpenTextDocument {
     fn handle(ctx: &mut Ctx, param: Self::Params) -> Result<()> {
+        ctx.trace(format_args!("open file {}", param.text_document.uri.as_str()));
         let file = ctx.open_files.entry(param.text_document.uri).or_default();
         *file = param.text_document.text;
         Ok(())
@@ -531,10 +651,12 @@ impl NotificationHandler for notification::DidOpenTextDocument {
 }
 impl NotificationHandler for notification::DidChangeTextDocument {
     fn handle(ctx: &mut Ctx, param: Self::Params) -> Result<()> {
-        if !ctx.open_files.contains_key(&param.text_document.uri) {
-            ctx.open_files.insert(param.text_document.uri.clone(), String::new());
+        let uri = param.text_document.uri;
+        if !ctx.open_files.contains_key(&uri) {
+            ctx.open_files.insert(uri.clone(), String::new());
         }
-        let file = ctx.open_files.get_mut(&param.text_document.uri).unwrap();
+        ctx.trace(format_args!("change file {}", uri.as_str()));
+        let file = ctx.open_files.get_mut(&uri).unwrap();
 
         for change in param.content_changes {
             if change.range.is_some() {
@@ -548,11 +670,18 @@ impl NotificationHandler for notification::DidChangeTextDocument {
 impl NotificationHandler for notification::DidCloseTextDocument {
     fn handle(ctx: &mut Ctx, param: Self::Params) -> Result<()> {
         let uri = param.text_document.uri;
+        ctx.trace(format_args!("close file {}", uri.as_str()));
         if ctx.open_files.remove(&uri).is_none() {
             ctx.send_window_notif(MessageType::WARNING, format_args!("Cannot close unknown file: {uri:?}"))?;
         }
         Ok(())
     }
+}
+
+trait ResponseHandler: Request {
+    type Content: 'static;
+
+    fn handle_response(ctx: &mut Ctx, param: Self::Result, content: Self::Content) -> Result<()>;
 }
 
 fn tigger_diagnostics(ctx: &mut Ctx, uri: &Uri) -> Vec<Diagnostic> {
@@ -575,7 +704,7 @@ fn tigger_diagnostics(ctx: &mut Ctx, uri: &Uri) -> Vec<Diagnostic> {
         }
         Ok(top) => {
             let cfg = EmulateConfig { diagnostics: true, ..Default::default() };
-            let infos = emulate(top, file.clone(), cfg);
+            let (infos, _) = emulate(top, file.clone(), cfg);
             ctx.trace(format_args!("diagnostic infos: {infos:#?}"));
 
             for info in infos {
@@ -601,7 +730,7 @@ fn tigger_diagnostics(ctx: &mut Ctx, uri: &Uri) -> Vec<Diagnostic> {
     diags
 }
 
-fn emulate(top: Expand, src: String, cfg: EmulateConfig) -> Vec<EmulateInfo> {
+fn emulate(top: Expand, src: String, cfg: EmulateConfig) -> (Vec<EmulateInfo>, CompileMeta) {
     let source: Rc<String> = src.into();
     let mut meta = CompileMeta::with_source(source.clone());
     meta.emutale_config = Some(cfg);
@@ -611,7 +740,7 @@ fn emulate(top: Expand, src: String, cfg: EmulateConfig) -> Vec<EmulateInfo> {
     let _ = std::panic::catch_unwind(|| {
         top.compile(&mut {assert_meta}.0);
     });
-    meta.emulate_infos.take()
+    (meta.emulate_infos.take(), meta)
 }
 
 struct Extender {

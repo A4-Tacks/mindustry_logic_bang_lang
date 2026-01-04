@@ -4298,6 +4298,7 @@ pub struct EmulateConfig {
     pub diagnostics: bool,
     pub complete_filter: Option<fn(&str) -> bool>,
     pub abort: bool,
+    pub record_free_info: bool,
 }
 
 #[derive(Debug)]
@@ -5172,19 +5173,36 @@ impl CompileMeta {
                 ..Default::default()
             });
         }
-        self.log_info(format_args!("{line}:{column} {s}"));
+        self.log_info_naked(false, format_args!("{line}:{column} {s}"));
     }
 
     pub fn log_info(&mut self, s: impl std::fmt::Display) {
+        self.log_info_naked(true, s);
+    }
+
+    fn log_info_naked(&mut self, record: bool, s: impl std::fmt::Display) {
         self.log_count += 1;
         eprintln!("{}", csi!(1; 22; "[I] {}",
-                s.to_string().trim_end().replace('\n', "\n    ")))
+                s.to_string().trim_end().replace('\n', "\n    ")));
+        if record && self.emutale_config.as_ref().is_some_and(|it| it.record_free_info) {
+            self.emulate(EmulateInfo {
+                diagnostic: Some(format!("[I] {s}")),
+                ..Default::default()
+            });
+        }
     }
 
     pub fn log_err(&mut self, s: impl std::fmt::Display) {
         self.log_count += 1;
         eprintln!("{}", csi!(1, 91; 22, 39; "[E] {}",
-                s.to_string().trim_end().replace('\n', "\n    ")))
+                s.to_string().trim_end().replace('\n', "\n    ")));
+        if self.emutale_config.as_ref().is_some_and(|it| it.record_free_info) {
+            self.emulate(EmulateInfo {
+                diagnostic: Some(format!("[E] {s}")),
+                is_error: true,
+                ..Default::default()
+            });
+        }
     }
 
     pub fn log_count(&self) -> usize {
