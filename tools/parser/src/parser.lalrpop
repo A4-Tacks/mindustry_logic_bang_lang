@@ -864,6 +864,12 @@ OpExprOp: (OpExprAOperFun, OpExprInfo) = {
 
 OpExpr: LogicLine = {
     <l:@L> <mut results:ArgRestSL> <r:@R> <ops:OpExprOp+> =>? {
+        if crate::first_comp(&results) {
+            return Err(Error::from((
+                [l, r],
+                Errors::Emulate,
+            )).into());
+        }
         if ops.len() > 1 {
             results = results.into_iter().map(|result: Value| {
                 let tmp = meta.get_tmp_var();

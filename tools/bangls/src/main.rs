@@ -615,9 +615,7 @@ fn cur_location(top: &Expand) -> CurLocation {
             Node::Value(Value::ValueBind(syntax::ValueBind(_, name))) |
             Node::Key(ConstKey::ValueBind(syntax::ValueBind(_, name)))
                 if pred(name) => return ControlFlow::Break(location = CurLocation::BindName { first: false }),
-            Node::Line(LogicLine::Other(args)) if args.is_normal() => if let Some(norm) = args.as_normal()
-                && let Some(first) = norm.first()
-            {
+            Node::Line(LogicLine::Other(args)) => if let Some(first) = args.first() {
                 match first {
                     Value::Var(var) if pred(var) => return ControlFlow::Break(location = CurLocation::LineFirst),
                     Value::ValueBindRef(ValueBindRef { bind_target: ValueBindRefTarget::NameBind(name), .. }) |

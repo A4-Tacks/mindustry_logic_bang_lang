@@ -155,6 +155,7 @@ pub enum Errors {
     UnpairBranches(usize, usize),
     OpExprInvalidResult { found: usize, right: usize },
     MultipleOpExpr,
+    Emulate,
 }
 
 /// 带有错误前缀, 并且文本为红色的eprintln
@@ -3036,9 +3037,13 @@ impl Args {
     }
 
     pub fn first(&self) -> Option<&Value> {
+        self.nth(0)
+    }
+
+    pub fn nth(&self, n: usize) -> Option<&Value> {
         match self {
             Args::Expanded(values, _) |
-            Args::Normal(values) => values.first(),
+            Args::Normal(values) => values.get(n),
         }
     }
 

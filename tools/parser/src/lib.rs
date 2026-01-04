@@ -31,6 +31,10 @@ fn trim_complete(v: &Var) -> Var {
     }
 }
 
+fn first_comp(values: &[Value]) -> bool {
+    values.first().and_then(Value::as_var).is_some_and(|it| it.ends_with(syntax::LSP_DEBUG))
+}
+
 fn make_take_destructs(
     meta: &mut Meta,
     mut key: ConstKey,
@@ -433,6 +437,11 @@ pub fn format_parse_err<const MAX_INVALID_TOKEN_VIEW: usize>(
                 Errors::MultipleOpExpr => {
                     out(format_args!(
                         "此处不应展开多个 op-expr",
+                    ))
+                },
+                Errors::Emulate => {
+                    out(format_args!(
+                        "用于语言服务器的错误",
                     ))
                 },
                 #[allow(unreachable_patterns)]
