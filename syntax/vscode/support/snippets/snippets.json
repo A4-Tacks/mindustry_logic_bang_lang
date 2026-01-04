@@ -107,7 +107,7 @@
         "prefix": "using",
         "description": "destructure value binds",
         "body": [
-            "$1{$2} = $3"
+            "{$2} = $1"
         ]
     },
     "op self": {
@@ -169,7 +169,7 @@
         "prefix": "set",
         "description": "a = b;",
         "body": [
-            "${1:\\$} = ${2};"
+            "${1:\\$} = ${2:0};"
         ]
     },
     "match args... { (pattern body)... }": {

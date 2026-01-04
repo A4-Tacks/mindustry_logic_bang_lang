@@ -55,7 +55,7 @@ snippet take "take" w
 take ${1};
 endsnippet
 snippet using "destructure value binds" w
-$1{$2} = $3
+{$2} = $1
 endsnippet
 snippet iop "op self" w
 $1 ${2:+}= $3;
@@ -85,7 +85,7 @@ snippet print "print values;" w
 print ${1:"$2"};
 endsnippet
 snippet set "a = b;" w
-${1:\$} = ${2};
+${1:\$} = ${2:0};
 endsnippet
 snippet match "match args... { (pattern body)... }" w
 match ${1:@} {
