@@ -592,8 +592,11 @@ fn generate_completes(infos: &[EmulateInfo], cur_location: CurLocation) -> Vec<C
         (item_kind(a), a).cmp(&(item_kind(b), b))
     });
     fn item_kind(s: &str) -> u8 {
-        if s.contains('.') || s.contains("->") {
-            return 1;
+        if s.trim_start_matches('-').starts_with(|ref ch| char::is_ascii_digit(ch)) {
+            return 4;
+        }
+        if s.starts_with('"') {
+            return 4;
         }
         if s.starts_with('_') {
             return 2;
@@ -601,8 +604,8 @@ fn generate_completes(infos: &[EmulateInfo], cur_location: CurLocation) -> Vec<C
         if s.parse::<f64>().is_ok() {
             return 3;
         }
-        if s.starts_with('"') {
-            return 4;
+        if s.contains('.') || s.contains("->") {
+            return 1;
         }
         0
     }
