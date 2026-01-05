@@ -585,11 +585,27 @@ fn generate_completes(infos: &[EmulateInfo], cur_location: CurLocation) -> Vec<C
             ..Default::default()
         }
     }).chain(solid_snippets(cur_location)).collect();
+
     items.sort_by(|a, b| {
         let a = a.sort_text.as_ref().unwrap_or(&a.label);
         let b = b.sort_text.as_ref().unwrap_or(&b.label);
-        (a.starts_with('_'), a).cmp(&(b.starts_with('_'), b))
+        (item_kind(a), a).cmp(&(item_kind(b), b))
     });
+    fn item_kind(s: &str) -> u8 {
+        if s.contains('.') || s.contains("->") {
+            return 1;
+        }
+        if s.starts_with('_') {
+            return 2;
+        }
+        if s.parse::<f64>().is_ok() {
+            return 3;
+        }
+        if s.starts_with('"') {
+            return 4;
+        }
+        0
+    }
     items
 }
 
