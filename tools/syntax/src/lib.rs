@@ -3699,10 +3699,12 @@ impl GSwitch {
         Item = usize
     > + '_ {
         let loc = ids.unit();
-        let loc = move |meta: &CompileMeta| {
-            let (line, column) = loc.location(&meta.source);
-            format!("{line}:{column}")
-        };
+        macro_rules! err1 {
+            ($f:tt, $($t:tt)*) => {{
+                let loc = loc.location(&meta.source);
+                err!(loc => $f, format!("{}:{}", loc.0, loc.1), $($t)*);
+            }};
+        }
 
         ids.value.into_taked_args_handle(meta)
             .into_iter()
@@ -3711,19 +3713,19 @@ impl GSwitch {
                 .map(|x| match x.0.round() {
                     n if n < 0. => {
                         meta.log_expand_stack::<true>();
-                        err!("{} 小于0的gswitch id: {}", loc(meta), n);
+                        err1!("{} 小于0的gswitch id: {}", n);
                         meta.exit(4);
                     },
                     n if n >= GSwitch::MAX_CONST_ID as f64 => {
                         meta.log_expand_stack::<true>();
-                        err!("{} 过大的gswitch id: {}", loc(meta), n);
+                        err1!("{} 过大的gswitch id: {}", n);
                         meta.exit(4);
                     },
                     n => n as usize,
                 })
                 .unwrap_or_else(|| {
                     meta.log_expand_stack::<true>();
-                    err!("{} gswitch id并不是一个数字", loc(meta));
+                    err1!("{} gswitch id并不是一个数字",);
                     meta.exit(4);
                 }))
     }
