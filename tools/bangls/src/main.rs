@@ -1,6 +1,7 @@
 use display_source::DisplaySource;
 use getopts_macro::getopts_options;
 use itertools::Itertools;
+use var_utils::AsVarType;
 use std::{any::Any, borrow::Cow, cell::RefCell, collections::HashSet, rc::Rc};
 
 use anyhow::{Result, anyhow, bail};
@@ -512,6 +513,11 @@ fn solid_snippets(cur_location: CurLocation) -> impl Iterator<Item = CompletionI
 fn completion_name_filter(var: &str) -> bool {
     if var.is_empty() {
         return false;
+    }
+    match var.as_var_type() {
+        var_utils::VarType::Var(_) => (),
+        var_utils::VarType::String(_) |
+        var_utils::VarType::Number(_) => return false,
     }
     if var.strip_prefix("__").is_some_and(hide_special) {
         return false;

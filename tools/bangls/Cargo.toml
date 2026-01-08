@@ -1,6 +1,6 @@
 [package]
 name = "bangls"
-version = "0.1.28"
+version = "0.1.29"
 edition = "2024"
 
 [features]
@@ -21,3 +21,4 @@ parser = { version = "*", path = "../parser", default-features = false }
 serde_json = "1.0.146"
 syntax = { version = "*", path = "../syntax" }
 tag_code = { version = "*", path = "../tag_code" }
+var_utils = { version = "*", path = "../var_utils" }
