@@ -430,7 +430,7 @@ checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
 name = "mindustry_logic_bang_lang"
-version = "0.22.1"
+version = "0.22.2"
 dependencies = [
  "display_source",
  "line-column",
@@ -868,7 +868,7 @@ version = "0.1.2"
 
 [[package]]
 name = "var_utils"
-version = "0.5.6"
+version = "0.5.7"
 dependencies = [
  "lazy-regex",
 ]

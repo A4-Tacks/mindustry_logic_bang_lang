@@ -18,15 +18,17 @@ pub fn is_ident(s: &str) -> bool {
 }
 
 pub const VAR_KEYWORDS: &[&str] = {&[
-    "_", "abs", "acos", "add", "always", "and", "angle", "angleDiff",
-    "asin", "atan", "break", "case", "ceil", "const", "continue",
-    "cos", "div", "do", "elif", "else", "equal", "floor",
-    "goto", "greaterThan", "greaterThanEq", "gwhile", "idiv", "if", "inline",
-    "land", "len", "lessThan", "lessThanEq", "lnot", "log", "match", "max",
-    "min", "mod", "mul", "noise", "noop", "not", "notEqual",
-    "op", "or", "pow", "print", "rand", "select", "setres",
-    "shl", "shr", "sin", "skip", "sqrt", "strictEqual",
-    "strictNotEqual", "sub", "switch", "take", "tan", "while", "xor",
+    "_", "goto", "not", "abs", "sign", "greaterThan", "notEqual",
+    "acos", "greaterThanEq", "op", "add", "gswitch", "or",
+    "always", "gwhile", "pow", "and", "idiv", "print",
+    "angle", "if", "rand", "angleDiff", "inline", "select",
+    "asin", "land", "setres", "atan", "len", "shl", "ushr",
+    "break", "lessThan", "shr", "case", "lessThanEq", "sin",
+    "ceil", "round", "lnot", "skip", "const", "log", "logn", "sqrt",
+    "continue", "log10", "strictEqual", "cos", "match", "strictNotEqual",
+    "div", "max", "sub", "do", "min", "switch",
+    "elif", "mod", "emod", "take", "else", "mul", "tan",
+    "equal", "noise", "while", "floor", "noop", "xor",
 ]};
 
 /// 判断是否是一个标识符(包括数字)关键字
