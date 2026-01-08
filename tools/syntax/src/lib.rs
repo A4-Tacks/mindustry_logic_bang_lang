@@ -850,7 +850,7 @@ pub enum ClosuredValue {
     },
     Inited {
         bind_handle: Var,
-        binder_to: Option<Var>,
+        binder_to: Option<(Var, Option<Var>)>,
         rename_labels: HashMap<Var, Var>,
         vars: Vec<Var>,
         reset_argc: Option<usize>,
@@ -922,7 +922,7 @@ impl ClosuredValue {
 
         *self = Self::Inited {
             bind_handle: bindh,
-            binder_to,
+            binder_to: binder_to.map(|it| (it, None)),
             rename_labels,
             vars,
             reset_argc,
@@ -949,9 +949,13 @@ impl ClosuredValue {
         };
         let mut result = None;
         let f = |meta: &mut CompileMeta| {
+            let (binder_to, binder) = match binder_to {
+                Some((to, binder)) => (Some(to), binder),
+                None => (None, None),
+            };
             Take(
                 ConstKey::Var(Self::BINDER_NAME.into()),
-                Value::Binder,
+                binder.map(Value::ReprVar).unwrap_or(Value::Binder),
             ).compile(meta);
             for var in vars {
                 let handle = meta.get_value_binded(
@@ -995,8 +999,17 @@ impl ClosuredValue {
     }
 }
 impl TakeHandle for ClosuredValue {
-    fn take_handle(self, meta: &mut CompileMeta) -> Var {
-        if let Self::Inited { ref bind_handle, lazy: true, .. } = self {
+    fn take_handle(mut self, meta: &mut CompileMeta) -> Var {
+        if let Self::Inited {
+            ref bind_handle,
+            lazy: true,
+            ref mut binder_to,
+            ..
+        } = self {
+            if let Some((_, binder)) = binder_to {
+                binder.get_or_insert_with(|| meta.get_dexp_expand_binder().cloned()
+                    .unwrap_or_else(|| UNNAMED_VAR.into()));
+            }
             let binded = meta.get_value_binded(
                 bind_handle.clone(),
                 Self::BINDED_VALUE_NAME.into(),

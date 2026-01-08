@@ -10084,6 +10084,65 @@ fn closure_catch_label_test() {
 }
 
 #[test]
+fn closure_binder_test() {
+    let parser = TopLevelParser::new();
+
+    check_compile!{parser,
+        r#"
+        const Foo = ([N:2](match => {
+            print N, ..->N;
+        }));
+        take Foo;
+        "#,
+        r#"
+            print 2
+            print 2
+        "#,
+    };
+
+    check_compile!{parser,
+        r#"
+        const Foo = ([N:2]match => {
+            print N, ..->N;
+        });
+        take Foo;
+        "#,
+        r#"
+            print 2
+            print 2
+        "#,
+    };
+
+    check_compile!{parser,
+        r#"
+        const handle.Foo = ([N:2 ..B](match => {
+            print N, ..->N, B;
+        }));
+        take handle.Foo;
+        "#,
+        r#"
+            print 2
+            print 2
+            print handle
+        "#,
+    };
+
+    check_compile!{parser,
+        r#"
+        const handle.Foo = ([N:2 ..B]match => {
+            print N, ..->N, B;
+        });
+        take handle.Foo;
+        "#,
+        r#"
+            print 2
+            print 2
+            print handle
+        "#,
+    };
+}
+
+#[test]
 fn non_take_result_handle_dexp_test() {
     let parser = TopLevelParser::new();
 
