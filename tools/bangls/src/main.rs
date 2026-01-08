@@ -285,6 +285,7 @@ impl Ctx {
         let placeholders = [
             format!("{LSP_DEBUG} "),
             format!("{LSP_DEBUG} __lsp_arg;"),
+            format!("{LSP_DEBUG};"),
         ];
         let parser = parser::TopLevelParser::new();
         for placeholder in &placeholders {
