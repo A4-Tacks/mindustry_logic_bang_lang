@@ -84,8 +84,8 @@ fn differ(current: &str, expect: &str) {
     println!("-- diff --");
 
     for diff_chunk in dissimilar::diff(
-        &current,
         &expect,
+        &current,
     ) {
         match diff_chunk {
             dissimilar::Chunk::Equal(s) => eprint!("{s}"),
