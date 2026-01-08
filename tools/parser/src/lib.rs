@@ -32,7 +32,13 @@ fn trim_complete(v: &Var) -> Var {
 }
 
 fn first_comp(values: &[Value]) -> bool {
-    values.first().and_then(Value::as_var).is_some_and(|it| it.ends_with(syntax::LSP_DEBUG))
+    let Some(first) = values.first() else { return false };
+    match first {
+        Value::ValueBindRef(ValueBindRef { bind_target: ValueBindRefTarget::NameBind(name), .. }) |
+        Value::ValueBind(ValueBind(_, name)) |
+        Value::Var(name) => name.ends_with(syntax::LSP_DEBUG),
+        _ => false,
+    }
 }
 
 fn make_take_destructs(
