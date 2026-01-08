@@ -38,6 +38,7 @@ macro_rules! check_compile {
         check_compile!{@compile(meta) $parser, src, $b}
     }};
     (@compile($meta:ident) $parser:expr, $a:expr, $b:expr $(,)? ) => {{
+        println!("check_compile, line {}", line!());
         let mut meta = $meta.compile_res_self(parse!($parser, $a).unwrap());
         let lines = std::mem::take(meta.parse_lines_mut());
         let linked = lines.compile().unwrap();
