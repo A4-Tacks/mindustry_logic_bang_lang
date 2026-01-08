@@ -147,7 +147,7 @@ impl DisplaySource for ClosuredValue {
                     meta.push_fmt(args);
                     meta.push(")");
                 }
-                if let Some(to) = binder_to {
+                if let Some((to, _)) = binder_to {
                     if !reset_args.is_some() || !vars.is_empty() {
                         meta.add_space();
                     }
