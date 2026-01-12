@@ -10,6 +10,18 @@ which allows for flexible completion of most requirements
 The most basic ability is to avoid using line number jumps and label jumps everywhere.
 It is possible to convert statements such as `if` and `while` into `goto` during building without having to manually write them
 
+> [!IMPORTANT]
+> It is recommended to use VSCode or VIM (coc.nvim) for writing this language,
+> - For VIM, the [VIM plugin](../syntax/vim) is provided, which includes definitions for ultisnips
+> - For VSCode, a plugin with a file suffix of `.vsix` is provided in [Releases], which can be imported into VSCode
+>
+> At the same time, [Language Server](../tools/bangls) is provided,
+> with programs prefixed with `bangls` in [Releases] Used to support advanced usage
+>
+> Provides a [decompiler](../tools/decompiler) for converting logical code into bang control flow
+
+[Releases]: https://github.com/A4-Tacks/mindustry_logic_bang_lang/releases
+
 > [!WARNING]
 > This tutorial is currently being translated,
 > and there are chapters that have not been fully translated yet
