@@ -10,26 +10,17 @@ use display_source::DisplaySourceMeta;
 use line_column::line_column;
 use linked_hash_map::LinkedHashMap;
 use lsp_server::{IoThreads, Message, RequestId};
-use lsp_types::{CodeAction, CodeActionKind, CodeActionOptions, CodeActionOrCommand, CompletionItem, CompletionItemKind, CompletionOptions, Diagnostic, DiagnosticSeverity, InitializeParams, InitializeResult, InsertTextFormat, MessageType, Position, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, TraceValue, Uri, notification::{self, Notification}, request::{self, Request}};
+use lsp_types::{CodeAction, CodeActionKind, CodeActionOptions, CodeActionOrCommand, CompletionItem, CompletionItemKind, CompletionOptions, Diagnostic, DiagnosticSeverity, InitializeParams, InitializeResult, InsertTextFormat, MessageType, Position, PublishDiagnosticsParams, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, TraceValue, Uri, notification::{self, Notification}, request::{self, Request}};
 use syntax::{Compile, CompileMeta, CompileMetaExtends, Emulate, EmulateConfig, EmulateInfo, Expand, LSP_DEBUG, LSP_HOVER};
 use bangls::*;
 
 fn main() {
     let options = getopts_options! {
+            --vscode        "vscode fallback mode";
         -h, --help          "show help message";
         -v, --version       "show version";
     };
-    let matches = match options.parse(std::env::args().skip(1)) {
-        Ok(it) => it,
-        Err(e) => {
-            eprintln!("{e}");
-            std::process::exit(2);
-        },
-    };
-    if matches.opt_present("help") {
-        println!("{}", options.short_usage(env!("CARGO_BIN_NAME")).trim_end());
-        return;
-    }
+    let matches = getopts_macro::simple_parse(&options, "Bang Language Server", 0, "");
     if matches.opt_present("version") {
         println!("{}", env!("CARGO_PKG_VERSION"));
         return;
@@ -39,7 +30,7 @@ fn main() {
         std::process::exit(2);
     }
 
-    main_loop().unwrap();
+    main_loop(&matches).unwrap();
 }
 
 fn lopos(pos: Position) -> (u32, u32) {
@@ -83,7 +74,7 @@ impl IoJoiner {
     }
 }
 
-fn main_loop() -> Result<()> {
+fn main_loop(matches: &getopts_macro::getopts::Matches) -> Result<()> {
     let (connect, io) = lsp_server::Connection::stdio();
     let _io = IoJoiner(Some(io));
     let server_capabilities = ServerCapabilities {
@@ -127,6 +118,7 @@ fn main_loop() -> Result<()> {
     let _workspace_folders = workspace_folders.ok_or(anyhow!("Cannot find workspace folder"))?;
     let mut ctx = Ctx::new(connect.sender, connect.receiver);
     ctx.trace = !matches!(trace, None | Some(TraceValue::Off));
+    ctx.vscode = matches.opt_present("vscode");
     ctx.run().map_err(|e| { ctx.trace(&e); e })
 }
 
@@ -138,6 +130,7 @@ struct Ctx {
     active_actions: LinkedHashMap<String, actions::Info>,
     id_counter: i32,
     request_contents: LinkedHashMap<RequestId, (&'static str, Box<dyn Any>)>,
+    vscode: bool,
 }
 impl Ctx {
     fn new(sender: Sender<Message>, recver: Receiver<Message>) -> Self {
@@ -149,6 +142,7 @@ impl Ctx {
             active_actions: Default::default(),
             id_counter: 1,
             request_contents: Default::default(),
+            vscode: false,
         }
     }
 
@@ -461,6 +455,10 @@ impl RequestHandler for request::DocumentDiagnosticRequest {
 }
 impl RequestHandler for request::CodeActionRequest {
     fn handle(ctx: &mut Ctx, param: Self::Params) -> Result<Self::Result> {
+        if ctx.vscode {
+            // vscode unsupported codeAction/resolve
+            return Ok(Some(vec![]));
+        }
         ctx.active_actions.clear();
         let actions = actions::all().iter().filter_map(|handler| {
             let (label, info) = handler(ctx, &param)?;
@@ -645,6 +643,15 @@ impl NotificationHandler for notification::DidChangeTextDocument {
             }
             *file = change.text;
         }
+
+        if ctx.vscode {
+            // vscode unsupported pull diagnostics model
+            ctx.send_notif::<notification::PublishDiagnostics>(PublishDiagnosticsParams {
+                diagnostics: tigger_diagnostics(ctx, &uri),
+                uri,
+                version: Some(param.text_document.version),
+            })?;
+        }
         Ok(())
     }
 }
@@ -665,7 +672,7 @@ trait ResponseHandler: Request {
     fn handle_response(ctx: &mut Ctx, param: Self::Result, content: Self::Content) -> Result<()>;
 }
 
-fn tigger_diagnostics(ctx: &mut Ctx, uri: &Uri) -> Vec<Diagnostic> {
+fn tigger_diagnostics(ctx: &Ctx, uri: &Uri) -> Vec<Diagnostic> {
     let Some(file) = ctx.open_files.get(uri) else { return vec![] };
     let mut diags = vec![];
     let escape = |s: String| s.replace('$', "$$");

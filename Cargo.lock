@@ -45,7 +45,7 @@ checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 
 [[package]]
 name = "bangls"
-version = "0.1.33"
+version = "0.1.34"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
@@ -221,9 +221,9 @@ dependencies = [
 
 [[package]]
 name = "getopts-macro"
-version = "0.1.8"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "574d902f49982e02b8bb5ec04ca2494840babd78d82504e17d4a48e35b076ae5"
+checksum = "25e31e83768536f7af8550a04e432a2af8b4250307795ed0bd264a62b5c5d4f3"
 dependencies = [
  "getopts",
 ]

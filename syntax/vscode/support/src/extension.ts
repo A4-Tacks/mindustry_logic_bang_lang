@@ -8,7 +8,7 @@ export function activate(_ctx: any) {
   client = new LanguageClient(
     'bangls',
     'Bang Language Server',
-    { command: 'bangls' },
+    { command: 'bangls', args: ['--vscode'] },
     { documentSelector: [{scheme: 'file', language: 'mdtlbl'}] }
   );
   client.start();
