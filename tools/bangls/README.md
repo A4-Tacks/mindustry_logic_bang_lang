@@ -9,7 +9,7 @@ bangls 是一个 bang 语言的语言服务器, 使用语言服务器协议 (LSP
 
 将 `bangls` 或 `bangls.exe` 可执行文件放入 `$PATH` `%PATH%` 等环境变量中包含的目录, 安装插件即可
 
-语言服务器及 VSCode 插件 (vsce) 都在 [Releases] 中获取
+语言服务器及 VSCode 插件 (.vsix) 都在 [Releases] 中获取
 
 (由于 VSCode 特性支持较差, 暂不支持使用代码操作进行编译)
 
