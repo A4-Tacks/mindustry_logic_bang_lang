@@ -575,7 +575,7 @@ fn generate_completes(infos: &[EmulateInfo], cur_location: CurLocation) -> Vec<C
 
         let insert_snippet = match (use_args, cur_location) {
             (true, CurLocation::LineFirst | CurLocation::BindName { first: true }) => {
-                format!("{var}! ;")
+                format!("{var}! $0;")
             },
             (true, loc) if loc != CurLocation::LineFirst => format!("{var}[$0]"),
             _ => var.to_string(),

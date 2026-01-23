@@ -5,7 +5,13 @@ bangls 是一个 bang 语言的语言服务器, 使用语言服务器协议 (LSP
 - VSCode: LSP 始祖
 - Vim/NeoVim: 通常安装插件后可支持 LSP
 
-例如在 Vim/NeoVim 中安装 coc.nvim 插件, 并做如下配置:
+## 在 VSCode 中
+
+将 `bangls` 或 `bangls.exe` 可执行文件放入 `$PATH` `%PATH%` 等环境变量中包含的目录, 安装插件即可
+
+语言服务器及 VSCode 插件 (vsce) 都在 [Releases] 中获取
+
+## 在 Vim/NeoVim 中使用 coc.nvim
 
 ```json
 {
@@ -19,6 +25,8 @@ bangls 是一个 bang 语言的语言服务器, 使用语言服务器协议 (LSP
 ```
 
 即可以在 `.mdtlbl` 后缀的文件中具有补全等功能
+
+[Releases]: https://github.com/A4-Tacks/mindustry_logic_bang_lang/releases
 
 
 功能支持

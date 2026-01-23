@@ -1,2 +1,4 @@
 /lsp
 *.py
+node_modules
+out
