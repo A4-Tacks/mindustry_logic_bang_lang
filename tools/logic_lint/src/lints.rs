@@ -369,6 +369,7 @@ const UNIT_CONTROL_METHODS: &[&str] = &[
     "autoPathfind", "boost", "target", "targetp", "itemDrop",
     "itemTake", "payDrop", "payTake", "payEnter", "mine",
     "flag", "build", "getBlock", "within", "unbind",
+    "deconstruct",
 ];
 const FETCH_METHODS: &[&str] = &[
     "unit",     "unitCount",

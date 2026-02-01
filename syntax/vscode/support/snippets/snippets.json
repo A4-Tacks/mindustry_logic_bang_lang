@@ -2096,6 +2096,13 @@
             "ucontrol unbind 0 0 0 0 0;"
         ]
     },
+    "拆除某个位置的建筑": {
+        "prefix": "ucontrol.deconstruct",
+        "description": "拆除某个位置的建筑",
+        "body": [
+            "ucontrol deconstruct ${1:0} ${2:0} 0 0 0;"
+        ]
+    },
     "查找矿脉": {
         "prefix": "ulocate.ore",
         "description": "查找矿脉",
