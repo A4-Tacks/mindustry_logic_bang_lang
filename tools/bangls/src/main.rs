@@ -675,7 +675,6 @@ trait ResponseHandler: Request {
 fn tigger_diagnostics(ctx: &Ctx, uri: &Uri) -> Vec<Diagnostic> {
     let Some(file) = ctx.open_files.get(uri) else { return vec![] };
     let mut diags = vec![];
-    let escape = |s: String| s.replace('$', "$$");
 
     match ctx.parse_for_parse_error(file) {
         Err(((sindex, eindex), error)) => {
@@ -684,7 +683,7 @@ fn tigger_diagnostics(ctx: &Ctx, uri: &Uri) -> Vec<Diagnostic> {
             ctx.trace(format_args!("diagnostic parse error: {error:#?}"));
 
             diags.push(Diagnostic {
-                message: escape(error),
+                message: error,
                 range: lsp_types::Range { start, end },
                 severity: Some(DiagnosticSeverity::ERROR),
                 ..Default::default()
@@ -702,7 +701,7 @@ fn tigger_diagnostics(ctx: &Ctx, uri: &Uri) -> Vec<Diagnostic> {
                 })) else { continue };
                 let start = rgpos(loc);
                 diags.push(Diagnostic {
-                    message: escape(diagnostic),
+                    message: diagnostic,
                     range: lsp_types::Range { start, end: start },
                     severity: Some(if info.is_error {
                         DiagnosticSeverity::ERROR
