@@ -3,7 +3,6 @@ use std::{collections::HashMap, mem};
 use anyhow::{Result, bail};
 use display_source::{DisplaySource, DisplaySourceMeta};
 use itertools::Itertools;
-use line_column::line_column;
 use lsp_types::{CodeActionParams, TextEdit, WorkspaceEdit};
 use syntax::EmulateConfig;
 use tag_code::TagCodes;
@@ -123,8 +122,8 @@ fn parse_file(ctx: &Ctx, file: &str) -> Result<syntax::Expand> {
 }
 
 fn full_range(file: &str) -> lsp_types::Range {
-    let end = rgpos(line_column(file, file.len()));
-    let start = rgpos((1, 1));
+    let end = rgpos(file.len(), file);
+    let start = rgpos(0, file);
     let range = lsp_types::Range { start, end };
     range
 }

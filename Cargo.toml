@@ -41,7 +41,7 @@ parser = { path = "./tools/parser", version = "*", default-features = false }
 syntax = { path = "./tools/syntax", version = "*" }
 logic_lint = { path = "./tools/logic_lint", version = "*" }
 mini-paren = { version = "0.1.0", path = "tools/mini-paren" }
-line-column = "0.2.0"
+line-column = "0.3.5"
 
 
 [profile.dev]

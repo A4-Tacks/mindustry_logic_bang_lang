@@ -1,6 +1,6 @@
 [package]
 name = "bangls"
-version = "0.1.35"
+version = "0.1.36"
 edition = "2024"
 
 [features]
@@ -13,7 +13,7 @@ crossbeam-channel = "0.5.15"
 display_source = { version = "*", path = "../display_source" }
 getopts-macro = { version = "0.1.10", features = ["std"] }
 itertools = "0.14.0"
-line-column = "0.2.0"
+line-column = "0.3.5"
 linked-hash-map = "0.5.6"
 lsp-server = "0.7.9"
 lsp-types = "0.97.0"

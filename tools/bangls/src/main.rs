@@ -7,7 +7,6 @@ use std::{any::Any, borrow::Cow, cell::RefCell, collections::HashSet, rc::Rc};
 use anyhow::{Result, anyhow, bail};
 use crossbeam_channel::{Receiver, Sender};
 use display_source::DisplaySourceMeta;
-use line_column::line_column;
 use linked_hash_map::LinkedHashMap;
 use lsp_server::{IoThreads, Message, RequestId};
 use lsp_types::{CodeAction, CodeActionKind, CodeActionOptions, CodeActionOrCommand, CompletionItem, CompletionItemKind, CompletionOptions, Diagnostic, DiagnosticSeverity, InitializeParams, InitializeResult, InsertTextFormat, MessageType, Position, PublishDiagnosticsParams, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, TraceValue, Uri, notification::{self, Notification}, request::{self, Request}};
@@ -33,18 +32,13 @@ fn main() {
     main_loop(&matches).unwrap();
 }
 
-fn lopos(pos: Position) -> (u32, u32) {
-    (pos.line + 1, pos.character + 1)
+fn loidx(pos: Position, src: &str) -> usize {
+    let (line, column) = (pos.line + 1, pos.character + 1);
+    line_column::index_ucs2(src, line, column)
 }
 
-fn _loidx(pos: Position, src: &str) -> usize {
-    let (line, column) = lopos(pos);
-    line_column::index(src, line, column)
-}
-
-fn rgpos((line, column): (u32, u32)) -> Position {
-    assert_ne!(line, 0);
-    assert_ne!(column, 0);
+fn rgpos(index: usize, src: &str) -> Position {
+    let (line, column) = line_column::line_column_ucs2(src, index);
     Position { line: line - 1, character: column - 1 }
 }
 
@@ -274,8 +268,7 @@ impl Ctx {
         }
     }
 
-    fn try_parse_for_complete(&self, (line, col): (u32, u32), file: &str) -> Option<(Expand, String)> {
-        let index = line_column::index(&file, line, col);
+    fn try_parse_for_complete(&self, index: usize, file: &str) -> Option<(Expand, String)> {
         let placeholders = [
             format!("{LSP_DEBUG} "),
             format!("{LSP_DEBUG} __lsp_arg;"),
@@ -292,8 +285,7 @@ impl Ctx {
         None
     }
 
-    fn try_parse_for_hover(&self, (line, col): (u32, u32), file: &str) -> Option<(Expand, String)> {
-        let index = line_column::index(&file, line, col);
+    fn try_parse_for_hover(&self, index: usize, file: &str) -> Option<(Expand, String)> {
         let parser = parser::TopLevelParser::new();
         let source = String::from_iter([&file[..index], LSP_HOVER, &file[index..]]);
         match parser.parse(&mut syntax::Meta::new(), &source) {
@@ -387,10 +379,10 @@ trait RequestHandler: Request {
 impl RequestHandler for request::Completion {
     fn handle(ctx: &mut Ctx, param: Self::Params) -> Result<Self::Result> {
         let uri = param.text_document_position.text_document.uri;
-        let (line, col) = lopos(param.text_document_position.position);
-
         let file = ctx.read_file(&uri)?;
-        let Some((top, src)) = ctx.try_parse_for_complete((line, col), &file) else {
+        let index = loidx(param.text_document_position.position, &file);
+
+        let Some((top, src)) = ctx.try_parse_for_complete(index, &file) else {
             return Ok(None);
         };
         let cur_location = cur_location(&top);
@@ -408,10 +400,10 @@ impl RequestHandler for request::Completion {
 impl RequestHandler for request::HoverRequest {
     fn handle(ctx: &mut Ctx, param: Self::Params) -> Result<Self::Result> {
         let uri = param.text_document_position_params.text_document.uri;
-        let (line, col) = lopos(param.text_document_position_params.position);
-
         let file = ctx.read_file(&uri)?;
-        let Some((top, src)) = ctx.try_parse_for_hover((line, col), &file) else {
+        let index = loidx(param.text_document_position_params.position, &file);
+
+        let Some((top, src)) = ctx.try_parse_for_hover(index, &file) else {
             return Ok(None);
         };
         let cfg = EmulateConfig::default();
@@ -678,8 +670,8 @@ fn tigger_diagnostics(ctx: &Ctx, uri: &Uri) -> Vec<Diagnostic> {
 
     match ctx.parse_for_parse_error(file) {
         Err(((sindex, eindex), error)) => {
-            let start = rgpos(line_column(file, sindex));
-            let end = rgpos(line_column(file, eindex));
+            let start = rgpos(sindex, file);
+            let end = rgpos(eindex, file);
             ctx.trace(format_args!("diagnostic parse error: {error:#?}"));
 
             diags.push(Diagnostic {
@@ -699,7 +691,7 @@ fn tigger_diagnostics(ctx: &Ctx, uri: &Uri) -> Vec<Diagnostic> {
                 let Some(loc) = info.location.or_else(|| info.is_error.then(|| {
                     (1, 1)
                 })) else { continue };
-                let start = rgpos(loc);
+                let start = rgpos(line_column::index(file, loc.0, loc.1), &file);
                 diags.push(Diagnostic {
                     message: diagnostic,
                     range: lsp_types::Range { start, end: start },
