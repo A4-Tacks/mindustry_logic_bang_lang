@@ -6,8 +6,6 @@ on:
 jobs:
   check-empty:
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: read
 
     steps:
       - name: Checkout to PR
