@@ -44,7 +44,7 @@
 				},
 				{
 					"name": "entity.name.function.mdtlbl",
-					"match": "\\b(op|read|write|draw|print|format|drawflush|printflush|getlink|control|radar|sensor|lookup|packcolor|wait|stop|ubind|ucontrol|uradar|ulocate|end)\\b"
+					"match": "\\b(op|read|write|draw|print|printchar|format|drawflush|printflush|getlink|control|radar|sensor|lookup|packcolor|unpackcolor|wait|stop|ubind|ucontrol|uradar|ulocate|end|spawn|spawnwave|status|weathersense|weatherset|setrule|message|cutscene|effect|explosion|setrate|fetch|sync|getflag|setflag|setprop|playsound|playmusic|setmarker|makemarker|localeprint|getblock|setblock|bullet|query)\\b"
 				},
 				{
 					"name": "storage.modifier.mdtlbl",

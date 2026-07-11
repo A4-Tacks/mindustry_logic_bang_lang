@@ -465,9 +465,9 @@
             "message ${1:announce} ${2:3} ${3:@wait};"
         ]
     },
-    "(pan|zoom|ztop)控制玩家游戏视角": {
+    "(pan|zoom|stop)控制玩家游戏视角": {
         "prefix": "cutscene",
-        "description": "(pan|zoom|ztop)控制玩家游戏视角",
+        "description": "(pan|zoom|stop)控制玩家游戏视角",
         "body": [
             "cutscene ${1:pan} ${2:100} ${3:100} ${4:0.06} ${5:0};"
         ]
@@ -554,6 +554,34 @@
         "description": "将地图本地化文本属性值添加到文本缓冲区中。\\n要在地图编辑器中设置地图本地化包，请检查 [accent]地图信息 > 本地化包[]。\\n如果客户端是移动设备，则尝试首先打印以 .mobile 结尾的属性。",
         "body": [
             "localeprint ${2:\"${1:name}\"};"
+        ]
+    },
+    "按字符码打印字符 (如 65='A')": {
+        "prefix": "printchar",
+        "description": "按字符码打印字符 (如 65='A')",
+        "body": [
+            "printchar ${1:65};"
+        ]
+    },
+    "生成子弹 (特权指令)": {
+        "prefix": "bullet",
+        "description": "生成子弹 (特权指令)",
+        "body": [
+            "bullet result @dagger 0 x y angle null null -1 1 1 -1 -1;"
+        ]
+    },
+    "区域查询 (circle|rect) (unit|building) (特权指令)": {
+        "prefix": "query",
+        "description": "区域查询 (circle|rect) (unit|building) (特权指令)",
+        "body": [
+            "query circle unit null 0 0 10 10;"
+        ]
+    },
+    "播放音乐 (特权指令)\\nname interrupt": {
+        "prefix": "playmusic",
+        "description": "播放音乐 (特权指令)\\nname interrupt",
+        "body": [
+            "playmusic ${1:\"game1\"} ${2:true};"
         ]
     },
     "逻辑块建筑自身": {
@@ -750,6 +778,13 @@
         "description": "运行代码的客户端是否为移动端",
         "body": [
             "@clientMobile"
+        ]
+    },
+    "运行代码的客户端是否正在播放音乐": {
+        "prefix": "env.clientMusicPlaying",
+        "description": "运行代码的客户端是否正在播放音乐",
+        "body": [
+            "@clientMusicPlaying"
         ]
     },
     "被处理器控制, 用于传感器的`@controlled`返回结果,": {
@@ -1347,9 +1382,9 @@
             "sensor ${2:totalItems} $1 @totalItems;"
         ]
     },
-    "第一个物品": {
+    "首个物品": {
         "prefix": "sensor.firstItem",
-        "description": "第一个物品",
+        "description": "首个物品",
         "body": [
             "sensor ${2:firstItem} $1 @firstItem;"
         ]
@@ -1361,9 +1396,9 @@
             "sensor ${2:totalLiquids} $1 @totalLiquids;"
         ]
     },
-    "总电力数": {
+    "全电量": {
         "prefix": "sensor.totalPower",
-        "description": "总电力数",
+        "description": "全电量",
         "body": [
             "sensor ${2:totalPower} $1 @totalPower;"
         ]
@@ -1389,30 +1424,30 @@
             "sensor ${2:powerCapacity} $1 @powerCapacity;"
         ]
     },
-    "电网当前已储电": {
+    "电网电池储电": {
         "prefix": "sensor.powerNetStored",
-        "description": "电网当前已储电",
+        "description": "电网电池储电",
         "body": [
             "sensor ${2:powerNetStored} $1 @powerNetStored;"
         ]
     },
-    "电网储电总容量": {
+    "电网电池容量": {
         "prefix": "sensor.powerNetCapacity",
-        "description": "电网储电总容量",
+        "description": "电网电池容量",
         "body": [
             "sensor ${2:powerNetCapacity} $1 @powerNetCapacity;"
         ]
     },
-    "电网净输入": {
+    "电网净输入(发电)": {
         "prefix": "sensor.powerNetIn",
-        "description": "电网净输入",
+        "description": "电网净输入(发电)",
         "body": [
             "sensor ${2:powerNetIn} $1 @powerNetIn;"
         ]
     },
-    "电网净输出": {
+    "电网净输出(耗电)": {
         "prefix": "sensor.powerNetOut",
-        "description": "电网净输出",
+        "description": "电网净输出(耗电)",
         "body": [
             "sensor ${2:powerNetOut} $1 @powerNetOut;"
         ]
@@ -1431,9 +1466,9 @@
             "sensor ${2:ammoCapacity} $1 @ammoCapacity;"
         ]
     },
-    "弹药类型": {
+    "当前弹药类型": {
         "prefix": "sensor.currentAmmoType",
-        "description": "弹药类型",
+        "description": "当前弹药类型",
         "body": [
             "sensor ${2:currentAmmoType} $1 @currentAmmoType;"
         ]
@@ -1466,9 +1501,9 @@
             "sensor ${2:heat} $1 @heat;"
         ]
     },
-    "盾": {
+    "盾量": {
         "prefix": "sensor.shield",
-        "description": "盾",
+        "description": "盾量",
         "body": [
             "sensor ${2:shield} $1 @shield;"
         ]
@@ -1508,30 +1543,30 @@
             "sensor ${2:rotation} $1 @rotation;"
         ]
     },
-    "x坐标": {
+    "X坐标": {
         "prefix": "sensor.x",
-        "description": "x坐标",
+        "description": "X坐标",
         "body": [
             "sensor ${2:x} $1 @x;"
         ]
     },
-    "y坐标": {
+    "Y坐标": {
         "prefix": "sensor.y",
-        "description": "y坐标",
+        "description": "Y坐标",
         "body": [
             "sensor ${2:y} $1 @y;"
         ]
     },
-    "运动速度x": {
+    "运动速度X": {
         "prefix": "sensor.velocityX",
-        "description": "运动速度x",
+        "description": "运动速度X",
         "body": [
             "sensor ${2:velocityX} $1 @velocityX;"
         ]
     },
-    "运动速度y": {
+    "运动速度Y": {
         "prefix": "sensor.velocityY",
-        "description": "运动速度y",
+        "description": "运动速度Y",
         "body": [
             "sensor ${2:velocityY} $1 @velocityY;"
         ]
@@ -1550,16 +1585,16 @@
             "sensor ${2:shootY} $1 @shootY;"
         ]
     },
-    "相机位置X": {
+    "相机X": {
         "prefix": "sensor.cameraX",
-        "description": "相机位置X",
+        "description": "相机X",
         "body": [
             "sensor ${2:cameraX} $1 @cameraX;"
         ]
     },
-    "相机位置Y": {
+    "相机Y": {
         "prefix": "sensor.cameraY",
-        "description": "相机位置Y",
+        "description": "相机Y",
         "body": [
             "sensor ${2:cameraY} $1 @cameraY;"
         ]
@@ -1592,9 +1627,9 @@
             "sensor ${2:solid} $1 @solid;"
         ]
     },
-    "已死亡": {
+    "是否已死亡": {
         "prefix": "sensor.dead",
-        "description": "已死亡",
+        "description": "是否已死亡",
         "body": [
             "sensor ${2:dead} $1 @dead;"
         ]
@@ -1634,9 +1669,9 @@
             "sensor ${2:boosting} $1 @boosting;"
         ]
     },
-    "显示器图形缓冲区中未处理的指令数": {
+    "缓冲区待绘制数": {
         "prefix": "sensor.bufferSize",
-        "description": "显示器图形缓冲区中未处理的指令数",
+        "description": "缓冲区待绘制数",
         "body": [
             "sensor ${2:bufferSize} $1 @bufferSize;"
         ]
@@ -1772,6 +1807,97 @@
         "description": "颜色",
         "body": [
             "sensor ${2:color} $1 @color;"
+        ]
+    },
+    "建造或拆除点X": {
+        "prefix": "sensor.buildX",
+        "description": "建造或拆除点X",
+        "body": [
+            "sensor ${2:buildX} $1 @buildX;"
+        ]
+    },
+    "建造或拆除点Y": {
+        "prefix": "sensor.buildY",
+        "description": "建造或拆除点Y",
+        "body": [
+            "sensor ${2:buildY} $1 @buildY;"
+        ]
+    },
+    "标记X": {
+        "prefix": "sensor.pingX",
+        "description": "标记X",
+        "body": [
+            "sensor ${2:pingX} $1 @pingX;"
+        ]
+    },
+    "标记Y": {
+        "prefix": "sensor.pingY",
+        "description": "标记Y",
+        "body": [
+            "sensor ${2:pingY} $1 @pingY;"
+        ]
+    },
+    "标记文本": {
+        "prefix": "sensor.pingText",
+        "description": "标记文本",
+        "body": [
+            "sensor ${2:pingText} $1 @pingText;"
+        ]
+    },
+    "正在建造的建筑": {
+        "prefix": "sensor.building",
+        "description": "正在建造的建筑",
+        "body": [
+            "sensor ${2:building} $1 @building;"
+        ]
+    },
+    "正在拆除的建筑": {
+        "prefix": "sensor.breaking",
+        "description": "正在拆除的建筑",
+        "body": [
+            "sensor ${2:breaking} $1 @breaking;"
+        ]
+    },
+    "是否飞行": {
+        "prefix": "sensor.flying",
+        "description": "是否飞行",
+        "body": [
+            "sensor ${2:flying} $1 @flying;"
+        ]
+    },
+    "最大单位数": {
+        "prefix": "sensor.maxUnits",
+        "description": "最大单位数",
+        "body": [
+            "sensor ${2:maxUnits} $1 @maxUnits;"
+        ]
+    },
+    "建造栏选择的建筑": {
+        "prefix": "sensor.selectedBlock",
+        "description": "建造栏选择的建筑",
+        "body": [
+            "sensor ${2:selectedBlock} $1 @selectedBlock;"
+        ]
+    },
+    "建造栏建造朝向": {
+        "prefix": "sensor.selectedRotation",
+        "description": "建造栏建造朝向",
+        "body": [
+            "sensor ${2:selectedRotation} $1 @selectedRotation;"
+        ]
+    },
+    "子弹可存活时间": {
+        "prefix": "sensor.bulletLifetime",
+        "description": "子弹可存活时间",
+        "body": [
+            "sensor ${2:bulletLifetime} $1 @bulletLifetime;"
+        ]
+    },
+    "子弹已存活时间": {
+        "prefix": "sensor.bulletTime",
+        "description": "子弹已存活时间",
+        "body": [
+            "sensor ${2:bulletTime} $1 @bulletTime;"
         ]
     },
     "指定颜色填满屏幕": {
@@ -2355,6 +2481,20 @@
             "setprop @payloadType ${1:block1} ${2:0};"
         ]
     },
+    "设置子弹时间": {
+        "prefix": "setprop.bulletTime",
+        "description": "设置子弹时间",
+        "body": [
+            "setprop @bulletTime ${1:block1} ${2:0};"
+        ]
+    },
+    "设置子弹寿命": {
+        "prefix": "setprop.bulletLifetime",
+        "description": "设置子弹寿命",
+        "body": [
+            "setprop @bulletLifetime ${1:block1} ${2:0};"
+        ]
+    },
     "设置当前波次倒计时 (tick)": {
         "prefix": "setrule.currentWaveTime",
         "description": "设置当前波次倒计时 (tick)",
@@ -2549,6 +2689,13 @@
         "description": "设置队伍RTS 小队最小规模",
         "body": [
             "setrule rtsMinSquad ${1:10} ${2:@sharded} 0 0 0;"
+        ]
+    },
+    "设置是否禁止暂停": {
+        "prefix": "setrule.pauseDisabled",
+        "description": "设置是否禁止暂停",
+        "body": [
+            "setrule pauseDisabled ${1:1} 0 0 0 0;"
         ]
     }
 }

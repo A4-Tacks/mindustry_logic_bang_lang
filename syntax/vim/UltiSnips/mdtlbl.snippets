@@ -220,7 +220,7 @@ endsnippet
 snippet message "(notify|announce|toast|mission)在屏幕中央投影文字缓存区的内容\n会等待上一个文字显示结束" b
 message ${1:announce} ${2:3} ${3:@wait};
 endsnippet
-snippet cutscene "(pan|zoom|ztop)控制玩家游戏视角" b
+snippet cutscene "(pan|zoom|stop)控制玩家游戏视角" b
 cutscene ${1:pan} ${2:100} ${3:100} ${4:0.06} ${5:0};
 endsnippet
 snippet effect "创建一个粒子效果。" b
@@ -258,6 +258,18 @@ makemarker ${1:shape} ${2:0} ${3:0} ${4:0} ${5:true};
 endsnippet
 snippet localeprint "将地图本地化文本属性值添加到文本缓冲区中。\n要在地图编辑器中设置地图本地化包，请检查 [accent]地图信息 > 本地化包[]。\n如果客户端是移动设备，则尝试首先打印以 .mobile 结尾的属性。" b
 localeprint ${2:"${1:name}"};
+endsnippet
+snippet printchar "按字符码打印字符 (如 65='A')" w
+printchar ${1:65};
+endsnippet
+snippet bullet "生成子弹 (特权指令)" b
+bullet result @dagger 0 x y angle null null -1 1 1 -1 -1;
+endsnippet
+snippet query "区域查询 (circle|rect) (unit|building) (特权指令)" b
+query circle unit null 0 0 10 10;
+endsnippet
+snippet playmusic "播放音乐 (特权指令)\nname interrupt" b
+playmusic ${1:"game1"} ${2:true};
 endsnippet
 
 # env variables
@@ -344,6 +356,9 @@ snippet env.clientTeam "运行代码的客户端的玩家队伍" w
 endsnippet
 snippet env.clientMobile "运行代码的客户端是否为移动端" w
 @clientMobile
+endsnippet
+snippet env.clientMusicPlaying "运行代码的客户端是否正在播放音乐" w
+@clientMusicPlaying
 endsnippet
 snippet env.ctrlProcessor "被处理器控制, 用于传感器的`@controlled`返回结果," w
 @ctrlProcessor
@@ -611,13 +626,13 @@ endsnippet
 snippet sensor.totalItems "总物品数" w
 sensor ${2:totalItems} $1 @totalItems;
 endsnippet
-snippet sensor.firstItem "第一个物品" w
+snippet sensor.firstItem "首个物品" w
 sensor ${2:firstItem} $1 @firstItem;
 endsnippet
 snippet sensor.totalLiquids "总液体数" w
 sensor ${2:totalLiquids} $1 @totalLiquids;
 endsnippet
-snippet sensor.totalPower "总电力数" w
+snippet sensor.totalPower "全电量" w
 sensor ${2:totalPower} $1 @totalPower;
 endsnippet
 snippet sensor.itemCapacity "物品容量" w
@@ -629,16 +644,16 @@ endsnippet
 snippet sensor.powerCapacity "电力容量" w
 sensor ${2:powerCapacity} $1 @powerCapacity;
 endsnippet
-snippet sensor.powerNetStored "电网当前已储电" w
+snippet sensor.powerNetStored "电网电池储电" w
 sensor ${2:powerNetStored} $1 @powerNetStored;
 endsnippet
-snippet sensor.powerNetCapacity "电网储电总容量" w
+snippet sensor.powerNetCapacity "电网电池容量" w
 sensor ${2:powerNetCapacity} $1 @powerNetCapacity;
 endsnippet
-snippet sensor.powerNetIn "电网净输入" w
+snippet sensor.powerNetIn "电网净输入(发电)" w
 sensor ${2:powerNetIn} $1 @powerNetIn;
 endsnippet
-snippet sensor.powerNetOut "电网净输出" w
+snippet sensor.powerNetOut "电网净输出(耗电)" w
 sensor ${2:powerNetOut} $1 @powerNetOut;
 endsnippet
 snippet sensor.ammo "弹药" w
@@ -647,7 +662,7 @@ endsnippet
 snippet sensor.ammoCapacity "弹药容量" w
 sensor ${2:ammoCapacity} $1 @ammoCapacity;
 endsnippet
-snippet sensor.currentAmmoType "弹药类型" w
+snippet sensor.currentAmmoType "当前弹药类型" w
 sensor ${2:currentAmmoType} $1 @currentAmmoType;
 endsnippet
 snippet sensor.memoryCapacity "内存容量" w
@@ -662,7 +677,7 @@ endsnippet
 snippet sensor.heat "热量" w
 sensor ${2:heat} $1 @heat;
 endsnippet
-snippet sensor.shield "盾" w
+snippet sensor.shield "盾量" w
 sensor ${2:shield} $1 @shield;
 endsnippet
 snippet sensor.armor "护甲" w
@@ -680,16 +695,16 @@ endsnippet
 snippet sensor.rotation "朝向" w
 sensor ${2:rotation} $1 @rotation;
 endsnippet
-snippet sensor.x "x坐标" w
+snippet sensor.x "X坐标" w
 sensor ${2:x} $1 @x;
 endsnippet
-snippet sensor.y "y坐标" w
+snippet sensor.y "Y坐标" w
 sensor ${2:y} $1 @y;
 endsnippet
-snippet sensor.velocityX "运动速度x" w
+snippet sensor.velocityX "运动速度X" w
 sensor ${2:velocityX} $1 @velocityX;
 endsnippet
-snippet sensor.velocityY "运动速度y" w
+snippet sensor.velocityY "运动速度Y" w
 sensor ${2:velocityY} $1 @velocityY;
 endsnippet
 snippet sensor.shootX "射击点X" w
@@ -698,10 +713,10 @@ endsnippet
 snippet sensor.shootY "射击点Y" w
 sensor ${2:shootY} $1 @shootY;
 endsnippet
-snippet sensor.cameraX "相机位置X" w
+snippet sensor.cameraX "相机X" w
 sensor ${2:cameraX} $1 @cameraX;
 endsnippet
-snippet sensor.cameraY "相机位置Y" w
+snippet sensor.cameraY "相机Y" w
 sensor ${2:cameraY} $1 @cameraY;
 endsnippet
 snippet sensor.cameraWidth "相机宽度" w
@@ -716,7 +731,7 @@ endsnippet
 snippet sensor.solid "是否实心" w
 sensor ${2:solid} $1 @solid;
 endsnippet
-snippet sensor.dead "已死亡" w
+snippet sensor.dead "是否已死亡" w
 sensor ${2:dead} $1 @dead;
 endsnippet
 snippet sensor.displayWidth "显示屏宽度" w
@@ -734,7 +749,7 @@ endsnippet
 snippet sensor.boosting "是否助推" w
 sensor ${2:boosting} $1 @boosting;
 endsnippet
-snippet sensor.bufferSize "显示器图形缓冲区中未处理的指令数" w
+snippet sensor.bufferSize "缓冲区待绘制数" w
 sensor ${2:bufferSize} $1 @bufferSize;
 endsnippet
 snippet sensor.operations "块被操作的次数, 例如屏幕被drawflush的次数" w
@@ -793,6 +808,45 @@ sensor ${2:config} $1 @config;
 endsnippet
 snippet sensor.color "颜色" w
 sensor ${2:color} $1 @color;
+endsnippet
+snippet sensor.buildX "建造或拆除点X" w
+sensor ${2:buildX} $1 @buildX;
+endsnippet
+snippet sensor.buildY "建造或拆除点Y" w
+sensor ${2:buildY} $1 @buildY;
+endsnippet
+snippet sensor.pingX "标记X" w
+sensor ${2:pingX} $1 @pingX;
+endsnippet
+snippet sensor.pingY "标记Y" w
+sensor ${2:pingY} $1 @pingY;
+endsnippet
+snippet sensor.pingText "标记文本" w
+sensor ${2:pingText} $1 @pingText;
+endsnippet
+snippet sensor.building "正在建造的建筑" w
+sensor ${2:building} $1 @building;
+endsnippet
+snippet sensor.breaking "正在拆除的建筑" w
+sensor ${2:breaking} $1 @breaking;
+endsnippet
+snippet sensor.flying "是否飞行" w
+sensor ${2:flying} $1 @flying;
+endsnippet
+snippet sensor.maxUnits "最大单位数" w
+sensor ${2:maxUnits} $1 @maxUnits;
+endsnippet
+snippet sensor.selectedBlock "建造栏选择的建筑" w
+sensor ${2:selectedBlock} $1 @selectedBlock;
+endsnippet
+snippet sensor.selectedRotation "建造栏建造朝向" w
+sensor ${2:selectedRotation} $1 @selectedRotation;
+endsnippet
+snippet sensor.bulletLifetime "子弹可存活时间" w
+sensor ${2:bulletLifetime} $1 @bulletLifetime;
+endsnippet
+snippet sensor.bulletTime "子弹已存活时间" w
+sensor ${2:bulletTime} $1 @bulletTime;
 endsnippet
 
 # draw expanded
@@ -1063,6 +1117,12 @@ endsnippet
 snippet setprop.payloadType "设置载荷类型" b
 setprop @payloadType ${1:block1} ${2:0};
 endsnippet
+snippet setprop.bulletTime "设置子弹时间" b
+setprop @bulletTime ${1:block1} ${2:0};
+endsnippet
+snippet setprop.bulletLifetime "设置子弹寿命" b
+setprop @bulletLifetime ${1:block1} ${2:0};
+endsnippet
 
 # setrule expanded
 snippet setrule.currentWaveTime       "设置当前波次倒计时 (tick)" b
@@ -1148,4 +1208,7 @@ setrule rtsMinWeight ${1:10} ${2:@sharded} 0 0 0;
 endsnippet
 snippet setrule.rtsMinSquad           "设置队伍RTS 小队最小规模" b
 setrule rtsMinSquad ${1:10} ${2:@sharded} 0 0 0;
+endsnippet
+snippet setrule.pauseDisabled         "设置是否禁止暂停" b
+setrule pauseDisabled ${1:1} 0 0 0 0;
 endsnippet
