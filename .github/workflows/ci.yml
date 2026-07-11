@@ -19,6 +19,3 @@ jobs:
       - name: Check eol on eof
         run: |
           ! git show | grep '^\\ No newline at end of file$'
-      - name: Check snippet sync
-        run: |
-          diff -u syntax/vscode/support/snippets/snippets.json <(./syntax/vscode/make-snippets.jq ./syntax/vim/UltiSnips/mdtlbl.snippets)

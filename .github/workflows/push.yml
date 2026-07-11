@@ -4,7 +4,6 @@ on:
   push:
     branches: ["main"]
   pull_request:
-    branches: ["main"]
 
 env:
   CARGO_TERM_COLOR: always
@@ -17,3 +16,7 @@ jobs:
       - run: cargo test --workspace
       - run: cargo build
       - run: PATH=$(realpath target/debug):$PATH ./examples/test.sh
+
+      - name: Check snippet sync
+        run: |
+          diff -u syntax/vscode/support/snippets/snippets.json <(./syntax/vscode/make-snippets.jq ./syntax/vim/UltiSnips/mdtlbl.snippets)
