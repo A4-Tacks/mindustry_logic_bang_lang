@@ -208,6 +208,9 @@ cargo install --path . # 执行这个你可以在你的shell中直接使用它(�
 
   扩展可以在[此处](./syntax/vscode/support/)获取
 
+  同时, 有一个便于编译的[插件](https://github.com/nosbhghggg/mindustry-logic-bang-language-runner) (未经测试)
+  <!-- 不要将这个插件同步到英文版本 -->
+
 - [**BlocklyEditor**]\:
   这是一个图形化代码编辑器框架, 使用此框架实现了一个关于Bang语言的编辑器
 
