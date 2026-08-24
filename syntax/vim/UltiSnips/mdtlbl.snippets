@@ -1051,16 +1051,16 @@ snippet fetch.build "按索引查找建筑物\n索引从 0 开始，以其返回
 fetch build ${4:block} ${1:@sharded} ${2:0} ${3:@conveyor};
 endsnippet
 snippet fetch.unitCount "fetch 单位的总数" b
-fetch unitCount ${3:unit} ${1:@sharded} 0 ${2:@conveyor};
+fetch unitCount ${3:count} ${1:@sharded} 0 ${2:@conveyor};
 endsnippet
 snippet fetch.playerCount "fetch 玩家的总数" b
-fetch playerCount ${2:player} ${1:@sharded} 0 0;
+fetch playerCount ${2:count} ${1:@sharded} 0 0;
 endsnippet
 snippet fetch.coreCount "fetch 核心的总数" b
-fetch coreCount ${2:core} ${1:@sharded} 0 0;
+fetch coreCount ${2:count} ${1:@sharded} 0 0;
 endsnippet
 snippet fetch.buildCount "fetch 建筑的总数" b
-fetch buildCount ${3:block} ${1:@sharded} 0 ${2:@conveyor};
+fetch buildCount ${3:count} ${1:@sharded} 0 ${2:@conveyor};
 endsnippet
 
 # message expanded

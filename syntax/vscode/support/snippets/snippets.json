@@ -2338,28 +2338,28 @@
         "prefix": "fetch.unitCount",
         "description": "fetch 单位的总数",
         "body": [
-            "fetch unitCount ${3:unit} ${1:@sharded} 0 ${2:@conveyor};"
+            "fetch unitCount ${3:count} ${1:@sharded} 0 ${2:@conveyor};"
         ]
     },
     "fetch 玩家的总数": {
         "prefix": "fetch.playerCount",
         "description": "fetch 玩家的总数",
         "body": [
-            "fetch playerCount ${2:player} ${1:@sharded} 0 0;"
+            "fetch playerCount ${2:count} ${1:@sharded} 0 0;"
         ]
     },
     "fetch 核心的总数": {
         "prefix": "fetch.coreCount",
         "description": "fetch 核心的总数",
         "body": [
-            "fetch coreCount ${2:core} ${1:@sharded} 0 0;"
+            "fetch coreCount ${2:count} ${1:@sharded} 0 0;"
         ]
     },
     "fetch 建筑的总数": {
         "prefix": "fetch.buildCount",
         "description": "fetch 建筑的总数",
         "body": [
-            "fetch buildCount ${3:block} ${1:@sharded} 0 ${2:@conveyor};"
+            "fetch buildCount ${3:count} ${1:@sharded} 0 ${2:@conveyor};"
         ]
     },
     "在屏幕顶部弹出提醒消息": {
