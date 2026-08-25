@@ -9,7 +9,7 @@ use crossbeam_channel::{Receiver, Sender};
 use display_source::DisplaySourceMeta;
 use linked_hash_map::LinkedHashMap;
 use lsp_server::{IoThreads, Message, RequestId};
-use lsp_types::{CodeAction, CodeActionKind, CodeActionOptions, CodeActionOrCommand, CompletionItem, CompletionItemKind, CompletionOptions, Diagnostic, DiagnosticSeverity, InitializeParams, InitializeResult, InsertTextFormat, MessageType, Position, PublishDiagnosticsParams, ServerCapabilities, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind, TraceValue, Uri, notification::{self, Notification}, request::{self, Request}};
+use lsp_types::{CodeAction, CodeActionKind, CodeActionOptions, CodeActionOrCommand, CompletionItem, CompletionItemKind, CompletionOptions, Diagnostic, DiagnosticSeverity, InitializeParams, InitializeResult, InsertTextFormat, MessageType, Position, PublishDiagnosticsParams, ServerCapabilities, ShowMessageParams, TextEdit, TextDocumentSyncCapability, TextDocumentSyncKind, TraceValue, Uri, notification::{self, Notification}, request::{self, Request}};
 use syntax::{Compile, CompileMeta, CompileMetaExtends, Emulate, EmulateConfig, EmulateInfo, Expand, LSP_DEBUG, LSP_HOVER};
 use bangls::*;
 
@@ -73,7 +73,7 @@ fn main_loop(matches: &getopts_macro::getopts::Matches) -> Result<()> {
     let _io = IoJoiner(Some(io));
     let server_capabilities = ServerCapabilities {
         completion_provider: Some(CompletionOptions {
-            trigger_characters: Some(vec![".".to_owned(), ">".to_owned()]),
+            trigger_characters: Some(vec![".".to_owned(), ">".to_owned(), "@".to_owned()]),
             ..Default::default()
         }),
         diagnostic_provider: Some(lsp_types::DiagnosticServerCapabilities::Options(
@@ -113,6 +113,8 @@ fn main_loop(matches: &getopts_macro::getopts::Matches) -> Result<()> {
     let mut ctx = Ctx::new(connect.sender, connect.receiver);
     ctx.trace = !matches!(trace, None | Some(TraceValue::Off));
     ctx.vscode = matches.opt_present("vscode");
+
+    ctx.trace("start main loop");
     ctx.run().map_err(|e| { ctx.trace(&e); e })
 }
 
@@ -279,7 +281,10 @@ impl Ctx {
             let source = String::from_iter([&file[..index], placeholder, &file[index..]]);
             match parser.parse(&mut syntax::Meta::new(), &source) {
                 Err(_) => (),
-                Ok(top) => return Some((top, source)),
+                Ok(top) => {
+                    self.trace(format_args!("complete on source:\n\t{}", source.replace('\n', "\n\t")));
+                    return Some((top, source))
+                },
             }
         }
         None
@@ -392,7 +397,22 @@ impl RequestHandler for request::Completion {
         });
         ctx.trace(format_args!("complete infos: {infos:#?}"));
 
-        let completes = generate_completes(&infos, cur_location);
+        let mut completes = generate_completes(&infos, cur_location);
+
+        let prefix = infos.iter().map(|info| &info.prefix[..]).find(|it| !it.is_empty()).unwrap_or("");
+        let stidx = index - prefix.len();
+        let range = lsp_types::Range { start: rgpos(stidx, file), end: rgpos(index, file) };
+
+        for item in &mut completes {
+            if !file[..index].ends_with(prefix) {
+                ctx.trace(format_args!("complete prefix invalid: {prefix:#?}\n{file}"));
+                panic!();
+            }
+            if let Some(text) = item.insert_text.take() {
+                item.text_edit.get_or_insert(TextEdit::new(range, text).into());
+            }
+        }
+
         let completes = lsp_types::CompletionResponse::Array(completes);
         Ok(Some(completes))
     }
