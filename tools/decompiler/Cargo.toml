@@ -11,6 +11,7 @@ description = "Reconstructing control flow from mlog based on heuristic brute fo
 atty = "0.2.14"
 either = "1.15.0"
 getopts-macro = "0.1.8"
+mimalloc = "0.1.52"
 rustc-hash = "2.1.3"
 sysinfo = "0.37.2"
 tag_code = { version = "0.2.11", path = "../tag_code" }

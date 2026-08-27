@@ -5,6 +5,9 @@ use tag_code::logic_parser::{Args, Var};
 
 use crate::{quality::Loss, supp::Cmp};
 
+#[global_allocator]
+static MIMALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 pub mod display_impl;
 pub mod make;
 pub mod quality;

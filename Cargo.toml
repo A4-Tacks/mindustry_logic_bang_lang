@@ -56,3 +56,7 @@ lto = true
 [profile.test]
 debug = false
 opt-level = 2
+
+[profile.test.package]
+mimalloc.opt-level = 3
+rustc-hash.opt-level = 3
