@@ -1,12 +1,11 @@
-use std::{env::args, fs, io::{self, stdin}, process::exit, time::SystemTime, rc::Rc};
+use std::{env::args, fs, io::{self, stdin}, process::exit, time::SystemTime};
 
-use mlog_decompiler::{Finder, Reduce, clean, make, quality::Loss, walk};
+use mlog_decompiler::{Finder, Reduce, make, quality::Loss, walk};
 use getopts_macro::getopts_options;
 use tag_code::logic_parser;
 
 struct Config {
     raw_out: bool,
-    dirty_out: bool,
 }
 
 fn main() {
@@ -58,7 +57,7 @@ fn main() {
         .expect("invalid out-limit arg")
         .unwrap_or(1);
 
-    let cfg = Config { raw_out, dirty_out };
+    let cfg = Config { raw_out };
 
     let input = if matched.free.is_empty() {
         io::read_to_string(stdin().lock()).unwrap()
@@ -151,50 +150,42 @@ fn main() {
     }
     eprintln!("-- Reconstruction Completed, Elapsed: {:.4}s", start_time.elapsed().unwrap().as_secs_f64());
 
-    let mut sorted = finder.current.iter().collect::<Vec<_>>();
+    let mut sorted = if !dirty_out {
+        finder.current_cleaned().collect::<Vec<_>>()
+    } else {
+        finder.current_reduces().collect::<Vec<_>>()
+    };
     sorted.sort_by(|a, b| a.loss().total_cmp(&b.loss()));
 
     if sparse {
         let step = sorted.len() / out_limit.max(1);
         output(cfg, sorted.iter()
-            .copied()
             .enumerate()
             .step_by(step)
             .take(out_limit))
     } else {
         output(cfg, sorted.iter()
-            .copied()
             .enumerate()
             .take(out_limit))
     }
 }
 
 fn output<'a>(
-    Config { raw_out, dirty_out }: Config,
-    iter: impl IntoIterator<Item = (usize, &'a Rc<[Reduce<'a>]>)>,
+    Config { raw_out, .. }: Config,
+    iter: impl IntoIterator<Item = (usize, &'a Reduce<'a>)>,
 ) {
-    for (i, reduces) in iter {
-        let loss = reduces.loss();
-        let reduce = reduces.iter().cloned().collect::<Reduce<'_>>();
+    for (i, reduce) in iter {
+        let loss = reduce.loss();
 
-        let result = if !dirty_out {
-            let cleaned = clean::dedup_labels(reduce);
-            let cleaned = clean::jump_to_break(cleaned);
-            let cleaned = clean::unused_labels(cleaned);
-            cleaned
-        } else {
-            reduce
-        };
-
-        let def = walk::label_defs(&result);
-        let used = walk::label_usages(&result);
+        let def = walk::label_defs(reduce);
+        let used = walk::label_usages(reduce);
 
         println!("#\x1b[1;92m---------- reduce[{def}/{used}] case {i} <{loss}> ----------\x1b[0m");
 
         if raw_out {
-            println!("{result}");
+            println!("{reduce}");
         } else {
-            println!("{result:x}");
+            println!("{reduce:x}");
         }
     }
 }

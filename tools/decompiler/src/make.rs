@@ -1,6 +1,6 @@
 use super::{Jump, Label, Reduce};
 use crate::supp::{Cond, CondOp};
-use std::collections::{HashMap, HashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
 use tag_code::logic_parser::{Args, ParseLine};
 
 pub fn make_reduce<'a, I>(lines: I) -> Vec<Reduce<'a>>
@@ -10,7 +10,7 @@ where
     check_parse_lines(lines.clone());
     let mut products = vec![];
     let mut pure = vec![];
-    let mut label_map = HashMap::new();
+    let mut label_map = FxHashMap::default();
 
     for line in lines {
         match line {
@@ -37,7 +37,7 @@ fn check_parse_lines<'a, I>(lines: I)
 where
     I: IntoIterator<Item = &'a ParseLine<'a>>,
 {
-    let mut label_def_set = HashSet::new();
+    let mut label_def_set = FxHashSet::default();
 
     let mut prev_line = None;
     let iter = lines.into_iter()
@@ -55,7 +55,7 @@ where
     }
 }
 
-fn get_id<'a>(label_map: &mut HashMap<&'a str, u16>, cow: &'a str) -> Label {
+fn get_id<'a>(label_map: &mut FxHashMap<&'a str, u16>, cow: &'a str) -> Label {
     let cur_idx = label_map.len() as u16;
     let id = *label_map.entry(cow).or_insert(cur_idx);
     Label(id)

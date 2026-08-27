@@ -11,16 +11,15 @@ mod hard {
 
 pub trait Loss {
     fn loss(&self) -> f32;
-    fn loss_pefer(&self) -> f32 {
-        self.loss()
-    }
+    fn loss_pefer(&self) -> f32;
 }
 
 impl Loss for Reduce<'_> {
     fn loss(&self) -> f32 {
-        0.5 + match self {
+        const CL: f32 = 0.5;
+        CL + match self {
             Reduce::Pure(items) => items.len() as f32,
-            Reduce::Product(reduces) => reduces.loss(),
+            Reduce::Product(reduces) => reduces.loss() - CL,
             Reduce::Label(_) => hard::LABEL,
             Reduce::Jump(_) => hard::JUMP,
             Reduce::Break(_) => hard::BREAK,
@@ -39,6 +38,13 @@ impl Loss for Reduce<'_> {
                     .unwrap_or_default()
                     * 0.6
             },
+        }
+    }
+
+    fn loss_pefer(&self) -> f32 {
+        match self {
+            Reduce::Product(reduces) => reduces.loss_pefer(),
+            _ => self.loss(),
         }
     }
 }

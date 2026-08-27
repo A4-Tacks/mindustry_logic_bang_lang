@@ -1,9 +1,10 @@
-use std::{collections::{HashMap, HashSet}, iter};
+use std::iter;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{Jump, Label, Reduce, make};
 
 pub fn dedup_labels(reduce: Reduce<'_>) -> Reduce<'_> {
-    let mut label_map = HashMap::new();
+    let mut label_map = FxHashMap::default();
     let reduce = quiet_unique_label_defs(reduce);
 
     reduce.walk_reduce_slices(&mut |reduces| {
@@ -29,7 +30,7 @@ pub fn dedup_labels(reduce: Reduce<'_>) -> Reduce<'_> {
 }
 
 pub fn quiet_unique_label_defs(reduce: Reduce<'_>) -> Reduce<'_> {
-    let mut dup_counter = HashMap::new();
+    let mut dup_counter = FxHashMap::default();
 
     reduce.walk_label_defs(&mut |l| {
         let count: &mut usize = dup_counter.entry(l.clone()).or_default();
@@ -45,11 +46,11 @@ pub fn quiet_unique_label_defs(reduce: Reduce<'_>) -> Reduce<'_> {
 }
 
 pub fn unused_labels(reduce: Reduce<'_>) -> Reduce<'_> {
-    let mut labels = HashSet::new();
+    let mut labels = FxHashSet::default();
 
     reduce.walk_label_usages(&mut |l| _ = labels.insert(l.clone()));
 
-    fn each<'a, C>(reduces: impl IntoIterator<Item = Reduce<'a>>, labels: &HashSet<Label>) -> C
+    fn each<'a, C>(reduces: impl IntoIterator<Item = Reduce<'a>>, labels: &FxHashSet<Label>) -> C
     where C: FromIterator<Reduce<'a>>
     {
         reduces.into_iter().filter_map(|reduce| match reduce {
@@ -58,7 +59,7 @@ pub fn unused_labels(reduce: Reduce<'_>) -> Reduce<'_> {
         }).collect()
     }
 
-    fn implement<'a>(reduce: Reduce<'a>, labels: &HashSet<Label>) -> Reduce<'a> {
+    fn implement<'a>(reduce: Reduce<'a>, labels: &FxHashSet<Label>) -> Reduce<'a> {
         match reduce {
             Reduce::Pure(..) => reduce,
             Reduce::Label(..) => reduce,

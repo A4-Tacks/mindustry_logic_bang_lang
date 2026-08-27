@@ -55,6 +55,9 @@ macro_rules! case {
     (jump $($c:tt)+) => {
         Reduce::Jump(crate::Jump(crate::Label(0), case!($($c)+)))
     };
+    (break $($c:tt)+) => {
+        Reduce::Break(case!($($c)+))
+    };
     (($($t:tt)*)) => {
         case!($($t)*)
     };
@@ -133,6 +136,13 @@ fn inputs() -> impl Iterator<Item = (Cmp<'static>, Reduce<'static>)> {
 }
 
 #[test]
+fn valided_loss_proxy() {
+    let reduces = [case!({(while (-&-) {1}) 1})];
+    assert_eq!(reduces.loss(), Reduce::Product(reduces.clone().into()).loss());
+    assert_eq!(reduces.loss_pefer(), Reduce::Product(reduces.into()).loss_pefer());
+}
+
+#[test]
 fn basic_test_case_make() {
     let _node = case!(while - {
         (while[3] - {})
@@ -171,6 +181,18 @@ fn while_pefer_skip_dowhile() {
 }
 
 #[test]
+fn while_pefer_nested_skip_and_comb_cond_dowhile() {
+    for (a, reduce) in inputs() {
+        for (b, _) in inputs() {
+            check_lossless(
+                case!(while ((.a)&(.b)) {(.reduce)}),
+                case!(skip (.a) {(skip (.b) {(dowhile ((.a)&(.b)) {(.reduce)})})}),
+            );
+        }
+    }
+}
+
+#[test]
 fn ifelse_pefer_goto_skip() {
     for (cmp, reduce) in inputs() {
         for (_, reduce1) in inputs() {
@@ -203,6 +225,16 @@ fn make_skip() {
                 case!({(.reduce)jump(.body):(.reduce)}),
             );
         }
+    }
+}
+
+#[test]
+fn clean_break() {
+    for (cmp, reduce) in inputs() {
+        check_lossless(
+            case!({(while (.cmp) {(.reduce) (break .cmp)})}),
+            case!({(while (.cmp) {(.reduce) (jump .cmp)}) :}),
+        );
     }
 }
 
@@ -269,6 +301,18 @@ fn comb_cond_pefer_nested_dowhile() {
             check_lossless(
                 case!(dowhile ((.a)&(.b)) {(.reduce)}),
                 case!(dowhile (.a) {(dowhile (.b) {(.reduce)})}),
+            );
+        }
+    }
+}
+
+#[test]
+fn comb_cond_pefer_nested_skip() {
+    for (a, reduce) in inputs() {
+        for (b, _) in inputs() {
+            check_lossless(
+                case!(skip ((.a)|(.b)) {(.reduce)}),
+                case!(skip (.a) {(skip (.b) {(.reduce)})}),
             );
         }
     }

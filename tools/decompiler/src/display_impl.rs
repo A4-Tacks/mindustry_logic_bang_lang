@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt};
+use std::{borrow::Cow, cell::Cell, fmt};
 
 use to_true::InTrue;
 
@@ -15,6 +15,16 @@ fn indent(n: usize) -> Cow<'static, str> {
     } else {
         " ".repeat(spaces).into()
     }
+}
+
+thread_local! {
+    static ALTERNATE: Cell<bool> = Cell::new(false);
+}
+
+pub fn alternate(f: impl FnOnce()) {
+    let old = ALTERNATE.replace(true);
+    f();
+    ALTERNATE.set(old);
 }
 
 impl fmt::Display for Reduce<'_> {
@@ -172,7 +182,7 @@ impl fmt::LowerHex for Reduce<'_> {
                 write!(f, "\n{indent}}}")
             },
         }?;
-        if f.alternate() {
+        if ALTERNATE.get() {
             write!(f, " # loss {}", crate::quality::Loss::loss(self))?;
         }
         Ok(())

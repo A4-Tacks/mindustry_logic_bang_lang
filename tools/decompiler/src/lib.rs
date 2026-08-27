@@ -1,4 +1,5 @@
-use std::{collections::HashSet, iter::once, rc::Rc};
+use std::{iter::once, rc::Rc};
+use rustc_hash::FxHashSet;
 
 use tag_code::logic_parser::{Args, Var};
 
@@ -57,7 +58,7 @@ impl<'a> Reduce<'a> {
 
 #[derive(Debug, Clone)]
 pub struct Finder<'a> {
-    pub current: HashSet<Rc<[Reduce<'a>]>>,
+    pub current: FxHashSet<Rc<[Reduce<'a>]>>,
     pub losses_cache: Vec<f32>,
     pub limit: usize,
     pub guidance: bool,
@@ -204,27 +205,27 @@ mod tests {
 
         log!("");
 
-        let mut sorted = finder.current.iter().collect::<Vec<_>>();
+        let mut sorted = finder.current_cleaned().collect::<Vec<_>>();
         sorted.sort_by(|a, b| a.loss().total_cmp(&b.loss()));
 
-        for (i, &reduces) in sorted.iter().enumerate() {
-            let loss = reduces.loss();
-            let reduce = reduces.iter().cloned().collect::<Reduce<'_>>();
-
-            let cleaned = clean::dedup_labels(reduce);
-            let cleaned = clean::jump_to_break(cleaned);
-            let result = clean::unused_labels(cleaned);
-
-            let def = walk::label_defs(&result);
-            let used = walk::label_usages(&result);
+        for (i, reduce) in sorted.into_iter().enumerate() {
+            let loss = reduce.loss();
+            let def = walk::label_defs(&reduce);
+            let used = walk::label_usages(&reduce);
 
             if i == 0 {
                 log!("#---------- reduce[{def}/{used}] case {i} <{loss}> ----------");
-                log!("{result:x}");
+                log!("{reduce:x}");
             }
 
-            println!("#---------- reduce[{def}/{used}] case {i} <{loss}> ----------");
-            println!("{result:#x}");
+            display_impl::alternate(|| {
+                if i < 6 {
+                    println!("#---------- reduce[{def}/{used}] case {i} <{loss}> ----------");
+                }
+                if i == 0 {
+                    println!("{reduce:#x}");
+                }
+            });
         }
 
         expect.assert_eq(&fakeout);

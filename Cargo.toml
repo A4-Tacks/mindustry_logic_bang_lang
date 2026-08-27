@@ -52,3 +52,7 @@ lto = "off"
 debug = false
 strip = true
 lto = true
+
+[profile.test]
+debug = false
+opt-level = 2
