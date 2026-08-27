@@ -1,6 +1,41 @@
 用于逻辑的暴力反编译器, 用于将逻辑的一系列 jump 及部分 @counter 重建为结构化控制流,
 例如 break 、while 、if-else
 
+使用技巧
+-------------------------------------------------------------------------------
+参数的详细描述参考 `mlog-decompiler --help`
+
+---
+
+将结果输出到文件
+
+```sh
+mlog-decompiler input.logic > output.txt
+```
+
+查看多种结果, 由于反编译会产生数百甚至更多结果, 默认情况下只会选一个较优结果输出
+
+```sh
+mlog-decompiler input.logic -L3 > output.txt # 输出最优的三个结果
+mlog-decompiler input.logic -sL3 > output.txt # 输出最优、勉强、较差这三个结果
+```
+
+指导模式, 产生激进的结果, 可能出现非常深层的嵌套, 质量可能偏低
+
+```sh
+mlog-decompiler input.logic -g > output.txt
+```
+
+迭代择优数限制, 更高的值意味着更高的质量、更慢的运行速度和更多的内存使用,
+而更低的值意味着质量变差, 运行更快, 内存使用更少
+
+> [!WARNING]
+> 默认值是 300, 请不要调的太高, 否则可能占用内存 > 10G
+
+```sh
+mlog-decompiler input.logic -l500 > output.txt
+```
+
 
 工作原理
 -------------------------------------------------------------------------------
