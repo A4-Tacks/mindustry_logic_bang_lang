@@ -97,7 +97,38 @@ pub fn unused_labels(reduce: Reduce<'_>) -> Reduce<'_> {
 }
 
 pub fn jump_to_break(reduce: Reduce<'_>) -> Reduce<'_> {
-    fn each<'a, C, I>(reduces: I, lab: Option<Label>) -> C
+    #[derive(Debug, Clone)]
+    enum State {
+        Nothing,
+        Phi(Label),
+        LoopBinded(Label),
+    }
+
+    impl State {
+        fn bind(&self, peek: Option<&Reduce<'_>>) -> Self {
+            match (self, peek) {
+                (_, Some(Reduce::Label(label))) => Self::LoopBinded(label.to_owned()),
+                (Self::Phi(label), None) => Self::LoopBinded(label.to_owned()),
+                (Self::LoopBinded(_), _) => self.clone(),
+                _ => Self::Nothing,
+            }
+        }
+
+        fn phi(&self, peek: Option<&Reduce<'_>>) -> Self {
+            match (self, peek) {
+                (Self::LoopBinded(_), _) => self.clone(),
+                (Self::Phi(_), None) => self.clone(),
+                (_, Some(Reduce::Label(label))) => Self::Phi(label.to_owned()),
+                _ => Self::Nothing,
+            }
+        }
+
+        fn hit(&self, label: &Label) -> bool {
+            matches!(self, Self::LoopBinded(binded) if binded == label)
+        }
+    }
+
+    fn each<'a, C, I>(reduces: I, lab: State) -> C
     where I: IntoIterator<Item = Reduce<'a>>,
           C: FromIterator<Reduce<'a>>,
     {
@@ -105,17 +136,17 @@ pub fn jump_to_break(reduce: Reduce<'_>) -> Reduce<'_> {
         iter::from_fn(move || {
             match iter.next()? {
                 it @ (Reduce::DoWhile(..) | Reduce::While(..) | Reduce::GSwitch(..)) => {
-                    implement(it, iter.peek().and_then(Reduce::as_label).cloned())
+                    implement(it, lab.bind(iter.peek()))
                 },
-                it => implement(it, lab.clone()),
+                it => implement(it, lab.phi(iter.peek())),
             }.into()
         }).collect()
     }
-    fn implement(reduce: Reduce<'_>, lab: Option<Label>) -> Reduce<'_> {
+    fn implement(reduce: Reduce<'_>, lab: State) -> Reduce<'_> {
         match reduce {
             Reduce::Pure(..) => reduce,
             Reduce::Product(reduces) => each(reduces, lab),
-            Reduce::Jump(Jump(l, cond)) if Some(&l) == lab.as_ref() => {
+            Reduce::Jump(Jump(l, cond)) if lab.hit(&l) => {
                 Reduce::Break(cond)
             },
             Reduce::DoWhile(cond, sub) => {
@@ -147,7 +178,7 @@ pub fn jump_to_break(reduce: Reduce<'_>) -> Reduce<'_> {
             Reduce::Jump(_) => reduce,
         }
     }
-    implement(reduce, None)
+    implement(reduce, State::Nothing)
 }
 
 #[cfg(test)]

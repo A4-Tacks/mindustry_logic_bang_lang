@@ -251,6 +251,8 @@ fn simple_gwhile_with_unfollow_linked_dep() {
 
 #[test]
 fn simple_gwhile_with_follow_linked_dep() {
+    // FIXME; 这应该是一个 pattern 而不是 clean,
+    // 否则 _0 提取出来也只能被 clean 成 break, 而不能被 reduce 成 skip
     check(r#"
             jump ___0 equal otherCond 0
             some
@@ -304,6 +306,41 @@ fn simple_while1() {
             print i;
         }
         printflush message1;
+    "#]]);
+}
+
+#[test]
+fn jump_to_break_nested() {
+    check(r#"
+            jump ___2 greaterThanEq i links
+            sensor __32 __29 my_item
+            jump ___1 notEqual __32 0
+        ___0:
+            jump _23 greaterThanEq i links
+            sensor __33 __29 my_item
+            jump ___0 equal __33 0
+        ___1:
+        ___2:
+        _23:
+            end
+    "#, expect![[r#"
+          1/30  limite        5 -> 5        <26.84853 $ 32.50000>
+          2/30  limite        8 -> 8        <21.08338 $ 32.50000>
+          3/30  limite        9 -> 9        <16.00939 $ 32.50000>
+          4/30  limite        9 -> 9        <16.00939 $ 32.50000>
+        -- Early Reconstruction Completed
+
+        #---------- reduce[0/0] case 0 <12.07626> ----------
+        skip i >= links {
+            sensor __32 __29 my_item;
+            skip __32 != 0 {
+                do {
+                    break i >= links;
+                    sensor __33 __29 my_item;
+                } while __33 == 0;
+            }
+        }
+        end;
     "#]]);
 }
 
@@ -578,7 +615,7 @@ fn complex_full_test() {
          29/30  limite     4395 -> 902      <211.72662 $ 219.76758>
         -- Early Reconstruction Completed
 
-        #---------- reduce[7/13] case 0 <177.82649> ----------
+        #---------- reduce[5/11] case 0 <167.07674> ----------
         :_0
         do {
             set links @links;
@@ -684,13 +721,12 @@ fn complex_full_test() {
                 skip __26 != 0 {
                     do {
                         op add i i 1;
-                        goto :_18 i >= links;
+                        break i >= links;
                         getlink __23 i;
                         sensor __27 __23 my_item;
                     } while __27 == 0;
                 }
             }
-            :_18
             skip i != links {
                 getlink __23 1;
             }
@@ -711,13 +747,12 @@ fn complex_full_test() {
                 skip __32 != 0 {
                     do {
                         op add i i 1;
-                        goto :_23 i >= links;
+                        break i >= links;
                         getlink __29 i;
                         sensor __33 __29 my_item;
                     } while __33 == 0;
                 }
             }
-            :_23
             skip i != links {
                 getlink __29 1;
             }
