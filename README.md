@@ -151,7 +151,7 @@ Bang 提供了一个灵活的大型常量系统,
 
 ## 附属工具
 - **mdt-ops-generator**: 生成自解释的 op 语句
-- **mlog-decompiler**: 反编译器，用于重建逻辑语言的控制流
+- [**mlog-decompiler**](./tools/decompiler): 反编译器，用于重建逻辑语言的控制流
 
 
 # 安装

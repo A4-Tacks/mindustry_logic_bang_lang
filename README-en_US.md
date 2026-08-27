@@ -152,7 +152,7 @@ Copy and paste the tool code into your code to use it
 
 ## Accessory tools
 - **mdt-ops-generator**: Generate self explanatory op statements
-- **mlog-decompiler**: Decompiler, used to reconstruct control flow for logical languages
+- [**mlog-decompiler**](./tools/decompiler): Decompiler, used to reconstruct control flow for logical languages
 
 
 # How To Install
