@@ -14,3 +14,6 @@ getopts-macro = "0.1.8"
 sysinfo = "0.37.2"
 tag_code = { version = "0.2.11", path = "../tag_code" }
 to-true = "0.1.2"
+
+[dev-dependencies]
+expect-test = "1.5.1"

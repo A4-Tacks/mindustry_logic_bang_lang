@@ -1,4 +1,4 @@
-use std::{collections::{HashSet}, iter::once, rc::Rc};
+use std::{collections::HashSet, iter::once, rc::Rc};
 
 use tag_code::logic_parser::{Args, Var};
 
@@ -121,80 +121,112 @@ impl<'a> Finder<'a> {
 
         (losses[0], bound)
     }
+
+    pub fn current_reduces(&self) -> impl Iterator<Item = Reduce<'a>> + use<'a, '_> {
+        self.current.iter()
+            .map(|reduces| {
+                reduces.iter().cloned().collect()
+            })
+    }
+
+    pub fn current_cleaned(&self) -> impl Iterator<Item = Reduce<'a>> + use<'a, '_> {
+        self.current_reduces()
+            .map(|reduce| {
+                let cleaned = clean::dedup_labels(reduce);
+                let cleaned = clean::jump_to_break(cleaned);
+                let cleaned = clean::unused_labels(cleaned);
+
+                cleaned
+            })
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::walk::label_defs;
-    use crate::walk::label_usages;
+    use expect_test::Expect;
     use tag_code::logic_parser;
 
-    use crate::{display_impl::fmt_reduces, quality::Loss};
+    use crate::quality::Loss;
 
     use super::*;
 
-    #[test]
-    fn it_works() {
-        let logic = r#"
-        op mul x input 3
-        op add @counter @counter x
-        set i 2
-        set j 3
-        jump end always 0 0
-        set i 4
-        set j 5
-        jump end always 0 0
-        set i 7
-        set j 9
-        jump end always 0 0
-        end:
-        print i
-        "#;
+    mod tests;
+
+    #[track_caller]
+    fn check(logic: &str, expect: Expect) {
+        let mut fakeout = String::new();
+        macro_rules! log {
+            ($($t:tt)*) => {
+                std::fmt::write(&mut fakeout, format_args!($($t)*)).unwrap();
+                fakeout.push('\n');
+            };
+        }
         let mut lines = logic_parser::parser::lines(logic).unwrap();
+
         lines.index_label_popup();
-        println!("{lines:#}");
-        lines.unique_label_pairs();
-        println!("{lines:#}");
-        let reduces = make::make_reduce(lines.lines().iter().map(|x| &x.value));
+        lines.dup_label_pairs();
+
+        let lines = lines.lines().iter()
+            .map(|x| &x.value);
+        let reduces = make::make_reduce(lines);
+
         let mut finder = Finder {
             current: once(reduces.into()).collect(),
             losses_cache: vec![],
             limit: 900,
             guidance: false,
         };
-        for (i, reduces) in finder.current.iter().enumerate() {
-            let loss = reduces.loss();
-            println!("\x1b[94m----- reduce {i} <{loss}> -----\x1b[0m");
-            println!("{}", fmt_reduces(reduces))
-        }
-        let mut prev = None;
-        for i in 0..35 {
-            println!("iterate {i}");
+
+        let mut prev_limite = None;
+        let [mut itering, iterate] = [1, 30usize];
+        loop {
             finder.iterate();
-            print!("limite {i} : {}", finder.current.len());
+
+            let raw_len = finder.current.len();
             let (happy, limite) = finder.limite();
-            println!(" -> {} <{happy} $ {limite}>", finder.current.len());
 
-            if prev == Some((happy, limite)) { break }
+            log!("{itering:>3}/{iterate:<3} limite {raw_len:>8} \
+                    -> {curlen:<8} <{happy:.5} $ {limite:.5}>",
+                curlen=finder.current.len(),
+            );
 
-            prev = Some((happy, limite))
+            if Some((happy, limite, raw_len)) == prev_limite {
+                log!("-- Early Reconstruction Completed");
+                break;
+            }
+            prev_limite = Some((happy, limite, raw_len));
+
+            itering += 1;
+            if itering > iterate {
+                break
+            }
         }
-        println!("\x1b[92m========== iterate ==========\x1b[0m");
+
+        log!("");
+
         let mut sorted = finder.current.iter().collect::<Vec<_>>();
         sorted.sort_by(|a, b| a.loss().total_cmp(&b.loss()));
-        for (i, reduces) in sorted.iter().take(1).enumerate() {
-            let loss = reduces.loss();
-            println!("\x1b[94m----- reduce {i} <{loss}> -----\x1b[0m");
-            println!("{}", fmt_reduces(reduces))
-        }
-        println!("\x1b[94m----- clean -----\x1b[0m");
-        let cleaned = clean::dedup_labels(sorted[0].iter().cloned().collect());
-        let cleaned = clean::jump_to_break(cleaned);
-        println!("{}", fmt_reduces(&[cleaned.clone()]));
-        let label_usage_count = label_usages(&cleaned);
-        println!("label usage count: {}", label_usage_count);
 
-        let label_def_count = label_defs(&cleaned);
-        println!("label def count: {}", label_def_count);
+        for (i, &reduces) in sorted.iter().enumerate() {
+            let loss = reduces.loss();
+            let reduce = reduces.iter().cloned().collect::<Reduce<'_>>();
+
+            let cleaned = clean::dedup_labels(reduce);
+            let cleaned = clean::jump_to_break(cleaned);
+            let result = clean::unused_labels(cleaned);
+
+            let def = walk::label_defs(&result);
+            let used = walk::label_usages(&result);
+
+            if i == 0 {
+                log!("#---------- reduce[{def}/{used}] case {i} <{loss}> ----------");
+                log!("{result:x}");
+            }
+
+            println!("#---------- reduce[{def}/{used}] case {i} <{loss}> ----------");
+            println!("{result:#x}");
+        }
+
+        expect.assert_eq(&fakeout);
     }
 }
