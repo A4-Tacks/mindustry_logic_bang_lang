@@ -42,6 +42,25 @@ pub fn is_ident_keyword(s: &str) -> bool {
     })
 }
 
+pub fn is_string(s: &str) -> bool {
+    s.as_var_type().is_string()
+}
+
+pub fn needs_repr_var(s: &str) -> bool {
+    !is_string(s) && (is_ident_keyword(s) || !is_ident(s))
+}
+
+pub fn to_reusable(s: &str) -> String {
+    if is_string(s) {
+        string_unescape(s)
+    } else if needs_repr_var(s) {
+        let var = s.replace('\'', "\"");
+        format!("'{}'", var)
+    } else {
+        s.into()
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum VarType<'a> {
     Var(&'a str),

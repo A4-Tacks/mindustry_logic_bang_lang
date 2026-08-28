@@ -437,14 +437,11 @@ impl Value {
     }
 
     pub fn is_string(s: &str) -> bool {
-        s.len() >= 2
-            && s.starts_with('"')
-            && s.ends_with('"')
+        var_utils::is_string(s)
     }
 
     pub fn is_ident(s: &str) -> bool {
-        use var_utils::is_ident;
-        is_ident(s)
+        var_utils::is_ident(s)
     }
 
     /// 判断是否是一个标识符(包括数字)关键字
@@ -455,25 +452,12 @@ impl Value {
     /// 判断是否不应该由原始标识符包裹
     /// 注意是原始标识符(原始字面量), 不要与原始值混淆
     pub fn no_use_repr_var(s: &str) -> bool {
-        Self::is_string(s)
-            || (
-                Self::is_ident(s)
-                    && ! Self::is_ident_keyword(s)
-            )
+        var_utils::needs_repr_var(s)
     }
 
     /// 返回被规范化的标识符
     pub fn replace_ident(s: &str) -> String {
-        if Self::no_use_repr_var(s) {
-            if Self::is_string(s) {
-                string_unescape(s)
-            } else {
-                s.into()
-            }
-        } else {
-            let var = s.replace('\'', "\"");
-            format!("'{}'", var)
-        }
+        var_utils::to_reusable(s)
     }
 
     /// Returns `true` if the value is [`ReprVar`].

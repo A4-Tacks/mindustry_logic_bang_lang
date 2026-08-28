@@ -85,7 +85,7 @@ fn simple_gswitch() {
         case 2:
             set i 7;
             set j 9;
-            skip _ {}
+            if !_ {}
         }
         print i;
     "#]]);
@@ -237,7 +237,7 @@ fn simple_gwhile_with_unfollow_linked_dep() {
         -- Early Reconstruction Completed
 
         #---------- reduce[0/0] case 0 <6.9858146> ----------
-        skip otherCond == 0 {
+        if otherCond != 0 {
             some;
         }
         while({
@@ -331,9 +331,9 @@ fn jump_to_break_nested() {
         -- Early Reconstruction Completed
 
         #---------- reduce[0/0] case 0 <12.07626> ----------
-        skip i >= links {
+        if i < links {
             sensor __32 __29 my_item;
-            skip __32 != 0 {
+            if __32 == 0 {
                 do {
                     break i >= links;
                     sensor __33 __29 my_item;
@@ -357,7 +357,7 @@ fn simple_skip() {
         -- Early Reconstruction Completed
 
         #---------- reduce[0/0] case 0 <3.65> ----------
-        skip a < b {
+        if a >= b {
             print a;
         }
         end;
@@ -380,7 +380,7 @@ fn complex_skip() {
         -- Early Reconstruction Completed
 
         #---------- reduce[0/0] case 0 <3.65> ----------
-        skip a < b && b < c {
+        if a >= b || b >= c {
             print a;
         }
         end;
@@ -655,7 +655,7 @@ fn complex_full_test() {
         } => __14 != false) {
             :_4
             ubind unit_type;
-            skip @unit === null {
+            if @unit !== null {
                 sensor __12 @unit @controlled;
                 goto :_6 __12 == false;
             }
@@ -693,7 +693,7 @@ fn complex_full_test() {
         sensor unit_item @unit @firstItem;
         sensor unit_item_cap @unit @itemCapacity;
         goto :_10 unit_item != null && unit_item != my_item;
-        skip unit_item === null {
+        if unit_item !== null {
             if is_invert != false {
                 ulocate building core false 0 __18 __19 0 __17;
             } else {
@@ -715,10 +715,10 @@ fn complex_full_test() {
             ulocate building core false 0 __24 __25 0 __23;
         } else {
             set i 1;
-            skip i >= links {
+            if i < links {
                 getlink __23 i;
                 sensor __26 __23 my_item;
-                skip __26 != 0 {
+                if __26 == 0 {
                     do {
                         op add i i 1;
                         break i >= links;
@@ -727,7 +727,7 @@ fn complex_full_test() {
                     } while __27 == 0;
                 }
             }
-            skip i != links {
+            if i == links {
                 getlink __23 1;
             }
             sensor __24 __23 @x;
@@ -741,10 +741,10 @@ fn complex_full_test() {
             ulocate building core false 0 __30 __31 0 __29;
         } else {
             set i 1;
-            skip i >= links {
+            if i < links {
                 getlink __29 i;
                 sensor __32 __29 my_item;
-                skip __32 != 0 {
+                if __32 == 0 {
                     do {
                         op add i i 1;
                         break i >= links;
@@ -753,7 +753,7 @@ fn complex_full_test() {
                     } while __33 == 0;
                 }
             }
-            skip i != links {
+            if i == links {
                 getlink __29 1;
             }
             sensor __30 __29 @x;
@@ -761,5 +761,30 @@ fn complex_full_test() {
         }
         ucontrol approach __30 __31 approach_range 0 0;
         ucontrol itemDrop @air unit_item_cap 0 0 0;
+    "#]]);
+}
+
+#[test]
+fn bang_style_quote() {
+    check(r#"
+        set a "x"
+        set x-y @foo-bar
+        set y_z @xxx
+        op add x-y y-z z-t
+        print x-y
+        jump 0 equal x-y "m"
+    "#, expect![[r#"
+          1/30  limite        2 -> 2        <6.55000 $ 12.50000>
+          2/30  limite        2 -> 2        <6.55000 $ 12.50000>
+        -- Early Reconstruction Completed
+
+        #---------- reduce[0/0] case 0 <6.55> ----------
+        do {
+            set a "x";
+            set 'x-y' @foo-bar;
+            set y_z @xxx;
+            op add 'x-y' 'y-z' 'z-t';
+            print 'x-y';
+        } while 'x-y' == "m";
     "#]]);
 }

@@ -116,7 +116,7 @@ impl fmt::LowerHex for Reduce<'_> {
             },
             Reduce::Break(cond) => write!(f, "break {cond:x};"),
             Reduce::Skip(cond, reduces) => {
-                write!(f, "skip {cond:x} {{")?;
+                write!(f, "if {:x} {{", cond.apply_not())?;
                 for reduce in reduces.as_ref() {
                     write!(f, "\n{plus}{reduce:.plus_i$x}")?;
                 }
@@ -170,7 +170,7 @@ impl fmt::LowerHex for Reduce<'_> {
             }),
             Reduce::Pure(items) => items.iter().try_for_each(|it| {
                 is_rest.in_true(|| write!(f, "\n{indent}")).transpose()?;
-                write!(f, "{it};")
+                write!(f, "{it:x};")
             }),
             Reduce::GSwitch(var, cases) => {
                 write!(f, "gswitch {var} {{")?;

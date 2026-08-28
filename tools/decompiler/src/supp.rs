@@ -178,9 +178,9 @@ impl<'a> fmt::LowerHex for Cmp<'a> {
                     .ok()
                     .filter(|_| cond_op.has_args())
                 {
-                    write!(f, "{} {} {rest}", args[0], cond_op.punct())
+                    write!(f, "{:x} {} {rest:x}", args[0], cond_op.punct())
                 } else if cond_op.has_args() {
-                    write!(f, "{} {args}", cond_op.punct())
+                    write!(f, "{} {args:x}", cond_op.punct())
                 } else {
                     write!(f, "{}", cond_op.punct())
                 }

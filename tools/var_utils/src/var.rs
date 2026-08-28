@@ -1,6 +1,6 @@
 use std::{
     borrow::Borrow,
-    fmt::{self, Display},
+    fmt::{self, Display, LowerHex},
     hash::Hash,
     mem,
     ops::Deref,
@@ -34,6 +34,10 @@ impl Var {
     pub fn as_str(&self) -> &str {
         self
     }
+
+    pub fn to_reusable(&self) -> String {
+        crate::to_reusable(self)
+    }
 }
 impl FromIterator<char> for Var {
     fn from_iter<T: IntoIterator<Item = char>>(iter: T) -> Self {
@@ -58,6 +62,11 @@ impl From<Var> for Rc<String> {
 impl Display for Var {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Display::fmt(&self.value, f)
+    }
+}
+impl LowerHex for Var {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.to_reusable(), f)
     }
 }
 impl Hash for Var {

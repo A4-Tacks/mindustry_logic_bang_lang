@@ -196,6 +196,25 @@ impl<'a> Display for Args<'a> {
         Ok(())
     }
 }
+impl<'a> std::fmt::LowerHex for Args<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self(args) = self;
+
+        let (mut skip_arg, _) = match &**args.first().unwrap() {
+            "print" => (false, write!(f, "print")?),
+            "op" => (true, write!(f, "op")?),
+            _ => (false, write!(f, "{:x}", args.first().unwrap())?),
+        };
+        for arg in args.iter().skip(1) {
+            if std::mem::take(&mut skip_arg) {
+                write!(f, " {arg}")?;
+            } else {
+                write!(f, " {arg:x}")?;
+            }
+        }
+        Ok(())
+    }
+}
 impl<'a> std::fmt::Debug for Args<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self.0)

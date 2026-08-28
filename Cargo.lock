@@ -495,7 +495,7 @@ dependencies = [
 
 [[package]]
 name = "mlog-decompiler"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "atty",
  "either",
@@ -848,7 +848,7 @@ dependencies = [
 
 [[package]]
 name = "syntax"
-version = "0.2.80"
+version = "0.2.81"
 dependencies = [
  "either",
  "itermaps",
@@ -874,7 +874,7 @@ dependencies = [
 
 [[package]]
 name = "tag_code"
-version = "0.2.11"
+version = "0.2.12"
 dependencies = [
  "either",
  "linked-hash-map",
@@ -928,7 +928,7 @@ version = "0.1.2"
 
 [[package]]
 name = "var_utils"
-version = "0.5.7"
+version = "0.5.8"
 dependencies = [
  "lazy-regex",
 ]
