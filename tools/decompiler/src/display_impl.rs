@@ -116,7 +116,11 @@ impl fmt::LowerHex for Reduce<'_> {
             },
             Reduce::Break(cond) => write!(f, "break {cond:x};"),
             Reduce::Skip(cond, reduces) => {
-                write!(f, "if {:x} {{", cond.apply_not())?;
+                if cond.is_always() {
+                    write!(f, "skip {cond:x} {{")?;
+                } else {
+                    write!(f, "if {:x} {{", cond.apply_not())?;
+                }
                 for reduce in reduces.as_ref() {
                     write!(f, "\n{plus}{reduce:.plus_i$x}")?;
                 }

@@ -85,7 +85,7 @@ fn simple_gswitch() {
         case 2:
             set i 7;
             set j 9;
-            if !_ {}
+            skip _ {}
         }
         print i;
     "#]]);
