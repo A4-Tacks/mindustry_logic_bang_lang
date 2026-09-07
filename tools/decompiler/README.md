@@ -20,7 +20,8 @@ mlog-decompiler input.logic -L3 > output.txt # 输出最优的三个结果
 mlog-decompiler input.logic -sL3 > output.txt # 输出最优、勉强、较差这三个结果
 ```
 
-指导模式, 产生激进的结果, 可能出现非常深层的嵌套, 质量可能偏低
+指导模式, 产生激进的结果, 可能出现非常深层的嵌套, 质量可能偏低 \
+默认情况下, 反编译器会试图将嵌套层数控制在一个略微'合适'的程度, 而不是尽可能重建更多, 这有时并不是所期望的
 
 ```sh
 mlog-decompiler input.logic -g > output.txt
