@@ -84,7 +84,7 @@ which are essentially the parts of logic that can be used as literals, such as:
   Reverse slash escape in Bang's string will be more strict and convenient.
   You can use reverse slash escape to escape the reverse slash itself and square brackets
 
-  For details, please refer to [Multi line String](./mult_line_string.mdtlbl)
+  For details, please refer to [Multi line String](./syntax/mult_line_string.mdtlbl)
 
 - logical variable: `foo` `a-b` `@copper` `true` `null` `let's`
 
@@ -799,7 +799,7 @@ If there is no op-expr, we would need to write the following code
 ```
 
 At the same time, if-else is also provided,
-please refer to [op-expr](./op_expr.mdtlbl) for details
+please refer to [op-expr](./syntax/op_expr.mdtlbl) for details
 
 > [!NOTE]
 > The `||` and `&&` operation priorities provided by op-expr are similar to CmpTree,
@@ -2764,7 +2764,7 @@ Builtin.Info! Foo;
 print Foo;
 ```
 
-具体列表详见 [builtin-functions](./builtin_functions.mdtlbl)
+具体列表详见 [builtin-functions](./syntax/builtin_functions.mdtlbl)
 
 
 Comparison Dependency and Comparison Inline

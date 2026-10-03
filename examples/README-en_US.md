@@ -13,46 +13,46 @@ If you meet the above conditions, then you only need to start reading from [Lear
 <details markdown='1'><summary>Deprecated reading index</summary>
 
 ## The following is the recommended reading order
-> [`value.mdtlbl`](./value.mdtlbl)<br/>
-> [`mult_line_string.mdtlbl`](./mult_line_string.mdtlbl)<br/>
-> [`dexp.mdtlbl`](./dexp.mdtlbl)<br/>
-> [`print.mdtlbl`](./print.mdtlbl)<br/>
-> [`op.mdtlbl`](./op.mdtlbl)<br/>
-> [`op_expr.mdtlbl`](./op_expr.mdtlbl)<br/>
-> [`control.mdtlbl`](./control.mdtlbl)<br/>
-> [`control_plus.mdtlbl`](./control_plus.mdtlbl)<br/>
-> [`control_block.mdtlbl`](./control_block.mdtlbl)<br/>
-> [`cmps.mdtlbl`](./cmps.mdtlbl)<br/>
-> [`insert_sort.mdtlbl`](./insert_sort.mdtlbl)<br/>
-> [`switch.mdtlbl`](./switch.mdtlbl)<br/>
-> [`const.mdtlbl`](./const.mdtlbl)<br/>
-> [`inline_block.mdtlbl`](./inline_block.mdtlbl)<br/>
-> [`take.mdtlbl`](./take.mdtlbl)<br/>
-> [`compiling_eval.mdtlbl`](./compiling_eval.mdtlbl)<br/>
-> [`cmp_deps.mdtlbl`](./cmp_deps.mdtlbl)<br/>
-> [`switch_append.mdtlbl`](./switch_append.mdtlbl)<br/>
-> [`switch_catch.mdtlbl`](./switch_catch.mdtlbl)<br/>
-> [`take2.mdtlbl`](./take2.mdtlbl)<br/>
-> [`gswitch.mdtlbl`](./gswitch.mdtlbl)<br/>
-> [`mul_takes_and_consts.mdtlbl`](./mul_takes_and_consts.mdtlbl)<br/>
-> [`cmper.mdtlbl`](./cmper.mdtlbl)<br/>
-> [`setres.mdtlbl`](./setres.mdtlbl)<br/>
-> [`consted_dexp.mdtlbl`](./consted_dexp.mdtlbl)<br/>
-> [`quick_dexp_take.mdtlbl`](./quick_dexp_take.mdtlbl)<br/>
-> [`value_bind.mdtlbl`](./value_bind.mdtlbl)<br/>
-> [`dexp_binder.mdtlbl`](./dexp_binder.mdtlbl)<br/>
-> [`closured_value.mdtlbl`](./closured_value.mdtlbl)<br/>
-> [`caller.mdtlbl`](./caller.mdtlbl)<br/>
-> [`match.mdtlbl`](./match.mdtlbl)<br/>
-> [`const_match.mdtlbl`](./const_match.mdtlbl)<br/>
-> [`builtin_functions.mdtlbl`](./builtin_functions.mdtlbl)<br/>
-> [`value_bind_ref.mdtlbl`](./value_bind_ref.mdtlbl)<br/>
+> [`value.mdtlbl`](./syntax/value.mdtlbl)<br/>
+> [`mult_line_string.mdtlbl`](./syntax/mult_line_string.mdtlbl)<br/>
+> [`dexp.mdtlbl`](./syntax/dexp.mdtlbl)<br/>
+> [`print.mdtlbl`](./syntax/print.mdtlbl)<br/>
+> [`op.mdtlbl`](./syntax/op.mdtlbl)<br/>
+> [`op_expr.mdtlbl`](./syntax/op_expr.mdtlbl)<br/>
+> [`control.mdtlbl`](./syntax/control.mdtlbl)<br/>
+> [`control_plus.mdtlbl`](./syntax/control_plus.mdtlbl)<br/>
+> [`control_block.mdtlbl`](./syntax/control_block.mdtlbl)<br/>
+> [`cmps.mdtlbl`](./syntax/cmps.mdtlbl)<br/>
+> [`insert_sort.mdtlbl`](./projects/algorithms/insert_sort.mdtlbl)<br/>
+> [`switch.mdtlbl`](./syntax/switch.mdtlbl)<br/>
+> [`const.mdtlbl`](./syntax/const.mdtlbl)<br/>
+> [`inline_block.mdtlbl`](./syntax/inline_block.mdtlbl)<br/>
+> [`take.mdtlbl`](./syntax/take.mdtlbl)<br/>
+> [`compiling_eval.mdtlbl`](./syntax/compiling_eval.mdtlbl)<br/>
+> [`cmp_deps.mdtlbl`](./syntax/cmp_deps.mdtlbl)<br/>
+> [`switch_append.mdtlbl`](./syntax/switch_append.mdtlbl)<br/>
+> [`switch_catch.mdtlbl`](./syntax/switch_catch.mdtlbl)<br/>
+> [`take2.mdtlbl`](./syntax/take2.mdtlbl)<br/>
+> [`gswitch.mdtlbl`](./syntax/gswitch.mdtlbl)<br/>
+> [`mul_takes_and_consts.mdtlbl`](./syntax/mul_takes_and_consts.mdtlbl)<br/>
+> [`cmper.mdtlbl`](./syntax/cmper.mdtlbl)<br/>
+> [`setres.mdtlbl`](./syntax/setres.mdtlbl)<br/>
+> [`consted_dexp.mdtlbl`](./syntax/consted_dexp.mdtlbl)<br/>
+> [`quick_dexp_take.mdtlbl`](./syntax/quick_dexp_take.mdtlbl)<br/>
+> [`value_bind.mdtlbl`](./syntax/value_bind.mdtlbl)<br/>
+> [`dexp_binder.mdtlbl`](./syntax/dexp_binder.mdtlbl)<br/>
+> [`closured_value.mdtlbl`](./syntax/closured_value.mdtlbl)<br/>
+> [`caller.mdtlbl`](./syntax/caller.mdtlbl)<br/>
+> [`match.mdtlbl`](./syntax/match.mdtlbl)<br/>
+> [`const_match.mdtlbl`](./syntax/const_match.mdtlbl)<br/>
+> [`builtin_functions.mdtlbl`](./syntax/builtin_functions.mdtlbl)<br/>
+> [`value_bind_ref.mdtlbl`](./syntax/value_bind_ref.mdtlbl)<br/>
 
 If it is not listed in the above list,
 you can watch it yourself after reading the above content.
 The reading order can refer to the file creation order
 
-There is also a [reference](./reference.md) manual,
+There is also a [reference](./legacy/reference.md) manual,
 You can read together with the above content
 
 > [!WARNING]
@@ -71,10 +71,10 @@ You can read together with the above content
 There are some large and advanced complex examples that can be used as references
 or pasted into your code for quick and convenient use
 
-- [`21point.mdtlbl`](./21point.mdtlbl)
-- [`bezier_curve.mdtlbl`](./bezier_curve.mdtlbl)
-- [`gravity_simulation.mdtlbl`](./gravity_simulation.mdtlbl)
-- [`sine_superposition.mdtlbl`](./sine_superposition.mdtlbl)
+- [`21point.mdtlbl`](./projects/games/21point.mdtlbl)
+- [`bezier_curve.mdtlbl`](./projects/display/bezier_curve.mdtlbl)
+- [`gravity_simulation.mdtlbl`](./projects/display/gravity_simulation.mdtlbl)
+- [`sine_superposition.mdtlbl`](./projects/display/sine_superposition.mdtlbl)
 * [`std`](./std) Some of the more general and large tools
 * [`for_each`](./std/for_each.mdtlbl) Exquisite `for-each` implementation
 * [`function.mdtlbl`](./std/function.mdtlbl) Quickly generate non recursive functions

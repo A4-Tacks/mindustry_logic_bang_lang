@@ -281,12 +281,12 @@ mindustry_logic_bang_lang
 一个简单的用于对比的例子
 
 1. **Bang**:
-   [code-and-compiled](./examples/pascals_triangle.mdtlbl)
+   [code-and-compiled](./examples/projects/algorithms/pascals_triangle.mdtlbl)
 2. **mlogjs**:
    [code](https://github.com/mlogjs/mlogjs/blob/e17c84769a14c59ae0607db3c71db31d52ea8ad8/compiler/test/examples/pascals_triangle.js)
    [compiled](https://github.com/mlogjs/mlogjs/blob/e17c84769a14c59ae0607db3c71db31d52ea8ad8/compiler/test/examples/pascals_triangle.mlog)
 3. **mindcode**:
-   [code](./examples/pascals_triangle.mnd)
+   [code](./examples/projects/algorithms/pascals_triangle.mnd)
    *目前暂未编译*
 
 **关于详尽的编译器比较请参考逻辑教程**:

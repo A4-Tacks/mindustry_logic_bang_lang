@@ -68,7 +68,7 @@ Var 指的是逻辑语言中一切的 logic-value 逻辑值,
 - 数字 `1` `1.25` `0x1f` `0x-3e`
 - 字符串 `"test"`, 对于原生逻辑并不严格的反斜杠,
   Bang 的字符串中反斜杠转义会方便些, 可以使用反斜杠转义反斜杠、方括号,
-  具体参见[多行字符串](./mult_line_string.mdtlbl)
+  具体参见[多行字符串](./syntax/mult_line_string.mdtlbl)
 - 逻辑变量 `foo` `a-b` `@copper` `true` `null` `let's`
 
 > [!IMPORTANT]
@@ -733,7 +733,7 @@ i, x = 2, abs(a-b) + sqrt(a)*2;
 }
 ```
 
-同时也提供三元运算等, 详见 [op-expr](./op_expr.mdtlbl)
+同时也提供三元运算等, 详见 [op-expr](./syntax/op_expr.mdtlbl)
 
 > [!NOTE]
 > op-expr 提供的 `||` 和 `&&` 运算优先级和 CmpTree 类似, 但是并不具备短路特性,
@@ -2636,7 +2636,7 @@ Builtin.Info! Foo;
 print Foo;
 ```
 
-具体列表详见 [builtin-functions](./builtin_functions.mdtlbl)
+具体列表详见 [builtin-functions](./syntax/builtin_functions.mdtlbl)
 
 
 条件依赖和条件内联

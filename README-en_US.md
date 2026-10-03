@@ -293,12 +293,12 @@ In addition to Bang's compiler, there are many useful compilers that can compile
 A simple example for comparison
 
 1. **Bang**:
-   [code-and-compiled](./examples/pascals_triangle.mdtlbl)
+   [code-and-compiled](./examples/projects/algorithms/pascals_triangle.mdtlbl)
 2. **mlogjs**:
    [code](https://github.com/mlogjs/mlogjs/blob/e17c84769a14c59ae0607db3c71db31d52ea8ad8/compiler/test/examples/pascals_triangle.js)
    [compiled](https://github.com/mlogjs/mlogjs/blob/e17c84769a14c59ae0607db3c71db31d52ea8ad8/compiler/test/examples/pascals_triangle.mlog)
 3. **mindcode**:
-   [code](./examples/pascals_triangle.mnd)
+   [code](./examples/projects/algorithms/pascals_triangle.mnd)
    *Currently not compiled*
 
 **For a detailed comparison of compilers, please refer to the logic tutorial**:
