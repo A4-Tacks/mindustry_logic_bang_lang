@@ -81,8 +81,8 @@ which are essentially the parts of logic that can be used as literals, such as:
 
 - string: `"test"`
   For the back slash that is not strictly processed in logical languages,
-  Reverse slash escape in Bang's string will be more strict and convenient.
-  You can use reverse slash escape to escape the reverse slash itself and square brackets
+  Backslash escape in Bang's string will be more strict.
+  You can use backslash escape to escape the brackets
 
   For details, please refer to [Multi line String](./mult_line_string.mdtlbl)
 
