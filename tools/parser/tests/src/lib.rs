@@ -1,6 +1,6 @@
 #![cfg(test)]
 use ::parser::*;
-use ::syntax::*;
+use ::syntax::{*, Compile};
 use ::tag_code::*;
 use ::either::Either::{self, Left, Right};
 use logic_parser::{ParseLine, IdxBox};

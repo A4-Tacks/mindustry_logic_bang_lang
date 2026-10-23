@@ -26,7 +26,7 @@ use tag_code::{
     logic_parser::{Args as LArgs, IdxBox, ParseLine, ParseLines},
 };
 use utils::counter::Counter;
-use var_utils::{string_unescape, AsVarType};
+use var_utils::AsVarType;
 
 pub use either;
 pub use var_utils::Var;

@@ -7,3 +7,6 @@ edition = "2021"
 
 [dependencies]
 lazy-regex = "3.0.2"
+
+[dev-dependencies]
+expect-test = "1.5.1"

@@ -930,6 +930,7 @@ version = "0.1.2"
 name = "var_utils"
 version = "0.5.8"
 dependencies = [
+ "expect-test",
  "lazy-regex",
 ]
 
