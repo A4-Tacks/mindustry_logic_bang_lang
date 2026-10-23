@@ -43,7 +43,7 @@
 			color: "string"
 			contains: [
 				{ // string escape
-					match: /(?:(?<=\n)\s*\\ |\\(?:[n\[\\]|\r?\n)|(\\.))/
+					match: /(?:(?<=\n)\s*\\ |\\(?:[n"\[\\]|\r?\n|u[0-9a-fA-F]{4})|(\\.))/
 					0: "strEscape"
 					1: "error"
 				}

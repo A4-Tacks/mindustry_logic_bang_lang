@@ -86,7 +86,7 @@
 			"patterns": [
 				{
 					"name": "constant.character.escape.mdtlbl",
-					"match": "\\\\(?:[\\\\\"n ]|$|(.))",
+					"match": "\\\\(?:[\\\\\"n ]|u[0-9a-fA-F]{4}|$|(.))",
 					"captures": {
 						"1": {
 							"name": "invalid.illegal.mdtlbl"

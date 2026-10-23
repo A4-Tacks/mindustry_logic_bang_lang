@@ -143,7 +143,7 @@ ReprVar: Var = {
     "`" <Var> "`" => Var::from(<>),
     "`" <Keywords> "`" => Var::from(<>),
 }
-String: Var = r#""(?:\\\r?\n\s*(?:\\ )?|\r?\n|\\[n\\\[]|[^"\r\n\\])*""#
+String: Var = r#""(?:\\\r?\n\s*(?:\\ )?|\r?\n|\\(?:[n"\\\[]|u[0-9a-fA-F]{4})|[^"\r\n\\])*""#
     => string_escape(<>).into();
 Ident: Var = r"[_\p{XID_Start}]\p{XID_Continue}*|__lsp_hover__@" => <>.into();
 OIdent: Var = r"@[_\p{XID_Start}][\p{XID_Continue}\-]*" => <>.into(); // `@abc-def`这种

@@ -1,5 +1,6 @@
 use super::*;
 use std::cmp::Ordering;
+use expect_test::expect;
 
 #[test]
 fn test() {
@@ -161,42 +162,50 @@ fn mod_op_test() {
 #[test]
 fn string_escape_test() {
     let strs = [
-        ("a", r"a"),
-        ("a\nb", r"a\nb"),
-        ("a\r\nb", r"a\nb"),
-        ("a\r\r\nb\r", r"a\nb"),
-        ("a\\\n     b", r"ab"),
-        ("a\\\n    \\ b", r"a b"),
-        ("a\\\n   \\  b", r"a  b"),
-        ("a\\\n\\\n   \\  b", r"a  b"),
-        ("a\\\n\\\r\n   \\  b", r"a  b"),
-        ("a\\\n\\\r\n   \\ \\\\ b", r"a \ b"),
-        ("a\\\n\n b", r"a\n b"),
-        ("a\\\\b", r"a\b"),
-        ("a\\\\n", r"a\[]n"),
-        ("a\\[red]b", r"a[[red]b"),
-        ("你好", r"你好"),
+        ("a", expect![[r"a"]]),
+        ("a\nb", expect![[r"a\nb"]]),
+        ("a\r\nb", expect![[r"a\nb"]]),
+        ("a\r\r\nb\r", expect![[r"a\nb"]]),
+        ("a\\\n     b", expect![[r"ab"]]),
+        ("a\\\n    \\ b", expect![[r"a b"]]),
+        ("a\\\n   \\  b", expect![[r"a  b"]]),
+        ("a\\\n\\\n   \\  b", expect![[r"a  b"]]),
+        ("a\\\n\\\r\n   \\  b", expect![[r"a  b"]]),
+        ("a\\\n\\\r\n   \\ \\\\ b", expect![[r"a \ b"]]),
+        ("a\\\n\n b", expect![[r"a\n b"]]),
+        ("a\\\\b", expect![[r"a\b"]]),
+        ("a\\\\n", expect![[r#"a\\n"#]]),
+        ("a\\[red]b", expect![[r"a[[red]b"]]),
+        ("你好", expect![[r"你好"]]),
+        ("a\\\"b", expect![[r#"a\"b"#]]),
+        ("a\\u001bb", expect![[r#"a\u001bb"#]]),
     ];
     for (src, dst) in strs {
-        assert_eq!(string_escape(src), dst);
+        dst.assert_eq(&string_escape(src));
     }
 }
 
 #[test]
 fn string_unescape_test() {
     let strs = [
-        (r"a", r"a"),
-        (r"a\nb", r"a\nb"),
-        (r"a\r\nb", r"a\\r\nb"),
-        (r"a \ b", r"a \\ b"),
-        (r"a \[] b", r"a \\ b"),
-        (r"a \[red] b", r"a \\[red] b"),
-        (r"a \\[red] b", r"a \\\\[red] b"),
-        (r"a [[red] b", r"a [[red] b"),
-        (r"你好", r"你好"),
+        (r"a", expect![[r"a"]]),
+        (r"a\nb", expect![[r"a\nb"]]),
+        (r"a\r\nb", expect![[r"a\\r\nb"]]),
+        (r"a \ b", expect![[r"a \\ b"]]),
+        (r"a \[] b", expect![[r"a \\ b"]]),
+        (r"a \[red] b", expect![[r"a \\[red] b"]]),
+        (r"a \\[red] b", expect![[r#"a \\[red] b"#]]),
+        (r"a [[red] b", expect![[r"a [[red] b"]]),
+        (r"你好", expect![[r"你好"]]),
+        (r#"a\xb"#, expect![[r#"a\\xb"#]]),
+        (r#"a\u001bb"#, expect![[r#"a\u001bb"#]]),
+        (r#"a\\b"#, expect![[r#"a\\b"#]]),
+        (r#"a\"b"#, expect![[r#"a\"b"#]]),
+        (r#"a\\nb"#, expect![[r#"a\\nb"#]]),
+        (r#"a\\\nb"#, expect![[r#"a\\\nb"#]]),
     ];
     for (src, dst) in strs {
-        assert_eq!(string_unescape(src), dst);
+        dst.assert_eq(&string_unescape(src));
     }
 }
 

@@ -20,7 +20,7 @@
         "_": include("ws") + /+/
         "bg": /(?:(?:[\n;]|^)/ + include("ws") + /*)/
         "ed": /(?:/ + include("ws") + /*(?=;|(?:#[^\n]*)?(?:\n|$)))/
-        "raw-string": /(?:"(?:(\[\[|\\n)|[^"\n])*(?:"|/ + include("ed") + /))/
+        "raw-string": /(?:"(?:(\[\[|\\(?:[n"\\]|u[0-9a-fA-F]{4}))|[^"\n])*(?:"|/ + include("ed") + /))/
         "string": /(/ + include("raw-string") + /)/
         "arg-body": /(?:[^ \t"#;\n]+)/
         "hex-oct": /(?:[+-]?0(?:x[+-]?[\da-fA-F]+|b[+-]?[01]+))/

@@ -475,7 +475,7 @@ dependencies = [
 
 [[package]]
 name = "mindustry_logic_bang_lang"
-version = "0.22.6"
+version = "0.23.0"
 dependencies = [
  "display_source",
  "line-column",
@@ -573,7 +573,7 @@ dependencies = [
 
 [[package]]
 name = "parser"
-version = "0.3.76"
+version = "0.3.77"
 dependencies = [
  "lalrpop",
  "lalrpop-util",
@@ -585,7 +585,7 @@ dependencies = [
 
 [[package]]
 name = "parser-tests"
-version = "0.1.96"
+version = "0.1.97"
 dependencies = [
  "dissimilar",
  "either",
@@ -928,7 +928,7 @@ version = "0.1.2"
 
 [[package]]
 name = "var_utils"
-version = "0.5.8"
+version = "0.6.0"
 dependencies = [
  "expect-test",
  "lazy-regex",

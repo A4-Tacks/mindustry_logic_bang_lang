@@ -213,7 +213,7 @@ pub fn string_escape(s: &str) -> String {
                 iter.next().unwrap();
                 res.push('\\');
                 if iter.peek() == Some(&'n') {
-                    res.push_str("[]")
+                    res.push('\\');
                 }
             },
             '\\' if iter.peek() == Some(&'[') => {
@@ -250,6 +250,12 @@ pub fn string_unescape(s: &str) -> String {
                 }
             },
             '\\' if iter.peek() == Some(&'n') => res.push('\\'),
+            '\\' if iter.peek() == Some(&'u') => res.push('\\'),
+            '\\' if iter.peek() == Some(&'"') => res.push('\\'),
+            '\\' if iter.peek() == Some(&'\\') => {
+                iter.next().unwrap();
+                res.push_str(r"\\");
+            },
             '\\' => res.push_str(r"\\"),
             ch => res.push(ch),
         }

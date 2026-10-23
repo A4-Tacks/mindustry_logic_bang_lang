@@ -6473,9 +6473,10 @@ fn string_escape_test() {
         ("\nab", r"\nab"),
         ("\\\nab", r"ab"),
         ("a\\\\b", r"a\b"),
-        ("m\\\\n", r"m\[]n"),
+        ("m\\\\n", r"m\\n"),
         ("[red]\\[red]", r"[red][[red]"),
         ("你好", r"你好"),
+        ("a\\\"b", r#"a\"b"#),
     ];
     let false_case = [
         "a\rb",

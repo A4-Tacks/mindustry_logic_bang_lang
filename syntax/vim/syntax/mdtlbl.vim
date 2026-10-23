@@ -53,7 +53,7 @@ syn keyword mdtlblCommentMeta Todo TODO Note NOTE Hint HINT
 " 值(Var) {{{1
 syn match	mdtlblStringFailedEscape /\\\%("\@=\|.\)/	contained
 syn match	mdtlblStringColor				contained /\[\v%(#\x{6,8}|%(c%(lear|yan|oral)|b%(l%(ack|ue)|r%(own|ick))|white|li%(ghtgray|me)|g%(r%(ay|een)|old%(enrod)?)|darkgray|navy|r%(oyal|ed)|s%(late|ky|carlet|almon)|t%(eal|an)|acid|forest|o%(live|range)|yellow|p%(ink|urple)|ma%(genta|roon)|violet))=\]/
-syn match	mdtlblSpecialChar /^ *\\ \|\\\%([n\\[]\|$\)/	contained
+syn match	mdtlblSpecialChar				contained /^ *\\ \|\\\%([n"\\\\[]\|u\x\{4}\|$\)/
 syn cluster	mdtlblStringContains				contains=mdtlblSpecialChar,mdtlblStringFailedEscape,mdtlblStringColor
 syn region	mdtlblString start=/"/ end=/"/			contains=@mdtlblStringContains
 

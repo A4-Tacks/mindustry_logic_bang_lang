@@ -38,12 +38,12 @@ syn match	logicJump		/jump[ \t]/			contained nextgroup=logicJumpLabel			skipwhit
 syn match	logicJumpLabel		/\s*:\=[^ \t\r;:#]\+[ \t]/	contained nextgroup=logicJumpOper,logicJumpAlways	skipwhite
 syn match	logicHeadLabel		/\%(^\|;\)\@1<=\s*:\=[^ \t\r;:#]\+:\ze\s*[;#\n]/
 syn match	logicPrint		/print[ \t]/			contained nextgroup=logicPrintBody,logicPrintBodyVar	skipwhite
-syn match	logicPrintBody		/"[^"\n]*"/			contained nextgroup=logicPrintRest			skipwhite contains=logicStringEscape,logicStringColor
+syn match	logicPrintBody		/"\%(\\["\\]\|[^"\n]\)*"/	contained nextgroup=logicPrintRest			skipwhite contains=logicStringEscape,logicStringColor
 syn match	logicPrintBodyVar	/[^ \t\r;:#"]\+/		contained nextgroup=logicPrintRest			skipwhite
 syn match	logicPrintRest		/;[ \t]*print[ \t]/		contained nextgroup=logicPrintBody,logicPrintBodyVar	skipwhite conceal
 syn region	logicString		start=/"/ end=/"/		contains=logicStringEscape,logicStringColor
 syn match	logicStringColor					contained /\[\v%(#\x{6,8}|%(c%(lear|yan|oral)|b%(l%(ack|ue)|r%(own|ick))|white|li%(ghtgray|me)|g%(r%(ay|een)|old%(enrod)?)|darkgray|navy|r%(oyal|ed)|s%(late|ky|carlet|almon)|t%(eal|an)|acid|forest|o%(live|range)|yellow|p%(ink|urple)|ma%(genta|roon)|violet))=\]/
-syn match	logicStringEscape	/\\n\|\[\[/			contained
+syn match	logicStringEscape	/\\[n"\\]\|\\u\x\{4}\|\[\[/	contained
 syn match	logicNumber		/\v[+-]?%(<0x[+-]?[0-9a-fA-F]+|0b[+-]?[01]+|<\d+%(\.\d+|e[+-]?\d+)?)>/
 syn match	logicNumber		/\v<%(true|false)>/
 syn match	logicNull		/\v<null>/
