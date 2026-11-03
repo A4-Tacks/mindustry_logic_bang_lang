@@ -1,0 +1,393 @@
+#**
+* 使用递归原地归并而非块插入的原地归并算法
+* 是稳定排序
+* 不过还是需要用到递归栈, 除非完全使用块插入来进行归并
+*   目前使用了一种递归合并算法, 整体复杂度应该是 O(n log^2 n)
+* 普通使用的话, 可以直接替换 MergeCurrent 使用的算法, 变成普通归并
+*
+* 如需调整, 请寻找代码中的注释, 会说明如何注释或取消注释进行调整
+*#
+
+Builtin.BindSep! '.';
+Builtin.MissesMatch! 1;
+
+const NewStack = (match @ {
+    $Memory {
+        NewStack! Memory Memory 0;
+    }
+    Memory Floor {
+        take Result = $;
+        NewStack! Result Memory Floor;
+    }
+    $Result Memory Floor {
+        $.top = Floor - 1;
+
+        const $.Floor = Floor;
+        const $.Memory = Memory;
+
+        const $.Iter = (match @ => {
+            const $.Prev = ..->top;
+            const $.Memory = ..->Memory;
+            const $.Get = (match @ => { setres ...Prev; });
+            const $.GetTo = (match @ => $Result { Result = ...Prev; });
+            const $.RawNext = (match @ {
+                B { setres ...RawNext[B 1]; }
+                B Step {
+                    const $.Prev = B->Prev;
+                    const $.Memory = B->Memory;
+                    const $.Step = Step;
+                    const $.Get = (match @ => { setres ...GetTo[$]; });
+                    const $.GetTo = (match @ => $Result {
+                        Result = ...Prev - ...Step;
+                        const ...Get = Result;
+                        const ...Prev = Result;
+                        const ...GetTo = (match @ => $Result {
+                            Result = ...Get;
+                        });
+                    });
+                    const $.RawNext = B->RawNext;
+                    const $.Next = (setres ...RawNext[*.. @];);
+                    const $.Read = (match @ {
+                        { setres ...Read[$]; }
+                        $Result { read Result ...Memory ...Get[]; }
+                    });
+                    const $.Write = (match @ => Value {
+                        setres ..;
+                        write Value ...Memory ...Get[];
+                    });
+                }
+            });
+
+            const $.Next = (setres ...RawNext[*.. @];);
+            const $.Read = (match @ {
+                { setres ...Read[$]; }
+                $Result { read Result ...Memory ...Get[]; }
+            });
+            const $.Write = (match @ => Value {
+                setres ..;
+                write Value ...Memory ...Get[];
+            });
+        });
+        const $.Read = (match @ {
+            { setres ...Read[$]; }
+            $Result @ {
+                take Iter = ...Iter[];
+                Iter.Read! Result;
+                take Iter = Iter.Next[];
+
+                inline@ Result {
+                    Iter.Read! Result;
+                    take Iter = Iter.Next[];
+                }
+            }
+        });
+        const $.Write = (match @ => $Value @ {
+            take Iter = ...Iter[].Write[Value].Next[];
+
+            inline@ Value {
+                take Iter = Iter.Write[Value].Next[];
+            }
+        });
+        const $.Push = (match @ {
+            {}
+            @ Value {
+                write Value ...Memory (*++...top);
+                ...Push! @;
+            }
+        });
+        const $.Pop = (match @ {
+            {
+                ...top--;
+                setres ..;
+            }
+            $Result {
+                ...Read! Result;
+                ...top--;
+            }
+            @ {
+                inline@ Result {
+                    ...Read! Result;
+                    ...top--;
+                }
+            }
+        });
+    }
+});
+
+NewStack! bank2;
+
+const Swap = (match @ => A B {
+    read {Tmp} bank1 A;
+    write (read $ bank1 B;) bank1 A;
+    write Tmp bank1 B;
+});
+const BinarySearch = (const match @ => *Start *Stop *Num F {
+    setres Start;
+    while Start < Stop {
+        +Mid = Start+Stop>>1;
+        if [*(read $ bank1 Mid;) Num]F {
+            Start = Mid + 1;
+        } else {
+            Stop = Mid;
+        }
+    }
+});
+const Reverse = (match @ => A B {
+    while A < --B {
+        Swap! A++ B;
+    }
+});
+const BlockInsert = (match @ => A B C {
+    Reverse! (=A) (=B);
+    Reverse! B (=C);
+    Reverse! A C;
+});
+const InsertOne = (match @ {
+    A B {
+        InsertOne! A B (read $ bank1 B;);
+    }
+    A B Num {
+        while A<B {
+            write (read $ bank1 (*B- 1);) bank1 B--;
+        }
+        write Num bank1 A;
+    }
+});
+const BlockInsertSpec = (match @ {
+    A B C {
+        if (*C-B)==1 {
+            InsertOne! A B;
+        } else {
+            BlockInsert! A B C;
+        }
+    }
+    A B C Num {
+        if (*C-B)==1 {
+            InsertOne! A B Num;
+        } else {
+            BlockInsert! A B C;
+        }
+    }
+});
+const DebugArr = (match @ => A B {
+    if A>=B {
+        print "[]\n";
+    } else {
+        print "[";
+        print (read $ bank1 A;);
+        +i = A; do {
+            print ", "(read $ bank1 i;);
+        } while ++i < B;
+        print "]\n";
+    }
+});
+const InsertSort = (match @ => start i stop {
+    while i < stop {
+        read {num} bank1 i;
+        take+peek+j+k;
+        if [num *(peek:read $ bank1 (j:=i- 1))]Lt {
+            write peek bank1 i;
+            while j > start and [num *(peek:read $ bank1 (k:=j- 1))]Lt {
+                write peek bank1 j--;
+            }
+            write num bank1 j;
+        }
+        i++;
+    }
+});
+const BinaryInsertSort = (match @ => start i stop {
+    while i < stop {
+        read {num} bank1 i;
+        BinarySearch! (j:=start) (=i) num Le;
+        InsertOne! j (=i) num;
+        i++;
+    }
+});
+const BinaryInsertSortWithBlock = (match @ => start i stop {
+    take+peek;
+    while i < stop {
+        read {num} bank1 i;
+        BinarySearch! (j:=start) (=i) num Le;
+        k = i+1;
+        while do k < stop {
+            read {upper} bank1 j;
+        case:
+            break [*(peek:read $ bank1 k;) upper]!Lt or [peek num]Lt;
+            k++;
+            num = peek;
+        }
+        BlockInsertSpec! j (=i) (k:i=k);
+    }
+});
+
+const MergeCurrentInPlace = (match @ => sep {
+    bank2.Push! sep.start sep.mid sep.stop;
+
+    do {
+        take+start+mid+stop+pnum+mnum+midp+left+right+bound;
+        bank2.Pop! start mid stop;
+        continue start >= mid or mid >= stop;
+        continue [
+            *(pnum:read $ bank1 (midp:=mid- 1))
+            *(mnum:read $ bank1 mid;)
+        ]Le;
+
+        { # NOTE 在合并小块时使用插入排序, 提升显著, 不需要的话注释掉该块
+            take InitSep=2 Sep=(?stop-start) Sep.start=start Sep.mid=mid Sep.stop=stop;
+            InsertPred! Sep (continue;);
+        }
+
+        if start == midp and (*mid+1) == stop {
+            write mnum bank1 start;
+            write pnum bank1 mid;
+            continue;
+        }
+
+        +lenl, +lenr = mid-start, stop-mid;
+
+        if lenl > lenr {
+            +pivot = start + lenl//2;
+            read {pnum} bank1 pivot;
+            BinarySearch! (bound:=mid) (=stop) pnum Lt;
+
+            left, right = pivot, bound;
+        } else {
+            +pivot = mid + lenr//2;
+            read {pnum} bank1 pivot;
+            BinarySearch! (bound:=start) (=mid) pnum Le;
+
+            left, right = bound, pivot;
+        }
+
+        +newmid = left+right-mid;
+        BlockInsertSpec! (=left) mid (=right);
+
+        bank2.Push! newmid right stop;
+        bank2.Push! start left newmid;
+    } while bank2.top != -1;
+});
+const MergeCurrentNormal = (match @ => sep {
+    take {start mid stop} = sep;
+
+    if mid != stop and mid != start {
+        +lenl +lenr = mid-start, stop-mid;
+        const Backup = (match @ => A B {
+            +i +j = A, 0; do {
+                write (read $ bank1 i;) bank2 j++;
+            } while ++i < B;
+        });
+        const Restore = (write (read $ bank2 _0;) bank1 _1;);
+        const A = (_0:read $ bank1 _1;);
+        const B = (_0:read $ bank2 _1;);
+        if lenl <= lenr {
+            Backup! start mid;
+            +i +j +k = mid, 0, start;
+
+            while j < lenl and i < stop {
+                read {cnum} bank1 i;
+                read {bnum} bank2 j;
+                if [cnum bnum]Lt {
+                    write cnum bank1 k++;
+                    i++;
+                } else {
+                    write bnum bank1 k++;
+                    j++;
+                }
+            }
+
+            while j < lenl {
+                Restore! j++ k++;
+            }
+        } else {
+            Backup! mid stop;
+            +i +j +k = mid, lenr, stop;
+
+            while j > 0 and i > start {
+                +si +sj = [i, j] - 1;
+                read {cnum} bank1 si;
+                read {bnum} bank2 sj;
+                if [cnum bnum]!Lt {
+                    write cnum bank1 (*--k);
+                    i--;
+                } else {
+                    write bnum bank1 (*--k);
+                    j--;
+                }
+            }
+
+            while j > 0 {
+                Restore! (*--j) (*--k);
+            }
+        }
+    }
+    :next
+});
+
+const MergeCurrent = (match @ => sep {
+    BinaryInsertSortWithBlock! sep.start (=sep.mid) sep.stop;
+});
+const MergeCurrent = MergeCurrentInPlace; # 注释掉该行和下一行则完全不用额外内存, 用块插入进行归并
+#const MergeCurrent = MergeCurrentNormal; # 注释掉该行使用原地归并, bank2 仅作为递归栈
+
+# 改变CmpKey或Lt可以改变排序比较算法
+# 利用稳定排序, 可以完成一些奇妙的效果
+const CmpKey = (match @ => N {
+    setres (*N);
+});
+const Lt = goto(CmpKey[_0]<CmpKey[_1]);
+const Le = goto({take A=_0 B=_1} => [B A]!Lt);
+
+start = 0;
+read stop cell1 0;
+length = stop-start;
+break (sensor $ switch1 @enabled;);
+
+take InsertLimit = 16;
+take InitSep = 2;
+const InsertPred = (match @ => Sep Normal {});
+
+take InitSep = ( # in-place时如果只是想用插入排序进行小块合并, 注释掉这个块
+    # 类似 timsort 的计算较优归并基本块的方法
+    +sep, +r = length, 0;
+    while sep > InsertLimit {
+        r |= sep & 1;
+        sep >>= 1;
+    }
+    sep += r;
+    setres sep;
+);
+const InsertPred = (const match @ => *Sep Early { # 如果不想要插入排序, 注释掉该块和 InitSep 块
+    take+mid;
+    if Sep <= InsertLimit {
+        match InitSep {
+            [2] { mid = Sep.mid }
+            _ { mid = Sep.start+1 }
+        }
+        # 喜欢哪种插入排序三选一
+        InsertSort! Sep.start mid Sep.stop;
+        #BinaryInsertSort! Sep.start mid Sep.stop;
+        #BinaryInsertSortWithBlock! Sep.start mid Sep.stop;
+        Early!;
+    }
+});
+
+last = true;
+sep = InitSep; do {
+    last &= sep < length;
+    sep.start = start; do {
+        sep.stop = sep.start + sep;
+        sep.mid = sep.start+sep.stop>>1;
+        sep.mid, sep.stop min= stop;
+
+        InsertPred! sep (goto :next;);
+        MergeCurrent! sep;
+        :next
+
+        sep.start = sep.stop;
+    } while sep.start < stop;
+
+    sep <<= 1;
+} while sep < length || last;
+printflush message1;
+
+control enabled switch1 true 0 0 0;

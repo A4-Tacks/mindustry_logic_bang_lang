@@ -75,6 +75,7 @@ or pasted into your code for quick and convenient use
 - [`bezier_curve.mdtlbl`](./bezier_curve.mdtlbl)
 - [`gravity_simulation.mdtlbl`](./gravity_simulation.mdtlbl)
 - [`sine_superposition.mdtlbl`](./sine_superposition.mdtlbl)
+- [`merge_sort_in_place.mdtlbl`](./merge_sort_in_place.mdtlbl) merge sort implementation
 * [`std`](./std) Some of the more general and large tools
 * [`for_each`](./std/for_each.mdtlbl) Exquisite `for-each` implementation
 * [`function.mdtlbl`](./std/function.mdtlbl) Quickly generate non recursive functions

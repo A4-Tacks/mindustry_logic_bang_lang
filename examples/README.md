@@ -69,6 +69,7 @@ English README, please click on [**README-en_US.md**](./README-en_US.md)
 - [`bezier_curve.mdtlbl`](./bezier_curve.mdtlbl)
 - [`gravity_simulation.mdtlbl`](./gravity_simulation.mdtlbl)
 - [`sine_superposition.mdtlbl`](./sine_superposition.mdtlbl)
+- [`merge_sort_in_place.mdtlbl`](./merge_sort_in_place.mdtlbl) 归并排序, 可以充分自定义
 * [`std`](./std) 部分较为通用、大型的工具
 * [`for_each`](./std/for_each.mdtlbl) 方便的循环包装
 * [`function.mdtlbl`](./std/function.mdtlbl) 快速生成逻辑函数
