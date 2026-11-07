@@ -16,6 +16,7 @@ const NewStack = (match @ {
     $Result Memory Floor {
         $.top = Floor - 1;
 
+        take* $.Empty = Floor - 1;
         const $.Floor = Floor;
         const $.Memory = Memory;
 
@@ -105,6 +106,7 @@ const NewStack = (match @ {
                 }
             }
         });
+        const $.IsEmpty = (?...top == ...Empty);
     }
 });
 
