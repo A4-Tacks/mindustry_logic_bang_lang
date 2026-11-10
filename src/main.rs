@@ -20,10 +20,10 @@ use syntax::{
     CompileMeta,
     Error,
     Expand,
-    Meta,
     CompileMetaExtends,
 };
 use parser::{
+    Meta,
     TopLevelParser,
     lalrpop_util::{
         lexer::Token,

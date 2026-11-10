@@ -580,6 +580,7 @@ dependencies = [
  "line-column",
  "syntax",
  "tag_code",
+ "utils",
  "var_utils",
 ]
 

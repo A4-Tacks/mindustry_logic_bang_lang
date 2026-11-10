@@ -279,7 +279,7 @@ impl Ctx {
         let parser = parser::TopLevelParser::new();
         for placeholder in &placeholders {
             let source = String::from_iter([&file[..index], placeholder, &file[index..]]);
-            match parser.parse(&mut syntax::Meta::new(), &source) {
+            match parser.parse(&mut parser::Meta::new(), &source) {
                 Err(_) => (),
                 Ok(top) => {
                     self.trace(format_args!("complete on source:\n\t{}", source.replace('\n', "\n\t")));
@@ -293,7 +293,7 @@ impl Ctx {
     fn try_parse_for_hover(&self, index: usize, file: &str) -> Option<(Expand, String)> {
         let parser = parser::TopLevelParser::new();
         let source = String::from_iter([&file[..index], LSP_HOVER, &file[index..]]);
-        match parser.parse(&mut syntax::Meta::new(), &source) {
+        match parser.parse(&mut parser::Meta::new(), &source) {
             Err(_) => None,
             Ok(top) => Some((top, source)),
         }
@@ -301,7 +301,7 @@ impl Ctx {
 
     fn parse_for_parse_error(&self, file: &str) -> Result<Expand, ((usize, usize), String)> {
         let parser = parser::TopLevelParser::new();
-        match parser.parse(&mut syntax::Meta::new(), file) {
+        match parser.parse(&mut parser::Meta::new(), file) {
             Ok(top) => Ok(top),
             Err(e) => {
                 let loc = match e {

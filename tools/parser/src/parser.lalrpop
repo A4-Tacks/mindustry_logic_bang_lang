@@ -25,13 +25,6 @@ use ::syntax::{
     ValueBindRefTarget,
     ClosuredValue,
     ClosuredValueMethod,
-    op_expr_build_results,
-    op_expr_tools::TOP_ASSIGN_OPER,
-    make_assign_oper,
-    make_if,
-    OpExprInfo,
-    OpExprType,
-    OpExprAOperFun,
     JumpCmp,
     CmpTree,
     Goto,
@@ -52,9 +45,18 @@ use ::syntax::{
     ConstMatch,
     ConstMatchPat,
     ConstMatchPatAtom,
-    Meta,
     ZERO_VAR,
     FALSE_VAR,
+};
+use crate::{
+    Meta,
+    op_expr_build_results,
+    op_expr_tools::TOP_ASSIGN_OPER,
+    make_assign_oper,
+    make_if,
+    OpExprInfo,
+    OpExprType,
+    OpExprAOperFun,
 };
 use ::var_utils::string_escape;
 use tag_code::logic_parser::IdxBox;
@@ -437,7 +439,7 @@ LogicLineNormal: LogicLine = {
     Control,
     IntoLL<MBlock<Expand>>,
     "inline" <IntoLL<InlineBlock>>,
-    Label => LogicLine::new_label(<>, meta),
+    Label => meta.create_defined_label(<>),
     <OpExprTopSelfOps> LEnd,
     <OtherLogicLineZL> LEnd => meta.pack_line(LogicLine::Other(<>)),
     "inline" <ArgsRepeatBlock> => <>.into(),
@@ -458,7 +460,7 @@ LogicLineSingle: LogicLine = {
 QuickTake: LogicLine = <value:Loc<NonConstRangeValue>> "!" <args:ParamArgsSL> => {
     let expand = Expand(vec![
         LogicLine::SetArgs(args),
-        Take::unused(meta, value).into(),
+        meta.create_take_unused(value).into(),
     ]);
     meta.pack_line(expand.into())
 };
@@ -1300,12 +1302,31 @@ BuiltinCommand: LogicLine = {
     },
 
     "take" <args:MList<Args?>> <var:(<Var> "=")?> <value:Loc<Value>> => {
-        Take::new(
-            args.unwrap_or_default(),
-            var,
-            meta,
-            value
-        )
+        // 旧形式兼容, 也不是完全没用吧批量设置参数还不错
+        let args = args.unwrap_or_default();
+
+        if matches!(args, Args::Normal(ref args) if args.is_empty()) {
+            let var = var.map_or_else(
+                || ConstKey::Unused(value.new_value(meta.unnamed_var())),
+                ConstKey::Var,
+            );
+            Take(var, value.value).into()
+        } else {
+            let len = 2 + var.is_some() as usize;
+            let mut expand = Vec::with_capacity(len);
+            expand.push(LogicLine::SetArgs(args));
+
+            if let Some(var) = var {
+                expand.push(Take(var.clone().into(), value.value).into());
+                expand.push(LogicLine::ConstLeak(var));
+            } else {
+                let key = ConstKey::Unused(value.new_value(meta.unnamed_var()));
+                expand.push(Take(key, value.value).into())
+            }
+
+            debug_assert_eq!(expand.len(), len);
+            Expand(expand).into()
+        }
     },
 
     "take" <lines:TakeAtomList> => {
@@ -1395,7 +1416,7 @@ TakeAtom: LogicLine = {
         }
     },
     "_" "=" <val:Loc<Value>> => {
-        Take::unused(meta, val).into()
+        meta.create_take_unused(val).into()
     },
     "_" <de:TakeDestruct> "=" <val:Value> => {
         let key = meta.get_tmp_var().into();
@@ -1405,7 +1426,7 @@ TakeAtom: LogicLine = {
 TakeAtomD: (LogicLine, Vec<LogicLine>) = {
     <atom:TakeAtom> ","? <tdes:(<TakeDestructSin> ","?)*> => (atom, tdes),
     <val:Loc<Value>> ","? => {
-        (Take::unused(meta, val).into(), vec![])
+        (meta.create_take_unused(val).into(), vec![])
     },
 }
 TakeAtomList: Vec<LogicLine> = {
@@ -1582,7 +1603,7 @@ ControlSingle: LogicLine = {
         let (mut skipfirst_body, skipfirst_cmp, loop_body) = body;
         let case = meta.get_tag();
         skipfirst_body.extend(
-            once(LogicLine::new_label(case.clone(), meta))
+            once(meta.create_defined_label(case.clone()))
                 .chain(loop_body)
         );
 
@@ -1636,7 +1657,7 @@ ControlWithoutOptionalEnd: LogicLine = {
         Expand(vec![
             Goto(lab.clone(), JumpCmp::Always.into()).into(),
             body.into(),
-            LogicLine::new_label(lab, meta),
+            meta.create_defined_label(lab),
         ]).into()
     },
 
