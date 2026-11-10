@@ -38,8 +38,8 @@ fn loidx(pos: Position, src: &str) -> usize {
 }
 
 fn rgpos(index: usize, src: &str) -> Position {
-    let (line, column) = line_column::line_column_ucs2(src, index);
-    Position { line: line - 1, character: column - 1 }
+    let loc = line_column::line_column_ucs2(src, index);
+    Position { line: loc.line() - 1, character: loc.column() - 1 }
 }
 
 struct IoJoiner(pub Option<IoThreads>);
@@ -731,9 +731,9 @@ fn tigger_diagnostics(ctx: &Ctx, uri: &Uri) -> Vec<Diagnostic> {
 
 fn emulate(top: Expand, src: String, cfg: EmulateConfig) -> (Vec<EmulateInfo>, CompileMeta) {
     let source: Rc<String> = src.into();
-    let mut meta = CompileMeta::with_source(source.clone());
+    let mut meta = CompileMeta::with_source(source);
     meta.emutale_config = Some(cfg);
-    meta.set_extender(Box::new(Extender::new(source, DisplaySourceMeta::new().into())));
+    meta.set_extender(Box::new(Extender::new(DisplaySourceMeta::new().into())));
 
     let assert_meta = std::panic::AssertUnwindSafe(&mut meta);
     let _ = std::panic::catch_unwind(|| {
@@ -743,22 +743,16 @@ fn emulate(top: Expand, src: String, cfg: EmulateConfig) -> (Vec<EmulateInfo>, C
 }
 
 struct Extender {
-    source: Rc<String>,
     display_meta: RefCell<DisplaySourceMeta>,
 }
 impl Extender {
-    fn new(source: Rc<String>, display_meta: RefCell<DisplaySourceMeta>) -> Self {
+    fn new(display_meta: RefCell<DisplaySourceMeta>) -> Self {
         Self {
-            source,
             display_meta,
         }
     }
 }
 impl CompileMetaExtends for Extender {
-    fn source_location(&self, index: usize) -> [syntax::Location; 2] {
-        let (line, col) = line_column::line_column(&self.source, index);
-        [line as syntax::Location, col as syntax::Location]
-    }
     fn display_value(&self, value: &syntax::Value) -> Cow<'_, str> {
         let meta = &mut *self.display_meta.borrow_mut();
         meta.to_default();

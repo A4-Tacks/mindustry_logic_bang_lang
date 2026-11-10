@@ -31,6 +31,9 @@ members = [
 exclude = [
 ]
 
+[workspace.dependencies]
+line-column = "0.4.1"
+
 [features]
 default = ["parser/lalrpop"]
 
@@ -41,7 +44,7 @@ parser = { path = "./tools/parser", version = "*", default-features = false }
 syntax = { path = "./tools/syntax", version = "*" }
 logic_lint = { path = "./tools/logic_lint", version = "*" }
 mini-paren = { version = "0.1.0", path = "tools/mini-paren" }
-line-column = "0.3.5"
+line-column.workspace = true
 
 
 [profile.dev]

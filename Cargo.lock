@@ -390,9 +390,9 @@ dependencies = [
 
 [[package]]
 name = "line-column"
-version = "0.3.5"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d4272f8ed19b69d9c648be0cb0ee2211a32e3ef0a9d8a2ab93a20692b004a04"
+checksum = "33ce0873727338b9302c3e043196322ee278797bdcf1bf7761ec227784b6c320"
 
 [[package]]
 name = "linked-hash-map"

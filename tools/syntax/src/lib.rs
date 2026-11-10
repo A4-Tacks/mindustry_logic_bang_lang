@@ -4272,8 +4272,6 @@ impl ExpandEnv {
 
 pub trait CompileMetaExtends {
     #[must_use]
-    fn source_location(&self, index: usize) -> [Location; 2];
-    #[must_use]
     fn display_value(&self, value: &Value) -> Cow<'_, str>;
     #[must_use]
     fn display_binds(&self, value: BindsDisplayer<'_>) -> Cow<'_, str>;

@@ -343,22 +343,16 @@ fn unwrap_parse_err(result: ParseResult<'_>, src: &str) -> Expand {
 }
 
 struct CompileMetaExtender {
-    source: Rc<String>,
     display_meta: RefCell<DisplaySourceMeta>,
 }
 impl CompileMetaExtender {
-    fn new(source: Rc<String>, display_meta: RefCell<DisplaySourceMeta>) -> Self {
+    fn new(display_meta: RefCell<DisplaySourceMeta>) -> Self {
         Self {
-            source,
             display_meta,
         }
     }
 }
 impl CompileMetaExtends for CompileMetaExtender {
-    fn source_location(&self, index: usize) -> [syntax::Location; 2] {
-        let (line, col) = line_column::line_column(&self.source, index);
-        [line as syntax::Location, col as syntax::Location]
-    }
     fn display_value(&self, value: &syntax::Value) -> Cow<'_, str> {
         let meta = &mut *self.display_meta.borrow_mut();
         meta.to_default();
@@ -375,7 +369,6 @@ fn compile_ast(ast: Expand, src: String) -> CompileMeta {
     let mut meta = CompileMeta::new();
     let src = Rc::new(src);
     meta.set_extender(Box::new(CompileMetaExtender::new(
-        src.clone(),
         DisplaySourceMeta::new().into(),
     )));
     meta.set_source(src);

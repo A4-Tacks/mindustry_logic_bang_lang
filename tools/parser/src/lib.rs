@@ -329,9 +329,8 @@ fn make_select(
     }
 }
 
-fn get_locations<const N: usize>(src: &str, indexs: [usize; N]) -> [[u32; 2]; N] {
+fn get_locations<const N: usize>(src: &str, indexs: [usize; N]) -> [impl std::fmt::Display; N] {
     line_column::line_columns(src, indexs)
-        .map(|(line, col)| [line, col])
 }
 
 pub fn format_parse_err<const MAX_INVALID_TOKEN_VIEW: usize>(
@@ -352,9 +351,8 @@ pub fn format_parse_err<const MAX_INVALID_TOKEN_VIEW: usize>(
         } => {
             let [start, end] = get_locations(src, [start, end]);
             format!(
-                "在位置 {:?} 至 {:?} 处找到不应出现的令牌: {:?}\n\
+                "在位置 {start} 至 {end} 处找到不应出现的令牌: {:?}\n\
                 预期: [{}]",
-                start, end,
                 token.1,
                 fmt_token(expected.iter().map(Deref::deref))
                     .collect::<Vec<_>>()
@@ -364,8 +362,7 @@ pub fn format_parse_err<const MAX_INVALID_TOKEN_VIEW: usize>(
         ParseError::ExtraToken { token: (start, token, end) } => {
             let [start, end] = get_locations(src, [start, end]);
             format!(
-                "在位置 {:?} 至 {:?} 处找到多余的令牌: {:?}",
-                start, end,
+                "在位置 {start} 至 {end} 处找到多余的令牌: {:?}",
                 fmt_token(Some(token.1)).next().unwrap(),
             )
         },
@@ -383,8 +380,7 @@ pub fn format_parse_err<const MAX_INVALID_TOKEN_VIEW: usize>(
                         .unwrap_or(location))
             ];
             format!(
-                "在位置 {:?} 处找到无效的令牌: {:?}",
-                loc,
+                "在位置 {loc} 处找到无效的令牌: {:?}",
                 view.trim_end(),
             )
         },
@@ -394,9 +390,8 @@ pub fn format_parse_err<const MAX_INVALID_TOKEN_VIEW: usize>(
         } => {
             let [start] = get_locations(src, [location]);
             format!(
-                "在位置 {:?} 处意外的结束\n\
+                "在位置 {start} 处意外的结束\n\
                 预期: [{}]",
-                start,
                 fmt_token(expected.iter().map(Deref::deref))
                     .collect::<Vec<_>>()
                     .join(", "),
@@ -412,9 +407,7 @@ pub fn format_parse_err<const MAX_INVALID_TOKEN_VIEW: usize>(
             let [start, end]
                 = get_locations(src, [start, end]);
             let out = |msg| format!(
-                "在位置 {:?} 至 {:?} 处的错误:\n{}",
-                start,
-                end,
+                "在位置 {start} 至 {end} 处的错误:\n{}",
                 msg
             );
             match err {
